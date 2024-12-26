@@ -1,0 +1,71 @@
+---
+red:
+  red_api_key: 1234notarealapikey
+  red_api_retries: 3
+  red_api_seconds_between_calls: 5
+last_fm:
+  last_fm_api_key: 5678alsonotarealapikey
+  last_fm_username: fake-username
+  last_fm_password: fake-password
+  last_fm_api_retries: 3
+  last_fm_api_seconds_between_calls: 2
+  scraper_page_load_timeout_seconds: 10
+  scraper_allow_library_items: false
+  scraper_service_port: 4444
+musicbrainz:
+  musicbrainz_api_max_retries: 3
+  musicbrainz_api_seconds_between_calls: 1
+
+search:
+  use_release_type: true
+  use_first_release_year: true
+  use_record_label: false
+  use_catalog_number: false
+  output_summary_filepath: /some/other/fake/file.tsv
+
+snatches:
+  snatch_directory: /not/a/real/path
+  snatch_reqs: true
+  max_size_gb: 2.0
+
+format_preferences:
+  - preference:
+      format: "FLAC"
+      encoding: "24bit+Lossless"
+      media: "SACD"
+  - preference:
+      format: "FLAC"
+      encoding: "24bit+Lossless"
+      media: "WEB"
+  - preference:
+      format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 100
+        has_cue: true
+  - preference:
+      format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 100
+        has_cue: false
+  - preference:
+      format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 0
+        has_cue: false
+  - preference:
+      format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 0
+        has_cue: false
+  - preference:
+      format: "MP3"
+      encoding: "V0+(VBR)"
+      media: "ANY"

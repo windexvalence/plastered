@@ -1,0 +1,16 @@
+services:
+  caesura:
+    container_name: lastfm-recs
+    build: .
+    restart: on-failure
+    environment:
+      - RED_API_KEY=${MY_RED_API_KEY}
+      - LAST_FM_API_KEY=${MY_LAST_FM_API_KEY}
+      - LAST_FM_USERNAME=${MY_LAST_FM_USERNAME}
+      - LAST_FM_PASSWORD=${MY_LAST_FM_PASSWORD}
+    ports:
+      - "4444:4444"
+    volumes:
+      - ./config.yml:/config.yml:ro
+      - ./content:/content
+    command: scrape
