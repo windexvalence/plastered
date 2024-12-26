@@ -16,6 +16,7 @@ RUN /usr/local/${APP_VIRTUAL_ENV}/bin/pip install -r /requirements.txt
 
 ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
-ADD . . 
+ENV APP_DIR=/app
+ADD . .
 
 ENTRYPOINT ["/app/entrypoint.sh"]

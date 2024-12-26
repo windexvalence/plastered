@@ -11,6 +11,8 @@ A docker utility for automatically scraping the recommended albums/tracks from y
 
 ## Development TODOs
 - [ ] Add unit tests
+- [ ] Allow for tests.Dockerfile builds to cache test-requirements.txt pip installs
+- [ ] Add functinoality to optionally add a matched rec release to a personal collage
 - [ ] Add code autoformatting / linting (black, isort)
 - [ ] Add CLI / config documentation
 - [ ] Implement `release_search` module's logic

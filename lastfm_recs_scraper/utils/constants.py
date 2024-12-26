@@ -1,11 +1,7 @@
-LASTFM_API_KEY_ENV_VAR_NAME = "LASTFM_API_KEY"
+RED_API_BASE_URL = "https://redacted.sh/ajax.php"
+LAST_FM_API_BASE_URL = "http://ws.audioscrobbler.com/2.0/"
+MUSICBRAINZ_API_BASE_URL = "http://musicbrainz.org/ws/2/"
 
-# TODO: determine if lastfm / mb waits are appropriate
-SECONDS_BETWEEN_RED_API_CALLS = 5
-SECONDS_BETWEEN_LASTFM_API_CALLS = 2
-SECONDS_BETWEEN_MUSICBRAINZ_API_CALLS = 1
-
-MAX_RED_API_RETRIES = 3
-MAX_LASTFM_API_RETRIES = 3
-MAX_MBID_API_RETRIES = 3
-
+# TODO: permit addtocollage as action
+PERMITTED_RED_API_ACTIONS = set(["browse", "download", "torrentgroup"])
+PERMITTED_LAST_FM_API_METHODS = set(["album.getinfo", "track.getinfo"])

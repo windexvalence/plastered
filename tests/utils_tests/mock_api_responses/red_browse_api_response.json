@@ -1,0 +1,94 @@
+{
+  "response": {
+    "currentPage": 1,
+    "pages": 50,
+    "results": [
+    {
+      "groupId": 69420,
+      "groupName": "Fake Release",
+      "artist": "Fake Artist",
+      "tags": [
+        "pop",
+        "soul",
+        "female.vocalist",
+        "rhythm.and.blues"
+      ],
+      "bookmarked": false,
+      "vanityHouse": false,
+      "groupYear": 1899,
+      "releaseType": "Single",
+      "maxSize": 69420,
+      "torrents": [
+        {
+          "torrentId": 69420,
+          "editionId": 1,
+          "artists": [
+            {
+              "id": 69420,
+              "name": "Fake Artist",
+              "aliasid": 69420
+            }
+          ],
+          "remastered": true,
+          "remasterYear": 2017,
+          "remasterCatalogueNumber": "",
+          "remasterTitle": "",
+          "media": "WEB",
+          "encoding": "24bit Lossless",
+          "format": "FLAC",
+          "hasLog": false,
+          "logScore": 0,
+          "hasCue": false,
+          "scene": false,
+          "vanityHouse": false,
+          "fileCount": 3,
+          "time": "1900-01-01 20:55:11",
+          "size": 69420,
+          "snatches": 4,
+          "isFreeleech": false,
+          "isNeutralLeech": false,
+          "isFreeload": false,
+          "isPersonalFreeleech": false,
+          "canUseToken": false,
+          "trumpable": false,
+          "hasSnatched": false
+        },
+        {
+          "torrentId": 69420,
+          "editionId": 1,
+          "artists": [
+            {
+              "id": 69420,
+              "name": "Fake Artist",
+              "aliasid": 69420
+            }
+          ],
+          "remastered": true,
+          "remasterYear": 1901,
+          "remasterCatalogueNumber": "",
+          "remasterTitle": "",
+          "media": "WEB",
+          "encoding": "Lossless",
+          "format": "FLAC",
+          "hasLog": false,
+          "logScore": 0,
+          "hasCue": false,
+          "scene": false,
+          "vanityHouse": false,
+          "fileCount": 3,
+          "time": "1900-01-01 20:55:11",
+          "size": 69420,
+          "snatches": 0,
+          "isFreeleech": false,
+          "isNeutralLeech": false,
+          "isFreeload": false,
+          "isPersonalFreeleech": false,
+          "canUseToken": false,
+          "trumpable": false,
+          "hasSnatched": false
+        }
+      ]
+    }
+    ]
+  }
+}
