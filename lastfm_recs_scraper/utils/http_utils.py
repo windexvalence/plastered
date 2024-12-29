@@ -1,4 +1,3 @@
-import functools
 from typing import Any, Dict
 from urllib.parse import urlparse
 
@@ -6,7 +5,10 @@ import requests
 import requests.adapters
 from urllib3.util import Retry
 
-from lastfm_recs_scraper.utils.constants import PERMITTED_RED_API_ACTIONS, PERMITTED_LAST_FM_API_METHODS
+from lastfm_recs_scraper.utils.constants import (
+    PERMITTED_LAST_FM_API_METHODS,
+    PERMITTED_RED_API_ACTIONS,
+)
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
@@ -29,39 +31,21 @@ def initialize_api_client(
 # _MUSICBRAINZ_CLIENT = ...
 
 
-def api_call(api_client: requests.Session, exception_class: Exception):
-    def api_call_decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                func(*args, **kwargs)
-            except Exception:
-                _LOGGER.exception(f"API call failed with exception")
-                raise exception_class(f"API failure encountered")
-            return func(*args, **kwargs)
-
-        return wrapper
-
-
-def request_red_api(
-    red_client: requests.Session, action: str, params: str
-) -> Dict[str, Any]:
+def request_red_api(red_client: requests.Session, action: str, params: str) -> Dict[str, Any]:
     """
     Helper function to hit the RED API with retries and rate-limits.
     Returns the JSON response payload on success, and throws an Exception after MAX_RED_API_RETRIES consecutive failures.
     """
     if action not in PERMITTED_RED_API_ACTIONS:
-        raise ValueError(f"Unexpected/Non-permitted 'action' provided to redacted api helper: '{action}'. Allowed actions are: {PERMITTED_RED_API_ACTIONS}")
-    json_data = red_client.get(
-        request_url=f"https://redacted.sh/ajax.php?action={action}&{params}"
-    )
+        raise ValueError(
+            f"Unexpected/Non-permitted 'action' provided to redacted api helper: '{action}'. Allowed actions are: {PERMITTED_RED_API_ACTIONS}"
+        )
+    json_data = red_client.get(request_url=f"https://redacted.sh/ajax.php?action={action}&{params}")
     return json_data["response"]
 
 
 # e.g. request_lastfm_api(method="album.getinfo", params="artist=Dr.+Octagon&album=Dr.+Octagonecologyst")
-def request_lastfm_api(
-    last_fm_client: requests.Session, method: str, api_key: str, params: str
-) -> Dict[str, Any]:
+def request_lastfm_api(last_fm_client: requests.Session, method: str, api_key: str, params: str) -> Dict[str, Any]:
     """
     Helper function to hit the LastFM API with retries and rate-limits.
     Returns the JSON response payload on success, and throws an Exception after MAX_LASTFM_API_RETRIES consecutive failures.
@@ -78,9 +62,7 @@ def request_lastfm_api(
     return json_data[top_key]
 
 
-def request_musicbrainz_api(
-    musicbrainz_client: requests.Session, entity_type: str, mbid: str
-) -> Dict[str, Any]:
+def request_musicbrainz_api(musicbrainz_client: requests.Session, entity_type: str, mbid: str) -> Dict[str, Any]:
     """
     Helper function to hit the MusicBrainz API with retries and rate-limits.
     Returns the JSON response payload on success, and throws an Exception after MAX_MUSICBRAINZ_API_RETRIES consecutive failures.
@@ -90,9 +72,7 @@ def request_musicbrainz_api(
             f"Unexpected entity-type provided to musicbrainze api helper. Expected either 'release-group' or 'release'."
         )
     inc_params = (
-        "inc=artist-credits"
-        if entity_type == "release-group"
-        else "inc=artist-credits+media+labels+release-groups"
+        "inc=artist-credits" if entity_type == "release-group" else "inc=artist-credits+media+labels+release-groups"
     )
     json_data = musicbrainz_client.get(
         request_url=f"http://musicbrainz.org/ws/2/{entity_type}/{mbid}?{inc_params}",

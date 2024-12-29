@@ -1,3 +1,5 @@
+CHROMEDRIVER_EXECUTABLE_PATH = "/usr/bin/chromedriver"
+
 RED_API_BASE_URL = "https://redacted.sh/ajax.php"
 LAST_FM_API_BASE_URL = "http://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE_URL = "http://musicbrainz.org/ws/2/"

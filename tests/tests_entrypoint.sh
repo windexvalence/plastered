@@ -6,4 +6,4 @@ source /usr/local/${APP_VIRTUAL_ENV}/bin/activate
 export PATH=$PATH:/usr/bin/chromedriver
 # export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
 export PYTHONPATH="${APP_DIR}/"
-pytest -s -vv "${APP_DIR}/tests"
+pytest -s -vv --cov-report term --cov=lastfm_recs_scraper "${APP_DIR}/tests"

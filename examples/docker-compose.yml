@@ -1,5 +1,5 @@
 services:
-  caesura:
+  lastfm-recs:
     container_name: lastfm-recs
     build: .
     restart: on-failure
@@ -14,3 +14,5 @@ services:
       - ./config.yml:/config.yml:ro
       - ./content:/content
     command: scrape
+
+# TODO: add a gluetun container to attach the lastfm-recs container to

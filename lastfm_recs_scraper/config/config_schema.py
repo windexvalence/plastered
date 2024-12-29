@@ -6,6 +6,20 @@ CLI_LAST_FM_KEY = "last_fm"
 CLI_MUSICBRAINZ_KEY = "musicbrainz"
 CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
+_DEFAULT_RETRIES = 3
+DEFAULTS_DICT = {
+    "red_api_retries": _DEFAULT_RETRIES,
+    "last_fm_api_retries": _DEFAULT_RETRIES,
+    "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
+    "red_api_seconds_between_calls": 5,
+    "scraper_page_load_timeout_seconds": 10,
+    "scraper_max_rec_pages_to_scrape": 5,
+    "scraper_allow_library_items": False,
+    # TODO: remove the service port from config and have container determine the docker host call's port arg at runtime
+    "scraper_service_port": 4444,
+    "use_record_label": False,
+    "use_catalog_number": False,
+}
 FORMAT_PREFERENCES_KEY = "format_preferences"
 EXPECTED_TOP_LEVEL_CLI_KEYS = set(
     [
@@ -28,7 +42,7 @@ LOG_KEY = "log"
 LOG_ENUMS = [-1, 0, 1, 100]
 CUE_KEY = "has_cue"
 
-_RETRIES_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 10, "default": 3}
+_RETRIES_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 10, "default": _DEFAULT_RETRIES}
 _SECONDS_BETWEEN_CALLS_SCHEMA = {
     "type": "integer",
     "minimum": 1,
@@ -48,7 +62,7 @@ required_schema = {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 10,
-                    "default": 5,
+                    "default": DEFAULTS_DICT["red_api_seconds_between_calls"],
                 },
             },
             "required": ["red_api_key"],
@@ -65,18 +79,22 @@ required_schema = {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 30,
-                    "default": 10,
+                    "default": DEFAULTS_DICT["scraper_page_load_timeout_seconds"],
                 },
                 "scraper_max_rec_pages_to_scrape": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 5,
+                    "default": DEFAULTS_DICT["scraper_max_rec_pages_to_scrape"],
                 },
-                "scraper_allow_library_items": {"type": "boolean", "default": False},
+                "scraper_allow_library_items": {
+                    "type": "boolean",
+                    "default": DEFAULTS_DICT["scraper_allow_library_items"],
+                },
                 "scraper_service_port": {
                     "type": "integer",
                     "minimum": 1,
-                    "default": 4444,
+                    "default": DEFAULTS_DICT["scraper_service_port"],
                 },
             },
             "required": [
@@ -97,8 +115,8 @@ required_schema = {
             "properties": {
                 "use_release_type": {"type": "boolean"},
                 "use_first_release_year": {"type": "boolean"},
-                "use_record_label": {"type": "boolean", "default": False},
-                "use_catalog_number": {"type": "boolean", "default": False},
+                "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
+                "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
                 "output_summary_filepath": {"type": "string"},
             },
             "required": [
@@ -126,16 +144,11 @@ required_schema = {
                         "properties": {
                             FORMAT_KEY: {
                                 "type": "string",
-                                "enum": [
-                                    format_enum.value for format_enum in FormatEnum
-                                ],
+                                "enum": [format_enum.value for format_enum in FormatEnum],
                             },
                             ENCODING_KEY: {
                                 "type": "string",
-                                "enum": [
-                                    encoding_enum.value
-                                    for encoding_enum in EncodingEnum
-                                ],
+                                "enum": [encoding_enum.value for encoding_enum in EncodingEnum],
                             },
                             MEDIA_KEY: {
                                 "type": "string",

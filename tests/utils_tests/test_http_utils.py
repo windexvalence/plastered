@@ -4,46 +4,19 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from lastfm_recs_scraper.utils.constants import (
-    LAST_FM_API_BASE_URL,
-    MUSICBRAINZ_API_BASE_URL,
-    RED_API_BASE_URL,
-)
 from lastfm_recs_scraper.utils.http_utils import (
-    initialize_api_client,
     request_lastfm_api,
     request_musicbrainz_api,
     request_red_api,
 )
+from tests.conftest import mock_action_to_red_json_responses
 from tests.utils_tests.conftest import (
+    EXPECTED_RETRIES,
+    EXPECTED_SECONDS,
+    api_clients_dict,
     mock_method_to_last_fm_json_responses,
     mock_musicbrainz_release_json,
-    mock_action_to_red_json_responses,
 )
-
-_EXPECTED_RETRIES = 2
-_EXPECTED_SECONDS = 5
-
-
-@pytest.fixture(scope="session")
-def api_clients_dict() -> Dict[str, requests.Session]:
-    return {
-        "redacted": initialize_api_client(
-            base_api_url=RED_API_BASE_URL,
-            max_api_call_retries=_EXPECTED_RETRIES,
-            seconds_between_api_calls=_EXPECTED_SECONDS,
-        ),
-        "last_fm": initialize_api_client(
-            base_api_url=LAST_FM_API_BASE_URL,
-            max_api_call_retries=_EXPECTED_RETRIES,
-            seconds_between_api_calls=_EXPECTED_SECONDS,
-        ),
-        "musicbrainz": initialize_api_client(
-            base_api_url=MUSICBRAINZ_API_BASE_URL,
-            max_api_call_retries=_EXPECTED_RETRIES,
-            seconds_between_api_calls=_EXPECTED_SECONDS,
-        ),
-    }
 
 
 @pytest.mark.parametrize(
@@ -63,9 +36,8 @@ def test_initialize_api_client(
     adapter = api_client.get_adapter(expected_adapter_domain)
     actual_retries = adapter.max_retries.total
     assert (
-        actual_retries == _EXPECTED_RETRIES
-    ), f"Expected session's retry value to be {_EXPECTED_RETRIES}, but got {actual_retries} instead."
-
+        actual_retries == EXPECTED_RETRIES
+    ), f"Expected session's retry value to be {EXPECTED_RETRIES}, but got {actual_retries} instead."
 
 
 # TODO: add unit tests for other endpoint actions if they start getting used (i.e. collage adding)
@@ -75,7 +47,7 @@ def test_initialize_api_client(
         ("browse", set(["currentPage", "pages", "results"]), False, None, None),
         ("usersearch", set(), True, ValueError, "Unexpected/Non-permitted*"),
         ("somefakeaction", set(), True, ValueError, "Unexpected/Non-permitted*"),
-    ]
+    ],
 )
 def test_request_red_api(
     api_clients_dict: Dict[str, requests.Session],
@@ -98,18 +70,47 @@ def test_request_red_api(
             action=action,
             params="fakekey=fakevalue&someotherkey=someothervalue",
         )
-        assert isinstance(result, dict), f"Expected result from request_red_api to be of type dict, but was of type: {type(result)}"
-        assert expected_top_keys == set(result.keys()), f"Unexpected mismatch in top-level JSON keys for request_red_api response."
+        assert isinstance(
+            result, dict
+        ), f"Expected result from request_red_api to be of type dict, but was of type: {type(result)}"
+        assert expected_top_keys == set(
+            result.keys()
+        ), f"Unexpected mismatch in top-level JSON keys for request_red_api response."
 
 
 @pytest.mark.parametrize(
     "method, expected_top_keys, should_fail, exception_type, exception_message",
     [
-        ("album.getinfo", set(["artist", "image", "listeners", "mbid", "name", "playcount", "tags", "tracks", "url", "wiki"]), False, None, None),
-        ("track.getinfo", set(["album", "artist", "duration", "listeners", "mbid", "name", "playcount", "streamable", "toptags", "url"]), False, None, None),
+        (
+            "album.getinfo",
+            set(["artist", "image", "listeners", "mbid", "name", "playcount", "tags", "tracks", "url", "wiki"]),
+            False,
+            None,
+            None,
+        ),
+        (
+            "track.getinfo",
+            set(
+                [
+                    "album",
+                    "artist",
+                    "duration",
+                    "listeners",
+                    "mbid",
+                    "name",
+                    "playcount",
+                    "streamable",
+                    "toptags",
+                    "url",
+                ]
+            ),
+            False,
+            None,
+            None,
+        ),
         ("album.search", set(), True, ValueError, "Unexpected method provided to lastfm api helper*"),
         ("fake.method", set(), True, ValueError, "Unexpected method provided to lastfm api helper*"),
-    ]
+    ],
 )
 def test_request_lastfm_api(
     api_clients_dict: Dict[str, requests.Session],
@@ -123,7 +124,9 @@ def test_request_lastfm_api(
     api_client = api_clients_dict["last_fm"]
     if should_fail:
         with pytest.raises(exception_type, match=exception_message):
-            result = request_lastfm_api(last_fm_client=api_client, api_key="fake-api-key", method=method, params="fakekey=fakevalue")
+            result = request_lastfm_api(
+                last_fm_client=api_client, api_key="fake-api-key", method=method, params="fakekey=fakevalue"
+            )
     else:
         api_client.get = Mock(name="get")
         api_client.get.return_value = mock_method_to_last_fm_json_responses[method]
@@ -133,8 +136,12 @@ def test_request_lastfm_api(
             method=method,
             params="fakekey=fakevalue&someotherkey=someothervalue",
         )
-        assert isinstance(result, dict), f"Expected result from request_lastfm_api to be of type dict, but was of type: {type(result)}"
-        assert expected_top_keys == set(result.keys()), f"Unexpected mismatch in top-level JSON keys for request_lastfm_api response."
+        assert isinstance(
+            result, dict
+        ), f"Expected result from request_lastfm_api to be of type dict, but was of type: {type(result)}"
+        assert expected_top_keys == set(
+            result.keys()
+        ), f"Unexpected mismatch in top-level JSON keys for request_lastfm_api response."
 
 
 @pytest.mark.parametrize(
@@ -178,15 +185,11 @@ def test_request_musicbrainz_api(
                 mbid=expected_mbid,
             )
     else:
-        result = request_musicbrainz_api(
-            musicbrainz_client=api_client, entity_type="release", mbid=expected_mbid
-        )
+        result = request_musicbrainz_api(musicbrainz_client=api_client, entity_type="release", mbid=expected_mbid)
         assert isinstance(
             result, dict
         ), f"Expected result from request_musicbrainz_api to be of type dict, but was of type: {type(result)}"
-        assert (
-            "id" in result.keys()
-        ), f"Missing expected top-level key in musicbrainz response: 'id'"
+        assert "id" in result.keys(), f"Missing expected top-level key in musicbrainz response: 'id'"
         response_mbid = result["id"]
         assert (
             response_mbid == expected_mbid

@@ -11,9 +11,13 @@ USAGE: ./lastfm_recs_scraper.py
 from typing import List, Optional
 
 import click
+
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import LastFMRecsScraper, RecommendationType
+from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+    LastFMRecsScraper,
+    RecommendationType,
+)
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
@@ -58,12 +62,8 @@ def cli(
 def scrape(ctx) -> None:
     app_config: AppConfig = ctx.obj["app_config"]
     with LastFMRecsScraper(app_config=app_config) as scraper:
-        album_recs_list = scraper.scrape_recs_list(
-            RecommendationType=RecommendationType.ALBUM
-        )
-        track_recs_list = scraper.scrape_recs_list(
-            RecommendationType=RecommendationType.TRACK
-        )
+        album_recs_list = scraper.scrape_recs_list(RecommendationType=RecommendationType.ALBUM)
+        track_recs_list = scraper.scrape_recs_list(RecommendationType=RecommendationType.TRACK)
     release_searcher = ReleaseSearcher(app_config=app_config)
     release_searcher.search_for_album_recs(album_recs=album_recs_list)
     # TODO: add logic for when snatch_reqs == True
