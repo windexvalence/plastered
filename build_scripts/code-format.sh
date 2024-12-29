@@ -8,12 +8,12 @@ else
 fi
 
 source /usr/local/${APP_VIRTUAL_ENV}/bin/activate
-export PYTHONPATH="/app/lastfm_recs_scraper/"
-cd /app
+export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
+cd /project_src_mnt
 if [[ "$CHECK" == "1" ]]; then
-    black --check /app
-    isort --check /app
+    black --check .
+    isort --check .
 else
-    black /app
-    isort /app
+    black .
+    isort .
 fi

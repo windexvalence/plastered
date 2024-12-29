@@ -170,3 +170,5 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+tests/resources/mock_browser_html/*.html
+tests/resources/mock_api_responses/*.json

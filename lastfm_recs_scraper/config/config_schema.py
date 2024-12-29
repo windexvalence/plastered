@@ -1,4 +1,4 @@
-from utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
+from lastfm_recs_scraper.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
 
 # Top-level key constants
 CLI_RED_KEY = "red"
@@ -6,8 +6,30 @@ CLI_LAST_FM_KEY = "last_fm"
 CLI_MUSICBRAINZ_KEY = "musicbrainz"
 CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
+_DEFAULT_RETRIES = 3
+DEFAULTS_DICT = {
+    "red_api_retries": _DEFAULT_RETRIES,
+    "last_fm_api_retries": _DEFAULT_RETRIES,
+    "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
+    "red_api_seconds_between_calls": 5,
+    "scraper_page_load_timeout_seconds": 10,
+    "scraper_max_rec_pages_to_scrape": 5,
+    "scraper_allow_library_items": False,
+    # TODO: remove the service port from config and have container determine the docker host call's port arg at runtime
+    "scraper_service_port": 4444,
+    "use_record_label": False,
+    "use_catalog_number": False,
+}
 FORMAT_PREFERENCES_KEY = "format_preferences"
-EXPECTED_TOP_LEVEL_CLI_KEYS = set([CLI_RED_KEY, CLI_LAST_FM_KEY, CLI_MUSICBRAINZ_KEY, CLI_SNATCHES_KEY, CLI_SEARCH_KEY])
+EXPECTED_TOP_LEVEL_CLI_KEYS = set(
+    [
+        CLI_RED_KEY,
+        CLI_LAST_FM_KEY,
+        CLI_MUSICBRAINZ_KEY,
+        CLI_SNATCHES_KEY,
+        CLI_SEARCH_KEY,
+    ]
+)
 # Sub-key constants
 PER_PREFERENCE_KEY = "preference"
 FORMAT_KEY = "format"
@@ -17,10 +39,16 @@ CD_ONLY_EXTRAS_KEY = "cd_only_extras"
 REQUIRED_PREFERENCE_KEYS = set([FORMAT_KEY, ENCODING_KEY, MEDIA_KEY])
 # CD-only extras sub-key constants
 LOG_KEY = "log"
+LOG_ENUMS = [-1, 0, 1, 100]
 CUE_KEY = "has_cue"
 
-_RETRIES_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 10, "default": 3}
-_SECONDS_BETWEEN_CALLS_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 6, "default": 2}
+_RETRIES_SCHEMA = {"type": "integer", "minimum": 1, "maximum": 10, "default": _DEFAULT_RETRIES}
+_SECONDS_BETWEEN_CALLS_SCHEMA = {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 6,
+    "default": 2,
+}
 
 required_schema = {
     "type": "object",
@@ -30,7 +58,12 @@ required_schema = {
             "properties": {
                 "red_api_key": {"type": "string"},
                 "red_api_retries": _RETRIES_SCHEMA,
-                "red_api_seconds_between_calls": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5},
+                "red_api_seconds_between_calls": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": DEFAULTS_DICT["red_api_seconds_between_calls"],
+                },
             },
             "required": ["red_api_key"],
         },
@@ -42,10 +75,27 @@ required_schema = {
                 "last_fm_password": {"type": "string"},
                 "last_fm_api_retries": _RETRIES_SCHEMA,
                 "last_fm_api_seconds_between_calls": _SECONDS_BETWEEN_CALLS_SCHEMA,
-                "scraper_page_load_timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 30, "default": 10},
-                "scraper_max_rec_pages_to_scrape": {"type": "integer", "minimum": 1, "maximum": 5},
-                "scraper_allow_library_items": {"type": "boolean", "default": False},
-                "scraper_service_port": {"type": "integer", "minimum": 1, "default": 4444},
+                "scraper_page_load_timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30,
+                    "default": DEFAULTS_DICT["scraper_page_load_timeout_seconds"],
+                },
+                "scraper_max_rec_pages_to_scrape": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "default": DEFAULTS_DICT["scraper_max_rec_pages_to_scrape"],
+                },
+                "scraper_allow_library_items": {
+                    "type": "boolean",
+                    "default": DEFAULTS_DICT["scraper_allow_library_items"],
+                },
+                "scraper_service_port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": DEFAULTS_DICT["scraper_service_port"],
+                },
             },
             "required": [
                 "last_fm_api_key",
@@ -65,11 +115,15 @@ required_schema = {
             "properties": {
                 "use_release_type": {"type": "boolean"},
                 "use_first_release_year": {"type": "boolean"},
-                "use_record_label": {"type": "boolean", "default": False},
-                "use_catalog_number": {"type": "boolean", "default": False},
+                "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
+                "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
                 "output_summary_filepath": {"type": "string"},
             },
-            "required": ["use_release_type", "use_first_release_year", "output_summary_filepath"],
+            "required": [
+                "use_release_type",
+                "use_first_release_year",
+                "output_summary_filepath",
+            ],
         },
         CLI_SNATCHES_KEY: {
             "type": "object",
@@ -103,26 +157,32 @@ required_schema = {
                             CD_ONLY_EXTRAS_KEY: {
                                 "type": "object",
                                 "properties": {
-                                    LOG_KEY: {"type": "integer", "minimum": -1, "maximum": 100},
+                                    LOG_KEY: {
+                                        "type": "integer",
+                                        "enum": LOG_ENUMS,
+                                    },
                                     CUE_KEY: {"type": "boolean"},
                                 },
                                 "required": [LOG_KEY, CUE_KEY],
-                            }
+                            },
                         },
                         "if": {
                             "properties": {MEDIA_KEY: {"const": MediaEnum.CD.value}},
                             "required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY],
                         },
                         "then": {
-                            "required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY, CD_ONLY_EXTRAS_KEY],
+                            "required": [
+                                FORMAT_KEY,
+                                ENCODING_KEY,
+                                MEDIA_KEY,
+                                CD_ONLY_EXTRAS_KEY,
+                            ],
                         },
-                        "else": {
-                            "required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY]
-                        },
+                        "else": {"required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY]},
                     },
                 },
             },
             "minItems": 1,
-        }
+        },
     },
 }

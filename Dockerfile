@@ -12,10 +12,14 @@ RUN python3 -m venv /usr/local/${APP_VIRTUAL_ENV} \
     && source /usr/local/${APP_VIRTUAL_ENV}/bin/activate
 
 COPY ./requirements.txt /requirements.txt
-RUN /usr/local/${APP_VIRTUAL_ENV}/bin/pip install -r /requirements.txt
+COPY ./tests/test-requirements.txt /test-requirements.txt
+RUN /usr/local/${APP_VIRTUAL_ENV}/bin/pip install -r /requirements.txt --timeout=300
+ARG BUILD_ENV="test"
+RUN if [ "$BUILD_ENV" = "test" ]; then /usr/local/${APP_VIRTUAL_ENV}/bin/pip install -r /test-requirements.txt; fi
 
 ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
-ADD . . 
+ENV APP_DIR=/app
+ADD . .
 
 ENTRYPOINT ["/app/entrypoint.sh"]

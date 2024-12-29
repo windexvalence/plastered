@@ -6,9 +6,10 @@ from typing import Any, Dict, List
 import jsonschema
 import yaml
 
-from config.config_schema import (
+from lastfm_recs_scraper.config.config_schema import (
     CD_ONLY_EXTRAS_KEY,
     CUE_KEY,
+    DEFAULTS_DICT,
     ENCODING_KEY,
     EXPECTED_TOP_LEVEL_CLI_KEYS,
     FORMAT_KEY,
@@ -17,19 +18,22 @@ from config.config_schema import (
     MEDIA_KEY,
     PER_PREFERENCE_KEY,
     REQUIRED_PREFERENCE_KEYS,
-    required_schema
+    required_schema,
 )
-from utils.exceptions import AppConfigException
-from utils.logging_utils import get_custom_logger
-from utils.red_utils import RedFormat, EncodingEnum, FormatEnum, MediaEnum
-
+from lastfm_recs_scraper.utils.exceptions import AppConfigException
+from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
+from lastfm_recs_scraper.utils.red_utils import (
+    EncodingEnum,
+    FormatEnum,
+    MediaEnum,
+    RedFormat,
+)
 
 _LOGGER = get_custom_logger(__name__)
 
 
 def _get_cd_only_extras_string(cd_only_extras_conf_data: Dict[str, str]) -> str:
     log_value = cd_only_extras_conf_data[LOG_KEY]
-    log_value = "-1" if log_value <= 0 else log_value
     cue_value = int(cd_only_extras_conf_data[CUE_KEY])
     return f"haslog={log_value}&hascue={cue_value}"
 
@@ -39,12 +43,16 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
     for pref in format_prefs_config_data:
         pref_dict = pref[PER_PREFERENCE_KEY]
         if not REQUIRED_PREFERENCE_KEYS.issubset(set(pref_dict.keys())):
-            raise AppConfigException(f"Missing one or more required keys in the {FORMAT_PREFERENCES_KEY} configuration: {','.join(REQUIRED_PREFERENCE_KEYS)}. Only found keys: {pref_dict.keys()}")
+            raise AppConfigException(
+                f"Missing one or more required keys in the {FORMAT_PREFERENCES_KEY} configuration: {','.join(REQUIRED_PREFERENCE_KEYS)}. Only found keys: {pref_dict.keys()}"
+            )
         media = pref_dict[MEDIA_KEY]
         cd_only_extras_str = ""
         if media == MediaEnum.CD.value:
             if CD_ONLY_EXTRAS_KEY not in pref_dict:
-                raise AppConfigException(f"Missing required '{CD_ONLY_EXTRAS_KEY}' setting for format preference entry with media type '{MediaEnum.CD.value}'.")
+                raise AppConfigException(
+                    f"Missing required '{CD_ONLY_EXTRAS_KEY}' setting for format preference entry with media type '{MediaEnum.CD.value}'."
+                )
             cd_only_extras_str = _get_cd_only_extras_string(pref_dict[CD_ONLY_EXTRAS_KEY])
 
         red_formats.append(
@@ -57,10 +65,14 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
         )
     total_red_formats = len(red_formats)
     if total_red_formats == 0:
-        raise AppConfigException(f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: must have at least 1 entry in the '{FORMAT_PREFERENCES_KEY}' array.")
+        raise AppConfigException(
+            f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: must have at least 1 entry in the '{FORMAT_PREFERENCES_KEY}' array."
+        )
     unique_red_formats_count = len(set(red_formats))
     if unique_red_formats_count < total_red_formats:
-        raise AppConfigException(f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: duplicate entries found, when each array element must be unique.")
+        raise AppConfigException(
+            f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: duplicate entries found, when each array element must be unique."
+        )
     return red_formats
 
 
@@ -80,21 +92,30 @@ class AppConfig(object):
         for top_key in EXPECTED_TOP_LEVEL_CLI_KEYS:
             for option_key, option_value in raw_config_data[top_key].items():
                 self._cli_options[option_key] = option_value
+        # Set defaults for any fields which allow defaults and are not present in the config file
+        for field_name, default_val in DEFAULTS_DICT.items():
+            if field_name not in self._cli_options.keys():
+                self._cli_options[field_name] = default_val
+        # Any CLI options provided explicitly take precedence over the values in the config or the default values.
         for cli_key, cli_val in cli_params.items():
             if cli_val is not None and cli_key in self._cli_options.keys():
-                _LOGGER.warning(f"CLI option '{cli_key}' provided and will override the value found in the provided config file ({config_filepath}).")
+                _LOGGER.warning(
+                    f"CLI option '{cli_key}' provided and will override the value found in the provided config file ({config_filepath})."
+                )
             self._cli_options[cli_key] = cli_val
-        self._red_preference_ordering = _load_red_formats_from_config(format_prefs_config_data=raw_config_data[FORMAT_PREFERENCES_KEY])
-    
+        self._red_preference_ordering = _load_red_formats_from_config(
+            format_prefs_config_data=raw_config_data[FORMAT_PREFERENCES_KEY]
+        )
+
     def get_cli_option(self, option_key: str) -> Any:
         return self._cli_options[option_key]
 
     def pretty_print_config(self) -> None:
         yaml.dump(self._cli_options, sys.stdout)
-    
+
     def pretty_print_preference_ordering(self) -> None:
         output_lines = [str(pref) for pref in self._red_preference_ordering]
         yaml.dump(output_lines, sys.stdout)
-    
+
     def get_red_preference_ordering(self) -> List[RedFormat]:
         return self._red_preference_ordering

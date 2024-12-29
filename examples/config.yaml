@@ -59,13 +59,6 @@ format_preferences:
         log: 0
         has_cue: false
   - preference:
-      format: "FLAC"
-      encoding: "Lossless"
-      media: "CD"
-      cd_only_extras:
-        log: 0
-        has_cue: false
-  - preference:
       format: "MP3"
       encoding: "V0+(VBR)"
       media: "ANY"

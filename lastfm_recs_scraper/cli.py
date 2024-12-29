@@ -7,22 +7,37 @@ Expected Python version: 3.13 (with requirements.txt installed)
 
 USAGE: ./lastfm_recs_scraper.py
 """
+
 from typing import List, Optional
 
 import click
 
-from scraper.lastfm_recs_scraper import LastFMRecsScraper, RecommendationType
-from config.config_parser import AppConfig
-from utils.logging_utils import get_custom_logger
-from release_search.release_searcher import ReleaseSearcher
-
+from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
+from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+    LastFMRecsScraper,
+    RecommendationType,
+)
+from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
 
+
 # TODO: setup yaml config as described here: https://stackoverflow.com/a/73669230
 @click.group()
-@click.option("-c", "--config", required=True, type=click.Path(exists=True), help="Path to the application config yaml file.")
-@click.option("--output-summary-filepath", required=False, type=click.Path(), help="Path to write an output summary tsv file of the matched search results.")
+@click.option(
+    "-c",
+    "--config",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to the application config yaml file.",
+)
+@click.option(
+    "--output-summary-filepath",
+    required=False,
+    type=click.Path(),
+    help="Path to write an output summary tsv file of the matched search results.",
+)
 @click.option("--red-api-key", required=False, envvar="RED_API_KEY")
 @click.option("--last-fm-api-key", required=False, envvar="LAST_FM_API_KEY")
 @click.option("--last-fm-username", required=False, envvar="LAST_FM_USERNAME")
@@ -62,5 +77,5 @@ def config(ctx) -> None:
     app_config.pretty_print_preference_ordering()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
