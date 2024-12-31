@@ -1,0 +1,19 @@
+name: Build and Test
+run-name: ${{ github.actor }} build and test
+on: [push]
+jobs:
+  build-test-image:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This is a dummy step triggered by a ${{ github.even_name }} event on branch ${{ github.ref }}."
+      - run: echo "Running on a ${{ runner.os }} server."
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - run: echo "Repo code checked out from branch ${{ github.ref }}"
+      - name: List files in repo
+        run: ls ${{ github.workspace }}
+      - name: Build Image Without Push
+        uses: docker/build-push-action@v6
+        with:
+          outputs: type=cacheonly
+          tags: last-red-recs:latest

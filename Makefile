@@ -1,7 +1,7 @@
 # Add the following 'help' target to your Makefile
 # And add help text after each target name starting with '\#\#'
 PROJECT_DIR_PATH := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
- 
+
 help:           ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -15,6 +15,9 @@ clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 
 docker-build:  ## Build the last-red-recs docker image locally
 	docker build -t wv/last-red-recs:$$(date +%s) -t wv/last-red-recs:latest .
+
+docker-build-no-test:  ## Build the last-red-recs docker image locally without test-requirements installed
+	docker build --build-arg BUILD_ENV=non-test -t wv/last-red-recs:non-test .
 
 docker-shell:  docker-build  ## Execs a local shell inside a locally built last-red-recs docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/last-red-recs:latest
