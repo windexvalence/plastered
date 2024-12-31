@@ -15,9 +15,9 @@ jobs:
       - name: Build Image Without Push
         uses: docker/build-push-action@v6
         with:
-          outputs: type=cacheonly,type=docker,dest=./last-red-recs-image.tar
-          tags: wv/last-red-recs:${{ github.run_number }}
+          outputs: type=docker,dest=./last-red-recs.tar
+          tags: last-red-recs:${{ github.run_number }}
       - name: Code Format Check
         run: |
           docker load --input ./last-red-recs-image.tar
-          docker run -t --rm -e CODE_FORMAT_CHECK=1 --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:${{ github.run_number }}
+          docker run -t --rm -e CODE_FORMAT_CHECK=1 --entrypoint /app/build_scripts/code-format.sh last-red-recs:${{ github.run_number }}
