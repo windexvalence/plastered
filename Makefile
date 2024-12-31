@@ -22,15 +22,8 @@ docker-build-no-test:  ## Build the last-red-recs docker image locally without t
 docker-shell:  docker-build  ## Execs a local shell inside a locally built last-red-recs docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/last-red-recs:latest
 
-# TODO: remove the rebrowser-* targets once done modifying main Docker image
-rebrowser-build:  ## Buils the POC rebrowser docker image
-	docker build -t wv/rb-pw:latest . -f rb.Dockerfile
-
-rebrowser-shell:  rebrowser-build ## Executes a shell in a rebrowser POC docker container
-	docker run -it --rm wv/rb-pw:latest
-
 code-format-check: docker-build  ## Runs code-auto-formatting
-	docker run -it --rm -e CODE_FORMAT_CHECK=1 -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
+	docker run -t --rm -e CODE_FORMAT_CHECK=1 -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
 
 code-format: docker-build  ## Runs code-auto-formatting
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
