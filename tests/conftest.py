@@ -21,6 +21,7 @@ from lastfm_recs_scraper.config.config_parser import AppConfig
 MOCK_RESOURCES_DIR_PATH = os.path.join(TEST_DIR_ABS_PATH, "resources")
 MOCK_JSON_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_api_responses")
 MOCK_HTML_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_browser_html")
+INVALID_CONFIGS_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "invalid_configs")
 EXAMPLES_DIR_PATH = os.path.join(PROJECT_ABS_PATH, "examples")
 _RED_MOCK_BROWSE_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_browse_api_response.json")
 _RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(

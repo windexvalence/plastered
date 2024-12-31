@@ -1,7 +1,9 @@
+import re
 from typing import List
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
+from rebrowser_playwright.sync_api import PlaywrightContextManager
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
@@ -10,7 +12,16 @@ from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
     RecContext,
     RecommendationType,
 )
-from lastfm_recs_scraper.utils.constants import CHROMEDRIVER_EXECUTABLE_PATH
+from lastfm_recs_scraper.utils.constants import (
+    ALBUM_RECS_BASE_URL,
+    LOGIN_BUTTON_LOCATOR,
+    LOGIN_PASSWORD_FORM_LOCATOR,
+    LOGIN_URL,
+    LOGIN_USERNAME_FORM_LOCATOR,
+    LOGOUT_URL,
+    PW_USER_AGENT,
+    TRACK_RECS_BASE_URL,
+)
 from tests.conftest import valid_app_config
 from tests.scraper_tests.conftest import (
     album_recs_page_one_html,
@@ -171,44 +182,40 @@ def test_scraper_init(lfm_rec_scraper: LastFMRecsScraper, valid_app_config: AppC
     assert (
         actual_is_logged_in == expected_is_logged_in
     ), f"Expected LastFMRecsScraper instance's _is_logged_in field to be False up __init__ call, but was {actual_is_logged_in}"
-    expected_driver_opts = [
-        "--no-sandbox",
-        "--headless",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",
-        "--user-data-dir=/tmp/chrome",
-    ]
-    actual_driver_opts = lfm_rec_scraper._chrome_driver_options.arguments
-    assert (
-        actual_driver_opts == expected_driver_opts
-    ), f"Unexpected chrome driver options in LastFMRecsScraper instance. Got {actual_driver_opts}, expected: {expected_driver_opts}"
 
 
 def test_scraper_enter(lfm_rec_scraper: LastFMRecsScraper) -> None:
-    with patch("selenium.webdriver.ChromeService") as chrome_service_mock:
-        with patch("selenium.webdriver.Chrome") as chrome_driver_mock:
-            with patch("selenium.webdriver.support.wait.WebDriverWait") as webdriver_wait_mock:
-                with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
-                    lfm_rec_scraper.__enter__()
-                    chrome_service_mock.assert_called_once_with(executable_path=CHROMEDRIVER_EXECUTABLE_PATH, port=4444)
-                    chrome_driver_mock.assert_called_once_with(
-                        options=lfm_rec_scraper._chrome_driver_options, service=chrome_service_mock.return_value
-                    )
-                    # TODO (later): figure out why the webdriver_wait_mock.assert_called() functions dont' work here.
-                    assert hasattr(lfm_rec_scraper, "_wait")
-                    user_login_mock.assert_called_once()
+    mock_playwright = MagicMock()
+    mock_browser = MagicMock()
+    with patch.object(PlaywrightContextManager, "start") as mock_sync_playwright_ctx:
+        mock_sync_playwright_ctx.return_value = mock_playwright
+        mock_playwright.chromium.launch.return_value = mock_browser
+        with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
+            lfm_rec_scraper.__enter__()
+            mock_sync_playwright_ctx.assert_has_calls([call()])
+            mock_playwright.assert_has_calls([call.chromium.launch(headless=True)])
+            mock_browser.new_page.assert_called_once_with(user_agent=PW_USER_AGENT)
+            assert hasattr(lfm_rec_scraper, "_playwright")
+            assert hasattr(lfm_rec_scraper, "_browser")
+            assert hasattr(lfm_rec_scraper, "_page")
+            user_login_mock.assert_called_once()
 
 
 def test_scraper_exit(lfm_rec_scraper: LastFMRecsScraper) -> None:
-    with patch("selenium.webdriver.ChromeService") as chrome_service_mock:
-        with patch("selenium.webdriver.Chrome") as chrome_driver_mock:
-            with patch("selenium.webdriver.support.wait.WebDriverWait") as webdriver_wait_mock:
-                with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
-                    with patch.object(LastFMRecsScraper, "_user_logout") as user_logout_mock:
-                        lfm_rec_scraper.__enter__()
-                        lfm_rec_scraper.__exit__()
-                        user_logout_mock.assert_called_once
-                        lfm_rec_scraper._driver.quit.assert_called_once()
+    mock_playwright = MagicMock()
+    mock_browser = MagicMock()
+    mock_page = MagicMock()
+    with patch.object(PlaywrightContextManager, "start") as mock_sync_playwright_ctx:
+        mock_sync_playwright_ctx.return_value = mock_playwright
+        mock_playwright.chromium.launch.return_value = mock_browser
+        with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
+            with patch.object(LastFMRecsScraper, "_user_logout") as user_logout_mock:
+                lfm_rec_scraper.__enter__()
+                lfm_rec_scraper.__exit__()
+                user_logout_mock.assert_called_once
+                lfm_rec_scraper._page.close.assert_called_once()
+                lfm_rec_scraper._browser.close.assert_called_once()
+                lfm_rec_scraper._playwright.stop.assert_called_once()
 
 
 def test_context_manager(valid_app_config: AppConfig) -> None:
@@ -219,6 +226,46 @@ def test_context_manager(valid_app_config: AppConfig) -> None:
                 exit_mock.assert_not_called()
             enter_mock.assert_called_once()
             exit_mock.assert_called_once()
+
+
+def test_user_login(lfm_rec_scraper: LastFMRecsScraper) -> None:
+    lfm_rec_scraper._page = MagicMock()
+    username = lfm_rec_scraper._last_fm_username
+    password = lfm_rec_scraper._last_fm_password
+    with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper._sleep_random") as mock_sleep_random:
+        lfm_rec_scraper._user_login()
+        lfm_rec_scraper._page.assert_has_calls(
+            [
+                call.goto(LOGIN_URL),
+                call.locator(LOGIN_USERNAME_FORM_LOCATOR),
+                call.locator().fill(username),
+                call.locator(LOGIN_PASSWORD_FORM_LOCATOR),
+                call.locator().fill(password),
+                call.locator(LOGIN_BUTTON_LOCATOR),
+                call.locator().click(),
+                call.wait_for_url(f"**/user/{username}"),
+            ]
+        )
+        assert (
+            lfm_rec_scraper._is_logged_in
+        ), f"Expected lfm_rec_scraper._is_logged_in to be True after calling _user_login()."
+        mock_sleep_random.assert_called_once()
+
+
+def test_user_logout(lfm_rec_scraper: LastFMRecsScraper) -> None:
+    lfm_rec_scraper._page = MagicMock()
+    lfm_rec_scraper._user_logout()
+    lfm_rec_scraper._page.assert_has_calls(
+        [
+            call.goto(LOGOUT_URL),
+            call.get_by_role("button", name=re.compile("logout", re.IGNORECASE)),
+            call.get_by_role().click(),
+            call.wait_for_url("**last.fm/"),
+        ]
+    )
+    assert (
+        not lfm_rec_scraper._is_logged_in
+    ), f"Expected lfm_rec_scraper._is_logged_in to be False after calling _user_logout()."
 
 
 # TODO: add a similar test_extract_track_recs_from_page_source test
@@ -238,4 +285,42 @@ def test_extract_album_recs_from_page_source(
         ), f"Expected {i}'th rec to be '{str(expected_rec)}' but got '{str(actual_rec)}'"
 
 
-# TODO: add scrape_recs_list method test(s)
+@pytest.mark.parametrize(
+    "rec_type, expected_css_selector",
+    [
+        (RecommendationType.ALBUM, ".music-recommended-albums-item-name"),
+        (RecommendationType.TRACK, ".recommended-tracks-item-name"),
+    ],
+)
+def test_navigate_to_page_and_get_page_source(
+    lfm_rec_scraper: LastFMRecsScraper, rec_type: RecommendationType, expected_css_selector: str
+) -> None:
+    fake_url = "https://google.com"
+    lfm_rec_scraper._page = MagicMock()
+    with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper._sleep_random") as mock_sleep_random:
+        lfm_rec_scraper._navigate_to_page_and_get_page_source(url=fake_url, rec_type=rec_type)
+        lfm_rec_scraper._page.assert_has_calls(
+            [
+                call.goto(fake_url),
+                call.locator(expected_css_selector),
+            ]
+        )
+        mock_sleep_random.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "rec_type, expected_rec_base_url",
+    [
+        (RecommendationType.ALBUM, ALBUM_RECS_BASE_URL),
+        (RecommendationType.TRACK, TRACK_RECS_BASE_URL),
+    ],
+)
+def test_scrape_recs_list(
+    lfm_rec_scraper: LastFMRecsScraper, rec_type: RecommendationType, expected_rec_base_url: str
+) -> None:
+    with patch.object(LastFMRecsScraper, "_navigate_to_page_and_get_page_source") as mock_navigate_to_page:
+        mock_navigate_to_page.return_value = ""
+        with patch.object(LastFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
+            mock_extract_recs.return_value = []
+            lfm_rec_scraper.scrape_recs_list(recommendation_type=rec_type)
+            assert lfm_rec_scraper._scraped_recs[rec_type] is not None
