@@ -3,5 +3,6 @@ click==8.1.7
 jsonschema==4.23.0
 requests==2.32.3
 urllib3==2.2.3
-selenium==4.27.1
+# selenium==4.27.1
 PyYAML==6.0.2
+rebrowser-playwright==1.47.0

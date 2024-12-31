@@ -7,7 +7,6 @@ else
     CHECK=1
 fi
 
-source /usr/local/${APP_VIRTUAL_ENV}/bin/activate
 export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
 cd /project_src_mnt
 if [[ "$CHECK" == "1" ]]; then

@@ -1,6 +1,7 @@
 import os
 from itertools import product
 from typing import Any, Dict, List
+from unittest.mock import patch
 
 import pytest
 
@@ -10,8 +11,10 @@ from lastfm_recs_scraper.config.config_parser import (
     _load_red_formats_from_config,
 )
 from lastfm_recs_scraper.config.config_schema import FORMAT_PREFERENCES_KEY
+from lastfm_recs_scraper.utils.exceptions import AppConfigException
 from lastfm_recs_scraper.utils.red_utils import RedFormat
 from tests.conftest import (
+    INVALID_CONFIGS_DIR_PATH,
     expected_red_format_list,
     valid_app_config,
     valid_config_raw_data,
@@ -125,6 +128,44 @@ def test_app_config_constructor(
         assert (
             actual_value == expected_value
         ), f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+
+
+@pytest.mark.parametrize(
+    "config_filepath, cli_params, exception_type, exception_msg",
+    [
+        (
+            "/some_fake/path/nonexistent/filepath.yaml",
+            {},
+            AppConfigException,
+            "Provided config filepath does not exist",
+        ),
+        (
+            os.path.join(INVALID_CONFIGS_DIR_PATH, "invalid_config.yaml"),
+            {},
+            AppConfigException,
+            "Provided yaml configuration's schema is invalid",
+        ),
+    ],
+)
+def test_invalid_app_config_constructor(
+    config_filepath: str, cli_params: Dict[str, Any], exception_type: Exception, exception_msg: str
+) -> None:
+    with pytest.raises(exception_type, match=exception_msg):
+        app_config = AppConfig(config_filepath=config_filepath, cli_params=cli_params)
+
+
+def test_pretty_print_config(valid_config_filepath: str) -> None:
+    with patch("yaml.dump") as mock_yaml_dump:
+        app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+        app_config.pretty_print_config()
+        mock_yaml_dump.assert_called_once()
+
+
+def test_pretty_print_preference_ordering(valid_config_filepath: str) -> None:
+    with patch("yaml.dump") as mock_yaml_dump:
+        app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+        app_config.pretty_print_preference_ordering()
+        mock_yaml_dump.assert_called_once()
 
 
 # TODO: add unit tests to ensure the jsonschema validation raises exceptions when expected

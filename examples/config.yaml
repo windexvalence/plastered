@@ -9,7 +9,6 @@ last_fm:
   last_fm_password: fake-password
   last_fm_api_retries: 3
   last_fm_api_seconds_between_calls: 2
-  scraper_page_load_timeout_seconds: 10
   scraper_allow_library_items: false
   scraper_service_port: 4444
 musicbrainz:

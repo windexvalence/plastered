@@ -7,39 +7,29 @@ from time import sleep
 from typing import Dict, List, Optional
 
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
+from rebrowser_playwright.sync_api import sync_playwright
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.utils.constants import CHROMEDRIVER_EXECUTABLE_PATH
+from lastfm_recs_scraper.utils.constants import (
+    ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
+    ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
+    ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR,
+    ALBUM_RECS_BASE_URL,
+    LOGIN_BUTTON_LOCATOR,
+    LOGIN_PASSWORD_FORM_LOCATOR,
+    LOGIN_URL,
+    LOGIN_USERNAME_FORM_LOCATOR,
+    LOGOUT_URL,
+    PW_USER_AGENT,
+    TRACK_REC_CONTEXT_CSS_SELECTOR,
+    TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
+    TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
+    TRACK_RECS_BASE_URL,
+)
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
 
-_LOGIN_URL = "https://www.last.fm/login"
-_LOGIN_USERNAME_INPUT_CSS_SELECTOR = "input[name='username_or_email'][type='text']"
-_LOGIN_PASSWORD_INPUT_CSS_SELECTOR = "input[name='password'][type='password']"
-_LOGIN_BUTTON_CSS_SELECTOR = ".button.btn-primary[type='submit'][name='submit']"
-
-_LOGOUT_URL = "https://www.last.fm/logout"
-_LOGOUT_BUTTON_CSS_SELECTOR = ".button.btn-primary[type='submit']"
-_LOGOUT_SUCCESS_URL = "https://www.last.fm/"
-
-_FORCED_LOGIN_URLS = {
-    "https://www.last.fm/login?next=/music/%2Brecommended/albums",
-    "https://www.last.fm/login?next=/music/%2Brecommended/tracks",
-}
-_ALBUM_RECS_BASE_URL = "https://www.last.fm/music/+recommended/albums"
-_ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR = ".music-recommended-albums-item-name a.link-block-target"
-_ALBUM_REC_CONTEXT_CSS_SELECTOR = "p.music-recommended-albums-album-context"
-
-_TRACK_RECS_BASE_URL = "https://www.last.fm/music/+recommended/tracks"
-_TRACK_REC_LIST_ELEMENT_CSS_SELECTOR = ".recommended-tracks-item-name a.link-block-target"
-_TRACK_REC_CONTEXT_CSS_SELECTOR = "p.recommended-tracks-item-aux-text.recommended-tracks-item-context"
-
-sys.path.append(CHROMEDRIVER_EXECUTABLE_PATH)
 _RENDER_WAIT_SEC_MIN = 3
 _RENDER_WAIT_SEC_MAX = 7
 
@@ -120,11 +110,9 @@ def _sleep_random() -> None:  # pragma: no cover
 # TODO: surface the constructor args as AppConfig / yaml config fields
 class LastFMRecsScraper(object):
     def __init__(self, app_config: AppConfig):
-        self._page_load_timeout_seconds = app_config.get_cli_option("scraper_page_load_timeout_seconds")
         self._max_rec_pages_to_scrape = app_config.get_cli_option("scraper_max_rec_pages_to_scrape")
         self._allow_library_items = app_config.get_cli_option("scraper_allow_library_items")
         # TODO: figure out how to have container dynamically find this from the port arg in docker-compose
-        self._scraper_service_port = app_config.get_cli_option("scraper_service_port")
         self._last_fm_username = app_config.get_cli_option("last_fm_username")
         self._last_fm_password = app_config.get_cli_option("last_fm_password")
         self._login_success_url = f"https://www.last.fm/user/{self._last_fm_username}"
@@ -134,78 +122,59 @@ class LastFMRecsScraper(object):
             RecommendationType.TRACK: None,
         }
 
-        self._chrome_driver_options = webdriver.ChromeOptions()
-        self._chrome_driver_options.add_argument("--no-sandbox")
-        self._chrome_driver_options.add_argument("--headless")
-        self._chrome_driver_options.add_argument("--disable-gpu")
-        self._chrome_driver_options.add_argument("--disable-dev-shm-usage")
-        self._chrome_driver_options.add_argument("--user-data-dir=/tmp/chrome")
-
     def __enter__(self):
-        self._service = webdriver.ChromeService(
-            executable_path=CHROMEDRIVER_EXECUTABLE_PATH,
-            port=self._scraper_service_port,
-        )
-        self._driver = webdriver.Chrome(options=self._chrome_driver_options, service=self._service)
-        # https://selenium-python.readthedocs.io/waits.html#implicit-waits
-        self._wait = WebDriverWait(driver=self._driver, timeout=self._page_load_timeout_seconds)
+        self._playwright = sync_playwright().start()
+        self._browser = self._playwright.chromium.launch(headless=True)
+        self._page = self._browser.new_page(user_agent=PW_USER_AGENT)
         self._user_login()
 
     def __exit__(self):
         self._user_logout()
-        self._driver.quit()
+        self._page.close()
+        self._browser.close()
+        self._playwright.stop()
 
     def _user_login(self) -> None:
         _LOGGER.debug(f"Attempting login ...")
-        self._driver.get(_LOGIN_URL)
-        login_user_form, login_pass_form, login_button = self._wait.until(
-            EC.all_of(
-                EC.visibility_of_element_located((By.CSS_SELECTOR, _LOGIN_USERNAME_INPUT_CSS_SELECTOR)),
-                EC.visibility_of_element_located((By.CSS_SELECTOR, _LOGIN_PASSWORD_INPUT_CSS_SELECTOR)),
-                EC.visibility_of_element_located((By.CSS_SELECTOR, _LOGIN_BUTTON_CSS_SELECTOR)),
-            )
-        )
-        login_user_form.send_keys(self._last_fm_username)
-        login_pass_form.send_keys(self._last_fm_password)
-        login_button.click()
-        self._wait.until(EC.url_changes(url=self._login_success_url))
+        self._page.goto(LOGIN_URL)
+        self._page.locator(LOGIN_USERNAME_FORM_LOCATOR).fill(self._last_fm_username)
+        self._page.locator(LOGIN_PASSWORD_FORM_LOCATOR).fill(self._last_fm_password)
+        self._page.locator(LOGIN_BUTTON_LOCATOR).click()
+        self._page.wait_for_url(f"**/user/{self._last_fm_username}")
         self._is_logged_in = True
         _sleep_random()
-        _LOGGER.debug(f"Current driver page URL: {self._driver.current_url}")
+        _LOGGER.debug(f"Current driver page URL: {self._page.url}")
 
     def _user_logout(self) -> None:
         _LOGGER.debug(f"Logging out from last.fm account ...")
-        self._driver.get(_LOGOUT_URL)
-        logout_button = self._wait.until(
-            EC.visibility_of_element_located((By.CSS_SELECTOR, _LOGOUT_BUTTON_CSS_SELECTOR))
-        )
-        logout_button.click()
-        self._wait.until(EC.url_changes(url=_LOGOUT_SUCCESS_URL))
+        self._page.goto(LOGOUT_URL)
+        self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).click()
+        self._page.wait_for_url("**last.fm/")
         self._is_logged_in = False
 
     def _navigate_to_page_and_get_page_source(self, url: str, rec_type: RecommendationType) -> str:
         _LOGGER.info(f"Rendering {url} page source ...")
-        self._driver.get(url)
+        self._page.goto(url)
         wait_css_selector = (
-            _ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
+            ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
             if rec_type == RecommendationType.ALBUM
-            else _TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
+            else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
         )
-        self._wait.unitl(EC.visibility_of_all_elements_located((By.CSS_SELECTOR, wait_css_selector)))
+        recs_page_locator = self._page.locator(wait_css_selector)
         _sleep_random()
-        return self._driver.page_source
+        return self._page.content()
 
     def _extract_recs_from_page_source(self, page_source: str, rec_type: RecommendationType) -> List[LastFMRec]:
         soup = BeautifulSoup(page_source, "html.parser")
         if rec_type == RecommendationType.ALBUM:
-            rec_class_name = _ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
-            entity_rec_context_class_name = _ALBUM_REC_CONTEXT_CSS_SELECTOR
+            rec_class_name = ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR
+            entity_rec_context_class_name = ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR
             recommendation_regex_pattern = _ARTIST_ALBUM_REGEX_PATTERN
         else:
-            rec_class_name = _TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
-            entity_rec_context_class_name = _TRACK_REC_CONTEXT_CSS_SELECTOR
+            rec_class_name = TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR
+            entity_rec_context_class_name = TRACK_REC_CONTEXT_CSS_SELECTOR
             recommendation_regex_pattern = _ARTIST_TRACK_REGEX_PATTERN
-        # TODO: also pull the details from <p class="music-recommended-albums-album-context"> to filter based on whether recs are in library or not
+
         rec_hrefs = [li.get("href") for li in soup.select(rec_class_name)]
         entity_rec_contexts = [elem.text.strip() for elem in soup.select(entity_rec_context_class_name)]
         page_recs: List[LastFMRec] = []
@@ -230,13 +199,9 @@ class LastFMRecsScraper(object):
         return page_recs
 
     def scrape_recs_list(self, recommendation_type: RecommendationType) -> List[LastFMRec]:
-        if self._scraped_recs[recommendation_type] is not None:
-            return self._scraped_recs[recommendation_type]
         _LOGGER.info(f"Scraping '{recommendation_type.value}' recommendations from LastFM ...")
         recs: List[LastFMRec] = []
-        recs_base_url = (
-            _ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else _TRACK_RECS_BASE_URL
-        )
+        recs_base_url = ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
         for page_number in range(1, self._max_rec_pages_to_scrape + 1):
             recs_page_url = f"{recs_base_url}?page={page_number}"
             recs_page_source = self._navigate_to_page_and_get_page_source(

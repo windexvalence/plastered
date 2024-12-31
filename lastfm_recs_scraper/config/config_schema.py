@@ -12,11 +12,8 @@ DEFAULTS_DICT = {
     "last_fm_api_retries": _DEFAULT_RETRIES,
     "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
     "red_api_seconds_between_calls": 5,
-    "scraper_page_load_timeout_seconds": 10,
     "scraper_max_rec_pages_to_scrape": 5,
     "scraper_allow_library_items": False,
-    # TODO: remove the service port from config and have container determine the docker host call's port arg at runtime
-    "scraper_service_port": 4444,
     "use_record_label": False,
     "use_catalog_number": False,
 }
@@ -75,12 +72,6 @@ required_schema = {
                 "last_fm_password": {"type": "string"},
                 "last_fm_api_retries": _RETRIES_SCHEMA,
                 "last_fm_api_seconds_between_calls": _SECONDS_BETWEEN_CALLS_SCHEMA,
-                "scraper_page_load_timeout_seconds": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 30,
-                    "default": DEFAULTS_DICT["scraper_page_load_timeout_seconds"],
-                },
                 "scraper_max_rec_pages_to_scrape": {
                     "type": "integer",
                     "minimum": 1,
@@ -90,11 +81,6 @@ required_schema = {
                 "scraper_allow_library_items": {
                     "type": "boolean",
                     "default": DEFAULTS_DICT["scraper_allow_library_items"],
-                },
-                "scraper_service_port": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "default": DEFAULTS_DICT["scraper_service_port"],
                 },
             },
             "required": [

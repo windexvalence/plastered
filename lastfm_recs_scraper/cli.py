@@ -62,8 +62,8 @@ def cli(
 def scrape(ctx) -> None:
     app_config: AppConfig = ctx.obj["app_config"]
     with LastFMRecsScraper(app_config=app_config) as scraper:
-        album_recs_list = scraper.scrape_recs_list(RecommendationType=RecommendationType.ALBUM)
-        track_recs_list = scraper.scrape_recs_list(RecommendationType=RecommendationType.TRACK)
+        album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
+        track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
     release_searcher = ReleaseSearcher(app_config=app_config)
     release_searcher.search_for_album_recs(album_recs=album_recs_list)
     # TODO: add logic for when snatch_reqs == True
@@ -77,5 +77,5 @@ def config(ctx) -> None:
     app_config.pretty_print_preference_ordering()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli()

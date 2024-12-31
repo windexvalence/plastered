@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source /usr/local/${APP_VIRTUAL_ENV}/bin/activate
-# export PATH=$PATH:/usr/bin/geckodriver
-export PATH=$PATH:/usr/bin/chromedriver
 # export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
 export PYTHONPATH="${APP_DIR}/"
-pytest -s -vv --cov-report term --cov=lastfm_recs_scraper "${APP_DIR}/tests"
+pytest -s -vv --cov-report term-missing --cov=lastfm_recs_scraper "${APP_DIR}/tests"

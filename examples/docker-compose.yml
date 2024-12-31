@@ -1,6 +1,6 @@
 services:
-  lastfm-recs:
-    container_name: lastfm-recs
+  last-red-recs:
+    container_name: last-red-recs
     build: .
     restart: on-failure
     environment:
@@ -8,8 +8,6 @@ services:
       - LAST_FM_API_KEY=${MY_LAST_FM_API_KEY}
       - LAST_FM_USERNAME=${MY_LAST_FM_USERNAME}
       - LAST_FM_PASSWORD=${MY_LAST_FM_PASSWORD}
-    ports:
-      - "4444:4444"
     volumes:
       - ./config.yml:/config.yml:ro
       - ./content:/content
