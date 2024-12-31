@@ -69,7 +69,6 @@ def test_load_red_formats_from_config(
         ), f"Unexpected RedFormat mismatch on {i}'th element of RedFormats list: expected: {expected_format}, actual: {actual_format}"
 
 
-
 @pytest.mark.parametrize(
     "mock_format_prefs_config_data, exception, exception_msg",
     [
@@ -84,13 +83,27 @@ def test_load_red_formats_from_config(
         (
             [
                 {"preference": {"format": "FLAC", "encoding": "24bit+Lossless", "media": "SACD"}},
-                {"preference": {"format": "FLAC", "encoding": "Lossless", "media": "CD", "cd_only_extras": {"log": 100, "has_cue": True}}},
-                {"preference": {"format": "FLAC", "encoding": "Lossless", "media": "CD", "cd_only_extras": {"log": 100, "has_cue": True}}},
+                {
+                    "preference": {
+                        "format": "FLAC",
+                        "encoding": "Lossless",
+                        "media": "CD",
+                        "cd_only_extras": {"log": 100, "has_cue": True},
+                    }
+                },
+                {
+                    "preference": {
+                        "format": "FLAC",
+                        "encoding": "Lossless",
+                        "media": "CD",
+                        "cd_only_extras": {"log": 100, "has_cue": True},
+                    }
+                },
             ],
             AppConfigException,
             "Invalid 'format_preferences' configuration: duplicate entries",
         ),
-    ]
+    ],
 )
 def test_invalid_dupe_load_red_formats_from_config(
     mock_format_prefs_config_data: List[Dict[str, Any]],

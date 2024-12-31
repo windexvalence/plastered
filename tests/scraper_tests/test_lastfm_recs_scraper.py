@@ -21,8 +21,8 @@ from lastfm_recs_scraper.utils.constants import (
     LOGIN_USERNAME_FORM_LOCATOR,
     LOGOUT_URL,
     PW_USER_AGENT,
-    RENDER_WAIT_SEC_MIN,
     RENDER_WAIT_SEC_MAX,
+    RENDER_WAIT_SEC_MIN,
     TRACK_RECS_BASE_URL,
 )
 from tests.conftest import valid_app_config
@@ -292,9 +292,15 @@ def expected_track_recs(expected_album_recs: List[LastFMRec]) -> List[LastFMRec]
 
 
 def test_sleep_random() -> None:
-    assert RENDER_WAIT_SEC_MIN > 0, f"Expected constant 'RENDER_WAIT_SEC_MIN' to be greater than 0, but found it set to {RENDER_WAIT_SEC_MIN}"
-    assert RENDER_WAIT_SEC_MIN < RENDER_WAIT_SEC_MAX, f"Expected constant 'RENDER_WAIT_SEC_MIN' to be less than constant 'RENDER_WAIT_SEC_MAX', but found {RENDER_WAIT_SEC_MIN} vs. {RENDER_WAIT_SEC_MAX}"
-    assert RENDER_WAIT_SEC_MAX < 10, f"Expected constant 'RENDER_WAIT_SEC_MAX' to be less than 10, but found it set to {RENDER_WAIT_SEC_MAX}"
+    assert (
+        RENDER_WAIT_SEC_MIN > 0
+    ), f"Expected constant 'RENDER_WAIT_SEC_MIN' to be greater than 0, but found it set to {RENDER_WAIT_SEC_MIN}"
+    assert (
+        RENDER_WAIT_SEC_MIN < RENDER_WAIT_SEC_MAX
+    ), f"Expected constant 'RENDER_WAIT_SEC_MIN' to be less than constant 'RENDER_WAIT_SEC_MAX', but found {RENDER_WAIT_SEC_MIN} vs. {RENDER_WAIT_SEC_MAX}"
+    assert (
+        RENDER_WAIT_SEC_MAX < 10
+    ), f"Expected constant 'RENDER_WAIT_SEC_MAX' to be less than 10, but found it set to {RENDER_WAIT_SEC_MAX}"
     with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper.randint") as mock_randint:
         mock_randint.return_value = 5
         with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper.sleep") as mock_sleep:
@@ -330,14 +336,24 @@ def test_scraper_init(lfm_rec_scraper: LastFMRecsScraper, valid_app_config: AppC
     "lfm_rec, expected",
     [
         (
-            LastFMRec(lastfm_artist_str="Some+Bad+Artist", lastfm_entity_str="Some+Dumb+Album", recommendation_type=RecommendationType.ALBUM, rec_context=RecContext.SIMILAR_ARTIST),
+            LastFMRec(
+                lastfm_artist_str="Some+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
             "artist=Some+Bad+Artist, album=Some+Dumb+Album, context=similar-artist",
         ),
         (
-            LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY),
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
             "artist=Some+Other+Bad+Artist, track=Some+Dumb+Track, context=in-library",
         ),
-    ]
+    ],
 )
 def test_lastfmrec_str(lfm_rec: LastFMRec, expected: str) -> None:
     actual = lfm_rec.__str__()
@@ -348,21 +364,46 @@ def test_lastfmrec_str(lfm_rec: LastFMRec, expected: str) -> None:
     "lfm_rec, other, expected",
     [
         (
-            LastFMRec(lastfm_artist_str="Some+Bad+Artist", lastfm_entity_str="Some+Dumb+Album", recommendation_type=RecommendationType.ALBUM, rec_context=RecContext.SIMILAR_ARTIST),
+            LastFMRec(
+                lastfm_artist_str="Some+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
             None,
             False,
         ),
         (
-            LastFMRec(lastfm_artist_str="Some+Bad+Artist", lastfm_entity_str="Some+Dumb+Album", recommendation_type=RecommendationType.ALBUM, rec_context=RecContext.SIMILAR_ARTIST),
-            LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY),
+            LastFMRec(
+                lastfm_artist_str="Some+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
             False,
         ),
         (
-            LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY),
-            LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY),
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
             True,
         ),
-    ]
+    ],
 )
 def test_lastfmrec_eq(lfm_rec: LastFMRec, other: Any, expected: bool) -> None:
     actual = lfm_rec.__eq__(other=other)
@@ -372,9 +413,25 @@ def test_lastfmrec_eq(lfm_rec: LastFMRec, other: Any, expected: bool) -> None:
 @pytest.mark.parametrize(
     "lfm_rec, expected",
     [
-        (LastFMRec(lastfm_artist_str="Some+Bad+Artist", lastfm_entity_str="Some+Dumb+Album", recommendation_type=RecommendationType.ALBUM, rec_context=RecContext.SIMILAR_ARTIST), False),
-        (LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY), True),
-    ]
+        (
+            LastFMRec(
+                lastfm_artist_str="Some+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            False,
+        ),
+        (
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            True,
+        ),
+    ],
 )
 def test_lastfmrec_is_track_rec(lfm_rec: LastFMRec, expected: bool) -> None:
     actual = lfm_rec.is_track_rec()
@@ -384,9 +441,25 @@ def test_lastfmrec_is_track_rec(lfm_rec: LastFMRec, expected: bool) -> None:
 @pytest.mark.parametrize(
     "lfm_rec, expected",
     [
-        (LastFMRec(lastfm_artist_str="Some+Bad+Artist", lastfm_entity_str="Some+Dumb+Album", recommendation_type=RecommendationType.ALBUM, rec_context=RecContext.SIMILAR_ARTIST), "https://www.last.fm/music/Some+Bad+Artist/Some+Dumb+Album"),
-        (LastFMRec(lastfm_artist_str="Some+Other+Bad+Artist", lastfm_entity_str="Some+Dumb+Track", recommendation_type=RecommendationType.TRACK, rec_context=RecContext.IN_LIBRARY), "https://www.last.fm/music/Some+Other+Bad+Artist/_/Some+Dumb+Track"),
-    ]
+        (
+            LastFMRec(
+                lastfm_artist_str="Some+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            "https://www.last.fm/music/Some+Bad+Artist/Some+Dumb+Album",
+        ),
+        (
+            LastFMRec(
+                lastfm_artist_str="Some+Other+Bad+Artist",
+                lastfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "https://www.last.fm/music/Some+Other+Bad+Artist/_/Some+Dumb+Track",
+        ),
+    ],
 )
 def test_lastfm_entity_url(lfm_rec: LastFMRec, expected: str) -> None:
     actual = lfm_rec.last_fm_entity_url
@@ -493,14 +566,19 @@ def test_extract_recs_from_page_source(
         mock_page_source = track_recs_page_one_html
         expected_recs = expected_track_recs
     actual_recs_list = lfm_rec_scraper._extract_recs_from_page_source(
-        page_source=mock_page_source, rec_type=rec_type,
+        page_source=mock_page_source,
+        rec_type=rec_type,
     )
     expected_length = len(expected_recs)
     actual_length = len(actual_recs_list)
-    assert actual_length == expected_length, f"Expected {expected_length} {rec_type.value} recs, but got {actual_length}."
+    assert (
+        actual_length == expected_length
+    ), f"Expected {expected_length} {rec_type.value} recs, but got {actual_length}."
     for i, actual_rec in enumerate(actual_recs_list):
         expected_rec = expected_recs[i]
-        assert actual_rec == expected_rec, f"Expected {i}'th {rec_type.value} rec to be '{str(expected_rec)}' but got '{str(actual_rec)}'"
+        assert (
+            actual_rec == expected_rec
+        ), f"Expected {i}'th {rec_type.value} rec to be '{str(expected_rec)}' but got '{str(actual_rec)}'"
 
 
 @pytest.mark.parametrize(

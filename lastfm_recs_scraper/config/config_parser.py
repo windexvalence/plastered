@@ -1,7 +1,7 @@
-from collections import Counter
 import os
 import sys
 import traceback
+from collections import Counter
 from typing import Any, Dict, List
 
 import jsonschema

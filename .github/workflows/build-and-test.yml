@@ -19,3 +19,6 @@ jobs:
       - name: Code Format Check
         run: |
           docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh last-red-recs:${{ github.run_number }}
+      - name: Run Unit Tests
+        run: |
+          docker run -t --rm --entrypoint /app/tests/tests_entrypoint.sh last-red-recs:${{ github.run_number }}
