@@ -16,4 +16,6 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           outputs: type=cacheonly
-          tags: last-red-recs:latest
+          tags: wv/last-red-recs:latest
+      - name: Code Format Check
+        run: make code-format-check
