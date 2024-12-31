@@ -18,4 +18,4 @@ jobs:
           outputs: type=cacheonly
           tags: wv/last-red-recs:latest
       - name: Code Format Check
-        run: make code-format-check
+        run: docker run -t --rm -e CODE_FORMAT_CHECK=1 --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
