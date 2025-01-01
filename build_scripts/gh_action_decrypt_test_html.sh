@@ -14,5 +14,5 @@ for secret_file in secrets/*.gpg; do
         --yes \
         --decrypt \
         --passphrase="$TEST_HTML_PASSPHRASE" \
-        --output "$out_filepath"
+        --output "$out_filepath" "$secret_file"
 done
