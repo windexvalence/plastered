@@ -47,5 +47,5 @@ jobs:
           context: .
           push: true
           build-args: BUILD_ENV=release
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_REGISTRY }}/${{ github.sha }}-${{ github.run_number }},${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:0.0.1-beta,${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:main
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ github.run_number }},${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:0.0.1-beta,${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:main
           labels: ${{ steps.meta.outputs.labels }}
