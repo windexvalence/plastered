@@ -1,5 +1,5 @@
 # Lastfm-Recs-Scraper
-![CI status](https://github.com/windexvalence/last-red-recs/actions/workflows/build-and-test.yml/badge.svg?branch=wv/add-cicd) ![coverage](./docs/image_assets/coverage.svg)
+![CI status](https://github.com/windexvalence/last-red-recs/actions/workflows/build-and-test.yml/badge.svg?branch=main) ![coverage](./docs/image_assets/coverage.svg)
 
 A docker utility for automatically scraping the recommended albums/tracks from your Last.fm user profile
 
