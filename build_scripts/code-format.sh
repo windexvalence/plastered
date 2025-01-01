@@ -8,7 +8,10 @@ else
 fi
 
 export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
-cd /project_src_mnt
+if [[ -z "${GITHUB_ACTIONS}" ]]; then
+    echo "Not running in a github actions environment"
+    cd /project_src_mnt
+fi
 if [[ "$CHECK" == "1" ]]; then
     black --check .
     isort --check .

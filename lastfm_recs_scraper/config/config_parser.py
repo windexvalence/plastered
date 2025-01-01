@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+from collections import Counter
 from typing import Any, Dict, List
 
 import jsonschema
@@ -42,17 +43,9 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
     red_formats = []
     for pref in format_prefs_config_data:
         pref_dict = pref[PER_PREFERENCE_KEY]
-        if not REQUIRED_PREFERENCE_KEYS.issubset(set(pref_dict.keys())):
-            raise AppConfigException(
-                f"Missing one or more required keys in the {FORMAT_PREFERENCES_KEY} configuration: {','.join(REQUIRED_PREFERENCE_KEYS)}. Only found keys: {pref_dict.keys()}"
-            )
         media = pref_dict[MEDIA_KEY]
         cd_only_extras_str = ""
         if media == MediaEnum.CD.value:
-            if CD_ONLY_EXTRAS_KEY not in pref_dict:
-                raise AppConfigException(
-                    f"Missing required '{CD_ONLY_EXTRAS_KEY}' setting for format preference entry with media type '{MediaEnum.CD.value}'."
-                )
             cd_only_extras_str = _get_cd_only_extras_string(pref_dict[CD_ONLY_EXTRAS_KEY])
 
         red_formats.append(
@@ -64,14 +57,11 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
             )
         )
     total_red_formats = len(red_formats)
-    if total_red_formats == 0:
-        raise AppConfigException(
-            f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: must have at least 1 entry in the '{FORMAT_PREFERENCES_KEY}' array."
-        )
     unique_red_formats_count = len(set(red_formats))
     if unique_red_formats_count < total_red_formats:
+        dupes = [item for item, count in Counter(red_formats).items() if count > 1]
         raise AppConfigException(
-            f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: duplicate entries found, when each array element must be unique."
+            f"Invalid '{FORMAT_PREFERENCES_KEY}' configuration: duplicate entries found ({[str(dupe) for dupe in dupes]}), but each array element must be unique."
         )
     return red_formats
 

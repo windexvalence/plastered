@@ -21,6 +21,8 @@ from lastfm_recs_scraper.utils.constants import (
     LOGIN_USERNAME_FORM_LOCATOR,
     LOGOUT_URL,
     PW_USER_AGENT,
+    RENDER_WAIT_SEC_MAX,
+    RENDER_WAIT_SEC_MIN,
     TRACK_REC_CONTEXT_CSS_SELECTOR,
     TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
     TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
@@ -29,9 +31,6 @@ from lastfm_recs_scraper.utils.constants import (
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
-
-_RENDER_WAIT_SEC_MIN = 3
-_RENDER_WAIT_SEC_MAX = 7
 
 _ARTIST_ALBUM_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/(.+)$")
 _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
@@ -61,7 +60,7 @@ class LastFMRec(object):
         self._rec_context = rec_context
 
     def __str__(self) -> str:
-        return f"artist={self._lastfm_artist_str}, {self._recommendation_type.value}={self._lastfm_entity_str}, context={self._rec_context}"
+        return f"artist={self._lastfm_artist_str}, {self._recommendation_type.value}={self._lastfm_entity_str}, context={self._rec_context.value}"
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, LastFMRec):
@@ -98,11 +97,11 @@ class LastFMRec(object):
         return f"https://www.last.fm/music/{self._lastfm_artist_str}/_/{self._lastfm_entity_str}"
 
 
-def _sleep_random() -> None:  # pragma: no cover
+def _sleep_random() -> None:
     """
     Very dumb utility function to sleep a bounded random number of seconds between selenium client interactions with the lastfm website to try avoid bot detection.
     """
-    sleep_seconds = randint(_RENDER_WAIT_SEC_MIN, _RENDER_WAIT_SEC_MAX)
+    sleep_seconds = randint(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)
     _LOGGER.debug(f"Sleeping for {sleep_seconds} before continuing ...")
     sleep(sleep_seconds)
 

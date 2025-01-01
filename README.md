@@ -1,7 +1,14 @@
 # Lastfm-Recs-Scraper
+![CI status](https://github.com/windexvalence/last-red-recs/actions/workflows/build-and-test.yml/badge.svg?branch=wv/add-cicd) ![coverage](./docs/image_assets/coverage.svg)
+
 A docker utility for automatically scraping the recommended albums/tracks from your Last.fm user profile
 
+## Releases
+
+Check out the [Releases](./docs/RELEASES.md) page for more details.
+
 ## Setup / Installation
+
 1. Locally build the image with `make docker-build`
 2. execute the relevant commands with docker run, such as:
 
@@ -10,12 +17,9 @@ A docker utility for automatically scraping the recommended albums/tracks from y
     ```
 
 ## Development TODOs
-- [x] Add unit tests
+
 - [ ] Add functionality to optionally add a matched rec release to a personal collage
-- [x] Add code autoformatting / linting (black, isort)
+- [ ] Add logic to optionally filter out recs with pre-existing snatches in t_group
 - [ ] Possibly use this bot-detection page [here](https://bot-detector.rebrowser.net/) during CICD ? 
 - [ ] Add CLI / config documentation
-    - [ ] Encrypt the test resources html / json as GitHub actions secrets: more info [here](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#storing-large-secrets)
-- [x] Implement `release_search` module's logic
-- [x] Create GitHub repo
-- [ ] Add CICD
+- [ ] Set up more automated semver tagging process: after initial main tag is set (such as [this](https://github.com/marketplace/actions/get-latest-tag) or this [recomendation](https://stackoverflow.com/a/74955554))

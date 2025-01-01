@@ -6,6 +6,9 @@ MUSICBRAINZ_API_BASE_URL = "http://musicbrainz.org/ws/2/"
 PERMITTED_RED_API_ACTIONS = set(["browse", "download", "torrentgroup"])
 PERMITTED_LAST_FM_API_METHODS = set(["album.getinfo", "track.getinfo"])
 
+RENDER_WAIT_SEC_MIN = 3
+RENDER_WAIT_SEC_MAX = 7
+
 PW_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.28 Mobile Safari/537.36"
 
 ALBUM_RECS_BASE_URL = "https://www.last.fm/music/+recommended/albums"

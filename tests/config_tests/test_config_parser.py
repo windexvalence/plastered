@@ -70,6 +70,51 @@ def test_load_red_formats_from_config(
 
 
 @pytest.mark.parametrize(
+    "mock_format_prefs_config_data, exception, exception_msg",
+    [
+        (
+            [
+                {"preference": {"format": "FLAC", "encoding": "24bit+Lossless", "media": "SACD"}},
+                {"preference": {"format": "FLAC", "encoding": "24bit+Lossless", "media": "SACD"}},
+            ],
+            AppConfigException,
+            "Invalid 'format_preferences' configuration: duplicate entries",
+        ),
+        (
+            [
+                {"preference": {"format": "FLAC", "encoding": "24bit+Lossless", "media": "SACD"}},
+                {
+                    "preference": {
+                        "format": "FLAC",
+                        "encoding": "Lossless",
+                        "media": "CD",
+                        "cd_only_extras": {"log": 100, "has_cue": True},
+                    }
+                },
+                {
+                    "preference": {
+                        "format": "FLAC",
+                        "encoding": "Lossless",
+                        "media": "CD",
+                        "cd_only_extras": {"log": 100, "has_cue": True},
+                    }
+                },
+            ],
+            AppConfigException,
+            "Invalid 'format_preferences' configuration: duplicate entries",
+        ),
+    ],
+)
+def test_invalid_dupe_load_red_formats_from_config(
+    mock_format_prefs_config_data: List[Dict[str, Any]],
+    exception: Exception,
+    exception_msg: str,
+) -> None:
+    with pytest.raises(exception, match=exception_msg):
+        _load_red_formats_from_config(format_prefs_config_data=mock_format_prefs_config_data)
+
+
+@pytest.mark.parametrize(
     "cli_params, expected_opts_vals",
     [
         (
