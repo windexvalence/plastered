@@ -6,7 +6,7 @@
 # --yes to assume "yes" for questions
 # TODO: change output path to tests/resources/mock_browser_html/<test-filename-here>.html
 for secret_file in secrets/*.gpg; do 
-    out_filename=$(basename $secret_file | | sed -nr 's/^(.*)\.gpg$/\1/p')
+    out_filename=$(basename $secret_file | sed -nr 's/^(.*)\.gpg$/\1/p')
     out_filepath="tests/resources/mock_browser_html/$out_filename"
     echo "decrypting input file at '$secret_file' and writing output to '$out_filepath' ..."
     gpg --quiet \
