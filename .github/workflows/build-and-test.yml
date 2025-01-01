@@ -1,28 +1,51 @@
-name: Build and Test
-run-name: Build and Test ${{ github.ref }} by ${{ github.actor }}
+name: Build
+run-name: Build ${{ github.ref }} by ${{ github.actor }}
 on: [push]
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 jobs:
-  build-test-image:
+  build-and-test-image:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "This is a dummy step triggered by a ${{ github.even_name }} event on branch ${{ github.ref }}."
-      - run: echo "Running on a ${{ runner.os }} server."
       - name: Checkout code
         uses: actions/checkout@v4
       - run: echo "Repo code checked out from branch ${{ github.ref }}"
-      - name: List files in repo
-        run: ls ${{ github.workspace }}
       - name: Build Image Without Push
         uses: docker/build-push-action@v6
         with:
-          tags: last-red-recs:${{ github.run_number }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.run_number }}
       - name: Code Format Check
         run: |
-          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh last-red-recs:${{ github.run_number }}
+          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}
       - name: Decrypt Test HTML Assets
         run: ./build_scripts/gh_action_decrypt_test_html.sh
         env:
           TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run Unit Tests
         run: |
-          docker run -t -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh last-red-recs:${{ github.run_number }}
+          docker run -t -e GITHUB_ACTIONS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-test-image
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
+        run: echo "TODO implement in followup PR"
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: BUILD_ENV=release
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ github.run_number }},${{ env.IMAGE_NAME }}:0.0.1-beta,${{ env.IMAGE_NAME }}:main
+          labels: ${{ steps.meta.outputs.labels }}

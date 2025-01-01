@@ -29,4 +29,4 @@ code-format: docker-build  ## Runs code-auto-formatting
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm --entrypoint /app/tests/tests_entrypoint.sh wv/last-red-recs:latest
+	docker run -it --rm -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint /app/tests/tests_entrypoint.sh wv/last-red-recs:latest
