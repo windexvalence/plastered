@@ -25,4 +25,4 @@ jobs:
           TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run Unit Tests
         run: |
-          docker run -t --rm --entrypoint /app/tests/tests_entrypoint.sh last-red-recs:${{ github.run_number }}
+          docker run -t -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh last-red-recs:${{ github.run_number }}
