@@ -1,5 +1,5 @@
 name: Build and Test
-run-name: ${{ github.actor }} build and test
+run-name: Build and Test ${{ github.ref }} by ${{ github.actor }}
 on: [push]
 jobs:
   build-test-image:
@@ -19,6 +19,10 @@ jobs:
       - name: Code Format Check
         run: |
           docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh last-red-recs:${{ github.run_number }}
+      - name: Decrypt Test HTML Assets
+        run: ./build_scripts/gh_action_decrypt_test_html.sh
+        env:
+          TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run Unit Tests
         run: |
           docker run -t --rm --entrypoint /app/tests/tests_entrypoint.sh last-red-recs:${{ github.run_number }}
