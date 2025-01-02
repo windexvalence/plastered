@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from urllib.parse import urlparse
 
 import requests
@@ -31,7 +31,7 @@ def initialize_api_client(
 # _MUSICBRAINZ_CLIENT = ...
 
 
-def request_red_api(red_client: requests.Session, action: str, params: str) -> Dict[str, Any]:
+def request_red_api(red_client: requests.Session, action: str, params: str) -> Union[Dict[str, Any], bytes]:
     """
     Helper function to hit the RED API with retries and rate-limits.
     Returns the JSON response payload on success, and throws an Exception after MAX_RED_API_RETRIES consecutive failures.
@@ -40,7 +40,11 @@ def request_red_api(red_client: requests.Session, action: str, params: str) -> D
         raise ValueError(
             f"Unexpected/Non-permitted 'action' provided to redacted api helper: '{action}'. Allowed actions are: {PERMITTED_RED_API_ACTIONS}"
         )
-    json_data = red_client.get(request_url=f"https://redacted.sh/ajax.php?action={action}&{params}")
+    url = f"https://redacted.sh/ajax.php?action={action}&{params}"
+    if action == "download":
+        response = red_client.get(url)
+        return response.content
+    json_data = red_client.get(url)
     return json_data["response"]
 
 
@@ -55,7 +59,7 @@ def request_lastfm_api(last_fm_client: requests.Session, method: str, api_key: s
             f"Unexpected method provided to lastfm api helper. Expected either {PERMITTED_LAST_FM_API_METHODS}"
         )
     json_data = last_fm_client.get(
-        request_url=f"http://ws.audioscrobbler.com/2.0/?method={method}&api_key={api_key}&{params}&format=json",
+        url=f"http://ws.audioscrobbler.com/2.0/?method={method}&api_key={api_key}&{params}&format=json",
         headers={"Accept": "application/json"},
     )
     top_key = method.split(".")[0]
@@ -75,7 +79,7 @@ def request_musicbrainz_api(musicbrainz_client: requests.Session, entity_type: s
         "inc=artist-credits" if entity_type == "release-group" else "inc=artist-credits+media+labels+release-groups"
     )
     json_data = musicbrainz_client.get(
-        request_url=f"http://musicbrainz.org/ws/2/{entity_type}/{mbid}?{inc_params}",
+        url=f"http://musicbrainz.org/ws/2/{entity_type}/{mbid}?{inc_params}",
         headers={"Accept": "application/json"},
     )
     return json_data

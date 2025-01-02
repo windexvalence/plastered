@@ -1,7 +1,7 @@
 import os
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import PropertyMock, patch
+from unittest.mock import call, patch
 
 import pytest
 
@@ -487,3 +487,59 @@ def test_write_output_summary_tsv(
                 assert (
                     actual_line == expected_line
                 ), f"Expected {i}th line to be '{expected_line}', but got '{actual_line}'"
+
+
+@pytest.mark.parametrize(
+    "mock_enable_snatches, mock_permalinks_to_snatch, expected_out_filenames, expected_request_params",
+    [
+        (False, [], [], []),
+        (True, [], [], []),
+        (
+            False,
+            ["https://redacted.sh/torrents.php?torrentid=69420", "https://redacted.sh/torrents.php?torrentid=666"],
+            [],
+            [],
+        ),
+        (
+            True,
+            ["https://redacted.sh/torrents.php?torrentid=69420", "https://redacted.sh/torrents.php?torrentid=666"],
+            ["69420.torrent", "666.torrent"],
+            ["id=69420", "id=666"],
+        ),
+    ],
+)
+def test_snatch_matches(
+    tmp_path: pytest.FixtureRequest,
+    valid_app_config: AppConfig,
+    mock_enable_snatches: bool,
+    mock_permalinks_to_snatch: List[str],
+    expected_out_filenames: List[str],
+    expected_request_params: List[str],
+) -> None:
+    mocked_cli_options = {
+        **valid_app_config._cli_options,
+        **{"snatch_reqs": mock_enable_snatches, "snatch_directory": tmp_path},
+    }
+
+    def _get_opt_side_effect(*args, **kwargs) -> Any:
+        return mocked_cli_options[args[0]]
+
+    with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
+        mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
+        with patch("lastfm_recs_scraper.release_search.release_searcher.request_red_api") as mock_request_red_api:
+            mock_request_red_api.return_value = bytes("fakedata", encoding="utf-8")
+            expected_output_filepaths = [os.path.join(tmp_path, filename) for filename in expected_out_filenames]
+            release_searcher = ReleaseSearcher(app_config=valid_app_config)
+            release_searcher._permalinks_to_snatch = mock_permalinks_to_snatch
+            release_searcher.snatch_matches()
+            if not mock_enable_snatches:
+                mock_request_red_api.assert_not_called()
+                assert all([not tmp_filename.endswith(".torrent") for tmp_filename in os.listdir(tmp_path)])
+            else:
+                mock_request_red_api.assert_has_calls(
+                    [
+                        call(red_client=release_searcher._red_client, action="download", params=expected_request_param)
+                        for expected_request_param in expected_request_params
+                    ]
+                )
+                assert all([os.path.exists(out_filepath) for out_filepath in expected_output_filepaths])

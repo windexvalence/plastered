@@ -9,6 +9,7 @@ import yaml
 
 from lastfm_recs_scraper.config.config_schema import (
     CD_ONLY_EXTRAS_KEY,
+    CLI_SNATCH_DIRECTORY_KEY,
     CUE_KEY,
     DEFAULTS_DICT,
     ENCODING_KEY,
@@ -93,9 +94,26 @@ class AppConfig(object):
                     f"CLI option '{cli_key}' provided and will override the value found in the provided config file ({config_filepath})."
                 )
             self._cli_options[cli_key] = cli_val
+
+        self._validate_final_cli_options()
         self._red_preference_ordering = _load_red_formats_from_config(
             format_prefs_config_data=raw_config_data[FORMAT_PREFERENCES_KEY]
         )
+
+    def _validate_final_cli_options(self) -> None:
+        """
+        Various per-option validations which don't fall under the jsonschema validations or required fields validations go here.
+        Raises an AppConfigException if any validation condition is not met.
+        """
+        if CLI_SNATCH_DIRECTORY_KEY in self._cli_options.keys():
+            output_dir = self._cli_options[CLI_SNATCH_DIRECTORY_KEY]
+            if not os.path.exists(output_dir) or not os.path.isdir(output_dir):
+                raise AppConfigException(
+                    f"Provided '{CLI_SNATCH_DIRECTORY_KEY}' value '{output_dir}' must exist and must be a directory."
+                )
+
+    def get_all_options(self) -> Dict[str, Any]:
+        return self._cli_options
 
     def get_cli_option(self, option_key: str) -> Any:
         return self._cli_options[option_key]

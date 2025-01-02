@@ -24,6 +24,56 @@ def expected_mb_release() -> MBRelease:
     )
 
 
+@pytest.mark.parametrize(
+    "other, expected",
+    [
+        ("not-right-type", False),
+        (
+            MBRelease(
+                mbid="d211379d-3203-47ed-a0c5-e564815bb45a",
+                title="Dr. Octagonecologyst",
+                artist="Some-different",
+                primary_type="Album",
+                first_release_year=1996,
+                release_date="2017-05-19",
+                label="Get On Down",
+                catalog_number="58010",
+                release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+            ),
+            False,
+        ),
+        (
+            MBRelease(
+                mbid="d211379d-3203-47ed-a0c5-e564815bb45a",
+                title="Dr. Octagonecologyst",
+                artist="Dr. Octagon",
+                primary_type="Album",
+                first_release_year=1996,
+                release_date="2017-05-19",
+                label="Get On Down",
+                catalog_number="58010",
+                release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+            ),
+            True,
+        ),
+    ],
+)
+def test_eq(other: Any, expected: bool) -> None:
+    test_instance = MBRelease(
+        mbid="d211379d-3203-47ed-a0c5-e564815bb45a",
+        title="Dr. Octagonecologyst",
+        artist="Dr. Octagon",
+        primary_type="Album",
+        first_release_year=1996,
+        release_date="2017-05-19",
+        label="Get On Down",
+        catalog_number="58010",
+        release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+    )
+    actual = test_instance.__eq__(other)
+    assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
+
+
 @pytest.fixture(scope="session")
 def mb_client(api_clients_dict: Dict[str, requests.Session]) -> requests.Session:
     return api_clients_dict["musicbrainz"]
