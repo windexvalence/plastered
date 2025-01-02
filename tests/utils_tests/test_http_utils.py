@@ -1,5 +1,5 @@
 from typing import Any, Dict, Optional, Set
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 import requests
@@ -47,13 +47,14 @@ def test_initialize_api_client(
         ("browse", set(["currentPage", "pages", "results"]), False, None, None),
         ("usersearch", set(), True, ValueError, "Unexpected/Non-permitted*"),
         ("somefakeaction", set(), True, ValueError, "Unexpected/Non-permitted*"),
+        ("download", None, False, None, None),
     ],
 )
 def test_request_red_api(
     api_clients_dict: Dict[str, requests.Session],
     mock_action_to_red_json_responses: Dict[str, Dict[str, Any]],
     action: str,
-    expected_top_keys: Set[str],
+    expected_top_keys: Optional[Set[str]],
     should_fail: bool,
     exception_type: Optional[Exception],
     exception_message: Optional[str],
@@ -62,20 +63,27 @@ def test_request_red_api(
     if should_fail:
         with pytest.raises(exception_type, match=exception_message):
             result = request_red_api(red_client=api_client, action=action, params="fakekey=fakevalue")
-    else:
-        api_client.get = Mock(name="get")
-        api_client.get.return_value = mock_action_to_red_json_responses[action]
+        return
+    api_client.get = Mock(name="get")
+    api_client.get.return_value = (
+        mock_action_to_red_json_responses[action] if action != "download" else requests.Response()
+    )
+    with patch.object(requests.Response, "content") as mock_resp_content:
+        mock_resp_content.return_value = bytes("hello", encoding="utf-8")
         result = request_red_api(
             red_client=api_client,
             action=action,
             params="fakekey=fakevalue&someotherkey=someothervalue",
         )
-        assert isinstance(
-            result, dict
-        ), f"Expected result from request_red_api to be of type dict, but was of type: {type(result)}"
-        assert expected_top_keys == set(
-            result.keys()
-        ), f"Unexpected mismatch in top-level JSON keys for request_red_api response."
+        if action == "download":
+            assert result is not None
+        else:
+            assert isinstance(
+                result, dict
+            ), f"Expected result from request_red_api to be of type dict, but was of type: {type(result)}"
+            assert expected_top_keys == set(
+                result.keys()
+            ), f"Unexpected mismatch in top-level JSON keys for request_red_api response."
 
 
 @pytest.mark.parametrize(

@@ -23,7 +23,7 @@ search:
   output_summary_filepath: /some/other/fake/file.tsv
 
 snatches:
-  snatch_directory: /not/a/real/path
+  snatch_directory: /app/tests/resources
   snatch_reqs: true
   max_size_gb: 2.0
 

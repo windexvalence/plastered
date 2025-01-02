@@ -1,4 +1,5 @@
 import csv
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
@@ -8,7 +9,7 @@ from lastfm_recs_scraper.utils.constants import (
     MUSICBRAINZ_API_BASE_URL,
     RED_API_BASE_URL,
 )
-from lastfm_recs_scraper.utils.http_utils import initialize_api_client
+from lastfm_recs_scraper.utils.http_utils import initialize_api_client, request_red_api
 from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
@@ -44,6 +45,8 @@ def require_mbid_resolution(
 class ReleaseSearcher(object):
     def __init__(self, app_config: AppConfig):
         self._output_summary_filepath = app_config.get_cli_option("output_summary_filepath")
+        self._enable_snatches = app_config.get_cli_option("snatch_reqs")
+        self._snatch_directory = app_config.get_cli_option("snatch_directory")
         self._use_release_type = app_config.get_cli_option("use_release_type")
         self._use_first_release_year = app_config.get_cli_option("use_first_release_year")
         self._use_record_label = app_config.get_cli_option("use_record_label")
@@ -81,6 +84,7 @@ class ReleaseSearcher(object):
             max_size_gb=app_config.get_cli_option("max_size_gb"),
         )
         self._tsv_output_summary_rows = []
+        self._permalinks_to_snatch = []
 
     # TODO: add logic for a `search_for_track_rec` that basically ends up just calling this
     def search_for_album_rec(
@@ -153,13 +157,23 @@ class ReleaseSearcher(object):
                 str(release_mbid),
             )
             self._tsv_output_summary_rows.append(cur_tsv_output_row)
+            self._permalinks_to_snatch.append(red_permalink)
             # TODO: optionally write a TSV with the format '{lastfm_entity_url}\t{red_permalink}'
 
-    # TODO: optionally download the torrent from permalink
     def snatch_matches(self) -> None:
-        pass  # TODO: implement
+        if not self._enable_snatches:
+            _LOGGER.warning(f"Not configured to snatch. Please update your config to enable.")
+            return
+        _LOGGER.info(f"Beginning to snatch matched permalinks to download directory '{self._snatch_directory}' ...")
+        for permalink in self._permalinks_to_snatch:
+            tid = permalink.split("=")[-1]
+            out_filepath = os.path.join(self._snatch_directory, f"{tid}.torrent")
+            _LOGGER.info(f"Snatching {permalink} and saving to {out_filepath} ...")
+            binary_contents = request_red_api(red_client=self._red_client, action="download", params=f"id={tid}")
+            with open(out_filepath, "wb") as f:
+                f.write(binary_contents)
 
-    def get_output_summary_rows(self) -> List[Tuple[str, ...]]:
+    def get_output_summary_rows(self) -> List[Tuple[str, ...]]:  # pragma: no cover
         return self._tsv_output_summary_rows
 
     def write_output_summary_tsv(self) -> None:

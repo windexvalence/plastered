@@ -1,7 +1,7 @@
 import os
 from itertools import product
-from typing import Any, Dict, List
-from unittest.mock import patch
+from typing import Any, Dict, List, Optional
+from unittest.mock import PropertyMock, patch
 
 import pytest
 
@@ -10,11 +10,15 @@ from lastfm_recs_scraper.config.config_parser import (
     _get_cd_only_extras_string,
     _load_red_formats_from_config,
 )
-from lastfm_recs_scraper.config.config_schema import FORMAT_PREFERENCES_KEY
+from lastfm_recs_scraper.config.config_schema import (
+    CLI_SNATCH_DIRECTORY_KEY,
+    FORMAT_PREFERENCES_KEY,
+)
 from lastfm_recs_scraper.utils.exceptions import AppConfigException
 from lastfm_recs_scraper.utils.red_utils import RedFormat
 from tests.conftest import (
     INVALID_CONFIGS_DIR_PATH,
+    MOCK_RESOURCES_DIR_PATH,
     expected_red_format_list,
     valid_app_config,
     valid_config_raw_data,
@@ -197,6 +201,35 @@ def test_invalid_app_config_constructor(
 ) -> None:
     with pytest.raises(exception_type, match=exception_msg):
         app_config = AppConfig(config_filepath=config_filepath, cli_params=cli_params)
+
+
+@pytest.mark.parametrize(
+    "final_cli_options_overrides, should_fail, exception, exception_msg",
+    [
+        ({CLI_SNATCH_DIRECTORY_KEY: "/some/fake/path"}, True, AppConfigException, "must exist and must be a directory"),
+        (
+            {CLI_SNATCH_DIRECTORY_KEY: "/requirements.txt"},
+            True,
+            AppConfigException,
+            "must exist and must be a directory",
+        ),
+        ({CLI_SNATCH_DIRECTORY_KEY: MOCK_RESOURCES_DIR_PATH}, False, None, None),
+    ],
+)
+def test_validate_final_cli_options(
+    valid_app_config: AppConfig,
+    final_cli_options_overrides: Dict[str, Any],
+    should_fail: bool,
+    exception: Optional[Exception],
+    exception_msg: Optional[str],
+) -> None:
+    mock_final_cli_options = {**valid_app_config.get_all_options(), **final_cli_options_overrides}
+    valid_app_config._cli_options = mock_final_cli_options
+    if should_fail:
+        with pytest.raises(exception, match=exception_msg):
+            valid_app_config._validate_final_cli_options()
+    else:
+        valid_app_config._validate_final_cli_options()
 
 
 def test_pretty_print_config(valid_config_filepath: str) -> None:

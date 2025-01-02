@@ -6,6 +6,7 @@ CLI_LAST_FM_KEY = "last_fm"
 CLI_MUSICBRAINZ_KEY = "musicbrainz"
 CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
+CLI_SNATCH_DIRECTORY_KEY = "snatch_directory"
 _DEFAULT_RETRIES = 3
 DEFAULTS_DICT = {
     "red_api_retries": _DEFAULT_RETRIES,

@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 
 import requests
 
+from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
 from lastfm_recs_scraper.utils.http_utils import request_red_api
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
@@ -77,9 +78,6 @@ class RedFormat:
         return self._cd_only_extras if self._cd_only_extras else None
 
 
-_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
-
-
 class RedReleaseType(Enum):
     """These enum values are reflective of RED's releaseType API search values."""
 
@@ -135,17 +133,19 @@ class TorrentEntry(object):
 
         cd_only_extras = ""
         if self.media == MediaEnum.CD.value:
+            cd_only_extras_list = []
             if self.has_log:
-                cd_only_extras += f"haslog={self.log_score}"
-            cd_only_extras += "hascue=1" if self.has_cue else ""
+                cd_only_extras_list.append(f"haslog={self.log_score}")
+            cd_only_extras_list.append("hascue=1" if self.has_cue else "")
+            cd_only_extras = "&".join(cd_only_extras_list)
         self.red_format = RedFormat(
             format=FormatEnum(format),
-            encoding=EncodingEnum(quote_plus(encoding)),
+            encoding=EncodingEnum(encoding.replace(" ", "+")),
             media=MediaEnum(media),
             cd_only_extras=cd_only_extras,
         )
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return str(vars(self))
 
     def __eq__(self, other) -> bool:
@@ -202,8 +202,10 @@ class TorrentEntry(object):
         )
 
     def get_size(self, unit: Optional[str] = "B") -> float:
-        if unit not in _UNIT_IDENTIFIERS:
-            raise ValueError(f"Unexpected unit_identifier provided: '{unit}'. Must be one of: {_UNIT_IDENTIFIERS}")
+        if unit not in STORAGE_UNIT_IDENTIFIERS:
+            raise ValueError(
+                f"Unexpected unit_identifier provided: '{unit}'. Must be one of: {STORAGE_UNIT_IDENTIFIERS}"
+            )
         if unit == "B":
             return self.size
         elif unit == "MB":

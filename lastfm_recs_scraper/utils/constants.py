@@ -26,3 +26,5 @@ LOGIN_USERNAME_FORM_LOCATOR = "[name='username_or_email']"
 LOGIN_PASSWORD_FORM_LOCATOR = "[name='password']"
 LOGIN_BUTTON_LOCATOR = "[name='submit']"
 LOGOUT_URL = "https://www.last.fm/logout"
+
+STORAGE_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
