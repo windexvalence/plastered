@@ -334,7 +334,7 @@ def test_from_torrent_group_json_blob_invalid_edition(mock_red_group_response: D
             ],
             True,
         ),
-    ]
+    ],
 )
 def test_release_entry_has_snatched_any(
     mock_torrent_entries: List[TorrentEntry],
@@ -352,7 +352,9 @@ def test_release_entry_has_snatched_any(
         torrent_entries=mock_torrent_entries,
     )
     actual = test_release_entry.has_snatched_any()
-    assert actual == expected, f"Expected tetest_release_entry.has_snatched_any() to return {expected}, but got {actual}"
+    assert (
+        actual == expected
+    ), f"Expected tetest_release_entry.has_snatched_any() to return {expected}, but got {actual}"
 
 
 def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) -> None:

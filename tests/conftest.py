@@ -93,9 +93,7 @@ def mock_red_user_torrents_response() -> Dict[str, Any]:
 @pytest.fixture(scope="session")
 def mock_red_user_details(mock_red_user_torrents_response: Dict[str, Any]) -> RedUserDetails:
     return RedUserDetails(
-        user_id=69,
-        snatched_count=5216,
-        snatched_torrents_list=mock_red_user_torrents_response["response"]["snatched"]
+        user_id=69, snatched_count=5216, snatched_torrents_list=mock_red_user_torrents_response["response"]["snatched"]
     )
 
 

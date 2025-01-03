@@ -1,10 +1,10 @@
 import csv
 import os
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote_plus, unquote_plus
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from urllib.parse import quote_plus, unquote_plus
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.scraper.lastfm_recs_scraper import LastFMRec
@@ -19,10 +19,10 @@ from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
 from lastfm_recs_scraper.utils.red_utils import (
-    RedUserDetails,
     RedFormatPreferences,
     RedReleaseGroup,
     RedReleaseType,
+    RedUserDetails,
 )
 
 _LOGGER = get_custom_logger(__name__)
@@ -44,7 +44,7 @@ def require_mbid_resolution(
 
 def lastfm_format_to_user_details_format(lastfm_format_str: str) -> str:
     """
-    Utility function which takes a lastfm url-encoded string representing an artist or release, and returns 
+    Utility function which takes a lastfm url-encoded string representing an artist or release, and returns
     the human-readable string. For example "Some+Band" -> "Some Band"
     """
     return unquote_plus(lastfm_format_str.lower())
@@ -96,12 +96,18 @@ class ReleaseSearcher(object):
         )
         self._tsv_output_summary_rows = []
         self._permalinks_to_snatch = []
-    
+
     def gather_red_user_details(self) -> None:
         _LOGGER.info(f"Gathering red user details to help with search filtering ...")
-        user_stats_json = request_red_api(red_client=self._red_client, action="community_stats", params=f"userid={self._red_user_id}")
+        user_stats_json = request_red_api(
+            red_client=self._red_client, action="community_stats", params=f"userid={self._red_user_id}"
+        )
         snatched_torrent_count = int(user_stats_json["snatched"].replace(",", ""))
-        user_torrents_json = request_red_api(red_client=self._red_client, action="user_torrents", params=f"id={self._red_user_id}&type=snatched&limit={snatched_torrent_count}&offset=0")
+        user_torrents_json = request_red_api(
+            red_client=self._red_client,
+            action="user_torrents",
+            params=f"id={self._red_user_id}&type=snatched&limit={snatched_torrent_count}&offset=0",
+        )
         self._red_user_details = RedUserDetails(
             user_id=self._red_user_id,
             snatched_count=snatched_torrent_count,
@@ -121,8 +127,12 @@ class ReleaseSearcher(object):
         if self._skip_prior_snatches:
             search_artist_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_artist_str)
             search_album_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_album_str)
-            if self._red_user_details.has_snatched_release(search_artist=search_artist_str, search_release=search_album_str):
-                _LOGGER.info(f"Skipping album search for artist: '{search_artist_str}', album: '{search_album_str}' due to pre-existing snatch found in release group. To download from release groups with prior snatches, change the 'skip_prior_snatches' config field.")
+            if self._red_user_details.has_snatched_release(
+                search_artist=search_artist_str, search_release=search_album_str
+            ):
+                _LOGGER.info(
+                    f"Skipping album search for artist: '{search_artist_str}', album: '{search_album_str}' due to pre-existing snatch found in release group. To download from release groups with prior snatches, change the 'skip_prior_snatches' config field."
+                )
                 return None
         # If filtering the RED searches by any of these fields, then grab the release mbid from lastfm, then hit musicbrainz to get the relevant data fields.
         release_type, first_release_year, record_label, catalog_number = (
@@ -170,7 +180,9 @@ class ReleaseSearcher(object):
         Optionally will save the .torrent files in the specified snatch directory.
         """
         if self._skip_prior_snatches and self._red_user_details is None:
-            raise ReleaseSearcherException(f"self._skip_prior_snatches set to {self._skip_prior_snatches}, but self._red_user_details has not yet been populated.")
+            raise ReleaseSearcherException(
+                f"self._skip_prior_snatches set to {self._skip_prior_snatches}, but self._red_user_details has not yet been populated."
+            )
         # TODO: make sure this doesnt break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
             for album_rec in tqdm(album_recs, desc="Searching album recs"):

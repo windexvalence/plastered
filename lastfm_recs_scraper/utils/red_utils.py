@@ -34,6 +34,7 @@ class EncodingEnum(Enum):
     MP3_320 = "320"
     MP3_V0 = "V0+(VBR)"
 
+
 #   "groupId": 1869759,
 #   "name": "They Call Me Country",
 #   "torrentId": 3928715,
@@ -68,13 +69,13 @@ class RedUserDetails(object):
                 size=json_entry["torrentSize"],
             )
             self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
-    
+
     def has_snatched_release(self, search_artist: str, search_release: str) -> bool:
         return (search_artist, search_release) in self._snatched_torrents_dict
 
     def get_user_id(self) -> int:
         return self._user_id
-    
+
     def get_snatched_count(self) -> int:
         return self._snatched_count
 
@@ -347,7 +348,7 @@ class ReleaseEntry(object):
         """
         Returns True if any TorrentEntry under this ReleaseEntry has already been snatched, regardless of format.
         Returns False otherwise.
-        """            
+        """
         for te in self.torrent_entries:
             if te.has_snatched:
                 _LOGGER.info(f"Found prior snatch in release group id: {self.group_id} for torrent id: {te.torrent_id}")
@@ -448,7 +449,8 @@ class RedFormatPreferences:
             )
             red_browse_response = request_red_api(red_client=red_client, action="browse", params=browse_request_params)
             release_entries_browse_response = [
-                ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob) for result_blob in red_browse_response["results"]
+                ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
+                for result_blob in red_browse_response["results"]
             ]
 
             # Find best torrent entry

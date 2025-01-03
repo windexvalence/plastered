@@ -205,7 +205,9 @@ class LastFMRecsScraper(object):
         recs_base_url = ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
         # TODO: make sure this doesnt break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
-            for page_number in trange(1, self._max_rec_pages_to_scrape + 1, desc=f"{recommendation_type.value} recs scraping"):
+            for page_number in trange(
+                1, self._max_rec_pages_to_scrape + 1, desc=f"{recommendation_type.value} recs scraping"
+            ):
                 recs_page_url = f"{recs_base_url}?page={page_number}"
                 recs_page_source = self._navigate_to_page_and_get_page_source(
                     url=recs_page_url, rec_type=recommendation_type

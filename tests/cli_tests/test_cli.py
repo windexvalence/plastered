@@ -16,7 +16,11 @@ from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
     RecommendationType,
 )
 from lastfm_recs_scraper.utils.red_utils import RedUserDetails
-from tests.conftest import valid_app_config, valid_config_filepath, mock_red_user_details
+from tests.conftest import (
+    mock_red_user_details,
+    valid_app_config,
+    valid_config_filepath,
+)
 
 
 def test_cli_help_command() -> None:
@@ -35,7 +39,9 @@ def test_cli_config_command(valid_config_filepath: str) -> None:
             mock_pretty_print_preference_ordering.assert_called_once()
 
 
-def test_cli_scrape_command(valid_config_filepath: str, valid_app_config: AppConfig, mock_red_user_details: RedUserDetails) -> None:
+def test_cli_scrape_command(
+    valid_config_filepath: str, valid_app_config: AppConfig, mock_red_user_details: RedUserDetails
+) -> None:
     with patch.object(LastFMRecsScraper, "__enter__") as mock_enter:
         mock_enter.return_value = LastFMRecsScraper(app_config=valid_app_config)
         with patch.object(LastFMRecsScraper, "scrape_recs_list") as mock_scrape_recs_list:
@@ -60,4 +66,6 @@ def test_cli_scrape_command(valid_config_filepath: str, valid_app_config: AppCon
                             ]
                         )
                         mock_exit.assert_called_once()
-                        mock_search_for_album_recs.assert_called_once_with(album_recs=mock_scrape_recs_list.return_value)
+                        mock_search_for_album_recs.assert_called_once_with(
+                            album_recs=mock_scrape_recs_list.return_value
+                        )
