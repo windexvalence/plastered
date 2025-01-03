@@ -65,8 +65,8 @@ def scrape(ctx) -> None:
         album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
         track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
     release_searcher = ReleaseSearcher(app_config=app_config)
+    release_searcher.gather_red_user_details()
     release_searcher.search_for_album_recs(album_recs=album_recs_list)
-    # TODO: add logic for when snatch_reqs == True
 
 
 @cli.command()

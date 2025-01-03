@@ -3,7 +3,7 @@ LAST_FM_API_BASE_URL = "http://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE_URL = "http://musicbrainz.org/ws/2/"
 
 # TODO: permit addtocollage as action
-PERMITTED_RED_API_ACTIONS = set(["browse", "download", "torrentgroup"])
+PERMITTED_RED_API_ACTIONS = set(["browse", "download", "torrentgroup", "community_stats", "user_torrents"])
 PERMITTED_LAST_FM_API_METHODS = set(["album.getinfo", "track.getinfo"])
 
 RENDER_WAIT_SEC_MIN = 3

@@ -1,7 +1,7 @@
 import os
 from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import call, patch
+from unittest.mock import call, patch, Mock
 
 import pytest
 
@@ -9,20 +9,23 @@ from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.release_search.release_searcher import (
     ReleaseSearcher,
     require_mbid_resolution,
+    lastfm_format_to_user_details_format,
 )
 from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
     LastFMRec,
     RecContext,
     RecommendationType,
 )
+from lastfm_recs_scraper.utils.exceptions import ReleaseSearcherException
 from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
 from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
 from lastfm_recs_scraper.utils.red_utils import (
     RedFormatPreferences,
     RedReleaseType,
+    RedUserDetails,
     TorrentEntry,
 )
-from tests.conftest import valid_app_config
+from tests.conftest import valid_app_config, mock_red_user_stats_response, mock_red_user_torrents_response, mock_red_user_details
 
 _EXPECTED_TSV_OUTPUT_HEADER = "entity_type\trec_context\tlastfm_entity_url\tred_permalink\trelease_mbid\n"
 
@@ -102,6 +105,53 @@ def test_require_mbid_resolution(
         use_catalog_number=use_catalog_number,
     )
     assert actual == expected, f"Expected {expected}, but got {actual}"
+
+
+@pytest.mark.parametrize(
+    "user_torrent_str, expected",
+    [
+        ('', ''),
+        ('singleword', 'singleword'),
+        ('lowercase', 'lowercase'),
+        ('aphex+twin', 'aphex twin'),
+        ('aphex twin', 'aphex twin'),
+        ('double+nickels+on+the+dime', 'double nickels on the dime'),
+        ('dr.+octagonecologyst', 'dr. octagonecologyst'),
+        ('much+against+everyone%27s+advice', "much against everyone's advice"),
+        ('signals,+calls+and+marches', 'signals, calls and marches'),
+        ('this+nation%27s+saving+grace', "this nation's saving grace"),
+        ('500%25+more+man', '500% more man'),
+        ('mm...food', 'mm...food'),
+        ('chomp+(remastered)', 'chomp (remastered)'),
+        ('lying+%2f+a+wooden+box', 'lying / a wooden box'),
+        ('y', 'y'),
+        ('frankjavcee+collection,+vol.+1,+pt.+ii',
+        'frankjavcee collection, vol. 1, pt. ii'),
+        ('public+image+ltd.', 'public image ltd.'),
+    ]
+)
+def test_lastfm_format_to_user_details_format(user_torrent_str: str, expected: str) -> None:
+    actual = lastfm_format_to_user_details_format(lastfm_format_str=user_torrent_str)
+    assert actual == expected, f"Expected user_torrent_format_to_lastfm_format('{user_torrent_str}') to return '{expected}', but got '{actual}'"
+
+
+def test_gather_red_user_details(valid_app_config: AppConfig, mock_red_user_stats_response: Dict[str, Any], mock_red_user_torrents_response: Dict[str, Any]) -> None:
+    def request_red_api_mock_side_effect(*args, **kwargs) -> Dict[str, Any]:
+        if kwargs["action"] == "community_stats":
+            return mock_red_user_stats_response["response"]
+        return mock_red_user_torrents_response["response"]
+    with patch("lastfm_recs_scraper.release_search.release_searcher.request_red_api") as mock_request_red_api:
+        mock_request_red_api.side_effect = request_red_api_mock_side_effect
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        assert release_searcher._red_user_details is None, f"Expected ReleaseSearcher's initial value for _red_user_details attribute to be None, but got {type(release_searcher._red_user_details)}"
+        release_searcher.gather_red_user_details()
+        assert release_searcher._red_user_details is not None, f"Expected ReleaseSearcher's subsequent value for _red_user_details attribute after invoking 'gather_red_user_details' to not be None, but got {type(release_searcher._red_user_details)}"
+        expected_red_user_id = release_searcher._red_user_id
+        red_user_details_user_id = release_searcher._red_user_details.get_user_id()
+        assert red_user_details_user_id == expected_red_user_id, f"Unexpected mismatch between release_searcher's _red_user_id attribute and the user_details' user_id attribute ({expected_red_user_id} vs. {red_user_details_user_id})"
+        expected_snatch_count = 5216
+        actual_snatch_count = release_searcher._red_user_details.get_snatched_count()
+        assert actual_snatch_count == expected_snatch_count, f"Expected red_user_details' snatched_count value to be {expected_snatch_count}, but got {actual_snatch_count}"
 
 
 @pytest.mark.parametrize(
@@ -247,6 +297,7 @@ def test_search_for_album_rec(
     mock_mbr: MBRelease,
     mock_best_te: TorrentEntry,
     valid_app_config: AppConfig,
+    mock_red_user_details: RedUserDetails,
 ) -> None:
     override_app_conf_options = {
         "use_release_type": use_release_type,
@@ -262,6 +313,7 @@ def test_search_for_album_rec(
     with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
         mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._red_user_details = mock_red_user_details
         with patch.object(LastFMAlbumInfo, "construct_from_api_response") as mock_lfmai_class_method:
             with patch.object(MBRelease, "construct_from_api") as mock_mbr_class_method:
                 with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
@@ -291,6 +343,43 @@ def test_search_for_album_rec(
                         mock_mbr_class_method.assert_not_called()
                     mock_rfp_search.assert_called_once_with(**expected_rfp_search_kwargs)
                     assert actual == expected, f"Expected result: {expected}, but got {actual}"
+
+
+@pytest.mark.parametrize(
+    "last_fm_artist_str, last_fm_album_str, expected_search_artist_str, expected_search_release_str",
+    [
+        (
+            "Some+Artist",
+            "Some+Album",
+            "some artist",
+            "some album",
+        ),
+        (
+            "Some+Artist",
+            "this+nation%27s+saving+grace",
+            "some artist",
+            "this nation's saving grace",
+        ),
+    ]
+)
+def test_search_for_album_rec_skip_prior_snatch(
+    last_fm_artist_str: str,
+    last_fm_album_str: str,
+    expected_search_artist_str: str,
+    expected_search_release_str: str,
+    valid_app_config: AppConfig,
+    mock_red_user_details: RedUserDetails
+) -> None:
+    release_searcher = ReleaseSearcher(app_config=valid_app_config)
+    release_searcher._red_user_details = mock_red_user_details
+    with patch.object(LastFMAlbumInfo, "construct_from_api_response") as mock_lfmai_class_method:
+        with patch.object(MBRelease, "construct_from_api") as mock_mbr_class_method:
+            with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
+                with patch.object(RedUserDetails, "has_snatched_release") as mock_rud_has_snatched_release:
+                    mock_rud_has_snatched_release.return_value = True
+                    actual_search_result = release_searcher.search_for_album_rec(last_fm_artist_str=last_fm_artist_str, last_fm_album_str=last_fm_album_str)
+                    mock_rud_has_snatched_release.assert_called_once_with(search_artist=expected_search_artist_str, search_release=expected_search_release_str)
+                    assert actual_search_result is None, f"Expected pre-snatched release to cause search_for_album_rec to return None, but got {actual_search_result}"
 
 
 # "in-library"
@@ -401,6 +490,7 @@ def test_search_for_album_recs(
     mocked_search_results: List[Optional[Tuple[str, Optional[str]]]],
     expected_tsv_output_summary_rows: List[Tuple[str, ...]],
     valid_app_config: AppConfig,
+    mock_red_user_details: RedUserDetails,
 ) -> None:
     search_res_q = deque(mocked_search_results)
 
@@ -410,6 +500,7 @@ def test_search_for_album_recs(
     with patch.object(ReleaseSearcher, "search_for_album_rec") as mock_search_for_album_rec:
         mock_search_for_album_rec.side_effect = mock_search_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._red_user_details = release_searcher._red_user_details = mock_red_user_details
         release_searcher.search_for_album_recs(album_recs=last_fm_recs)
         actual_tsv_row_cnt = len(release_searcher._tsv_output_summary_rows)
         expected_tsv_row_cnt = len(expected_tsv_output_summary_rows)
@@ -419,6 +510,12 @@ def test_search_for_album_recs(
         for i, actual_row in enumerate(release_searcher._tsv_output_summary_rows):
             expected_row = expected_tsv_output_summary_rows[i]
             assert actual_row == expected_row, f"Expected row: {expected_row}, but got {actual_row}"
+
+
+def test_search_for_album_recs_invalid_user_details(valid_app_config: AppConfig) -> None:
+    with pytest.raises(ReleaseSearcherException, match="self._red_user_details has not yet been populated"):
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher.search_for_album_recs(album_recs=[])
 
 
 @pytest.mark.parametrize(
@@ -518,7 +615,7 @@ def test_snatch_matches(
 ) -> None:
     mocked_cli_options = {
         **valid_app_config._cli_options,
-        **{"snatch_reqs": mock_enable_snatches, "snatch_directory": tmp_path},
+        **{"snatch_recs": mock_enable_snatches, "snatch_directory": tmp_path},
     }
 
     def _get_opt_side_effect(*args, **kwargs) -> Any:

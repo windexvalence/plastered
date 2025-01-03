@@ -11,6 +11,7 @@ from lastfm_recs_scraper.utils.red_utils import (
     FormatEnum,
     MediaEnum,
     RedFormat,
+    RedUserDetails,
 )
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +29,8 @@ _RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "red_browse_api_no_results_response.json"
 )
 _RED_MOCK_GROUP_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "mock_red_group_response.json")
+_RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_userstats_response.json")
+_RED_MOCK_USER_TORRENTS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_response.json")
 
 
 def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
@@ -75,6 +78,25 @@ def mock_red_browse_empty_response() -> Dict[str, Any]:
 @pytest.fixture(scope="session")
 def mock_red_group_response() -> Dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_red_user_stats_response() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_red_user_torrents_response() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_red_user_details(mock_red_user_torrents_response: Dict[str, Any]) -> RedUserDetails:
+    return RedUserDetails(
+        user_id=69,
+        snatched_count=5216,
+        snatched_torrents_list=mock_red_user_torrents_response["response"]["snatched"]
+    )
 
 
 @pytest.fixture(scope="session")

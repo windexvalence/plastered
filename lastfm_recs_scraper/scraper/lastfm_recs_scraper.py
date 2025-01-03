@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 
 from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import sync_playwright
+from tqdm import trange
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.utils.constants import (
@@ -201,12 +203,14 @@ class LastFMRecsScraper(object):
         _LOGGER.info(f"Scraping '{recommendation_type.value}' recommendations from LastFM ...")
         recs: List[LastFMRec] = []
         recs_base_url = ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
-        for page_number in range(1, self._max_rec_pages_to_scrape + 1):
-            recs_page_url = f"{recs_base_url}?page={page_number}"
-            recs_page_source = self._navigate_to_page_and_get_page_source(
-                url=recs_page_url, rec_type=recommendation_type
-            )
-            recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source))
+        # TODO: make sure this doesnt break logging: https://stackoverflow.com/a/69145493
+        with logging_redirect_tqdm(loggers=[_LOGGER]):
+            for page_number in trange(1, self._max_rec_pages_to_scrape + 1, desc=f"{recommendation_type.value} recs scraping"):
+                recs_page_url = f"{recs_base_url}?page={page_number}"
+                recs_page_source = self._navigate_to_page_and_get_page_source(
+                    url=recs_page_url, rec_type=recommendation_type
+                )
+                recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source))
 
         self._scraped_recs[recommendation_type] = recs
         return recs

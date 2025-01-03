@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
 
 import requests
@@ -33,6 +33,50 @@ class EncodingEnum(Enum):
     LOSSLESS = "Lossless"
     MP3_320 = "320"
     MP3_V0 = "V0+(VBR)"
+
+#   "groupId": 1869759,
+#   "name": "They Call Me Country",
+#   "torrentId": 3928715,
+#   "torrentSize": "185876417",
+#   "artistName": "Sanford Clark",
+#   "artistId": 91298
+class PriorSnatch(object):
+    def __init__(self, group_id: int, torrent_id: int, red_artist_name: str, red_release_name: str, size: int):
+        self._group_id = group_id
+        self._torrent_id = torrent_id
+        self._red_artist_name = red_artist_name
+        self._red_release_name = red_release_name
+        self._size = size
+
+
+# User information (for more refined RED search filtering)
+class RedUserDetails(object):
+    def __init__(self, user_id: int, snatched_count: int, snatched_torrents_list: List[Dict[str, Any]]):
+        self._user_id = user_id
+        self._snatched_count = snatched_count
+        self._snatched_torrents = snatched_torrents_list
+        # mapping from tuple(red artist name, red release name) to PriorSnatch object.
+        self._snatched_torrents_dict: Dict[Tuple[str, str], PriorSnatch] = dict()
+        for json_entry in self._snatched_torrents:
+            red_artist_name = json_entry["artistName"]
+            red_release_name = json_entry["name"]
+            prior_snatch = PriorSnatch(
+                group_id=json_entry["groupId"],
+                torrent_id=json_entry["torrentId"],
+                red_artist_name=red_artist_name,
+                red_release_name=red_release_name,
+                size=json_entry["torrentSize"],
+            )
+            self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
+    
+    def has_snatched_release(self, search_artist: str, search_release: str) -> bool:
+        return (search_artist, search_release) in self._snatched_torrents_dict
+
+    def get_user_id(self) -> int:
+        return self._user_id
+    
+    def get_snatched_count(self) -> int:
+        return self._snatched_count
 
 
 # Defines a singular search preference
@@ -299,6 +343,17 @@ class ReleaseEntry(object):
             torrent_entries=torrent_entries,
         )
 
+    def has_snatched_any(self) -> bool:
+        """
+        Returns True if any TorrentEntry under this ReleaseEntry has already been snatched, regardless of format.
+        Returns False otherwise.
+        """            
+        for te in self.torrent_entries:
+            if te.has_snatched:
+                _LOGGER.info(f"Found prior snatch in release group id: {self.group_id} for torrent id: {te.torrent_id}")
+                return True
+        return False
+
     def get_red_formats(self) -> List[RedFormat]:
         return [torrent_entry.get_red_format() for torrent_entry in self.torrent_entries]
 
@@ -392,12 +447,15 @@ class RedFormatPreferences:
                 catalog_number=catalog_number,
             )
             red_browse_response = request_red_api(red_client=red_client, action="browse", params=browse_request_params)
-            if len(red_browse_response["results"]) > 0:
-                for result_blob in red_browse_response["results"]:
-                    release_entry = ReleaseEntry.from_torrent_search_json_blob(result_blob)
-                    for torrent_entry in release_entry.get_torrent_entries():
-                        size_gb = torrent_entry.get_size(unit="GB")
-                        if size_gb <= self._max_size_gb:
-                            return torrent_entry
+            release_entries_browse_response = [
+                ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob) for result_blob in red_browse_response["results"]
+            ]
+
+            # Find best torrent entry
+            for release_entry in release_entries_browse_response:
+                for torrent_entry in release_entry.get_torrent_entries():
+                    size_gb = torrent_entry.get_size(unit="GB")
+                    if size_gb <= self._max_size_gb:
+                        return torrent_entry
 
         return None
