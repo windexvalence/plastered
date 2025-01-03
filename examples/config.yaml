@@ -1,5 +1,6 @@
 ---
 red:
+  red_user_id: 12345
   red_api_key: 1234notarealapikey
   red_api_retries: 3
   red_api_seconds_between_calls: 5
@@ -24,7 +25,8 @@ search:
 
 snatches:
   snatch_directory: /app/tests/resources
-  snatch_reqs: true
+  snatch_recs: true
+  skip_prior_snatches: true
   max_size_gb: 2.0
 
 format_preferences:

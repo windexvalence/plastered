@@ -15,6 +15,7 @@ DEFAULTS_DICT = {
     "red_api_seconds_between_calls": 5,
     "scraper_max_rec_pages_to_scrape": 5,
     "scraper_allow_library_items": False,
+    "skip_prior_snatches": True,
     "use_record_label": False,
     "use_catalog_number": False,
 }
@@ -116,10 +117,11 @@ required_schema = {
             "type": "object",
             "properties": {
                 "snatch_directory": {"type": "string"},
-                "snatch_reqs": {"type": "boolean"},
+                "snatch_recs": {"type": "boolean"},
+                "skip_prior_snatches": {"type": "boolean", "default": DEFAULTS_DICT["skip_prior_snatches"]},
                 "max_size_gb": {"type": "number"},
             },
-            "required": ["snatch_directory", "snatch_reqs", "max_size_gb"],
+            "required": ["snatch_directory", "snatch_recs", "skip_prior_snatches", "max_size_gb"],
         },
         FORMAT_PREFERENCES_KEY: {
             "type": "array",

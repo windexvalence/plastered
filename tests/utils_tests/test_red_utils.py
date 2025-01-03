@@ -236,6 +236,127 @@ def test_from_torrent_group_json_blob_invalid_edition(mock_red_group_response: D
         ReleaseEntry.from_torrent_group_json_blob(json_blob=mock_red_group_response, edition_id=invalid_edition_id)
 
 
+@pytest.mark.parametrize(
+    "mock_torrent_entries, expected",
+    [
+        (
+            [
+                TorrentEntry(
+                    torrent_id=949473,
+                    media=MediaEnum.CD.value,
+                    format=FormatEnum.FLAC.value,
+                    encoding=EncodingEnum.LOSSLESS.value,
+                    size=110902818,
+                    scene=False,
+                    trumpable=False,
+                    has_snatched=False,
+                    has_log=True,
+                    log_score=100,
+                    has_cue=True,
+                    reported=False,
+                    lossy_web=False,
+                    lossy_master=False,
+                ),
+                TorrentEntry(
+                    torrent_id=949473,
+                    media=MediaEnum.CD.value,
+                    format=FormatEnum.MP3.value,
+                    encoding=EncodingEnum.MP3_320.value,
+                    size=1109018,
+                    scene=False,
+                    trumpable=False,
+                    has_snatched=False,
+                    has_log=True,
+                    log_score=100,
+                    has_cue=True,
+                    reported=False,
+                    lossy_web=False,
+                    lossy_master=False,
+                ),
+            ],
+            False,
+        ),
+        (
+            [
+                TorrentEntry(
+                    torrent_id=949473,
+                    media=MediaEnum.CD.value,
+                    format=FormatEnum.FLAC.value,
+                    encoding=EncodingEnum.LOSSLESS.value,
+                    size=110902818,
+                    scene=False,
+                    trumpable=False,
+                    has_snatched=True,
+                    has_log=True,
+                    log_score=100,
+                    has_cue=True,
+                    reported=False,
+                    lossy_web=False,
+                    lossy_master=False,
+                ),
+            ],
+            True,
+        ),
+        (
+            [
+                TorrentEntry(
+                    torrent_id=949473,
+                    media=MediaEnum.CD.value,
+                    format=FormatEnum.FLAC.value,
+                    encoding=EncodingEnum.LOSSLESS.value,
+                    size=110902818,
+                    scene=False,
+                    trumpable=False,
+                    has_snatched=False,
+                    has_log=True,
+                    log_score=100,
+                    has_cue=True,
+                    reported=False,
+                    lossy_web=False,
+                    lossy_master=False,
+                ),
+                TorrentEntry(
+                    torrent_id=949473,
+                    media=MediaEnum.CD.value,
+                    format=FormatEnum.MP3.value,
+                    encoding=EncodingEnum.MP3_320.value,
+                    size=1109018,
+                    scene=False,
+                    trumpable=False,
+                    has_snatched=True,
+                    has_log=True,
+                    log_score=100,
+                    has_cue=True,
+                    reported=False,
+                    lossy_web=False,
+                    lossy_master=False,
+                ),
+            ],
+            True,
+        ),
+    ],
+)
+def test_release_entry_has_snatched_any(
+    mock_torrent_entries: List[TorrentEntry],
+    expected: bool,
+) -> None:
+    test_release_entry = ReleaseEntry(
+        group_id=463161,
+        media=MediaEnum.CD.value,
+        remastered=True,
+        remaster_year=2000,
+        remaster_title="Promo",
+        remaster_catalogue_number="CSK 48775",
+        release_type=RedReleaseType.SINGLE,
+        remaster_record_label="Track Masters &lrm;/ Columbia",
+        torrent_entries=mock_torrent_entries,
+    )
+    actual = test_release_entry.has_snatched_any()
+    assert (
+        actual == expected
+    ), f"Expected tetest_release_entry.has_snatched_any() to return {expected}, but got {actual}"
+
+
 def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) -> None:
     test_release_entry = ReleaseEntry(
         group_id=463161,

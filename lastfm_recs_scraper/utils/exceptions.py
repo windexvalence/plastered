@@ -12,3 +12,7 @@ class MusicBrainzException(Exception):
 
 class AppConfigException(Exception):
     pass
+
+
+class ReleaseSearcherException(Exception):
+    pass

@@ -7,7 +7,11 @@ A docker utility for automatically scraping the recommended albums/tracks from y
 
 Check out the [Releases](./docs/RELEASES.md) page for more details.
 
-## Setup / Installation
+## User Setup / Installation
+
+Refer to the [User Guide page](./docs/user_guide.md) for installation, configuration, and usage details.
+
+## Dev Setup / Installation
 
 1. Locally build the image with `make docker-build`
 2. execute the relevant commands with docker run, such as:
