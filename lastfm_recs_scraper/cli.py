@@ -8,7 +8,7 @@ Expected Python version: 3.13 (with requirements.txt installed)
 USAGE: ./lastfm_recs_scraper.py
 """
 
-from typing import List, Optional
+from typing import Optional
 
 import click
 
@@ -23,7 +23,7 @@ from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 _LOGGER = get_custom_logger(__name__)
 
 
-# TODO: setup yaml config as described here: https://stackoverflow.com/a/73669230
+# pylint: disable=unused-argument,too-many-arguments,no-value-for-parameter
 @click.group()
 @click.option(
     "-c",
@@ -63,7 +63,8 @@ def scrape(ctx) -> None:
     app_config: AppConfig = ctx.obj["app_config"]
     with LastFMRecsScraper(app_config=app_config) as scraper:
         album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
-        track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
+        # TODO (later): Enable track scraping
+        # track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
     release_searcher = ReleaseSearcher(app_config=app_config)
     release_searcher.gather_red_user_details()
     release_searcher.search_for_album_recs(album_recs=album_recs_list)
@@ -71,7 +72,7 @@ def scrape(ctx) -> None:
 
 @cli.command()
 @click.pass_context
-def config(ctx) -> None:
+def conf(ctx) -> None:
     app_config: AppConfig = ctx.obj["app_config"]
     app_config.pretty_print_config()
     app_config.pretty_print_preference_ordering()

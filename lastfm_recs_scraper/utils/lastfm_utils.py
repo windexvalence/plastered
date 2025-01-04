@@ -6,7 +6,12 @@ from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 _LOGGER = get_custom_logger(__name__)
 
 
-class LastFMAlbumInfo(object):
+class LastFMAlbumInfo:
+    """
+    Utility class wrapping the results of the LastFM API's album.getinfo endpoint.
+    Used by the ReleaseSearcher when usage of the LastFM API is required for resolving certain additional search fields.
+    """
+
     def __init__(self, artist: str, release_mbid: str, album_name: str, lastfm_url: str):
         self._artist = artist
         self._release_mbid = release_mbid

@@ -14,7 +14,7 @@ DEFAULTS_DICT = {
     "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
     "red_api_seconds_between_calls": 5,
     "scraper_max_rec_pages_to_scrape": 5,
-    "scraper_allow_library_items": False,
+    "allow_library_items": False,
     "skip_prior_snatches": True,
     "use_record_label": False,
     "use_catalog_number": False,
@@ -80,9 +80,9 @@ required_schema = {
                     "maximum": 5,
                     "default": DEFAULTS_DICT["scraper_max_rec_pages_to_scrape"],
                 },
-                "scraper_allow_library_items": {
+                "allow_library_items": {
                     "type": "boolean",
-                    "default": DEFAULTS_DICT["scraper_allow_library_items"],
+                    "default": DEFAULTS_DICT["allow_library_items"],
                 },
             },
             "required": [

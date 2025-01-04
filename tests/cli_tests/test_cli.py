@@ -29,12 +29,12 @@ def test_cli_help_command() -> None:
     assert result.exit_code == 0, f"Expected cli command with --help flag to pass, but errored: {result.exception}"
 
 
-def test_cli_config_command(valid_config_filepath: str) -> None:
+def test_cli_conf_command(valid_config_filepath: str) -> None:
     with patch.object(AppConfig, "pretty_print_config") as mock_pretty_print_config:
         with patch.object(AppConfig, "pretty_print_preference_ordering") as mock_pretty_print_preference_ordering:
             cli_runner = CliRunner()
-            result = cli_runner.invoke(cli, ["--config", valid_config_filepath, "config"])
-            assert result.exit_code == 0, f"Expected cli command 'config' to pass but errored: {result.exception}"
+            result = cli_runner.invoke(cli, ["--config", valid_config_filepath, "conf"])
+            assert result.exit_code == 0, f"Expected cli command 'conf' to pass but errored: {result.exception}"
             mock_pretty_print_config.assert_called_once()
             mock_pretty_print_preference_ordering.assert_called_once()
 
@@ -62,7 +62,7 @@ def test_cli_scrape_command(
                         mock_scrape_recs_list.assert_has_calls(
                             [
                                 call(recommendation_type=RecommendationType.ALBUM),
-                                call(recommendation_type=RecommendationType.TRACK),
+                                # call(recommendation_type=RecommendationType.TRACK),
                             ]
                         )
                         mock_exit.assert_called_once()

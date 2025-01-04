@@ -19,7 +19,6 @@ from lastfm_recs_scraper.config.config_schema import (
     LOG_KEY,
     MEDIA_KEY,
     PER_PREFERENCE_KEY,
-    REQUIRED_PREFERENCE_KEYS,
     required_schema,
 )
 from lastfm_recs_scraper.utils.exceptions import AppConfigException
@@ -67,7 +66,12 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
     return red_formats
 
 
-class AppConfig(object):
+class AppConfig:
+    """
+    Utility class for gathering and merging user-provided options from both the CLI and the configuration file.
+    This class is the source of truth for the user's runtime configurations. Prioritizes CLI-based / env-var based options over the yaml config options.
+    """
+
     def __init__(self, config_filepath: str, cli_params: Dict[str, Any]):
         if not os.path.exists(config_filepath):
             raise AppConfigException(f"Provided config filepath does not exist: '{config_filepath}'")

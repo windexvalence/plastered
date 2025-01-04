@@ -477,9 +477,9 @@ def test_scraper_enter(lfm_rec_scraper: LastFMRecsScraper) -> None:
             mock_sync_playwright_ctx.assert_has_calls([call()])
             mock_playwright.assert_has_calls([call.chromium.launch(headless=True)])
             mock_browser.new_page.assert_called_once_with(user_agent=PW_USER_AGENT)
-            assert hasattr(lfm_rec_scraper, "_playwright")
-            assert hasattr(lfm_rec_scraper, "_browser")
-            assert hasattr(lfm_rec_scraper, "_page")
+            assert lfm_rec_scraper._playwright is not None
+            assert lfm_rec_scraper._browser is not None
+            assert lfm_rec_scraper._page is not None
             user_login_mock.assert_called_once()
 
 
@@ -493,7 +493,7 @@ def test_scraper_exit(lfm_rec_scraper: LastFMRecsScraper) -> None:
         with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
             with patch.object(LastFMRecsScraper, "_user_logout") as user_logout_mock:
                 lfm_rec_scraper.__enter__()
-                lfm_rec_scraper.__exit__()
+                lfm_rec_scraper.__exit__(exception_type=None, exception_value=None, traceback=None)
                 user_logout_mock.assert_called_once
                 lfm_rec_scraper._page.close.assert_called_once()
                 lfm_rec_scraper._browser.close.assert_called_once()

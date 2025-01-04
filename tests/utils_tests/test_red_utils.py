@@ -11,7 +11,6 @@ from lastfm_recs_scraper.utils.red_utils import (
     MediaEnum,
     RedFormat,
     RedFormatPreferences,
-    RedReleaseGroup,
     RedReleaseType,
     ReleaseEntry,
     TorrentEntry,
@@ -398,25 +397,6 @@ def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) 
     assert (
         actual_red_format_list == expected_red_format_list
     ), f"Expected test_release_entry.get_red_formats() to return {expected_red_format_list}, but got {actual_red_format_list}"
-
-
-def test_red_release_group_from_id(mock_red_group_response: Dict[str, Any]) -> None:
-    with patch("lastfm_recs_scraper.utils.red_utils.request_red_api") as mock_request_red_api:
-        mock_request_red_api.return_value = mock_red_group_response
-        rrg = RedReleaseGroup.from_group_id(group_id=463161)
-        assert len(rrg.release_entries) > 0
-        assert rrg.group_id == 463161
-
-
-def test_red_release_group_get_group_url(mock_red_group_response: Dict[str, Any]) -> None:
-    expected_release_group_url = f"https://redacted.sh/torrents.php?id=463161"
-    with patch("lastfm_recs_scraper.utils.red_utils.request_red_api") as mock_request_red_api:
-        mock_request_red_api.return_value = mock_red_group_response
-        rrg = RedReleaseGroup.from_group_id(group_id=463161)
-        actual_release_group_url = rrg.get_release_group_url()
-        assert (
-            actual_release_group_url == expected_release_group_url
-        ), f"Expected RedReleaseGroup's get_release_group_url() to return '{expected_release_group_url}', but got '{actual_release_group_url}'"
 
 
 @pytest.mark.parametrize(

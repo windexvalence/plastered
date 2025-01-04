@@ -1,13 +1,13 @@
 import csv
 import os
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote_plus, unquote_plus
+from typing import List, Optional, Tuple
+from urllib.parse import unquote_plus
 
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import LastFMRec
+from lastfm_recs_scraper.scraper.lastfm_recs_scraper import LastFMRec, RecContext
 from lastfm_recs_scraper.utils.constants import (
     LAST_FM_API_BASE_URL,
     MUSICBRAINZ_API_BASE_URL,
@@ -18,12 +18,7 @@ from lastfm_recs_scraper.utils.http_utils import initialize_api_client, request_
 from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
-from lastfm_recs_scraper.utils.red_utils import (
-    RedFormatPreferences,
-    RedReleaseGroup,
-    RedReleaseType,
-    RedUserDetails,
-)
+from lastfm_recs_scraper.utils.red_utils import RedFormatPreferences, RedUserDetails
 
 _LOGGER = get_custom_logger(__name__)
 
@@ -50,11 +45,19 @@ def lastfm_format_to_user_details_format(lastfm_format_str: str) -> str:
     return unquote_plus(lastfm_format_str.lower())
 
 
-class ReleaseSearcher(object):
+class ReleaseSearcher:
+    """
+    General 'brains' for searching for a collection of LastFM-recommended releases.
+    Responsible for ultimately searching, filtering, and downloading matching releases from RED.
+    Optionally may interact with the official LastFM API to collect the MBID for a release, and may also optionally
+    interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
+    """
+
     def __init__(self, app_config: AppConfig):
         self._red_user_id = app_config.get_cli_option("red_user_id")
         self._red_user_details: Optional[RedUserDetails] = None
         self._skip_prior_snatches = app_config.get_cli_option("skip_prior_snatches")
+        self._allow_library_items = app_config.get_cli_option("allow_library_items")
         self._output_summary_filepath = app_config.get_cli_option("output_summary_filepath")
         self._enable_snatches = app_config.get_cli_option("snatch_recs")
         self._snatch_directory = app_config.get_cli_option("snatch_directory")
@@ -115,25 +118,30 @@ class ReleaseSearcher(object):
         )
 
     # TODO: add logic for a `search_for_track_rec` that basically ends up just calling this
-    def search_for_album_rec(
-        self, last_fm_artist_str: str, last_fm_album_str: str
-    ) -> Optional[Tuple[str, Optional[str]]]:
+    def search_for_album_rec(self, last_fm_rec: LastFMRec) -> Optional[Tuple[str, Optional[str]]]:
         """
         Searches for the recommended album, and returns a tuple containing the permalink for the best RED match
         and the release mbid (if an mbid is found / the app is configured to request an mbid from lastfm's API)
         according to format_preferences, search preferences, and snatch preferences.
         Returns None if no viable match is found.
         """
+        last_fm_artist_str = last_fm_rec.artist_str
+        last_fm_album_str = last_fm_rec.entity_str
+        search_artist_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_artist_str)
+        search_album_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_album_str)
         if self._skip_prior_snatches:
-            search_artist_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_artist_str)
-            search_album_str = lastfm_format_to_user_details_format(lastfm_format_str=last_fm_album_str)
             if self._red_user_details.has_snatched_release(
                 search_artist=search_artist_str, search_release=search_album_str
             ):
-                _LOGGER.info(
+                _LOGGER.warning(
                     f"Skipping album search for artist: '{search_artist_str}', album: '{search_album_str}' due to pre-existing snatch found in release group. To download from release groups with prior snatches, change the 'skip_prior_snatches' config field."
                 )
                 return None
+        if not self._allow_library_items and last_fm_rec.rec_context == RecContext.IN_LIBRARY:
+            _LOGGER.warning(
+                f"Skipping album search for artist: '{search_artist_str}', album: '{search_album_str}' due to the last fm recommendation context being {RecContext.IN_LIBRARY.value} and config's 'allow_library_items' set to {self._allow_library_items}."
+            )
+            return None
         # If filtering the RED searches by any of these fields, then grab the release mbid from lastfm, then hit musicbrainz to get the relevant data fields.
         release_type, first_release_year, record_label, catalog_number = (
             None,
@@ -144,7 +152,7 @@ class ReleaseSearcher(object):
         release_mbid = None
         if self._require_mbid_resolution:
             lastfm_album_info = LastFMAlbumInfo.construct_from_api_response(
-                self._last_fm_client,
+                last_fm_client=self._last_fm_client,
                 last_fm_api_key=self._last_fm_api_key,
                 last_fm_artist_name=last_fm_artist_str,
                 last_fm_album_name=last_fm_album_str,
@@ -186,10 +194,7 @@ class ReleaseSearcher(object):
         # TODO: make sure this doesnt break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
             for album_rec in tqdm(album_recs, desc="Searching album recs"):
-                search_result = self.search_for_album_rec(
-                    last_fm_artist_str=album_rec.artist_str,
-                    last_fm_album_str=album_rec.entity_str,
-                )
+                search_result = self.search_for_album_rec(last_fm_rec=album_rec)
                 if not search_result:
                     continue
                 red_permalink, release_mbid = search_result

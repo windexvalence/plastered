@@ -340,8 +340,12 @@ def test_search_for_album_rec(
                     mock_mbr_class_method.return_value = mock_mbr
                     mock_rfp_search.return_value = mock_best_te if found_te else None
                     actual = release_searcher.search_for_album_rec(
-                        last_fm_artist_str="Foo",
-                        last_fm_album_str="Bar",
+                        last_fm_rec=LastFMRec(
+                            lastfm_artist_str="Foo",
+                            lastfm_entity_str="Bar",
+                            recommendation_type=RecommendationType.ALBUM,
+                            rec_context=RecContext.SIMILAR_ARTIST,
+                        )
                     )
                     expected_rfp_search_kwargs = {
                         **{
@@ -397,7 +401,12 @@ def test_search_for_album_rec_skip_prior_snatch(
                 with patch.object(RedUserDetails, "has_snatched_release") as mock_rud_has_snatched_release:
                     mock_rud_has_snatched_release.return_value = True
                     actual_search_result = release_searcher.search_for_album_rec(
-                        last_fm_artist_str=last_fm_artist_str, last_fm_album_str=last_fm_album_str
+                        last_fm_rec=LastFMRec(
+                            lastfm_artist_str=last_fm_artist_str,
+                            lastfm_entity_str=last_fm_album_str,
+                            recommendation_type=RecommendationType.ALBUM,
+                            rec_context=RecContext.SIMILAR_ARTIST,
+                        )
                     )
                     mock_rud_has_snatched_release.assert_called_once_with(
                         search_artist=expected_search_artist_str, search_release=expected_search_release_str
@@ -405,6 +414,51 @@ def test_search_for_album_rec_skip_prior_snatch(
                     assert (
                         actual_search_result is None
                     ), f"Expected pre-snatched release to cause search_for_album_rec to return None, but got {actual_search_result}"
+
+
+@pytest.mark.parametrize(
+    "rec_context, allow_library_items, expected_result",
+    [
+        (RecContext.SIMILAR_ARTIST, False, ("https://redacted.sh/torrents.php?torrentid=123", None)),
+        (RecContext.SIMILAR_ARTIST, True, ("https://redacted.sh/torrents.php?torrentid=123", None)),
+        (RecContext.IN_LIBRARY, False, None),
+        (RecContext.IN_LIBRARY, True, ("https://redacted.sh/torrents.php?torrentid=123", None)),
+    ],
+)
+def test_search_for_album_rec_allow_library_items(
+    rec_context: RecContext,
+    allow_library_items: bool,
+    expected_result: Optional[Tuple[str, Optional[str]]],
+    valid_app_config: AppConfig,
+) -> None:
+    lfm_rec = LastFMRec(
+        lastfm_artist_str="Some+Artist",
+        lastfm_entity_str="Some+Album",
+        recommendation_type=RecommendationType.ALBUM,
+        rec_context=rec_context,
+    )
+    release_searcher = ReleaseSearcher(app_config=valid_app_config)
+    release_searcher._skip_prior_snatches = False
+    release_searcher._allow_library_items = allow_library_items
+    release_searcher._require_mbid_resolution = False
+    with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
+        mock_rfp_search.return_value = TorrentEntry(
+            torrent_id=123,
+            media="CD",
+            format="FLAC",
+            encoding="Lossless",
+            size=12345,
+            scene=False,
+            trumpable=False,
+            has_snatched=False,
+            has_log=True,
+            log_score=100,
+            has_cue=True,
+        )
+        actual_result = release_searcher.search_for_album_rec(last_fm_rec=lfm_rec)
+        assert (
+            actual_result == expected_result
+        ), f"Expected search result to be {expected_result} for allow_library_items set to {allow_library_items} and rec_context set to {rec_context}, but got {actual_result}"
 
 
 # "in-library"

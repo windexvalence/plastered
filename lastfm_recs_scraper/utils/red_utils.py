@@ -13,12 +13,16 @@ _LOGGER = get_custom_logger(__name__)
 
 # File formats
 class FormatEnum(Enum):
+    """Enum class to map to the supported file format search fields on the RED API"""
+
     FLAC = "FLAC"
     MP3 = "MP3"
 
 
 # Media
 class MediaEnum(Enum):
+    """Enum class to map to the supported media search fields on the RED API"""
+
     ANY = "ANY"  # TODO: update search logic to omit media filters if this is the set value
     CASSETTE = "Cassette"
     CD = "CD"
@@ -29,19 +33,20 @@ class MediaEnum(Enum):
 
 # Encodings
 class EncodingEnum(Enum):
+    """Enum class to map to the supported encoding search fields on the RED API"""
+
     TWO_FOUR_BIT_LOSSLESS = "24bit+Lossless"
     LOSSLESS = "Lossless"
     MP3_320 = "320"
     MP3_V0 = "V0+(VBR)"
 
 
-#   "groupId": 1869759,
-#   "name": "They Call Me Country",
-#   "torrentId": 3928715,
-#   "torrentSize": "185876417",
-#   "artistName": "Sanford Clark",
-#   "artistId": 91298
-class PriorSnatch(object):
+class PriorSnatch:
+    """
+    Utility class representing a distinct snatched torrent for a given user.
+    Used by the ReleaseSearcher to filter out any pre-snatched recommendations.
+    """
+
     def __init__(self, group_id: int, torrent_id: int, red_artist_name: str, red_release_name: str, size: int):
         self._group_id = group_id
         self._torrent_id = torrent_id
@@ -51,7 +56,12 @@ class PriorSnatch(object):
 
 
 # User information (for more refined RED search filtering)
-class RedUserDetails(object):
+class RedUserDetails:
+    """
+    Utility class representing a distinct RED user.
+    Used by the ReleaseSearcher to determine the user's pre-snatched torrents, and filter out any pre-snatched recommendations.
+    """
+
     def __init__(self, user_id: int, snatched_count: int, snatched_torrents_list: List[Dict[str, Any]]):
         self._user_id = user_id
         self._snatched_count = snatched_count
@@ -82,6 +92,12 @@ class RedUserDetails(object):
 
 # Defines a singular search preference
 class RedFormat:
+    """
+    Utility class representing a unique entry in the user's preferred torrent qualities.
+    Used by the ReleaseSearcher for filtering and/or prioritizing specific desired file qualities.
+    """
+
+    # pylint: disable=redefined-builtin
     def __init__(
         self,
         format: FormatEnum,
@@ -143,7 +159,10 @@ class RedReleaseType(Enum):
     UNKNOWN = 21
 
 
-class TorrentEntry(object):
+class TorrentEntry:
+    """Utility class wrapping the details of a distinct torrent on RED."""
+
+    # pylint: disable=redefined-builtin
     def __init__(
         self,
         torrent_id: int,
@@ -253,7 +272,7 @@ class TorrentEntry(object):
             )
         if unit == "B":
             return self.size
-        elif unit == "MB":
+        if unit == "MB":
             return float(self.size) / float(1e6)
         return float(self.size) / float(1e9)
 
@@ -264,7 +283,12 @@ class TorrentEntry(object):
         return f"https://redacted.sh/torrents.php?torrentid={self.torrent_id}"
 
 
-class ReleaseEntry(object):
+class ReleaseEntry:
+    """
+    Utility class wrapping the details of a given specific release within a RED release group,
+    along with all the individual torrents associated with this specific release.
+    """
+
     def __init__(
         self,
         group_id: int,
@@ -362,7 +386,11 @@ class ReleaseEntry(object):
         return self.torrent_entries
 
 
-class RedReleaseGroup(object):
+class RedReleaseGroup:
+    """
+    Utility class wrapping the details of a RED release group, which is comprised of one or more ReleaseEntry objects.
+    """
+
     def __init__(self, group_id: int, release_entries: Optional[List[ReleaseEntry]] = []):
         self.group_id = group_id
         self.release_entries = release_entries
@@ -381,18 +409,8 @@ class RedReleaseGroup(object):
         ]
         return cls(group_id=group_id, release_entries=release_entries)
 
-    @classmethod
-    def from_group_id(cls, group_id: int):
-        """
-        Construct a RedReleaseGroup instance from the release group ID via the RED torrent group API endpoint.
-        """
-        torrent_group_json_response = request_red_api(action="torrentgroup", params=f"id={group_id}")
-        return RedReleaseGroup.from_torrent_group_json_blob(json_blob=torrent_group_json_response)
 
-    def get_release_group_url(self) -> str:
-        return f"https://redacted.sh/torrents.php?id={self.group_id}"
-
-
+# pylint: disable=redefined-builtin
 def create_browse_params(
     red_format: RedFormat,
     artist_name: str,
@@ -419,6 +437,11 @@ def create_browse_params(
 
 
 class RedFormatPreferences:
+    """
+    Maintains the user-specified preferences for file formats / mediums / encodings.
+    Additionally issues the actual red API browse calls in the order of the user's quality preferences, and returns the results to the ReleaseSearcher.
+    """
+
     def __init__(self, preference_ordering: List[RedFormat], max_size_gb: Optional[float] = 5.0):
         self._preference_ordering = preference_ordering
         self._max_size_gb = max_size_gb

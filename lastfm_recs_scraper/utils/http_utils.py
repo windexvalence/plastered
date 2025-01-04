@@ -15,7 +15,7 @@ _LOGGER = get_custom_logger(__name__)
 
 
 # TODO: see if the seconds_between_api_calls should be removed since it isn't currently used
-def initialize_api_client(
+def initialize_api_client(  # pylint: disable=unused-argument
     base_api_url: str, max_api_call_retries: int, seconds_between_api_calls: int
 ) -> requests.Session:
     base_domain = urlparse(base_api_url).netloc

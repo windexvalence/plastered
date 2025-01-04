@@ -11,7 +11,12 @@ _LOGGER = get_custom_logger(__name__)
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
 
 
-class MBRelease(object):
+class MBRelease:
+    """
+    Utility class wrapping the contents of a response from the Musicbrainz 'release' API endpoint.
+    Optionally used by the ReleaseSearcher for fine-grained RED browsing / filtering.
+    """
+
     def __init__(
         self,
         mbid: str,
