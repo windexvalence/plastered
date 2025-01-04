@@ -14,7 +14,7 @@ import click
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRecsScraper,
     RecommendationType,
 )

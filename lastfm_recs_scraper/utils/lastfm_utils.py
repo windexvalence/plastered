@@ -1,9 +1,4 @@
-import requests
-
-from lastfm_recs_scraper.utils.http_utils import request_lastfm_api
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
-
-_LOGGER = get_custom_logger(__name__)
+from typing import Any, Dict
 
 
 class LastFMAlbumInfo:
@@ -32,19 +27,7 @@ class LastFMAlbumInfo:
         return str(vars(self))
 
     @classmethod
-    def construct_from_api_response(
-        cls,
-        last_fm_api_key: str,
-        last_fm_client: requests.Session,
-        last_fm_artist_name: str,
-        last_fm_album_name: str,
-    ):
-        json_blob = request_lastfm_api(
-            last_fm_client=last_fm_client,
-            method="album.getinfo",
-            api_key=last_fm_api_key,
-            params=f"artist={last_fm_artist_name}&album={last_fm_album_name}",
-        )
+    def construct_from_api_response(cls, json_blob: Dict[str, Any]):
         return cls(
             artist=json_blob["artist"],
             release_mbid=json_blob["mbid"],

@@ -6,7 +6,7 @@ import pytest
 from rebrowser_playwright.sync_api import PlaywrightContextManager
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRec,
     LastFMRecsScraper,
     RecContext,
@@ -301,9 +301,9 @@ def test_sleep_random() -> None:
     assert (
         RENDER_WAIT_SEC_MAX < 10
     ), f"Expected constant 'RENDER_WAIT_SEC_MAX' to be less than 10, but found it set to {RENDER_WAIT_SEC_MAX}"
-    with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper.randint") as mock_randint:
+    with patch("lastfm_recs_scraper.scraper.last_scraper.randint") as mock_randint:
         mock_randint.return_value = 5
-        with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper.sleep") as mock_sleep:
+        with patch("lastfm_recs_scraper.scraper.last_scraper.sleep") as mock_sleep:
             mock_sleep.return_value = None
             _sleep_random()
             mock_randint.assert_called_once_with(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)
@@ -514,7 +514,7 @@ def test_user_login(lfm_rec_scraper: LastFMRecsScraper) -> None:
     lfm_rec_scraper._page = MagicMock()
     username = lfm_rec_scraper._last_fm_username
     password = lfm_rec_scraper._last_fm_password
-    with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper._sleep_random") as mock_sleep_random:
+    with patch("lastfm_recs_scraper.scraper.last_scraper._sleep_random") as mock_sleep_random:
         lfm_rec_scraper._user_login()
         lfm_rec_scraper._page.assert_has_calls(
             [
@@ -593,7 +593,7 @@ def test_navigate_to_page_and_get_page_source(
 ) -> None:
     fake_url = "https://google.com"
     lfm_rec_scraper._page = MagicMock()
-    with patch("lastfm_recs_scraper.scraper.lastfm_recs_scraper._sleep_random") as mock_sleep_random:
+    with patch("lastfm_recs_scraper.scraper.last_scraper._sleep_random") as mock_sleep_random:
         lfm_rec_scraper._navigate_to_page_and_get_page_source(url=fake_url, rec_type=rec_type)
         lfm_rec_scraper._page.assert_has_calls(
             [

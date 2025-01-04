@@ -1,5 +1,5 @@
 import logging
-import time
+from time import gmtime
 
 # TODO: add sensitive data filtering for api creds: https://dev.to/camillehe1992/mask-sensitive-data-using-python-built-in-logging-module-45fa
 
@@ -27,7 +27,7 @@ class CustomLoggingFormatter(logging.Formatter):
     def format(self, record):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt, datefmt="%m/%d/%Y %H:%M:%S")
-        formatter.converter = time.gmtime
+        formatter.converter = gmtime
         return formatter.format(record)
 
 

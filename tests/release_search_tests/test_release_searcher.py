@@ -8,24 +8,34 @@ import pytest
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.release_search.release_searcher import (
     ReleaseSearcher,
+    create_red_browse_params,
     lastfm_format_to_user_details_format,
     require_mbid_resolution,
 )
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRec,
     RecContext,
     RecommendationType,
 )
 from lastfm_recs_scraper.utils.exceptions import ReleaseSearcherException
+from lastfm_recs_scraper.utils.http_utils import (
+    LastFMAPIClient,
+    MusicBrainzAPIClient,
+    RedAPIClient,
+)
 from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
 from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
 from lastfm_recs_scraper.utils.red_utils import (
-    RedFormatPreferences,
+    EncodingEnum,
+    FormatEnum,
+    MediaEnum,
+    RedFormat,
     RedReleaseType,
     RedUserDetails,
     TorrentEntry,
 )
 from tests.conftest import (
+    mock_red_session_get_side_effect,
     mock_red_user_details,
     mock_red_user_stats_response,
     mock_red_user_torrents_response,
@@ -73,6 +83,99 @@ def mock_best_te() -> TorrentEntry:
         lossy_web=None,
         lossy_master=None,
     )
+
+
+@pytest.mark.parametrize(
+    "red_format, release_type, first_release_year, record_label, catalog_number, expected_browse_params",
+    [
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            None,
+            None,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+        ),
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.WEB),
+            None,
+            None,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+        ),
+        (
+            RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.WEB),
+            None,
+            None,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+        ),
+        (
+            RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.CD),
+            None,
+            None,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=CD&group_results=1&order_by=seeders&order_way=desc",
+        ),
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            RedReleaseType.ALBUM,
+            None,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1",
+        ),
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            None,
+            1969,
+            None,
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&year=1969",
+        ),
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            None,
+            None,
+            "Fake Label",
+            None,
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&recordlabel=Fake+Label",
+        ),
+        (
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            None,
+            None,
+            None,
+            "FL 69420",
+            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&cataloguenumber=FL+69420",
+        ),
+    ],
+)
+def test_create_browse_params(
+    red_format: RedFormat,
+    release_type: Optional[RedReleaseType],
+    first_release_year: Optional[int],
+    record_label: Optional[str],
+    catalog_number: Optional[str],
+    expected_browse_params: str,
+) -> None:
+    fake_artist_name = "Some+Artist"
+    fake_album_name = "Some+Bad+Album"
+    actual_browse_params = create_red_browse_params(
+        red_format=red_format,
+        artist_name=fake_artist_name,
+        album_name=fake_album_name,
+        release_type=release_type,
+        first_release_year=first_release_year,
+        record_label=record_label,
+        catalog_number=catalog_number,
+    )
+    assert (
+        actual_browse_params == expected_browse_params
+    ), f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
 
 
 def test_release_searcher_init(valid_app_config: AppConfig) -> None:
@@ -141,18 +244,8 @@ def test_lastfm_format_to_user_details_format(user_torrent_str: str, expected: s
     ), f"Expected user_torrent_format_to_lastfm_format('{user_torrent_str}') to return '{expected}', but got '{actual}'"
 
 
-def test_gather_red_user_details(
-    valid_app_config: AppConfig,
-    mock_red_user_stats_response: Dict[str, Any],
-    mock_red_user_torrents_response: Dict[str, Any],
-) -> None:
-    def request_red_api_mock_side_effect(*args, **kwargs) -> Dict[str, Any]:
-        if kwargs["action"] == "community_stats":
-            return mock_red_user_stats_response["response"]
-        return mock_red_user_torrents_response["response"]
-
-    with patch("lastfm_recs_scraper.release_search.release_searcher.request_red_api") as mock_request_red_api:
-        mock_request_red_api.side_effect = request_red_api_mock_side_effect
+def test_gather_red_user_details(valid_app_config: AppConfig) -> None:
+    with patch("requests.Session.get", side_effect=mock_red_session_get_side_effect) as mock_sesh_get:
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
         assert (
             release_searcher._red_user_details is None
@@ -171,6 +264,83 @@ def test_gather_red_user_details(
         assert (
             actual_snatch_count == expected_snatch_count
         ), f"Expected red_user_details' snatched_count value to be {expected_snatch_count}, but got {actual_snatch_count}"
+
+
+@pytest.mark.parametrize(
+    "mock_response_fixture_names, mock_preference_ordering, expected_torrent_entry",
+    [
+        (  # Test case 1: empty browse results for first/only preference
+            ["mock_red_browse_empty_response"],
+            [RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD)],
+            None,
+        ),
+        (  # Test case 2: non-empty browse results for first preference
+            ["mock_red_browse_non_empty_response"],
+            [RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB)],
+            TorrentEntry(
+                torrent_id=69420,
+                media="WEB",
+                format="FLAC",
+                encoding="24bit Lossless",
+                size=69420,
+                scene=False,
+                trumpable=False,
+                has_snatched=False,
+                has_log=False,
+                log_score=0,
+                has_cue=False,
+                reported=None,
+                lossy_web=None,
+                lossy_master=None,
+            ),
+        ),
+        (  # Test case 3: empty browse results for first pref, and non-empty browse results for 2nd preference
+            ["mock_red_browse_empty_response", "mock_red_browse_non_empty_response"],
+            [
+                RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD),
+                RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
+            ],
+            TorrentEntry(
+                torrent_id=69420,
+                media="WEB",
+                format="FLAC",
+                encoding="24bit Lossless",
+                size=69420,
+                scene=False,
+                trumpable=False,
+                has_snatched=False,
+                has_log=False,
+                log_score=0,
+                has_cue=False,
+                reported=None,
+                lossy_web=None,
+                lossy_master=None,
+            ),
+        ),
+    ],
+)  # TODO: Add test case for size over max_size filtering
+def test_search_red_release_by_preferences(
+    request: pytest.FixtureRequest,
+    valid_app_config: AppConfig,
+    mock_response_fixture_names: List[str],
+    mock_preference_ordering: List[RedFormat],
+    expected_torrent_entry: Optional[TorrentEntry],
+) -> None:
+    # TODO: mock the release_searcher._red_client attr
+    # TODO: change this to use the new ReleaseSearcher method
+    release_searcher = ReleaseSearcher(app_config=valid_app_config)
+    release_searcher._red_format_preferences = mock_preference_ordering
+    release_searcher._red_client.request_api = Mock(
+        name="request_api",
+        side_effect=[request.getfixturevalue(fixture_name)["response"] for fixture_name in mock_response_fixture_names],
+    )
+    actual_torrent_entry = release_searcher._search_red_release_by_preferences(
+        artist_name="Fake+Artist",
+        album_name="Fake+Release",
+        release_type=RedReleaseType.ALBUM,
+        first_release_year=1899,
+    )
+    assert actual_torrent_entry == expected_torrent_entry
 
 
 @pytest.mark.parametrize(
@@ -328,44 +498,39 @@ def test_search_for_album_rec(
 
     def _get_opt_side_effect(*args, **kwargs) -> Any:
         return mocked_cli_options[args[0]]
-
     with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
         mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._search_red_release_by_preferences = Mock(name="_search_red_release_by_preferences")
+        release_searcher._search_red_release_by_preferences.return_value = mock_best_te if found_te else None
+        release_searcher._resolve_last_fm_album_info = Mock(name="_resolve_last_fm_album_info")
+        release_searcher._resolve_last_fm_album_info.return_value = mock_lfmai
+        release_searcher._resolve_mb_release = Mock(name="_resolve_mb_release")
+        release_searcher._resolve_mb_release.return_value = mock_mbr
         release_searcher._red_user_details = mock_red_user_details
-        with patch.object(LastFMAlbumInfo, "construct_from_api_response") as mock_lfmai_class_method:
-            with patch.object(MBRelease, "construct_from_api") as mock_mbr_class_method:
-                with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
-                    mock_lfmai_class_method.return_value = mock_lfmai
-                    mock_mbr_class_method.return_value = mock_mbr
-                    mock_rfp_search.return_value = mock_best_te if found_te else None
-                    actual = release_searcher.search_for_album_rec(
-                        last_fm_rec=LastFMRec(
-                            lastfm_artist_str="Foo",
-                            lastfm_entity_str="Bar",
-                            recommendation_type=RecommendationType.ALBUM,
-                            rec_context=RecContext.SIMILAR_ARTIST,
-                        )
-                    )
-                    expected_rfp_search_kwargs = {
-                        **{
-                            "red_client": release_searcher._red_client,
-                            "artist_name": "Foo",
-                            "album_name": "Bar",
-                        },
-                        **expected_extra_search_args,
-                    }
-                    if release_searcher._require_mbid_resolution:
-                        mock_lfmai_class_method.assert_called_once()
-                        mock_mbr_class_method.assert_called_once_with(
-                            musicbrainz_client=release_searcher._musicbrainz_client,
-                            mbid=mock_lfmai.get_release_mbid(),
-                        )
-                    else:
-                        mock_lfmai_class_method.assert_not_called()
-                        mock_mbr_class_method.assert_not_called()
-                    mock_rfp_search.assert_called_once_with(**expected_rfp_search_kwargs)
-                    assert actual == expected, f"Expected result: {expected}, but got {actual}"
+        actual = release_searcher.search_for_album_rec(
+            last_fm_rec=LastFMRec(
+                lastfm_artist_str="Foo",
+                lastfm_entity_str="Bar",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            )
+        )
+        expected_rfp_search_kwargs = {
+            **{
+                "artist_name": "Foo",
+                "album_name": "Bar",
+            },
+            **expected_extra_search_args,
+        }
+        if release_searcher._require_mbid_resolution:
+            release_searcher._resolve_last_fm_album_info.assert_called_once()
+            release_searcher._resolve_mb_release.assert_called_once_with(mbid=mock_lfmai.get_release_mbid())
+        else:
+            release_searcher._resolve_last_fm_album_info.assert_not_called()
+            release_searcher._resolve_mb_release.assert_not_called()
+        release_searcher._search_red_release_by_preferences.assert_called_once_with(**expected_rfp_search_kwargs)
+        assert actual == expected, f"Expected result: {expected}, but got {actual}"
 
 
 @pytest.mark.parametrize(
@@ -393,11 +558,11 @@ def test_search_for_album_rec_skip_prior_snatch(
     valid_app_config: AppConfig,
     mock_red_user_details: RedUserDetails,
 ) -> None:
-    release_searcher = ReleaseSearcher(app_config=valid_app_config)
-    release_searcher._red_user_details = mock_red_user_details
     with patch.object(LastFMAlbumInfo, "construct_from_api_response") as mock_lfmai_class_method:
         with patch.object(MBRelease, "construct_from_api") as mock_mbr_class_method:
-            with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
+            with patch.object(ReleaseSearcher, "_search_red_release_by_preferences") as mock_rfp_search:
+                release_searcher = ReleaseSearcher(app_config=valid_app_config)
+                release_searcher._red_user_details = mock_red_user_details
                 with patch.object(RedUserDetails, "has_snatched_release") as mock_rud_has_snatched_release:
                     mock_rud_has_snatched_release.return_value = True
                     actual_search_result = release_searcher.search_for_album_rec(
@@ -437,11 +602,11 @@ def test_search_for_album_rec_allow_library_items(
         recommendation_type=RecommendationType.ALBUM,
         rec_context=rec_context,
     )
-    release_searcher = ReleaseSearcher(app_config=valid_app_config)
-    release_searcher._skip_prior_snatches = False
-    release_searcher._allow_library_items = allow_library_items
-    release_searcher._require_mbid_resolution = False
-    with patch.object(RedFormatPreferences, "search_release_by_preferences") as mock_rfp_search:
+    with patch.object(ReleaseSearcher, "_search_red_release_by_preferences") as mock_rfp_search:
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._skip_prior_snatches = False
+        release_searcher._allow_library_items = allow_library_items
+        release_searcher._require_mbid_resolution = False
         mock_rfp_search.return_value = TorrentEntry(
             torrent_id=123,
             media="CD",
@@ -702,7 +867,7 @@ def test_snatch_matches(
 
     with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
         mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
-        with patch("lastfm_recs_scraper.release_search.release_searcher.request_red_api") as mock_request_red_api:
+        with patch.object(RedAPIClient, "request_api") as mock_request_red_api:
             mock_request_red_api.return_value = bytes("fakedata", encoding="utf-8")
             expected_output_filepaths = [os.path.join(tmp_path, filename) for filename in expected_out_filenames]
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
@@ -714,7 +879,7 @@ def test_snatch_matches(
             else:
                 mock_request_red_api.assert_has_calls(
                     [
-                        call(red_client=release_searcher._red_client, action="download", params=expected_request_param)
+                        call(action="download", params=expected_request_param)
                         for expected_request_param in expected_request_params
                     ]
                 )
