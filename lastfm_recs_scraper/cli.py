@@ -8,13 +8,16 @@ Expected Python version: 3.13 (with requirements.txt installed)
 USAGE: ./lastfm_recs_scraper.py
 """
 
-from typing import List, Optional
+from typing import Optional
 
 import click
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.config.config_parser import (
+    AppConfig,
+    load_init_config_template,
+)
 from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRecsScraper,
     RecommendationType,
 )
@@ -22,15 +25,17 @@ from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
 
+_GROUP_PARAMS_KEY = "group_params"
 
-# TODO: setup yaml config as described here: https://stackoverflow.com/a/73669230
+# TODO: dynamically pull version number from build_scripts/release-tag.txt for the version option
+
+
+# pylint: disable=unused-argument,too-many-arguments,no-value-for-parameter
 @click.group()
-@click.option(
-    "-c",
-    "--config",
-    required=True,
-    type=click.Path(exists=True),
-    help="Path to the application config yaml file.",
+@click.version_option(
+    version="0.0.1-beta",
+    package_name="last-red-recs",
+    prog_name="last-red-recs",
 )
 @click.option(
     "--output-summary-filepath",
@@ -45,7 +50,6 @@ _LOGGER = get_custom_logger(__name__)
 @click.pass_context
 def cli(
     ctx,
-    config: str,
     output_summary_filepath: Optional[str] = None,
     red_api_key: Optional[str] = None,
     last_fm_api_key: Optional[str] = None,
@@ -53,28 +57,49 @@ def cli(
     last_fm_password: Optional[str] = None,
 ) -> None:
     ctx.obj = {}
-    app_config = AppConfig(config_filepath=config, cli_params=ctx.params)
-    ctx.obj["app_config"] = app_config
+    ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
 
 
-@cli.command()
+@cli.command(
+    help="Run the app to pull LFM recs and snatch them from RED, per the settings of your config.yaml along with any CLI overrides you provide.",
+    short_help="Run the app to pull LFM recs and snatch them from RED.",
+)
 @click.pass_context
-def scrape(ctx) -> None:
-    app_config: AppConfig = ctx.obj["app_config"]
+@click.option(
+    "-c", "--config", required=True, type=click.Path(exists=True), help="Path to the application config yaml file."
+)
+def scrape(ctx, config: str) -> None:
+    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     with LastFMRecsScraper(app_config=app_config) as scraper:
         album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
-        track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
+        # TODO (later): Enable track scraping
+        # track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
     release_searcher = ReleaseSearcher(app_config=app_config)
     release_searcher.gather_red_user_details()
     release_searcher.search_for_album_recs(album_recs=album_recs_list)
 
 
-@cli.command()
+@cli.command(
+    help="Output the contents of your existing config.yaml, along with any default values and/or CLI option overrides.",
+    short_help="Output the current state of your app config for inspection.",
+)
+@click.option(
+    "-c", "--config", required=True, type=click.Path(exists=True), help="Path to the application config yaml file."
+)
 @click.pass_context
-def config(ctx) -> None:
-    app_config: AppConfig = ctx.obj["app_config"]
+def conf(ctx, config: str) -> None:
+    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     app_config.pretty_print_config()
     app_config.pretty_print_preference_ordering()
+
+
+@cli.command(
+    help="Output the contents of a template starter config to aid in initial app setup. Output may be redirected to the desired config filepath on your host machine.",
+    short_help="Output the contents of a starter config template for initial setup.",
+)
+def init_conf() -> None:
+    raw_init_conf_data_str = load_init_config_template()
+    print(raw_init_conf_data_str)
 
 
 if __name__ == "__main__":  # pragma: no cover

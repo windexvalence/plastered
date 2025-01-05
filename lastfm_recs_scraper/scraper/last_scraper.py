@@ -1,13 +1,11 @@
-import os
 import re
-import sys
 from enum import Enum
 from random import randint
 from time import sleep
 from typing import Dict, List, Optional
 
 from bs4 import BeautifulSoup
-from rebrowser_playwright.sync_api import sync_playwright
+from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -39,16 +37,33 @@ _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
 
 
 class RecommendationType(Enum):
+    """
+    Enum representing the type of LastFM recommendation. Can be either "album", or "track" currently.
+    """
+
     ALBUM = "album"
     TRACK = "track"
 
 
 class RecContext(Enum):
+    """
+    Enum representing the recommendation's context, as stated by LastFM's recommendation page.
+    Can be either "in-library", or "similar-artist".
+
+    "in-library" means that the recommendation is for a release from an artist which is already in your library, according to LastFM.
+    "similar-artist" means that the recommendation is for a release from an artist which is similar to other artists you frequently listen to, according to LastFM.
+    """
+
     IN_LIBRARY = "in-library"
     SIMILAR_ARTIST = "similar-artist"
 
 
-class LastFMRec(object):
+class LastFMRec:
+    """
+    Class representing a singular recommendation from LastFM.
+    Corresponds to either a distinct LastFM Album recommendation, or a distinct LastFM Track recommendation.
+    """
+
     def __init__(
         self,
         lastfm_artist_str: str,
@@ -103,17 +118,18 @@ def _sleep_random() -> None:
     """
     Very dumb utility function to sleep a bounded random number of seconds between selenium client interactions with the lastfm website to try avoid bot detection.
     """
-    sleep_seconds = randint(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)
+    sleep_seconds = randint(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)  # nosec B311
     _LOGGER.debug(f"Sleeping for {sleep_seconds} before continuing ...")
     sleep(sleep_seconds)
 
 
-# TODO: surface the constructor args as AppConfig / yaml config fields
-class LastFMRecsScraper(object):
+class LastFMRecsScraper:
+    """
+    Utility class which manages the headless browser-based interactions with the recommendations pages to gather the recommendation data for subsequent searching and processing.
+    """
+
     def __init__(self, app_config: AppConfig):
         self._max_rec_pages_to_scrape = app_config.get_cli_option("scraper_max_rec_pages_to_scrape")
-        self._allow_library_items = app_config.get_cli_option("scraper_allow_library_items")
-        # TODO: figure out how to have container dynamically find this from the port arg in docker-compose
         self._last_fm_username = app_config.get_cli_option("last_fm_username")
         self._last_fm_password = app_config.get_cli_option("last_fm_password")
         self._login_success_url = f"https://www.last.fm/user/{self._last_fm_username}"
@@ -122,6 +138,9 @@ class LastFMRecsScraper(object):
             RecommendationType.ALBUM: None,
             RecommendationType.TRACK: None,
         }
+        self._playwright: Optional[Playwright] = None
+        self._browser: Optional[BrowserType] = None
+        self._page: Optional[Page] = None
 
     def __enter__(self):
         self._playwright = sync_playwright().start()
@@ -129,7 +148,7 @@ class LastFMRecsScraper(object):
         self._page = self._browser.new_page(user_agent=PW_USER_AGENT)
         self._user_login()
 
-    def __exit__(self):
+    def __exit__(self, exception_type, exception_value, traceback):
         self._user_logout()
         self._page.close()
         self._browser.close()
@@ -161,7 +180,7 @@ class LastFMRecsScraper(object):
             if rec_type == RecommendationType.ALBUM
             else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
         )
-        recs_page_locator = self._page.locator(wait_css_selector)
+        recs_page_locator = self._page.locator(wait_css_selector)  # pylint: disable=unused-variable
         _sleep_random()
         return self._page.content()
 
@@ -212,7 +231,9 @@ class LastFMRecsScraper(object):
                 recs_page_source = self._navigate_to_page_and_get_page_source(
                     url=recs_page_url, rec_type=recommendation_type
                 )
-                recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source))
+                recs.extend(
+                    self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=recommendation_type)
+                )
 
         self._scraped_recs[recommendation_type] = recs
         return recs

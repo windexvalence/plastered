@@ -10,8 +10,7 @@ last_fm:
   last_fm_password: fake-password
   last_fm_api_retries: 3
   last_fm_api_seconds_between_calls: 2
-  scraper_allow_library_items: false
-  scraper_service_port: 4444
+  allow_library_items: false
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
@@ -21,6 +20,7 @@ search:
   use_first_release_year: true
   use_record_label: false
   use_catalog_number: false
+  # TODO: remove this and dynamically create filename based on exection timestamp
   output_summary_filepath: /some/other/fake/file.tsv
 
 snatches:

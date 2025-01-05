@@ -22,10 +22,10 @@ docker-build-no-test:  ## Build the last-red-recs docker image locally without t
 docker-shell:  docker-build  ## Execs a local shell inside a locally built last-red-recs docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/last-red-recs:latest
 
-code-format-check: docker-build  ## Runs code-auto-formatting
+code-format-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
 	docker run -t --rm -e CODE_FORMAT_CHECK=1 -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
 
-code-format: docker-build  ## Runs code-auto-formatting
+code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container

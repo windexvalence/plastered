@@ -4,5 +4,81 @@ line-length = 120
 [tool.isort]
 profile = "black"
 
+[tool.pylint.main]
+ignore-patterns = ["^\\.#"]
+
+py-version = "3.13"
+
+[tool.pylint.basic]
+no-docstring-rgx = "^_"
+
+# for a list the pylint messages and descriptions, see here since pylint docs are terrible: https://sprytnyk.github.io/pylint-errors/
+# TODO: enable protected-access
+[tool.pylint."MESSAGES CONTROL"]
+disable = ["all"]
+enable = """
+    abstract-class-instantiated,
+    abstract-method,
+    access-member-before-definition,
+    arguments-differ,
+    attribute-defined-outside-init,
+    bad-classmethod-argument,
+    bad-staticmethod-argument,
+    blacklisted-name,
+    comparison-with-callable,
+    comparison-with-itself,
+    cyclic-import,
+    duplicate-argument-name,
+    duplicate-bases,
+    duplicate-key,
+    eval-used,
+    exec-used,
+    expression-not-assigned,
+    function-redefined,
+    inherit-non-class,
+    init-is-generator,
+    invalid-name,
+    invalid-overridden-method,
+    literal-comparison,
+    method-hidden,
+    missing-class-docstring,
+    no-classmethod-decorator,
+    no-else-return,
+    no-method-argument,
+    no-self-argument,
+    no-staticmethod-decorator,
+    no-value-for-parameter,
+    nonexistent-operator,
+    non-parent-init-called,
+    not-in-loop,
+    not-async-context-manager,
+    pointless-statement,
+    property-with-parameters,
+    redeclared-assigned-name,
+    redefined-builtin,
+    redefined-outer-name,
+    return-in-init,
+    self-assigning-variable,
+    signature-differs,
+    super-init-not-called,
+    too-many-star-expressions,
+    unexpected-special-method-signature,
+    unidiomatic-typecheck,
+    unnecessary-lambda,
+    unnecessary-semicolon,
+    unreachable,
+    unused-argument,
+    unused-import,
+    unused-variable,
+    useless-object-inheritance,
+    yield-inside-async-function,
+"""
+
+[tool.pylint.variables]
+ignored-argument-names = "_.*|^ignored_|^unused_"
+
 [tool.pytest.ini_options]
 addopts = "--cov-report term-missing --cov=lastfm_recs_scraper --cov-fail-under=100"
+
+[tool.bandit]
+exclude_dirs = [".github", "docs", "examples", "tests", "secrets"]

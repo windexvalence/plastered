@@ -15,7 +15,11 @@ fi
 if [[ "$CHECK" == "1" ]]; then
     black --check .
     isort --check .
+    pylint --rcfile ./pyproject.toml lastfm_recs_scraper
+    bandit -c ./pyproject.toml -r . --severity-level all -n 1
 else
     black .
     isort .
+    pylint --rcfile ./pyproject.toml lastfm_recs_scraper
+    bandit -c ./pyproject.toml -r . --severity-level all -n 1
 fi

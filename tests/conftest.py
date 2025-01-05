@@ -1,7 +1,8 @@
 import json
 import os
-import sys
+import re
 from typing import Any, Dict, List
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -16,6 +17,7 @@ from lastfm_recs_scraper.utils.red_utils import (
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
+ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "lastfm_recs_scraper")
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 
@@ -31,6 +33,13 @@ _RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(
 _RED_MOCK_GROUP_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "mock_red_group_response.json")
 _RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_userstats_response.json")
 _RED_MOCK_USER_TORRENTS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_response.json")
+_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "last_fm_album_info_api_response.json"
+)
+_LAST_FM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "last_fm_track_info_api_response.json"
+)
+_MUSICBRAINZ_MOCK_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json")
 
 
 def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
@@ -40,10 +49,22 @@ def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
     return json_data
 
 
-# TODO: add unit tests and ensure project imports work here
+_RED_ACTIONS_TO_MOCK_JSON = {
+    "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
+    "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
+    "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
+    "user_torrents": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_JSON_FILEPATH),
+}
+
+
 @pytest.fixture(scope="session")
 def valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "config.yaml")
+
+
+@pytest.fixture(scope="session")
+def minimal_valid_config_filepath() -> str:
+    return os.path.join(EXAMPLES_DIR_PATH, "minimal_config.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -53,9 +74,21 @@ def valid_config_raw_data(valid_config_filepath: str) -> Dict[str, Any]:
     return raw_config_data
 
 
+@pytest.fixture(scope="session")
+def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> Dict[str, Any]:
+    with open(minimal_valid_config_filepath, "r") as f:
+        raw_config_data = yaml.safe_load(f.read())
+    return raw_config_data
+
+
 @pytest.fixture(scope="function")
 def valid_app_config(valid_config_filepath: str) -> AppConfig:
     return AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+
+
+@pytest.fixture(scope="session")
+def minimal_valid_app_config(minimal_valid_config_filepath: str) -> AppConfig:
+    return AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=dict())
 
 
 @pytest.fixture(scope="session")
@@ -95,6 +128,64 @@ def mock_red_user_details(mock_red_user_torrents_response: Dict[str, Any]) -> Re
     return RedUserDetails(
         user_id=69, snatched_count=5216, snatched_torrents_list=mock_red_user_torrents_response["response"]["snatched"]
     )
+
+
+@pytest.fixture(scope="session")
+def mock_last_fm_album_info_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_musicbrainz_release_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+
+
+def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+    """
+    Helper test function to pass as the value for any
+    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
+    This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
+    """
+    url_val = kwargs["url"]
+    if "action=download" in url_val:
+        resp_mock = MagicMock(name="content")
+        resp_mock.content.return_value = bytes("fakebytes", encoding="utf-8")
+    else:
+        m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
+        red_action = m.groups()[0]
+        resp_mock = MagicMock(name="json")
+        mock_json = _RED_ACTIONS_TO_MOCK_JSON[red_action]
+        resp_mock.json.return_value = mock_json
+    return resp_mock
+
+
+def mock_last_fm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+    """
+    Helper test function to pass as the value for any
+    patch('requests.Session.get', ...) mocks on a LastFMAPIClient test case.
+    This ensures that the subsequent response's json() value is properly overridden with the desired data.
+    """
+    url_val = kwargs["url"]
+    resp_mock = MagicMock(name="json")
+    mock_json = None
+    if "album.getinfo" in url_val:
+        mock_json = load_mock_response_json(json_filepath=_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH)
+    elif "track.getinfo" in url_val:
+        mock_json = load_mock_response_json(json_filepath=_LAST_FM_MOCK_TRACK_INFO_JSON_FILEPATH)
+    resp_mock.json.return_value = mock_json
+    return resp_mock
+
+
+def mock_mb_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+    """
+    Helper test function to pass as the value for any
+    patch('requests.Session.get', ...) mocks on a MusicBrainzAPIClient test case.
+    This ensures that the subsequent response's json() value is properly overridden with the desired data.
+    """
+    resp_mock = MagicMock(name="json")
+    mock_json = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+    resp_mock.json.return_value = mock_json
+    return resp_mock
 
 
 @pytest.fixture(scope="session")

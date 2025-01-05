@@ -1,24 +1,21 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote_plus
-
-import requests
 
 from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
-from lastfm_recs_scraper.utils.http_utils import request_red_api
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
-
-_LOGGER = get_custom_logger(__name__)
 
 
 # File formats
 class FormatEnum(Enum):
+    """Enum class to map to the supported file format search fields on the RED API"""
+
     FLAC = "FLAC"
     MP3 = "MP3"
 
 
 # Media
 class MediaEnum(Enum):
+    """Enum class to map to the supported media search fields on the RED API"""
+
     ANY = "ANY"  # TODO: update search logic to omit media filters if this is the set value
     CASSETTE = "Cassette"
     CD = "CD"
@@ -29,19 +26,20 @@ class MediaEnum(Enum):
 
 # Encodings
 class EncodingEnum(Enum):
+    """Enum class to map to the supported encoding search fields on the RED API"""
+
     TWO_FOUR_BIT_LOSSLESS = "24bit+Lossless"
     LOSSLESS = "Lossless"
     MP3_320 = "320"
     MP3_V0 = "V0+(VBR)"
 
 
-#   "groupId": 1869759,
-#   "name": "They Call Me Country",
-#   "torrentId": 3928715,
-#   "torrentSize": "185876417",
-#   "artistName": "Sanford Clark",
-#   "artistId": 91298
-class PriorSnatch(object):
+class PriorSnatch:
+    """
+    Utility class representing a distinct snatched torrent for a given user.
+    Used by the ReleaseSearcher to filter out any pre-snatched recommendations.
+    """
+
     def __init__(self, group_id: int, torrent_id: int, red_artist_name: str, red_release_name: str, size: int):
         self._group_id = group_id
         self._torrent_id = torrent_id
@@ -51,7 +49,12 @@ class PriorSnatch(object):
 
 
 # User information (for more refined RED search filtering)
-class RedUserDetails(object):
+class RedUserDetails:
+    """
+    Utility class representing a distinct RED user.
+    Used by the ReleaseSearcher to determine the user's pre-snatched torrents, and filter out any pre-snatched recommendations.
+    """
+
     def __init__(self, user_id: int, snatched_count: int, snatched_torrents_list: List[Dict[str, Any]]):
         self._user_id = user_id
         self._snatched_count = snatched_count
@@ -82,6 +85,12 @@ class RedUserDetails(object):
 
 # Defines a singular search preference
 class RedFormat:
+    """
+    Utility class representing a unique entry in the user's preferred torrent qualities.
+    Used by the ReleaseSearcher for filtering and/or prioritizing specific desired file qualities.
+    """
+
+    # pylint: disable=redefined-builtin
     def __init__(
         self,
         format: FormatEnum,
@@ -143,7 +152,10 @@ class RedReleaseType(Enum):
     UNKNOWN = 21
 
 
-class TorrentEntry(object):
+class TorrentEntry:
+    """Utility class wrapping the details of a distinct torrent on RED."""
+
+    # pylint: disable=redefined-builtin
     def __init__(
         self,
         torrent_id: int,
@@ -204,28 +216,6 @@ class TorrentEntry(object):
         return True
 
     @classmethod
-    def from_torrent_json_blob(cls, json_blob: Dict[str, Any]):
-        """
-        Construct a TorrentEntry from the JSON data returned from the API endpoint `ajax.php?action=torrent&id<RED-torrent-ID-here>
-        """
-        return cls(
-            torrent_id=json_blob["id"],
-            media=json_blob["media"],
-            format=json_blob["format"],
-            encoding=json_blob["encoding"],
-            size=json_blob["size"],
-            scene=json_blob["scene"],
-            trumpable=json_blob["trumpable"],
-            reported=json_blob["reported"],
-            lossy_web=json_blob["lossyWebApproved"],
-            lossy_master=json_blob["lossyMasterApproved"],
-            has_snatched=json_blob["has_snatched"],
-            has_log=json_blob["hasLog"],
-            log_score=json_blob["logScore"],
-            has_cue=json_blob["hasCue"],
-        )
-
-    @classmethod
     def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
         """
         Construct a TorrentEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
@@ -253,7 +243,7 @@ class TorrentEntry(object):
             )
         if unit == "B":
             return self.size
-        elif unit == "MB":
+        if unit == "MB":
             return float(self.size) / float(1e6)
         return float(self.size) / float(1e9)
 
@@ -264,7 +254,12 @@ class TorrentEntry(object):
         return f"https://redacted.sh/torrents.php?torrentid={self.torrent_id}"
 
 
-class ReleaseEntry(object):
+class ReleaseEntry:
+    """
+    Utility class wrapping the details of a given specific release within a RED release group,
+    along with all the individual torrents associated with this specific release.
+    """
+
     def __init__(
         self,
         group_id: int,
@@ -286,40 +281,6 @@ class ReleaseEntry(object):
         self.remaster_catalogue_number = remaster_catalogue_number
         self.release_type = release_type
         self.torrent_entries = torrent_entries
-
-    @classmethod
-    def from_torrent_group_json_blob(cls, json_blob: Dict[str, Any], edition_id: int):
-        """
-        Construct a ReleaseEntry from the JSON data returned from the API endpoint `/ajax.php?action=torrentgroup&id=<group-ID-here>`
-        """
-        group_json_blob = json_blob["group"]
-        group_id = group_json_blob["id"]
-        edition_torrents_json = [
-            torrent_json for torrent_json in json_blob["torrents"] if torrent_json["editionId"] == edition_id
-        ]
-        num_torrents_in_edition = len(edition_torrents_json)
-        if num_torrents_in_edition == 0:
-            raise ValueError(
-                f"Invalid edition ID provided for torrent group ID '{group_id}'. No entries found for given edition ID. Unable to construct ReleaseEntry."
-            )
-
-        first_torrent_blob = edition_torrents_json[0]
-        torrent_entries = [
-            TorrentEntry.from_torrent_json_blob(json_blob=torrent_json_blob)
-            for torrent_json_blob in edition_torrents_json
-        ]
-
-        return cls(
-            group_id=group_id,
-            media=first_torrent_blob["media"],
-            remastered=first_torrent_blob["remastered"],
-            remaster_year=first_torrent_blob["remasterYear"],
-            remaster_title=first_torrent_blob["remasterTitle"],
-            remaster_record_label=first_torrent_blob["remasterRecordLabel"],
-            remaster_catalogue_number=first_torrent_blob["remasterCatalogueNumber"],
-            release_type=RedReleaseType(group_json_blob["releaseType"]),
-            torrent_entries=torrent_entries,
-        )
 
     @classmethod
     def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
@@ -344,120 +305,8 @@ class ReleaseEntry(object):
             torrent_entries=torrent_entries,
         )
 
-    def has_snatched_any(self) -> bool:
-        """
-        Returns True if any TorrentEntry under this ReleaseEntry has already been snatched, regardless of format.
-        Returns False otherwise.
-        """
-        for te in self.torrent_entries:
-            if te.has_snatched:
-                _LOGGER.info(f"Found prior snatch in release group id: {self.group_id} for torrent id: {te.torrent_id}")
-                return True
-        return False
-
     def get_red_formats(self) -> List[RedFormat]:
         return [torrent_entry.get_red_format() for torrent_entry in self.torrent_entries]
 
     def get_torrent_entries(self) -> List[TorrentEntry]:
         return self.torrent_entries
-
-
-class RedReleaseGroup(object):
-    def __init__(self, group_id: int, release_entries: Optional[List[ReleaseEntry]] = []):
-        self.group_id = group_id
-        self.release_entries = release_entries
-
-    @classmethod
-    def from_torrent_group_json_blob(cls, json_blob: Dict[str, Any]):
-        """
-        Construct a RedReleaseGroup from the JSON data returned from the API endpoint `/ajax.php?action=torrentgroup&id=<group-ID-here>`
-        """
-        group_id = json_blob["group"]["id"]
-        torrents_json_list = json_blob["torrents"]
-        edition_ids = set([torrent_blob["editionId"] for torrent_blob in torrents_json_list])
-        release_entries = [
-            ReleaseEntry.from_torrent_group_json_blob(json_blob=json_blob, edition_id=edition_id)
-            for edition_id in edition_ids
-        ]
-        return cls(group_id=group_id, release_entries=release_entries)
-
-    @classmethod
-    def from_group_id(cls, group_id: int):
-        """
-        Construct a RedReleaseGroup instance from the release group ID via the RED torrent group API endpoint.
-        """
-        torrent_group_json_response = request_red_api(action="torrentgroup", params=f"id={group_id}")
-        return RedReleaseGroup.from_torrent_group_json_blob(json_blob=torrent_group_json_response)
-
-    def get_release_group_url(self) -> str:
-        return f"https://redacted.sh/torrents.php?id={self.group_id}"
-
-
-def create_browse_params(
-    red_format: RedFormat,
-    artist_name: str,
-    album_name: str,
-    release_type: Optional[RedReleaseType] = None,
-    first_release_year: Optional[int] = None,
-    record_label: Optional[str] = None,
-    catalog_number: Optional[str] = None,
-) -> str:
-    format = red_format.get_format()
-    encoding = red_format.get_encoding()
-    media = red_format.get_media()
-    # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
-    browse_request_params = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
-    if release_type:
-        browse_request_params += f"&releasetype={release_type.value}"
-    if first_release_year:
-        browse_request_params += f"&year={first_release_year}"
-    if record_label:
-        browse_request_params += f"&recordlabel={quote_plus(record_label)}"
-    if catalog_number:
-        browse_request_params += f"&cataloguenumber={quote_plus(catalog_number)}"
-    return browse_request_params
-
-
-class RedFormatPreferences:
-    def __init__(self, preference_ordering: List[RedFormat], max_size_gb: Optional[float] = 5.0):
-        self._preference_ordering = preference_ordering
-        self._max_size_gb = max_size_gb
-        self._format_matches: Dict[RedFormat, List[TorrentEntry]] = {
-            red_format: [] for red_format in self._preference_ordering
-        }
-
-    # TODO (later): optionally allow for multi-page search
-    def search_release_by_preferences(
-        self,
-        red_client: requests.Session,
-        artist_name: str,
-        album_name: str,
-        release_type: Optional[RedReleaseType] = None,
-        first_release_year: Optional[int] = None,
-        record_label: Optional[str] = None,
-        catalog_number: Optional[str] = None,
-    ) -> Optional[TorrentEntry]:
-        for pref_red_format in self._preference_ordering:
-            browse_request_params = create_browse_params(
-                red_format=pref_red_format,
-                artist_name=artist_name,
-                album_name=album_name,
-                release_type=release_type,
-                first_release_year=first_release_year,
-                record_label=record_label,
-                catalog_number=catalog_number,
-            )
-            red_browse_response = request_red_api(red_client=red_client, action="browse", params=browse_request_params)
-            release_entries_browse_response = [
-                ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
-                for result_blob in red_browse_response["results"]
-            ]
-
-            # Find best torrent entry
-            for release_entry in release_entries_browse_response:
-                for torrent_entry in release_entry.get_torrent_entries():
-                    size_gb = torrent_entry.get_size(unit="GB")
-                    if size_gb <= self._max_size_gb:
-                        return torrent_entry
-
-        return None

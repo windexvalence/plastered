@@ -1,17 +1,17 @@
 import re
-from typing import Optional
+from typing import Any, Dict, Optional
 
-import requests
-
-from lastfm_recs_scraper.utils.http_utils import request_musicbrainz_api
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 from lastfm_recs_scraper.utils.red_utils import RedReleaseType
 
-_LOGGER = get_custom_logger(__name__)
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
 
 
-class MBRelease(object):
+class MBRelease:
+    """
+    Utility class wrapping the contents of a response from the Musicbrainz 'release' API endpoint.
+    Optionally used by the ReleaseSearcher for fine-grained RED browsing / filtering.
+    """
+
     def __init__(
         self,
         mbid: str,
@@ -35,8 +35,7 @@ class MBRelease(object):
         self._release_group_mbid = release_group_mbid
 
     @classmethod
-    def construct_from_api(cls, musicbrainz_client: requests.Session, mbid: str):
-        json_blob = request_musicbrainz_api(musicbrainz_client=musicbrainz_client, entity_type="release", mbid=mbid)
+    def construct_from_api(cls, json_blob: Dict[str, Any]):
         label_json = json_blob["label-info"][0]
         release_group_json = json_blob["release-group"]
         first_release_year = -1
@@ -64,7 +63,6 @@ class MBRelease(object):
         other_attrs = vars(other)
         for attr_name, attr_val in self_attrs.items():
             if other_attrs[attr_name] != attr_val:
-                _LOGGER.warning(f"Mismatch on field: {attr_name}: self: {attr_val}, other: {other_attrs[attr_name]}")
                 return False
         return True
 

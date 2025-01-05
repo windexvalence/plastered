@@ -8,23 +8,33 @@ CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
 CLI_SNATCH_DIRECTORY_KEY = "snatch_directory"
 _DEFAULT_RETRIES = 3
+NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS = 2
 DEFAULTS_DICT = {
+    # RED API defaults
     "red_api_retries": _DEFAULT_RETRIES,
-    "last_fm_api_retries": _DEFAULT_RETRIES,
-    "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
     "red_api_seconds_between_calls": 5,
+    # LFM API / scraping defaults
+    "last_fm_api_retries": _DEFAULT_RETRIES,
+    "last_fm_api_seconds_between_calls": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
     "scraper_max_rec_pages_to_scrape": 5,
-    "scraper_allow_library_items": False,
-    "skip_prior_snatches": True,
+    "allow_library_items": False,
+    # MusicBrainz API defaults
+    "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
+    "musicbrainz_api_seconds_between_calls": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
+    # RED searching defaults
+    "use_release_type": True,
+    "use_first_release_year": True,
     "use_record_label": False,
     "use_catalog_number": False,
+    "output_summary_filepath": "/config/output_summary.tsv",
+    # RED snatching defaults
+    "skip_prior_snatches": True,
 }
 FORMAT_PREFERENCES_KEY = "format_preferences"
 EXPECTED_TOP_LEVEL_CLI_KEYS = set(
     [
         CLI_RED_KEY,
         CLI_LAST_FM_KEY,
-        CLI_MUSICBRAINZ_KEY,
         CLI_SNATCHES_KEY,
         CLI_SEARCH_KEY,
     ]
@@ -46,7 +56,7 @@ _SECONDS_BETWEEN_CALLS_SCHEMA = {
     "type": "integer",
     "minimum": 1,
     "maximum": 6,
-    "default": 2,
+    "default": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
 }
 
 required_schema = {
@@ -59,7 +69,7 @@ required_schema = {
                 "red_api_retries": _RETRIES_SCHEMA,
                 "red_api_seconds_between_calls": {
                     "type": "integer",
-                    "minimum": 1,
+                    "minimum": 2,
                     "maximum": 10,
                     "default": DEFAULTS_DICT["red_api_seconds_between_calls"],
                 },
@@ -80,9 +90,9 @@ required_schema = {
                     "maximum": 5,
                     "default": DEFAULTS_DICT["scraper_max_rec_pages_to_scrape"],
                 },
-                "scraper_allow_library_items": {
+                "allow_library_items": {
                     "type": "boolean",
-                    "default": DEFAULTS_DICT["scraper_allow_library_items"],
+                    "default": DEFAULTS_DICT["allow_library_items"],
                 },
             },
             "required": [
@@ -101,17 +111,12 @@ required_schema = {
         CLI_SEARCH_KEY: {
             "type": "object",
             "properties": {
-                "use_release_type": {"type": "boolean"},
-                "use_first_release_year": {"type": "boolean"},
+                "use_release_type": {"type": "boolean", "default": DEFAULTS_DICT["use_release_type"]},
+                "use_first_release_year": {"type": "boolean", "default": DEFAULTS_DICT["use_first_release_year"]},
                 "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
                 "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
-                "output_summary_filepath": {"type": "string"},
+                "output_summary_filepath": {"type": "string", "default": DEFAULTS_DICT["output_summary_filepath"]},
             },
-            "required": [
-                "use_release_type",
-                "use_first_release_year",
-                "output_summary_filepath",
-            ],
         },
         CLI_SNATCHES_KEY: {
             "type": "object",
@@ -119,9 +124,13 @@ required_schema = {
                 "snatch_directory": {"type": "string"},
                 "snatch_recs": {"type": "boolean"},
                 "skip_prior_snatches": {"type": "boolean", "default": DEFAULTS_DICT["skip_prior_snatches"]},
-                "max_size_gb": {"type": "number"},
+                "max_size_gb": {
+                    "type": "number",
+                    "minimum": 0.02,  # 20MB minimum
+                    "maximum": 100.0,  # 100GB maximum
+                },
             },
-            "required": ["snatch_directory", "snatch_recs", "skip_prior_snatches", "max_size_gb"],
+            "required": ["snatch_directory", "snatch_recs", "max_size_gb"],
         },
         FORMAT_PREFERENCES_KEY: {
             "type": "array",

@@ -10,7 +10,7 @@ from lastfm_recs_scraper.release_search.release_searcher import (
     LastFMRec,
     ReleaseSearcher,
 )
-from lastfm_recs_scraper.scraper.lastfm_recs_scraper import (
+from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRecsScraper,
     RecContext,
     RecommendationType,
@@ -29,12 +29,12 @@ def test_cli_help_command() -> None:
     assert result.exit_code == 0, f"Expected cli command with --help flag to pass, but errored: {result.exception}"
 
 
-def test_cli_config_command(valid_config_filepath: str) -> None:
+def test_cli_conf_command(valid_config_filepath: str) -> None:
     with patch.object(AppConfig, "pretty_print_config") as mock_pretty_print_config:
         with patch.object(AppConfig, "pretty_print_preference_ordering") as mock_pretty_print_preference_ordering:
             cli_runner = CliRunner()
-            result = cli_runner.invoke(cli, ["--config", valid_config_filepath, "config"])
-            assert result.exit_code == 0, f"Expected cli command 'config' to pass but errored: {result.exception}"
+            result = cli_runner.invoke(cli, ["conf", "--config", valid_config_filepath])
+            assert result.exit_code == 0, f"Expected cli command 'conf' to pass but errored: {result.exception}"
             mock_pretty_print_config.assert_called_once()
             mock_pretty_print_preference_ordering.assert_called_once()
 
@@ -54,7 +54,7 @@ def test_cli_scrape_command(
                     with patch.object(ReleaseSearcher, "gather_red_user_details") as mock_gather_red_user_details:
                         mock_gather_red_user_details.return_value = mock_red_user_details
                         cli_runner = CliRunner()
-                        result = cli_runner.invoke(cli, ["--config", valid_config_filepath, "scrape"])
+                        result = cli_runner.invoke(cli, ["scrape", "--config", valid_config_filepath])
                         assert (
                             result.exit_code == 0
                         ), f"Expected cli command 'scrape' to pass but errored: {result.exception}"
@@ -62,10 +62,19 @@ def test_cli_scrape_command(
                         mock_scrape_recs_list.assert_has_calls(
                             [
                                 call(recommendation_type=RecommendationType.ALBUM),
-                                call(recommendation_type=RecommendationType.TRACK),
+                                # call(recommendation_type=RecommendationType.TRACK),
                             ]
                         )
                         mock_exit.assert_called_once()
                         mock_search_for_album_recs.assert_called_once_with(
                             album_recs=mock_scrape_recs_list.return_value
                         )
+
+
+def test_cli_init_conf_command() -> None:
+    with patch("lastfm_recs_scraper.cli.load_init_config_template") as mock_load_init_config_template:
+        mock_load_init_config_template.return_value = ""
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(cli, ["init-conf"])
+        assert result.exit_code == 0, f"Expected cli command with --help flag to pass, but errored: {result.exception}"
+        mock_load_init_config_template.assert_called_once()
