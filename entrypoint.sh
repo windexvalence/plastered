@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python ./lastfm_recs_scraper/cli.py "$@"
+export PYTHONPATH="${APP_DIR}/"
+python ${APP_DIR}/lastfm_recs_scraper/cli.py "$@"

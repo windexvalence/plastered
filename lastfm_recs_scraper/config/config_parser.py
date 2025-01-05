@@ -33,6 +33,16 @@ from lastfm_recs_scraper.utils.red_utils import (
 _LOGGER = get_custom_logger(__name__)
 
 
+def load_init_config_template() -> str:
+    """
+    Utility function to aid new users in initializing a minimal config.yaml skeleton via the CLI's init_config command.
+    """
+    init_conf_filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_conf.yaml")
+    with open(init_conf_filepath, "r") as f:
+        raw_init_conf_lines = f.readlines()
+    return "".join(raw_init_conf_lines)
+
+
 def _get_cd_only_extras_string(cd_only_extras_conf_data: Dict[str, str]) -> str:
     log_value = cd_only_extras_conf_data[LOG_KEY]
     cue_value = int(cd_only_extras_conf_data[CUE_KEY])

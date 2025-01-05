@@ -4,26 +4,25 @@
 
 ![Built for RED](https://img.shields.io/badge/built_for-RED-%23a30800?style=for-the-badge)
 
-A docker utility for automatically scraping the recommended albums/tracks from your Last.fm user profile
+`last-red-recs` is a stand-alone tool for automatically inspecting your LFM album/track recommendations and snatching those recommended releases from RED.
+
+The idea behind `last-red-recs` is similar to Lidarr's "import lists", but instead of automatically snatching from a Last.fm playlist, `last-red-recs` will automatically snatch based on your recommendations.
+
+Additionally, `last-red-recs` is completely agnostic to your download client as well as your library management, so it will not disrupt your existing music organization.
 
 ## Releases
 
 Check out the [Releases](./docs/RELEASES.md) page for more details.
 
-## User Setup / Installation
+## User Setup + Installation
 
 Refer to the [User Guide page](./docs/user_guide.md) for installation, configuration, and usage details.
 
-## Dev Setup / Installation
+## Dev Setup + Installation
 
-1. Install [Docker](https://docs.docker.com/get-started/get-docker/) if you do not already have it
-2. Locally build the image with `make docker-build`
-3. Explore the full list of local development options by running `make` to see the help output.
+Refer to the [Development Guide](./docs/development_guide.md) for details on development environment setup instructions, and code contribution details for this repo.
 
-## Development TODOs
+## Bug Reports / Feature Requests
 
-- [ ] Add functionality to optionally add a matched rec release to a personal collage
-- [x] Add logic to optionally filter out recs with pre-existing snatches in t_group
-- [ ] Possibly use this bot-detection page [here](https://bot-detector.rebrowser.net/) during CICD ? 
-- [ ] Add CLI / config documentation
-- [ ] Set up more automated semver tagging process: after initial main tag is set (such as [this](https://github.com/marketplace/actions/get-latest-tag) or this [recomendation](https://stackoverflow.com/a/74955554))
+Refer to this repo's [issues page](https://github.com/windexvalence/last-red-recs/issues)
+

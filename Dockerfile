@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12.8-slim
 
 COPY ./requirements.txt ./tests/test-requirements.txt /
 RUN pip install -r /requirements.txt --timeout=300

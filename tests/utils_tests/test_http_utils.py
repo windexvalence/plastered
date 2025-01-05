@@ -5,11 +5,6 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.utils.constants import (
-    LAST_FM_API_BASE_URL,
-    MUSICBRAINZ_API_BASE_URL,
-    RED_API_BASE_URL,
-)
 from lastfm_recs_scraper.utils.http_utils import (
     LastFMAPIClient,
     MusicBrainzAPIClient,

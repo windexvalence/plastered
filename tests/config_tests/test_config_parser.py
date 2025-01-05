@@ -1,7 +1,6 @@
 import os
-from itertools import product
 from typing import Any, Dict, List, Optional
-from unittest.mock import PropertyMock, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -9,6 +8,7 @@ from lastfm_recs_scraper.config.config_parser import (
     AppConfig,
     _get_cd_only_extras_string,
     _load_red_formats_from_config,
+    load_init_config_template,
 )
 from lastfm_recs_scraper.config.config_schema import (
     CLI_SNATCH_DIRECTORY_KEY,
@@ -19,12 +19,28 @@ from lastfm_recs_scraper.utils.red_utils import RedFormat
 from tests.conftest import (
     INVALID_CONFIGS_DIR_PATH,
     MOCK_RESOURCES_DIR_PATH,
+    ROOT_MODULE_ABS_PATH,
     expected_red_format_list,
+    minimal_valid_app_config,
+    minimal_valid_config_filepath,
+    minimal_valid_config_raw_data,
     valid_app_config,
+    valid_config_filepath,
     valid_config_raw_data,
 )
 
 _EXPECTED_FORMAT_PREFERENCE_LENGTH = 6
+
+
+def test_load_init_config_template() -> None:
+    expected_filepath_arg = os.path.join(ROOT_MODULE_ABS_PATH, "config", "init_conf.yaml")
+    expected_result = "# top comment\nline1: # inline-comment\n\tline2\n"
+    with patch(
+        "builtins.open", new_callable=mock_open, read_data="# top comment\nline1: # inline-comment\n\tline2\n"
+    ) as mock_open_builtin:
+        actual_result = load_init_config_template()
+        mock_open_builtin.assert_called_once_with(expected_filepath_arg, "r")
+        assert actual_result == expected_result, f"Expected result: '{expected_result}', but got '{actual_result}'"
 
 
 # [{'log': -1, 'has_cue': False},
@@ -169,9 +185,20 @@ def test_invalid_dupe_load_red_formats_from_config(
     ],
 )
 def test_app_config_constructor(
-    valid_config_filepath: str, cli_params: Dict[str, Any], expected_opts_vals: Dict[str, Any]
+    valid_config_filepath: str,
+    minimal_valid_config_filepath: str,
+    cli_params: Dict[str, Any],
+    expected_opts_vals: Dict[str, Any],
 ) -> None:
+    # test the construction from the full valid config file
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=cli_params)
+    for opt_key, expected_value in expected_opts_vals.items():
+        actual_value = app_config.get_cli_option(opt_key)
+        assert (
+            actual_value == expected_value
+        ), f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+    # test the construction from the minimal valid config file
+    app_config = AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=cli_params)
     for opt_key, expected_value in expected_opts_vals.items():
         actual_value = app_config.get_cli_option(opt_key)
         assert (

@@ -17,6 +17,7 @@ from lastfm_recs_scraper.utils.red_utils import (
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
+ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "lastfm_recs_scraper")
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 
@@ -56,10 +57,14 @@ _RED_ACTIONS_TO_MOCK_JSON = {
 }
 
 
-# TODO: add unit tests and ensure project imports work here
 @pytest.fixture(scope="session")
 def valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "config.yaml")
+
+
+@pytest.fixture(scope="session")
+def minimal_valid_config_filepath() -> str:
+    return os.path.join(EXAMPLES_DIR_PATH, "minimal_config.yaml")
 
 
 @pytest.fixture(scope="session")
@@ -69,9 +74,21 @@ def valid_config_raw_data(valid_config_filepath: str) -> Dict[str, Any]:
     return raw_config_data
 
 
+@pytest.fixture(scope="session")
+def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> Dict[str, Any]:
+    with open(minimal_valid_config_filepath, "r") as f:
+        raw_config_data = yaml.safe_load(f.read())
+    return raw_config_data
+
+
 @pytest.fixture(scope="function")
 def valid_app_config(valid_config_filepath: str) -> AppConfig:
     return AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+
+
+@pytest.fixture(scope="session")
+def minimal_valid_app_config(minimal_valid_config_filepath: str) -> AppConfig:
+    return AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=dict())
 
 
 @pytest.fixture(scope="session")
