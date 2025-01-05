@@ -76,13 +76,14 @@ class RedAPIClient(ThrottledAPIBaseClient):
         Successful requests to the 'download' endpoint will have a return type of `bytes`.
         Throws an Exception after `self.max_api_call_retries` consecutive failures.
         """
-        # Enforce request throttling
-        self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
+        # Sanity check action first
         if action not in PERMITTED_RED_API_ACTIONS:
             raise ValueError(
                 f"Unexpected/Non-permitted 'action' provided to redacted api helper: '{action}'. Allowed actions are: {PERMITTED_RED_API_ACTIONS}"
             )
+        # Enforce request throttling
+        self._throttle()
+        # Once throttling requirements are met, continue with building and submitting the request
         url = f"https://redacted.sh/ajax.php?action={action}&{params}"
         if action == "download":
             response = self._session.get(url=url)
@@ -111,13 +112,14 @@ class LastFMAPIClient(ThrottledAPIBaseClient):
         Helper function to hit the LastFM API with retries and rate-limits.
         Returns the JSON response payload on success, and throws an Exception after MAX_LASTFM_API_RETRIES consecutive failures.
         """
-        # Enforce request throttling
-        self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
+        # Sanity check method
         if method not in PERMITTED_LAST_FM_API_METHODS:
             raise ValueError(
                 f"Unexpected method provided to lastfm api helper. Expected either {PERMITTED_LAST_FM_API_METHODS}"
             )
+        # Enforce request throttling
+        self._throttle()
+        # Once throttling requirements are met, continue with building and submitting the request
         json_data = self._session.get(
             url=f"https://ws.audioscrobbler.com/2.0/?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
@@ -145,11 +147,12 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         Returns the JSON response payload on success.
         Throws an Exception after `self._max_api_call_retries` consecutive failures.
         """
+        # Sanity check entity_type
+        if entity_type not in PERMITTED_MUSICBRAINZ_API_ENTITIES:
+            raise ValueError(f"Unexpected entity-type provided to musicbrainze api helper. Expected 'release'.")
         # Enforce request throttling
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
-        if entity_type not in PERMITTED_MUSICBRAINZ_API_ENTITIES:
-            raise ValueError(f"Unexpected entity-type provided to musicbrainze api helper. Expected 'release'.")
         inc_params = (
             "inc=artist-credits" if entity_type == "release-group" else "inc=artist-credits+media+labels+release-groups"
         )

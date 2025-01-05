@@ -13,7 +13,7 @@ def test_construct_from_api_response(mock_last_fm_album_info_json: Dict[str, Any
         album_name="Dr. Octagonecologyst",
         lastfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    actual_lfmai = LastFMAlbumInfo.construct_from_api_response(json_blob=mock_last_fm_album_info_json)
+    actual_lfmai = LastFMAlbumInfo.construct_from_api_response(json_blob=mock_last_fm_album_info_json["album"])
     assert (
         actual_lfmai == expected_lfmai
     ), f"Expected LastFMAlbumInfo to be '{str(expected_lfmai)}', but got '{str(actual_lfmai)}'"

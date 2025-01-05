@@ -1,6 +1,6 @@
-from datetime import timedelta
-from typing import Dict, Optional, Set
-from unittest.mock import patch
+import datetime
+from typing import Dict, List, Optional, Set
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -49,6 +49,110 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
 
 
 @pytest.mark.parametrize(
+    "client_throttle_sec, dt_now_call_timestamps, mocked_time_of_last_call, expected_datetime_now_call_cnt, expected_sleep_call_args",
+    [
+        (  # CASE 1: all throttle calls are precisely spaced the throttle period. Expecte no sleep calls
+            5,
+            [
+                datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345005),  # +5s
+                datetime.datetime.fromtimestamp(1512345010),  # +5s
+            ],
+            [
+                datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345005),  # +5s
+                datetime.datetime.fromtimestamp(1512345010),  # +5s
+            ],
+            3,
+            [],
+        ),
+        (  # CASE 2: all throttle calls are spaced more than the throttle period. Expecte no sleep calls
+            3,
+            [
+                datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345010),  # +10s
+                datetime.datetime.fromtimestamp(1512345016),  # +6s
+            ],
+            [
+                datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345010),  # +10s
+                datetime.datetime.fromtimestamp(1512345016),  # +6s
+            ],
+            3,
+            [],
+        ),
+        (  # CASE 3: 2 throttle calls are earlier than the period allows. Expecte two sleep calls
+            2,
+            [
+                datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087003),  # +3s
+                datetime.datetime.fromtimestamp(1736087004),  # +1s
+                datetime.datetime.fromtimestamp(1736087005),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087008),  # +4s
+                datetime.datetime.fromtimestamp(1736087008),  # +0s
+                datetime.datetime.fromtimestamp(1736087010),  # +2s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087018),  # +10s
+            ],
+            [
+                datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087003),  # +3s
+                datetime.datetime.fromtimestamp(1736087005),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087008),  # +4s
+                datetime.datetime.fromtimestamp(1736087010),  # +2s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087018),  # +10s
+            ],
+            8,
+            [1, 2],
+        ),
+        (  # CASE 4: All throttle calls after initial call are earlier than the period allows. Expect 3 sleep calls
+            2,
+            [
+                datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087001),  # +1s
+                datetime.datetime.fromtimestamp(1736087002),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087002),  # +0s
+                datetime.datetime.fromtimestamp(1736087004),  # +2s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087005),  # +1s
+                datetime.datetime.fromtimestamp(1736087006),  # +1s (post-sleep call)
+            ],
+            [
+                datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087002),  # +3s
+                datetime.datetime.fromtimestamp(1736087004),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087006),  # +4s
+            ],
+            7,
+            [1, 2, 1],
+        ),
+    ],
+)
+def test_throttle(
+    client_throttle_sec: int,
+    dt_now_call_timestamps: List[datetime.datetime],
+    mocked_time_of_last_call: List[datetime.datetime],
+    expected_datetime_now_call_cnt: int,
+    expected_sleep_call_args: List[int],
+) -> None:
+    api_base_client = ThrottledAPIBaseClient(
+        base_api_url="google.com",
+        max_api_call_retries=3,
+        seconds_between_api_calls=client_throttle_sec,
+    )
+    # NOTE: mocking datetime is funky. Had to follow this advice: https://stackoverflow.com/a/70598060
+    with patch("lastfm_recs_scraper.utils.http_utils.datetime", wraps=datetime.datetime) as mock_dt:
+        mock_dt.now.side_effect = dt_now_call_timestamps
+        with patch("lastfm_recs_scraper.utils.http_utils.sleep") as mock_sleep:
+            mock_sleep.return_value = None
+            assert api_base_client._throttle_period == datetime.timedelta(seconds=client_throttle_sec)
+            for i in range(len(mocked_time_of_last_call)):
+                api_base_client._throttle()
+                api_base_client._time_of_last_call = mocked_time_of_last_call[i]
+            mock_sleep.assert_has_calls([call.sleep(expected_arg) for expected_arg in expected_sleep_call_args])
+            mock_dt.assert_has_calls([call.now() for _ in range(expected_datetime_now_call_cnt)])
+
+
+# TODO: make assertions that _throttle is called for all apiclient classes
+@pytest.mark.parametrize(
     "subclass, expected_base_domain",
     [
         (RedAPIClient, "redacted.sh"),
@@ -70,7 +174,7 @@ def test_init_throttled_api_client(
     ), f"Expected base domain to be '{expected_base_domain}', but got '{actual_base_domain}'"
     app_config_keys = api_client_to_app_config_keys[test_instance.__class__.__name__]
     expected_max_retries = valid_app_config.get_cli_option(app_config_keys["retries"])
-    expected_throttle_period = timedelta(seconds=valid_app_config.get_cli_option(app_config_keys["period"]))
+    expected_throttle_period = datetime.timedelta(seconds=valid_app_config.get_cli_option(app_config_keys["period"]))
     actual_max_retries = test_instance._max_api_call_retries
     assert (
         actual_max_retries == expected_max_retries
@@ -101,16 +205,22 @@ def test_request_red_api(
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_red_session_get_side_effect) as mock_sesh_get:
         red_client = RedAPIClient(app_config=valid_app_config)
+        red_client._throttle = Mock(name="_throttle")
+        red_client._throttle.return_value = None
         if should_fail:
             with pytest.raises(exception_type, match=exception_message):
                 result = red_client.request_api(action=action, params="fakekey=fakevalue")
                 mock_sesh_get.assert_not_called()
+                red_client._throttle.assert_not_called()
             return
         result = red_client.request_api(action=action, params="fakekey=fakevalue&someotherkey=someothervalue")
+        red_client._throttle.assert_called_once()
         if action == "download":
             assert result is not None
         else:
-            mock_sesh_get.assert_called_once_with(url=f"https://redacted.sh/ajax.php?action={action}&fakekey=fakevalue&someotherkey=someothervalue")
+            mock_sesh_get.assert_called_once_with(
+                url=f"https://redacted.sh/ajax.php?action={action}&fakekey=fakevalue&someotherkey=someothervalue"
+            )
             assert isinstance(result, dict), f"Expected result type to be a dict, but got: {type(result)}"
             assert set(result.keys()) == expected_top_keys, f"Unexpected top-level JSON keys in response."
 
@@ -159,11 +269,15 @@ def test_request_lastfm_api(
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_last_fm_session_get_side_effect) as mock_sesh_get:
         lfm_client = LastFMAPIClient(app_config=valid_app_config)
+        lfm_client._throttle = Mock(name="_throttle")
+        lfm_client._throttle.return_value = None
         if should_fail:
             with pytest.raises(exception_type, match=exception_message):
                 result = lfm_client.request_api(method=method, params="fakekey=fakevalue")
+                lfm_client._throttle.assert_not_called()
         else:
             result = lfm_client.request_api(method=method, params="fakekey=val&other=bla")
+            lfm_client._throttle.assert_called_once()
             assert isinstance(
                 result, dict
             ), f"Expected result from request_lastfm_api to be of type dict, but was of type: {type(result)}"
@@ -209,11 +323,15 @@ def test_request_musicbrainz_api(
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_mb_session_get_side_effect) as mock_sesh_get:
         mb_client = MusicBrainzAPIClient(app_config=valid_app_config)
+        mb_client._throttle = Mock(name="_throttle")
+        mb_client._throttle.return_value = None
         if should_fail:
             with pytest.raises(exception_type, match=exception_message):
                 result = mb_client.request_api(entity_type=entity_type, mbid=expected_mbid)
+                mb_client._throttle.assert_not_called()
         else:
             result = mb_client.request_api(entity_type="release", mbid=expected_mbid)
+            mb_client._throttle.assert_called_once()
             assert isinstance(result, dict), f"Expected result from request_api to be a dict, but was: {type(result)}"
             assert "id" in result.keys(), f"Missing expected top-level key in musicbrainz response: 'id'"
             response_mbid = result["id"]

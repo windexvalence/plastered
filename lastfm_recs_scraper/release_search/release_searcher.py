@@ -163,7 +163,7 @@ class ReleaseSearcher:
                         return torrent_entry
 
         return None
-    
+
     def _resolve_last_fm_album_info(self, last_fm_artist_str: str, last_fm_album_str: str) -> LastFMAlbumInfo:
         return LastFMAlbumInfo.construct_from_api_response(
             json_blob=self._last_fm_client.request_api(
@@ -211,7 +211,9 @@ class ReleaseSearcher:
         )
         release_mbid = None
         if self._require_mbid_resolution:
-            lastfm_album_info = self._resolve_last_fm_album_info(last_fm_artist_str=last_fm_artist_str, last_fm_album_str=last_fm_album_str)
+            lastfm_album_info = self._resolve_last_fm_album_info(
+                last_fm_artist_str=last_fm_artist_str, last_fm_album_str=last_fm_album_str
+            )
             release_mbid = lastfm_album_info.get_release_mbid()
             mb_release = self._resolve_mb_release(mbid=release_mbid)
             release_type = mb_release.get_red_release_type()

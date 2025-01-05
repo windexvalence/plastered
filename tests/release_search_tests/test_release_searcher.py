@@ -35,6 +35,9 @@ from lastfm_recs_scraper.utils.red_utils import (
     TorrentEntry,
 )
 from tests.conftest import (
+    mock_last_fm_album_info_json,
+    mock_last_fm_session_get_side_effect,
+    mock_mb_session_get_side_effect,
     mock_red_session_get_side_effect,
     mock_red_user_details,
     mock_red_user_stats_response,
@@ -178,9 +181,24 @@ def test_create_browse_params(
     ), f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
 
 
-def test_release_searcher_init(valid_app_config: AppConfig) -> None:
-    release_searcher = ReleaseSearcher(app_config=valid_app_config)
-    pass  # TODO: implement
+def test_resolve_last_fm_album_info(valid_app_config: AppConfig) -> None:
+    with patch("requests.Session.get", side_effect=mock_last_fm_session_get_side_effect) as mock_sesh_get:
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._resolve_last_fm_album_info(last_fm_artist_str="Some+Artist", last_fm_album_str="Their+Album")
+        mock_sesh_get.assert_called_once_with(
+            url="https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=5678alsonotarealapikey&artist=Some+Artist&album=Their+Album&format=json",
+            headers={"Accept": "application/json"},
+        )
+
+
+def test_resolve_mb_release(valid_app_config: AppConfig) -> None:
+    with patch("requests.Session.get", side_effect=mock_mb_session_get_side_effect) as mock_sesh_get:
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._resolve_mb_release(mbid="some-fake-mbid")
+        mock_sesh_get.assert_called_once_with(
+            url="https://musicbrainz.org/ws/2/release/some-fake-mbid?inc=artist-credits+media+labels+release-groups",
+            headers={"Accept": "application/json"},
+        )
 
 
 @pytest.mark.parametrize(
@@ -498,6 +516,7 @@ def test_search_for_album_rec(
 
     def _get_opt_side_effect(*args, **kwargs) -> Any:
         return mocked_cli_options[args[0]]
+
     with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
         mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
