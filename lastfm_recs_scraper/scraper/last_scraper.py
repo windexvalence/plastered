@@ -1,15 +1,20 @@
+import os
 import re
-from enum import Enum
+from datetime import datetime
+from enum import StrEnum
+import json
 from random import randint
 from time import sleep
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from bs4 import BeautifulSoup
+from diskcache import Cache
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
@@ -36,7 +41,7 @@ _ARTIST_ALBUM_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/(.+)$")
 _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
 
 
-class RecommendationType(Enum):
+class RecommendationType(StrEnum):
     """
     Enum representing the type of LastFM recommendation. Can be either "album", or "track" currently.
     """
@@ -45,7 +50,7 @@ class RecommendationType(Enum):
     TRACK = "track"
 
 
-class RecContext(Enum):
+class RecContext(StrEnum):
     """
     Enum representing the recommendation's context, as stated by LastFM's recommendation page.
     Can be either "in-library", or "similar-artist".
@@ -68,13 +73,17 @@ class LastFMRec:
         self,
         lastfm_artist_str: str,
         lastfm_entity_str: str,
-        recommendation_type: RecommendationType,
-        rec_context: RecContext,
+        recommendation_type: Union[str, RecommendationType],
+        rec_context: Union[str, RecContext],
     ):
         self._lastfm_artist_str = lastfm_artist_str
         self._lastfm_entity_str = lastfm_entity_str
-        self._recommendation_type = recommendation_type
-        self._rec_context = rec_context
+        self._recommendation_type = RecommendationType(recommendation_type)
+        self._rec_context = RecContext(rec_context)
+    
+    @classmethod
+    def load_from_json_blob(cls, rec_json_blob: Dict[str, str]):
+        return cls(**rec_json_blob)
 
     def __str__(self) -> str:
         return f"artist={self._lastfm_artist_str}, {self._recommendation_type.value}={self._lastfm_entity_str}, context={self._rec_context.value}"
@@ -123,6 +132,13 @@ def _sleep_random() -> None:
     sleep(sleep_seconds)
 
 
+def cached_album_recs_validator(cached_data: Any) -> bool:
+    """
+    Passed to the RunCache.load_from_cache_if_valid method when attempting loads of cached Album recs.
+    """
+    return isinstance(cached_data, list) and all([isinstance(elem, LastFMRec) for elem in cached_data])
+
+
 class LastFMRecsScraper:
     """
     Utility class which manages the headless browser-based interactions with the recommendations pages to gather the recommendation data for subsequent searching and processing.
@@ -132,49 +148,74 @@ class LastFMRecsScraper:
         self._max_rec_pages_to_scrape = app_config.get_cli_option("scraper_max_rec_pages_to_scrape")
         self._last_fm_username = app_config.get_cli_option("last_fm_username")
         self._last_fm_password = app_config.get_cli_option("last_fm_password")
+        self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.SCRAPER)
+        self._loaded_from_run_cache: Optional[List[LastFMRec]] = None
         self._login_success_url = f"https://www.last.fm/user/{self._last_fm_username}"
         self._is_logged_in = False
-        self._scraped_recs: Dict[RecommendationType, Optional[List[LastFMRec]]] = {
-            RecommendationType.ALBUM: None,
-            RecommendationType.TRACK: None,
-        }
         self._playwright: Optional[Playwright] = None
         self._browser: Optional[BrowserType] = None
         self._page: Optional[Page] = None
 
     def __enter__(self):
+        self._loaded_from_run_cache = self._run_cache.load_data_if_valid(
+            cache_key=RecommendationType.ALBUM.value,
+            data_validator_fn=cached_album_recs_validator,
+        )
+        if self._loaded_from_run_cache:
+            _LOGGER.info(f"Scraper cache enabled and cache hit successful.")
+            _LOGGER.info(f"Skipping scraper browser initialization.")
+            return self
+        _LOGGER.info(f"Initializing scraper ...")
         self._playwright = sync_playwright().start()
+        _LOGGER.info(f"Initializing headless chromium browser ...")
         self._browser = self._playwright.chromium.launch(headless=True)
+        _LOGGER.info(f"Opening new page in headless chromium browser ...")
         self._page = self._browser.new_page(user_agent=PW_USER_AGENT)
+        _LOGGER.info(f"Attempting Last.fm user login ...")
         self._user_login()
+        return self
 
-    def __exit__(self, exception_type, exception_value, traceback):
-        self._user_logout()
-        self._page.close()
-        self._browser.close()
-        self._playwright.stop()
-
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            _LOGGER.error("Scraper encountered an uncaught exception", exc_info=True)
+        self._run_cache.close()
+        if self._is_logged_in:
+            self._user_logout()
+        if self._page:
+            self._page.close()
+        if self._browser:
+            self._browser.close()
+        if self._playwright:
+            self._playwright.stop()
+        
     def _user_login(self) -> None:
         _LOGGER.debug(f"Attempting login ...")
-        self._page.goto(LOGIN_URL)
+        _LOGGER.info(f"Accessing login url ...")
+        self._page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        _LOGGER.debug(f"Locating username form ...")
         self._page.locator(LOGIN_USERNAME_FORM_LOCATOR).fill(self._last_fm_username)
+        _LOGGER.debug(f"Locating password form ...")
         self._page.locator(LOGIN_PASSWORD_FORM_LOCATOR).fill(self._last_fm_password)
+        _LOGGER.debug(f"Locating login button ...")
         self._page.locator(LOGIN_BUTTON_LOCATOR).click()
-        self._page.wait_for_url(f"**/user/{self._last_fm_username}")
-        self._is_logged_in = True
+        _LOGGER.info(f"Waiting for successful login ...")
+        _LOGGER.debug(f"Calling sleep_random ...")
         _sleep_random()
+        # self._page.wait_for_url(f"**/user/{self._last_fm_username}")
+        self._is_logged_in = True
         _LOGGER.debug(f"Current driver page URL: {self._page.url}")
 
     def _user_logout(self) -> None:
         _LOGGER.debug(f"Logging out from last.fm account ...")
-        self._page.goto(LOGOUT_URL)
-        self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).click()
-        self._page.wait_for_url("**last.fm/")
+        self._page.goto(LOGOUT_URL, wait_until="domcontentloaded")
+        # self._page.locator("[name='Logout']").click()
+        self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).locator("visible=true").first.click()
+        # self._page.wait_for_url("**last.fm/")
         self._is_logged_in = False
 
     def _navigate_to_page_and_get_page_source(self, url: str, rec_type: RecommendationType) -> str:
         _LOGGER.info(f"Rendering {url} page source ...")
-        self._page.goto(url)
+        self._page.goto(url, wait_until="domcontentloaded")
         wait_css_selector = (
             ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
             if rec_type == RecommendationType.ALBUM
@@ -206,8 +247,8 @@ class LastFMRecsScraper:
                 if entity_rec_contexts[i].endswith("in your library")
                 else RecContext.SIMILAR_ARTIST
             )
-            _LOGGER.info(f"artist: {artist}")
-            _LOGGER.info(f"{rec_type.value}: {entity}")
+            _LOGGER.debug(f"artist: {artist}")
+            _LOGGER.debug(f"{rec_type.value}: {entity}")
             page_recs.append(
                 LastFMRec(
                     lastfm_artist_str=artist,
@@ -219,10 +260,15 @@ class LastFMRecsScraper:
         return page_recs
 
     def scrape_recs_list(self, recommendation_type: RecommendationType) -> List[LastFMRec]:
+        if self._loaded_from_run_cache:
+            return self._loaded_from_run_cache
         _LOGGER.info(f"Scraping '{recommendation_type.value}' recommendations from LastFM ...")
         recs: List[LastFMRec] = []
+        # if self._enable_cache and validate_cache_file(json_filepath=self._album_cache_entry_filepath):
+        #     _LOGGER.info(f"Using locally cached scraper results at: {self._album_cache_entry_filepath}")
+        #     return load_recs_list_from_json_file(json_filepath=self._album_cache_entry_filepath)
         recs_base_url = ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
-        # TODO: make sure this doesnt break logging: https://stackoverflow.com/a/69145493
+        # needed to make sure tqdm doesn't break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
             for page_number in trange(
                 1, self._max_rec_pages_to_scrape + 1, desc=f"{recommendation_type.value} recs scraping"
@@ -234,6 +280,6 @@ class LastFMRecsScraper:
                 recs.extend(
                     self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=recommendation_type)
                 )
-
-        self._scraped_recs[recommendation_type] = recs
+        if self._run_cache.enabled:
+            self._run_cache.write_data(cache_key=recommendation_type, data=recs)
         return recs

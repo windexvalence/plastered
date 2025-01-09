@@ -11,6 +11,7 @@ last_fm:
   last_fm_api_retries: 3
   last_fm_api_seconds_between_calls: 2
   allow_library_items: false
+  enable_scraper_cache: true
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
@@ -20,6 +21,7 @@ search:
   use_first_release_year: true
   use_record_label: false
   use_catalog_number: false
+  enable_api_cache: true
   # TODO: remove this and dynamically create filename based on exection timestamp
   output_summary_filepath: /some/other/fake/file.tsv
 

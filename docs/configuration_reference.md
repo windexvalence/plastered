@@ -36,6 +36,7 @@ The following parameters appear under the top-level `last_fm` key in the YAML co
     <tr><td>last_fm_password</td><td>Your LFM Password</td><td>Yes</td><td>None</td><td>--last-fm-password</td><td>LAST_FM_PASSWORD</td></tr>
     <tr><td>last_fm_api_retries</td><td>Max # retries against LFM API before failing</td><td>No</td><td>3</td><td>None</td><td>None</td></tr>
     <tr><td>last_fm_api_seconds_between_calls</td><td>Min seconds to wait between LFM API calls</td><td>No</td><td>2</td><td>None</td><td>None</td></tr>
+    <tr><td>enable_scraper_cache</td><td>enables/disables local caching of scraper results</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
 </table>
 
 ### `musicbrainz` section parameters

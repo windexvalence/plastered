@@ -1,6 +1,9 @@
 # Add the following 'help' target to your Makefile
 # And add help text after each target name starting with '\#\#'
 PROJECT_DIR_PATH := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+ifndef TEST_TARGET
+override TEST_TARGET = tests
+endif
 
 help:           ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -29,4 +32,4 @@ code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/last-red-recs:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint /app/tests/tests_entrypoint.sh wv/last-red-recs:latest
+	docker run -it --rm -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint /app/tests/tests_entrypoint.sh wv/last-red-recs:latest "$(TEST_TARGET)"

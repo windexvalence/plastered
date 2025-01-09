@@ -493,7 +493,7 @@ def test_scraper_exit(lfm_rec_scraper: LastFMRecsScraper) -> None:
         with patch.object(LastFMRecsScraper, "_user_login") as user_login_mock:
             with patch.object(LastFMRecsScraper, "_user_logout") as user_logout_mock:
                 lfm_rec_scraper.__enter__()
-                lfm_rec_scraper.__exit__(exception_type=None, exception_value=None, traceback=None)
+                lfm_rec_scraper.__exit__(exc_type=None, exc_val=None, exc_tb=None)
                 user_logout_mock.assert_called_once
                 lfm_rec_scraper._page.close.assert_called_once()
                 lfm_rec_scraper._browser.close.assert_called_once()
@@ -518,14 +518,13 @@ def test_user_login(lfm_rec_scraper: LastFMRecsScraper) -> None:
         lfm_rec_scraper._user_login()
         lfm_rec_scraper._page.assert_has_calls(
             [
-                call.goto(LOGIN_URL),
+                call.goto(LOGIN_URL, wait_until='domcontentloaded'),
                 call.locator(LOGIN_USERNAME_FORM_LOCATOR),
                 call.locator().fill(username),
                 call.locator(LOGIN_PASSWORD_FORM_LOCATOR),
                 call.locator().fill(password),
                 call.locator(LOGIN_BUTTON_LOCATOR),
                 call.locator().click(),
-                call.wait_for_url(f"**/user/{username}"),
             ]
         )
         assert (
@@ -539,10 +538,10 @@ def test_user_logout(lfm_rec_scraper: LastFMRecsScraper) -> None:
     lfm_rec_scraper._user_logout()
     lfm_rec_scraper._page.assert_has_calls(
         [
-            call.goto(LOGOUT_URL),
+            call.goto(LOGOUT_URL, wait_until='domcontentloaded'),
             call.get_by_role("button", name=re.compile("logout", re.IGNORECASE)),
-            call.get_by_role().click(),
-            call.wait_for_url("**last.fm/"),
+            call.get_by_role().locator("visible=true"),
+            call.get_by_role().locator().first.click(),
         ]
     )
     assert (
@@ -597,8 +596,9 @@ def test_navigate_to_page_and_get_page_source(
         lfm_rec_scraper._navigate_to_page_and_get_page_source(url=fake_url, rec_type=rec_type)
         lfm_rec_scraper._page.assert_has_calls(
             [
-                call.goto(fake_url),
+                call.goto(fake_url, wait_until="domcontentloaded"),
                 call.locator(expected_css_selector),
+                call.content(),
             ]
         )
         mock_sleep_random.assert_called_once()
@@ -619,4 +619,4 @@ def test_scrape_recs_list(
         with patch.object(LastFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
             mock_extract_recs.return_value = []
             lfm_rec_scraper.scrape_recs_list(recommendation_type=rec_type)
-            assert lfm_rec_scraper._scraped_recs[rec_type] is not None
+

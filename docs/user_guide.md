@@ -12,6 +12,7 @@ Additionally, you will need to:
 1. Setup a RED API key with `Torrents` and `Users` scoped permissions granted.
 2. Setup a Last.fm API key (see their instructions page [here](https://www.last.fm/api))
 3. Have [Docker](https://docs.docker.com/get-started/get-docker/) installed on the host machine you intend to run this from.
+4. Have at least 1.5GB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies)
 
 ### 2: Configure the App
 

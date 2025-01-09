@@ -10,9 +10,10 @@ The idea behind `last-red-recs` is similar to Lidarr's "import lists", but inste
 
 Additionally, `last-red-recs` is completely agnostic to your download client as well as your library management, so it will not disrupt your existing music organization.
 
-## Releases
-
-Check out the [Releases](./docs/RELEASES.md) page for more details.
+Some other nice perks:
+* Rate-limits and retries for all API calls are enabled by default, with configurable retry counts and per-API rate limit settings.
+* Search filtering and criteria are very configurable to suit your needs.
+* Setup and installation is quick.
 
 ## User Setup + Installation
 
@@ -21,6 +22,10 @@ Refer to the [User Guide page](./docs/user_guide.md) for installation, configura
 ## Dev Setup + Installation
 
 Refer to the [Development Guide](./docs/development_guide.md) for details on development environment setup instructions, and code contribution details for this repo.
+
+## Releases
+
+Check out the [Releases](./docs/RELEASES.md) page for more details.
 
 ## Bug Reports / Feature Requests
 

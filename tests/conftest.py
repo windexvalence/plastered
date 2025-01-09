@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
@@ -14,6 +15,7 @@ from lastfm_recs_scraper.utils.red_utils import (
     RedFormat,
     RedUserDetails,
 )
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
@@ -81,11 +83,6 @@ def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> Dict[st
     return raw_config_data
 
 
-@pytest.fixture(scope="function")
-def valid_app_config(valid_config_filepath: str) -> AppConfig:
-    return AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-
-
 @pytest.fixture(scope="session")
 def minimal_valid_app_config(minimal_valid_config_filepath: str) -> AppConfig:
     return AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=dict())
@@ -138,6 +135,57 @@ def mock_last_fm_album_info_json() -> Dict[str, Any]:
 @pytest.fixture(scope="session")
 def mock_musicbrainz_release_json() -> Dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def cache_root_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
+    """
+    Fixture which creates a session-scoped temporary root cache directory and returns the pathlib.Path object for it.
+    """
+    return tmp_path_factory.mktemp("cache")
+
+
+@pytest.fixture(scope="session")
+def api_cache_dir_path(cache_root_dir_path: Path) -> Path:
+    """
+    Fixture which creates a session-scoped API cache directory and returns the pathlib.Path object for it.
+    """
+    api_cache_path = cache_root_dir_path / "api"
+    api_cache_path.mkdir()
+    return api_cache_path
+
+
+@pytest.fixture(scope="session")
+def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
+    """
+    Fixture which creates a session-scoped Scraper cache directory and returns the pathlib.Path object for it.
+    """
+    scraper_cache_path = cache_root_dir_path / "scraper"
+    scraper_cache_path.mkdir()
+    return scraper_cache_path
+
+
+@pytest.fixture(scope="function")
+def valid_app_config(valid_config_filepath: str, cache_root_dir_path: Path) -> AppConfig:
+    """
+    Function-scoped valid AppConfig fixture, with cache root dir 
+    overridden to use the session-scoped tmp cache root dir fixture
+    """
+    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+    app_config._base_cache_directory_path = str(cache_root_dir_path)
+    return app_config
+
+
+@pytest.fixture(scope="session")
+def api_run_cache(valid_config_filepath: str) -> RunCache:
+    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+    return RunCache(app_config=app_config, cache_type=CacheType.API)
+
+
+@pytest.fixture(scope="session")
+def scraper_run_cache(valid_config_filepath: AppConfig) -> RunCache:
+    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+    return RunCache(app_config=app_config, cache_type=CacheType.SCRAPER)
 
 
 def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:

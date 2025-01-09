@@ -18,14 +18,16 @@ DEFAULTS_DICT = {
     "last_fm_api_seconds_between_calls": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
     "scraper_max_rec_pages_to_scrape": 5,
     "allow_library_items": False,
+    "enable_scraper_cache": True,
     # MusicBrainz API defaults
     "musicbrainz_api_max_retries": _DEFAULT_RETRIES,
     "musicbrainz_api_seconds_between_calls": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
-    # RED searching defaults
+    # Search defaults
     "use_release_type": True,
     "use_first_release_year": True,
     "use_record_label": False,
     "use_catalog_number": False,
+    "enable_api_cache": True,
     "output_summary_filepath": "/config/output_summary.tsv",
     # RED snatching defaults
     "skip_prior_snatches": True,
@@ -94,6 +96,9 @@ required_schema = {
                     "type": "boolean",
                     "default": DEFAULTS_DICT["allow_library_items"],
                 },
+                "enable_scraper_cache": {
+                    "type": "boolean", "default": DEFAULTS_DICT["enable_scraper_cache"],
+                },
             },
             "required": [
                 "last_fm_api_key",
@@ -115,6 +120,9 @@ required_schema = {
                 "use_first_release_year": {"type": "boolean", "default": DEFAULTS_DICT["use_first_release_year"]},
                 "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
                 "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
+                "enable_api_cache": {
+                    "type": "boolean", "default": DEFAULTS_DICT["enable_api_cache"],
+                },
                 "output_summary_filepath": {"type": "string", "default": DEFAULTS_DICT["output_summary_filepath"]},
             },
         },

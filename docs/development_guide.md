@@ -48,6 +48,16 @@ Once those are installed, you can follow this one-time setup for creating a host
 
     * If this command and/or the `make code-format` command raise additional [pylint](https://github.com/pylint-dev/pylint) / [bandit](https://github.com/PyCQA/bandit) errors, you will need to manually address those and re-run the `make code-format` command to verify if the raised errors have been addressed.
 
-2. To run unit tests, run: `make docker-test`
+2. To run ALL unit tests, run: `make docker-test`
 
-3. To remove all the pre-existing local images you've built, run: `make docker-clean`
+    * To run only a specific test file, run the make command with `TEST_TARGET` set to the relative test file's path. For example, the following will only run tests defined in `test_http_utils.py`:
+        ```shell
+        make docker-test TEST_TARGET=tests/utils_tests/test_http_utils.py
+        ```
+    
+    * To run only a specfici test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test files's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
+        ```shell
+        make docker-test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle
+        ``` 
+
+4. To remove all the pre-existing local images you've built, run: `make docker-clean`

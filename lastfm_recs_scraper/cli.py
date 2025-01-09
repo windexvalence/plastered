@@ -17,18 +17,20 @@ from lastfm_recs_scraper.config.config_parser import (
     load_init_config_template,
 )
 from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
+from lastfm_recs_scraper.run_cache.run_cache import RunCache, CacheType
 from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRecsScraper,
     RecommendationType,
 )
+from lastfm_recs_scraper.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
 _LOGGER = get_custom_logger(__name__)
 
 _GROUP_PARAMS_KEY = "group_params"
+_CLI_ALL_CACHE_TYPES = "@all"
 
 # TODO: dynamically pull version number from build_scripts/release-tag.txt for the version option
-
 
 # pylint: disable=unused-argument,too-many-arguments,no-value-for-parameter
 @click.group()
@@ -91,6 +93,36 @@ def conf(ctx, config: str) -> None:
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     app_config.pretty_print_config()
     app_config.pretty_print_preference_ordering()
+
+
+@cli.command(
+    help="Helper command to inspect or empty the local run cache(s). See configuration_reference.md docs page for more info on the run cache.",
+    short_help="Helper command to inspect or empty the local run cache(s).",
+)
+@click.option(
+    "-c", "--config", required=True, type=click.Path(exists=True), help="Path to the application config yaml file."
+)
+@click.option(
+    "-t", "--type", required=True, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, _CLI_ALL_CACHE_TYPES]), help=f"Indicate the desired cache type to run the command against. May set to '{_CLI_ALL_CACHE_TYPES}' to run against all cache types."
+)
+@click.option(
+    "-i", "--info", is_flag=True, default=False, help="Print meta-info about the disk cache(s)."
+)
+@click.option(
+    "-e", "--empty", is_flag=True, default=False, help="When flag is present, empty the cache(s) specified by the --type option."
+)
+@click.pass_context
+def cache(ctx, config: str, type: str, info: Optional[bool] = False, empty: Optional[str] = None) -> None:
+    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    target_cache_types = [cache_type for cache_type in CacheType] if type == _CLI_ALL_CACHE_TYPES else [CacheType(type)]
+    for target_cache_type in target_cache_types:
+        target_run_cache = RunCache(app_config=app_config, cache_type=target_cache_type)
+        if info:
+            target_run_cache.print_summary_info()
+        if empty:
+            num_entries_removed = target_run_cache.clear()
+            _LOGGER.info(f"{target_cache_type} emptied: {num_entries_removed} entries removed.")
+        target_run_cache.close()
 
 
 @cli.command(

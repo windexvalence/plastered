@@ -8,3 +8,4 @@
 ## Pre-merge Checklist
 - [ ] validated that local builds and tests passed with `make docker-test`
 - [ ] ensured that the changes do not violate any dependent API rate limits
+- [ ] any relevant documentation is updated to reflect the given changes

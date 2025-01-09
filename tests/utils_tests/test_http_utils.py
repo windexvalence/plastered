@@ -1,10 +1,11 @@
 import datetime
-from typing import Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 from unittest.mock import Mock, call, patch
 
 import pytest
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.utils.http_utils import (
     LastFMAPIClient,
     MusicBrainzAPIClient,
@@ -16,7 +17,16 @@ from tests.conftest import (
     mock_mb_session_get_side_effect,
     mock_red_session_get_side_effect,
     valid_app_config,
+    api_run_cache,
 )
+
+
+def _subclass_to_side_effect_fn(subclass_name: str) -> Callable:
+    return {
+        "LastFMAPIClient": mock_last_fm_session_get_side_effect,
+        "MusicBrainzAPIClient": mock_mb_session_get_side_effect,
+        "RedAPIClient": mock_red_session_get_side_effect,
+    }[subclass_name]
 
 
 @pytest.fixture(scope="session")
@@ -44,109 +54,159 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
 
 
 @pytest.mark.parametrize(
-    "client_throttle_sec, dt_now_call_timestamps, mocked_time_of_last_call, expected_datetime_now_call_cnt, expected_sleep_call_args",
+    "client_throttle_sec, dt_now_call_timestamps, expected_sleep_call_args",
     [
-        (  # CASE 1: all throttle calls are precisely spaced the throttle period. Expecte no sleep calls
+        (  # CASE 1: all throttle calls are precisely spaced the throttle period. Expect no sleep calls
             5,
             [
                 datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345000),  # initial call not blocked
+
                 datetime.datetime.fromtimestamp(1512345005),  # +5s
+                datetime.datetime.fromtimestamp(1512345005),  # call not blocked
+
                 datetime.datetime.fromtimestamp(1512345010),  # +5s
+                datetime.datetime.fromtimestamp(1512345010),  # call not blocked
             ],
-            [
-                datetime.datetime.fromtimestamp(1512345000),  # start ts
-                datetime.datetime.fromtimestamp(1512345005),  # +5s
-                datetime.datetime.fromtimestamp(1512345010),  # +5s
-            ],
-            3,
             [],
         ),
-        (  # CASE 2: all throttle calls are spaced more than the throttle period. Expecte no sleep calls
+        (  # CASE 2: all throttle calls are spaced more than the throttle period. Expect no sleep calls
             3,
             [
                 datetime.datetime.fromtimestamp(1512345000),  # start ts
+                datetime.datetime.fromtimestamp(1512345000),  # initial call not blocked
+
                 datetime.datetime.fromtimestamp(1512345010),  # +10s
+                datetime.datetime.fromtimestamp(1512345010),  # call not blocked
+
                 datetime.datetime.fromtimestamp(1512345016),  # +6s
+                datetime.datetime.fromtimestamp(1512345016),  # call not blocked
             ],
-            [
-                datetime.datetime.fromtimestamp(1512345000),  # start ts
-                datetime.datetime.fromtimestamp(1512345010),  # +10s
-                datetime.datetime.fromtimestamp(1512345016),  # +6s
-            ],
-            3,
             [],
         ),
-        (  # CASE 3: 2 throttle calls are earlier than the period allows. Expecte two sleep calls
+        (  # CASE 3: 2 throttle calls are earlier than the period allows. Expect two sleep calls
             2,
             [
                 datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087000),  # initial call not blocked
+
                 datetime.datetime.fromtimestamp(1736087003),  # +3s
+                datetime.datetime.fromtimestamp(1736087003),  # call not blocked
+
                 datetime.datetime.fromtimestamp(1736087004),  # +1s
-                datetime.datetime.fromtimestamp(1736087005),  # +1s (post-sleep call)
-                datetime.datetime.fromtimestamp(1736087008),  # +4s
+                datetime.datetime.fromtimestamp(1736087005),  # call blocked 1s (post-sleep call)
+
+                datetime.datetime.fromtimestamp(1736087008),  # +3s
+                datetime.datetime.fromtimestamp(1736087008),  # call not blocked
+
                 datetime.datetime.fromtimestamp(1736087008),  # +0s
-                datetime.datetime.fromtimestamp(1736087010),  # +2s (post-sleep call)
-                datetime.datetime.fromtimestamp(1736087018),  # +10s
+                datetime.datetime.fromtimestamp(1736087010),  # call blocked 2s (post-sleep call)
             ],
-            [
-                datetime.datetime.fromtimestamp(1736087000),  # start ts
-                datetime.datetime.fromtimestamp(1736087003),  # +3s
-                datetime.datetime.fromtimestamp(1736087005),  # +1s (post-sleep call)
-                datetime.datetime.fromtimestamp(1736087008),  # +4s
-                datetime.datetime.fromtimestamp(1736087010),  # +2s (post-sleep call)
-                datetime.datetime.fromtimestamp(1736087018),  # +10s
-            ],
-            8,
             [1, 2],
         ),
         (  # CASE 4: All throttle calls after initial call are earlier than the period allows. Expect 3 sleep calls
             2,
             [
                 datetime.datetime.fromtimestamp(1736087000),  # start ts
+                datetime.datetime.fromtimestamp(1736087000),  # initial call not blocked
+
                 datetime.datetime.fromtimestamp(1736087001),  # +1s
-                datetime.datetime.fromtimestamp(1736087002),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087002),  # call blocked 1s (post-sleep call)
+
                 datetime.datetime.fromtimestamp(1736087002),  # +0s
-                datetime.datetime.fromtimestamp(1736087004),  # +2s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087004),  # call blocked 2s (post-sleep call)
+
                 datetime.datetime.fromtimestamp(1736087005),  # +1s
-                datetime.datetime.fromtimestamp(1736087006),  # +1s (post-sleep call)
+                datetime.datetime.fromtimestamp(1736087006),  # call blocked 1s (post-sleep call)
             ],
-            [
-                datetime.datetime.fromtimestamp(1736087000),  # start ts
-                datetime.datetime.fromtimestamp(1736087002),  # +3s
-                datetime.datetime.fromtimestamp(1736087004),  # +1s (post-sleep call)
-                datetime.datetime.fromtimestamp(1736087006),  # +4s
-            ],
-            7,
             [1, 2, 1],
         ),
     ],
 )
 def test_throttle(
+    api_run_cache: RunCache,
     client_throttle_sec: int,
     dt_now_call_timestamps: List[datetime.datetime],
-    mocked_time_of_last_call: List[datetime.datetime],
-    expected_datetime_now_call_cnt: int,
     expected_sleep_call_args: List[int],
 ) -> None:
     api_base_client = ThrottledAPIBaseClient(
         base_api_url="google.com",
         max_api_call_retries=3,
         seconds_between_api_calls=client_throttle_sec,
+        valid_endpoints=set(["fake-endpoint1", "fake-endpoint-2"]),
+        run_cache=api_run_cache,
     )
+    api_base_client._time_of_last_call = dt_now_call_timestamps[0] - datetime.timedelta(hours=1)
+    expected_num_throttle_calls = len(dt_now_call_timestamps) // 2
+    expected_datetime_now_call_cnt = len(dt_now_call_timestamps)
     # NOTE: mocking datetime is funky. Had to follow this advice: https://stackoverflow.com/a/70598060
     with patch("lastfm_recs_scraper.utils.http_utils.datetime", wraps=datetime.datetime) as mock_dt:
         mock_dt.now.side_effect = dt_now_call_timestamps
         with patch("lastfm_recs_scraper.utils.http_utils.sleep") as mock_sleep:
             mock_sleep.return_value = None
             assert api_base_client._throttle_period == datetime.timedelta(seconds=client_throttle_sec)
-            for i in range(len(mocked_time_of_last_call)):
+            for i in range(expected_num_throttle_calls):
                 api_base_client._throttle()
-                api_base_client._time_of_last_call = mocked_time_of_last_call[i]
             mock_sleep.assert_has_calls([call.sleep(expected_arg) for expected_arg in expected_sleep_call_args])
             mock_dt.assert_has_calls([call.now() for _ in range(expected_datetime_now_call_cnt)])
 
 
-# TODO: make assertions that _throttle is called for all apiclient classes
+@pytest.mark.parametrize(
+    "subclass, endpoint, params, expected", [
+        (RedAPIClient, "browse", "&something=otherthing", True),
+        (LastFMAPIClient, "album.getinfo", "&something=otherthing", True),
+        (MusicBrainzAPIClient, "release", "&mbid=69420", True),
+    ]
+)
+def test_throttled_api_client_write_cache_valid(
+    valid_app_config: AppConfig,
+    api_run_cache: RunCache,
+    subclass: ThrottledAPIBaseClient,
+    endpoint: str,
+    params: str,
+    expected: bool,
+) -> None:
+    cur_side_effect = _subclass_to_side_effect_fn(subclass_name=subclass.__name__)
+    with patch("requests.Session.get", side_effect=cur_side_effect) as mock_sesh_get:
+        with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
+            mock_run_cache_write_method.return_value = True
+            test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
+            actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
+            expected_cache_key = (test_client._base_domain, endpoint, params)
+            mock_run_cache_write_method.assert_called_once_with(cache_key=expected_cache_key, data={"fake": "value"})
+            assert actual == True
+
+
+@pytest.mark.parametrize(
+    "subclass, cache_enabled, endpoint, params", [
+        (RedAPIClient, False, "browse", "&something=otherthing"),
+        (RedAPIClient, True, "download", "&id=blah"),
+        (RedAPIClient, True, "community_stats", "&non-cached-endpoint=nothing&no=cache"),
+        (RedAPIClient, True, "user_torrents", "&non-cached-endpoint=nothing&no=cache"),
+        (LastFMAPIClient, False, "album.getinfo", "&something=otherthing"),
+        (MusicBrainzAPIClient, False, "release", "&something=otherthing"),
+    ]
+)
+def test_throttled_api_client_write_cache_not_valid(
+    valid_app_config: AppConfig,
+    api_run_cache: RunCache,
+    subclass: ThrottledAPIBaseClient,
+    cache_enabled: bool,
+    endpoint: str,
+    params: str,
+) -> None:
+    cur_side_effect = _subclass_to_side_effect_fn(subclass_name=subclass.__name__)
+    with patch("requests.Session.get", side_effect=cur_side_effect) as mock_sesh_get:
+        with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
+            with patch.object(RunCache, "write_data") as mock_run_cache_enabled:
+                mock_run_cache_write_method.return_value = None
+                mock_run_cache_enabled.return_value = cache_enabled
+                test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
+                actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
+                mock_run_cache_write_method.assert_not_called()
+                assert actual == False
+
+
 @pytest.mark.parametrize(
     "subclass, expected_base_domain",
     [
@@ -156,12 +216,13 @@ def test_throttle(
     ],
 )
 def test_init_throttled_api_client(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
     subclass: ThrottledAPIBaseClient,
     expected_base_domain: str,
     api_client_to_app_config_keys: Dict[str, Dict[str, str]],
-    valid_app_config: AppConfig,
 ) -> None:
-    test_instance = subclass(app_config=valid_app_config)
+    test_instance = subclass(app_config=valid_app_config, run_cache=api_run_cache)
     assert issubclass(test_instance.__class__, ThrottledAPIBaseClient)
     actual_base_domain = test_instance._base_domain
     assert (
@@ -180,26 +241,26 @@ def test_init_throttled_api_client(
     ), f"Expected throttle period to be {expected_throttle_period}, but got {actual_throttle_period}"
 
 
-# TODO: add unit tests for other endpoint actions if they start getting used (i.e. collage adding)
 @pytest.mark.parametrize(
     "action, expected_top_keys, should_fail, exception_type, exception_message",
     [
         ("browse", set(["currentPage", "pages", "results"]), False, None, None),
-        ("usersearch", set(), True, ValueError, "Unexpected/Non-permitted*"),
-        ("somefakeaction", set(), True, ValueError, "Unexpected/Non-permitted*"),
+        ("usersearch", set(), True, ValueError, "Invalid endpoint*"),
+        ("somefakeaction", set(), True, ValueError, "Invalid endpoint*"),
         ("download", None, False, None, None),
     ],
 )
 def test_request_red_api(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
     action: str,
     expected_top_keys: Optional[Set[str]],
     should_fail: bool,
     exception_type: Optional[Exception],
     exception_message: Optional[str],
-    valid_app_config: AppConfig,
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_red_session_get_side_effect) as mock_sesh_get:
-        red_client = RedAPIClient(app_config=valid_app_config)
+        red_client = RedAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
         red_client._throttle = Mock(name="_throttle")
         red_client._throttle.return_value = None
         if should_fail:
@@ -250,20 +311,21 @@ def test_request_red_api(
             None,
             None,
         ),
-        ("album.search", set(), True, ValueError, "Unexpected method provided to lastfm api helper*"),
-        ("fake.method", set(), True, ValueError, "Unexpected method provided to lastfm api helper*"),
+        ("album.search", set(), True, ValueError, "Invalid endpoint*"),
+        ("fake.method", set(), True, ValueError, "Invalid endpoint*"),
     ],
 )
 def test_request_lastfm_api(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
     method: str,
     expected_top_keys: Set[str],
     should_fail: bool,
     exception_type: Optional[Exception],
     exception_message: Optional[str],
-    valid_app_config: AppConfig,
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_last_fm_session_get_side_effect) as mock_sesh_get:
-        lfm_client = LastFMAPIClient(app_config=valid_app_config)
+        lfm_client = LastFMAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
         lfm_client._throttle = Mock(name="_throttle")
         lfm_client._throttle.return_value = None
         if should_fail:
@@ -290,34 +352,35 @@ def test_request_lastfm_api(
             "d211379d-3203-47ed-a0c5-e564815bb45a",
             True,
             ValueError,
-            "Unexpected entity-type provided to musicbrainze api helper. Expected 'release'.",
+            "Invalid endpoint*",
         ),
         (
             "album",
             "some-fake-mbid-here",
             True,
             ValueError,
-            "Unexpected entity-type provided to musicbrainze api helper. Expected 'release'.",
+            "Invalid endpoint*",
         ),
         (
             "song",
             "some-other-fake-mbid-here",
             True,
             ValueError,
-            "Unexpected entity-type provided to musicbrainze api helper. Expected 'release'.",
+            "Invalid endpoint*",
         ),
     ],
 )
 def test_request_musicbrainz_api(
+    valid_app_config: AppConfig,
+    api_run_cache: RunCache,
     entity_type: str,
     expected_mbid: str,
     should_fail: bool,
     exception_type: Optional[Exception],
     exception_message: Optional[str],
-    valid_app_config: AppConfig,
 ) -> None:
     with patch("requests.Session.get", side_effect=mock_mb_session_get_side_effect) as mock_sesh_get:
-        mb_client = MusicBrainzAPIClient(app_config=valid_app_config)
+        mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
         mb_client._throttle = Mock(name="_throttle")
         mb_client._throttle.return_value = None
         if should_fail:
@@ -333,3 +396,29 @@ def test_request_musicbrainz_api(
             assert (
                 response_mbid == expected_mbid
             ), f"Mismatch between actual response mbid ('{response_mbid}') and expected mbid ('{expected_mbid}')"
+
+
+@pytest.mark.parametrize(
+    "subclass, expected_base_domain, endpoint, params, mocked_json", [
+        (RedAPIClient, "redacted.sh", "browse", "&some-fake-cache-check=testing&foo=blah", {"response": {"cache_hit": "hopefully"}}),
+        (LastFMAPIClient, "ws.audioscrobbler.com", "album.getinfo", "&lastfmcachechecking&fun=ion", {"album": {"cache_hit": "hopefully"}}),
+        (MusicBrainzAPIClient, "musicbrainz.org", "release", "&mbid=69420&blah=not", {"musicbrainz-deeznuts": {"cache_hit": "hopefully"}}),
+    ]
+)
+def test_api_client_cache_hit(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
+    subclass: ThrottledAPIBaseClient,
+    expected_base_domain: str,
+    endpoint: str,
+    params: str,
+    mocked_json: Dict[str, Any],
+) -> None:
+    cur_side_effect = _subclass_to_side_effect_fn(subclass_name=subclass.__name__)
+    with patch("requests.Session.get", side_effect=cur_side_effect) as mock_sesh_get:
+        test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
+        expected_cache_key = (expected_base_domain, endpoint, params)
+        api_run_cache._cache.set(expected_cache_key, mocked_json, expire=3600)
+        actual_result = test_client.request_api(endpoint, params)
+        assert actual_result == mocked_json
+        mock_sesh_get.assert_not_called()

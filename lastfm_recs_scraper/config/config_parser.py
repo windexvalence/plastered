@@ -86,6 +86,8 @@ class AppConfig:
         if not os.path.exists(config_filepath):
             raise AppConfigException(f"Provided config filepath does not exist: '{config_filepath}'")
         self._config_filepath = config_filepath
+        self._config_directory_path = os.path.dirname(os.path.abspath(config_filepath))
+        self._base_cache_directory_path = os.path.join(self._config_directory_path, "cache")
         self._cli_options = dict()
         with open(self._config_filepath, "r") as f:
             raw_config_data = yaml.safe_load(f.read())
@@ -131,6 +133,12 @@ class AppConfig:
 
     def get_cli_option(self, option_key: str) -> Any:
         return self._cli_options[option_key]
+
+    def get_cache_directory_path(self, cache_type: str) -> str:
+        return os.path.join(self._base_cache_directory_path, cache_type)
+    
+    def is_cache_enabled(self, cache_type: str) -> bool:
+        return self.get_cli_option(f"enable_{cache_type}_cache")
 
     def pretty_print_config(self) -> None:
         yaml.dump(self._cli_options, sys.stdout)

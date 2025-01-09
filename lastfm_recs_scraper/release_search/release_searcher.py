@@ -7,6 +7,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.run_cache.run_cache import RunCache, CacheType
 from lastfm_recs_scraper.scraper.last_scraper import LastFMRec, RecContext
 from lastfm_recs_scraper.utils.exceptions import ReleaseSearcherException
 from lastfm_recs_scraper.utils.http_utils import (
@@ -103,11 +104,12 @@ class ReleaseSearcher:
             use_record_label=self._use_record_label,
             use_catalog_number=self._use_catalog_number,
         )
-        self._red_client = RedAPIClient(app_config=app_config)
+        self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.API)
+        self._red_client = RedAPIClient(app_config=app_config, run_cache=self._run_cache)
 
         if self._require_mbid_resolution:
-            self._last_fm_client = LastFMAPIClient(app_config=app_config)
-            self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config)
+            self._last_fm_client = LastFMAPIClient(app_config=app_config, run_cache=self._run_cache)
+            self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config, run_cache=self._run_cache)
         else:
             self._last_fm_client = None
             self._musicbrainz_client = None
@@ -149,7 +151,11 @@ class ReleaseSearcher:
                 record_label=record_label,
                 catalog_number=catalog_number,
             )
-            red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
+            try:
+                red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
+            except Exception:
+                _LOGGER.error(f"Uncaught exception during RED browse request: {browse_request_params}: ", exc_info=True)
+                continue
             release_entries_browse_response = [
                 ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
                 for result_blob in red_browse_response["results"]
@@ -215,11 +221,15 @@ class ReleaseSearcher:
                 last_fm_artist_str=last_fm_artist_str, last_fm_album_str=last_fm_album_str
             )
             release_mbid = lastfm_album_info.get_release_mbid()
-            mb_release = self._resolve_mb_release(mbid=release_mbid)
-            release_type = mb_release.get_red_release_type()
-            first_release_year = mb_release.get_first_release_year()
-            record_label = mb_release.get_label()
-            catalog_number = mb_release.get_catalog_number()
+            if release_mbid:
+                _LOGGER.info(f"Attempting to pull search information from musicbrainz for artist: {last_fm_artist_str}, release: '{last_fm_album_str}', release-mbid: '{release_mbid}'")
+                mb_release = self._resolve_mb_release(mbid=release_mbid)
+                release_type = mb_release.get_red_release_type()
+                first_release_year = mb_release.get_first_release_year()
+                record_label = mb_release.get_label()
+                catalog_number = mb_release.get_catalog_number()
+            else:
+                _LOGGER.warning(f"Last.fm API did not return an MBID for artist: '{last_fm_artist_str}', release: '{last_fm_album_str}'")
 
         best_torrent_entry = self._search_red_release_by_preferences(
             artist_name=last_fm_artist_str,

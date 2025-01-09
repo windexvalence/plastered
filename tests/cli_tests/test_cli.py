@@ -1,5 +1,6 @@
 from traceback import format_exc
-from unittest.mock import call, patch
+from typing import Any, List
+from unittest.mock import call, patch, MagicMock
 
 import pytest
 from click.testing import CliRunner
@@ -10,6 +11,7 @@ from lastfm_recs_scraper.release_search.release_searcher import (
     LastFMRec,
     ReleaseSearcher,
 )
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.scraper.last_scraper import (
     LastFMRecsScraper,
     RecContext,
@@ -17,7 +19,9 @@ from lastfm_recs_scraper.scraper.last_scraper import (
 )
 from lastfm_recs_scraper.utils.red_utils import RedUserDetails
 from tests.conftest import (
+    api_run_cache,
     mock_red_user_details,
+    scraper_run_cache,
     valid_app_config,
     valid_config_filepath,
 )
@@ -69,6 +73,61 @@ def test_cli_scrape_command(
                         mock_search_for_album_recs.assert_called_once_with(
                             album_recs=mock_scrape_recs_list.return_value
                         )
+
+
+@pytest.mark.parametrize(
+    "type_flag, info_flag_present, empty_flag_present, expected_run_cache_calls", [
+        ("api", False, False, [call.close()]),
+        ("api", False, True, [call.clear(), call.close()]),
+        ("api", True, False, [call.print_summary_info(), call.close()]),
+        ("api", True, True, [call.print_summary_info(), call.clear(), call.close()]),
+        ("scraper", False, False, [call.close()]),
+        ("scraper", False, True, [call.clear(), call.close()]),
+        ("scraper", True, False, [call.print_summary_info(), call.close()]),
+        ("scraper", True, True, [call.print_summary_info(), call.clear(), call.close()]),
+        ("@all", False, False, [call.close()]),
+        ("@all", False, True, [call.clear(), call.close()]),
+        ("@all", True, False, [call.print_summary_info(), call.close()]),
+        ("@all", True, True, [call.print_summary_info(), call.clear(), call.close()]),
+    ]
+)
+def test_cli_cache_command(
+    valid_config_filepath: str,
+    type_flag: str,
+    info_flag_present: bool,
+    empty_flag_present: bool,
+    expected_run_cache_calls: List[Any],
+) -> None:
+    test_cmd = ["cache", "--config", valid_config_filepath, "--type", type_flag]
+    if info_flag_present:
+        test_cmd.append("--info")
+    if empty_flag_present:
+        test_cmd.append("--empty")
+    mock_api_run_cache = MagicMock()
+    mock_scraper_run_cache = MagicMock()
+    def _mock_run_cache_init_side_effect(*args, **kwargs) -> RunCache:
+        if kwargs["cache_type"] == "api":
+            return mock_api_run_cache
+        if kwargs["cache_type"] == "scraper":
+            return mock_scraper_run_cache
+    mock_api_run_cache.print_summary_info.return_value = None
+    mock_api_run_cache.clear.return_value = 69
+    mock_api_run_cache.close.return_value = None
+    mock_scraper_run_cache.print_summary_info.return_value = None
+    mock_scraper_run_cache.clear.return_value = 420
+    mock_scraper_run_cache.close.return_value = None
+    with patch("lastfm_recs_scraper.cli.RunCache") as mock_run_cache_constructor:
+        mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(cli, test_cmd)
+        assert result.exit_code == 0, f"Expected cli command '{' '.join(test_cmd)}' to pass but errored: {result.exception}"
+        if type_flag == "api":
+            mock_api_run_cache.assert_has_calls(expected_run_cache_calls)
+        elif type_flag == "scraper":
+            mock_scraper_run_cache.assert_has_calls(expected_run_cache_calls)
+        elif type_flag == "@all":
+            mock_api_run_cache.assert_has_calls(expected_run_cache_calls)
+            mock_scraper_run_cache.assert_has_calls(expected_run_cache_calls)
 
 
 def test_cli_init_conf_command() -> None:
