@@ -38,6 +38,7 @@ from tests.conftest import (
     mock_last_fm_album_info_json,
     mock_last_fm_session_get_side_effect,
     mock_mb_session_get_side_effect,
+    mock_red_browse_non_empty_response,
     mock_red_session_get_side_effect,
     mock_red_user_details,
     mock_red_user_stats_response,
@@ -344,8 +345,6 @@ def test_search_red_release_by_preferences(
     mock_preference_ordering: List[RedFormat],
     expected_torrent_entry: Optional[TorrentEntry],
 ) -> None:
-    # TODO: mock the release_searcher._red_client attr
-    # TODO: change this to use the new ReleaseSearcher method
     release_searcher = ReleaseSearcher(app_config=valid_app_config)
     release_searcher._red_format_preferences = mock_preference_ordering
     release_searcher._red_client.request_api = Mock(
@@ -359,6 +358,29 @@ def test_search_red_release_by_preferences(
         first_release_year=1899,
     )
     assert actual_torrent_entry == expected_torrent_entry
+
+
+def test_search_red_release_by_preferences_browse_exception_raised(
+    valid_app_config: AppConfig,
+) -> None:
+    def _raise_excp(*args, **kwargs) -> None:
+        raise Exception(f"Fake exception")
+
+    with patch("lastfm_recs_scraper.release_search.release_searcher._LOGGER") as mock_logger:
+        mock_logger.error.return_value = None
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._red_format_preferences = [
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD),
+        ]
+        release_searcher._red_client.request_api = Mock(name="request_api", side_effect=_raise_excp)
+        actual = release_searcher._search_red_release_by_preferences(
+            artist_name="Fake+Artist",
+            album_name="Fake+Release",
+            release_type=RedReleaseType.ALBUM,
+            first_release_year=1899,
+        )
+        assert actual is None, f"Expected None, but got {actual}"
+        mock_logger.error.assert_called_once()
 
 
 @pytest.mark.parametrize(

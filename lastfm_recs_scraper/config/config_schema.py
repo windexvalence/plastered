@@ -97,7 +97,8 @@ required_schema = {
                     "default": DEFAULTS_DICT["allow_library_items"],
                 },
                 "enable_scraper_cache": {
-                    "type": "boolean", "default": DEFAULTS_DICT["enable_scraper_cache"],
+                    "type": "boolean",
+                    "default": DEFAULTS_DICT["enable_scraper_cache"],
                 },
             },
             "required": [
@@ -121,7 +122,8 @@ required_schema = {
                 "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
                 "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
                 "enable_api_cache": {
-                    "type": "boolean", "default": DEFAULTS_DICT["enable_api_cache"],
+                    "type": "boolean",
+                    "default": DEFAULTS_DICT["enable_api_cache"],
                 },
                 "output_summary_filepath": {"type": "string", "default": DEFAULTS_DICT["output_summary_filepath"]},
             },

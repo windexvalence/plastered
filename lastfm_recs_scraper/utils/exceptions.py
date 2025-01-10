@@ -12,4 +12,5 @@ class ReleaseSearcherException(Exception):
 
 class RunCacheException(Exception):
     """Exception for invalid RunCache configurations or execution errors."""
+
     pass

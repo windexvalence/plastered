@@ -1,14 +1,10 @@
-import os
 import re
-from datetime import datetime
 from enum import StrEnum
-import json
 from random import randint
 from time import sleep
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from bs4 import BeautifulSoup
-from diskcache import Cache
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -80,10 +76,6 @@ class LastFMRec:
         self._lastfm_entity_str = lastfm_entity_str
         self._recommendation_type = RecommendationType(recommendation_type)
         self._rec_context = RecContext(rec_context)
-    
-    @classmethod
-    def load_from_json_blob(cls, rec_json_blob: Dict[str, str]):
-        return cls(**rec_json_blob)
 
     def __str__(self) -> str:
         return f"artist={self._lastfm_artist_str}, {self._recommendation_type.value}={self._lastfm_entity_str}, context={self._rec_context.value}"
@@ -176,7 +168,7 @@ class LastFMRecsScraper:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
+        if exc_type:  # pragma: no cover
             _LOGGER.error("Scraper encountered an uncaught exception", exc_info=True)
         self._run_cache.close()
         if self._is_logged_in:
@@ -187,7 +179,7 @@ class LastFMRecsScraper:
             self._browser.close()
         if self._playwright:
             self._playwright.stop()
-        
+
     def _user_login(self) -> None:
         _LOGGER.debug(f"Attempting login ...")
         _LOGGER.info(f"Accessing login url ...")

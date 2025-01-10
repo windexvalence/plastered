@@ -7,7 +7,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.run_cache.run_cache import RunCache, CacheType
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.scraper.last_scraper import LastFMRec, RecContext
 from lastfm_recs_scraper.utils.exceptions import ReleaseSearcherException
 from lastfm_recs_scraper.utils.http_utils import (
@@ -222,14 +222,18 @@ class ReleaseSearcher:
             )
             release_mbid = lastfm_album_info.get_release_mbid()
             if release_mbid:
-                _LOGGER.info(f"Attempting to pull search information from musicbrainz for artist: {last_fm_artist_str}, release: '{last_fm_album_str}', release-mbid: '{release_mbid}'")
+                _LOGGER.info(
+                    f"Attempting to pull search information from musicbrainz for artist: {last_fm_artist_str}, release: '{last_fm_album_str}', release-mbid: '{release_mbid}'"
+                )
                 mb_release = self._resolve_mb_release(mbid=release_mbid)
                 release_type = mb_release.get_red_release_type()
                 first_release_year = mb_release.get_first_release_year()
                 record_label = mb_release.get_label()
                 catalog_number = mb_release.get_catalog_number()
-            else:
-                _LOGGER.warning(f"Last.fm API did not return an MBID for artist: '{last_fm_artist_str}', release: '{last_fm_album_str}'")
+            else:  # pragma: no cover
+                _LOGGER.warning(
+                    f"Last.fm API did not return an MBID for artist: '{last_fm_artist_str}', release: '{last_fm_album_str}'"
+                )
 
         best_torrent_entry = self._search_red_release_by_preferences(
             artist_name=last_fm_artist_str,

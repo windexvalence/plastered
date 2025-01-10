@@ -1,13 +1,14 @@
 import json
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
 import pytest
 import yaml
 
+from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
@@ -15,7 +16,6 @@ from lastfm_recs_scraper.utils.red_utils import (
     RedFormat,
     RedUserDetails,
 )
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
@@ -168,7 +168,7 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
 @pytest.fixture(scope="function")
 def valid_app_config(valid_config_filepath: str, cache_root_dir_path: Path) -> AppConfig:
     """
-    Function-scoped valid AppConfig fixture, with cache root dir 
+    Function-scoped valid AppConfig fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())

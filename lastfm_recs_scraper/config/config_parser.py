@@ -136,7 +136,7 @@ class AppConfig:
 
     def get_cache_directory_path(self, cache_type: str) -> str:
         return os.path.join(self._base_cache_directory_path, cache_type)
-    
+
     def is_cache_enabled(self, cache_type: str) -> bool:
         return self.get_cli_option(f"enable_{cache_type}_cache")
 

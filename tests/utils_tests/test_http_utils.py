@@ -13,11 +13,11 @@ from lastfm_recs_scraper.utils.http_utils import (
     ThrottledAPIBaseClient,
 )
 from tests.conftest import (
+    api_run_cache,
     mock_last_fm_session_get_side_effect,
     mock_mb_session_get_side_effect,
     mock_red_session_get_side_effect,
     valid_app_config,
-    api_run_cache,
 )
 
 
@@ -61,10 +61,8 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
             [
                 datetime.datetime.fromtimestamp(1512345000),  # start ts
                 datetime.datetime.fromtimestamp(1512345000),  # initial call not blocked
-
                 datetime.datetime.fromtimestamp(1512345005),  # +5s
                 datetime.datetime.fromtimestamp(1512345005),  # call not blocked
-
                 datetime.datetime.fromtimestamp(1512345010),  # +5s
                 datetime.datetime.fromtimestamp(1512345010),  # call not blocked
             ],
@@ -75,10 +73,8 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
             [
                 datetime.datetime.fromtimestamp(1512345000),  # start ts
                 datetime.datetime.fromtimestamp(1512345000),  # initial call not blocked
-
                 datetime.datetime.fromtimestamp(1512345010),  # +10s
                 datetime.datetime.fromtimestamp(1512345010),  # call not blocked
-
                 datetime.datetime.fromtimestamp(1512345016),  # +6s
                 datetime.datetime.fromtimestamp(1512345016),  # call not blocked
             ],
@@ -89,16 +85,12 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
             [
                 datetime.datetime.fromtimestamp(1736087000),  # start ts
                 datetime.datetime.fromtimestamp(1736087000),  # initial call not blocked
-
                 datetime.datetime.fromtimestamp(1736087003),  # +3s
                 datetime.datetime.fromtimestamp(1736087003),  # call not blocked
-
                 datetime.datetime.fromtimestamp(1736087004),  # +1s
                 datetime.datetime.fromtimestamp(1736087005),  # call blocked 1s (post-sleep call)
-
                 datetime.datetime.fromtimestamp(1736087008),  # +3s
                 datetime.datetime.fromtimestamp(1736087008),  # call not blocked
-
                 datetime.datetime.fromtimestamp(1736087008),  # +0s
                 datetime.datetime.fromtimestamp(1736087010),  # call blocked 2s (post-sleep call)
             ],
@@ -109,13 +101,10 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
             [
                 datetime.datetime.fromtimestamp(1736087000),  # start ts
                 datetime.datetime.fromtimestamp(1736087000),  # initial call not blocked
-
                 datetime.datetime.fromtimestamp(1736087001),  # +1s
                 datetime.datetime.fromtimestamp(1736087002),  # call blocked 1s (post-sleep call)
-
                 datetime.datetime.fromtimestamp(1736087002),  # +0s
                 datetime.datetime.fromtimestamp(1736087004),  # call blocked 2s (post-sleep call)
-
                 datetime.datetime.fromtimestamp(1736087005),  # +1s
                 datetime.datetime.fromtimestamp(1736087006),  # call blocked 1s (post-sleep call)
             ],
@@ -152,11 +141,12 @@ def test_throttle(
 
 
 @pytest.mark.parametrize(
-    "subclass, endpoint, params, expected", [
+    "subclass, endpoint, params, expected",
+    [
         (RedAPIClient, "browse", "&something=otherthing", True),
         (LastFMAPIClient, "album.getinfo", "&something=otherthing", True),
         (MusicBrainzAPIClient, "release", "&mbid=69420", True),
-    ]
+    ],
 )
 def test_throttled_api_client_write_cache_valid(
     valid_app_config: AppConfig,
@@ -171,21 +161,24 @@ def test_throttled_api_client_write_cache_valid(
         with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
             mock_run_cache_write_method.return_value = True
             test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
-            actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
+            actual = test_client._write_cache_if_enabled(
+                endpoint=endpoint, params=params, result_json={"fake": "value"}
+            )
             expected_cache_key = (test_client._base_domain, endpoint, params)
             mock_run_cache_write_method.assert_called_once_with(cache_key=expected_cache_key, data={"fake": "value"})
             assert actual == True
 
 
 @pytest.mark.parametrize(
-    "subclass, cache_enabled, endpoint, params", [
+    "subclass, cache_enabled, endpoint, params",
+    [
         (RedAPIClient, False, "browse", "&something=otherthing"),
         (RedAPIClient, True, "download", "&id=blah"),
         (RedAPIClient, True, "community_stats", "&non-cached-endpoint=nothing&no=cache"),
         (RedAPIClient, True, "user_torrents", "&non-cached-endpoint=nothing&no=cache"),
         (LastFMAPIClient, False, "album.getinfo", "&something=otherthing"),
         (MusicBrainzAPIClient, False, "release", "&something=otherthing"),
-    ]
+    ],
 )
 def test_throttled_api_client_write_cache_not_valid(
     valid_app_config: AppConfig,
@@ -202,7 +195,9 @@ def test_throttled_api_client_write_cache_not_valid(
                 mock_run_cache_write_method.return_value = None
                 mock_run_cache_enabled.return_value = cache_enabled
                 test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
-                actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
+                actual = test_client._write_cache_if_enabled(
+                    endpoint=endpoint, params=params, result_json={"fake": "value"}
+                )
                 mock_run_cache_write_method.assert_not_called()
                 assert actual == False
 
@@ -399,11 +394,30 @@ def test_request_musicbrainz_api(
 
 
 @pytest.mark.parametrize(
-    "subclass, expected_base_domain, endpoint, params, mocked_json", [
-        (RedAPIClient, "redacted.sh", "browse", "&some-fake-cache-check=testing&foo=blah", {"response": {"cache_hit": "hopefully"}}),
-        (LastFMAPIClient, "ws.audioscrobbler.com", "album.getinfo", "&lastfmcachechecking&fun=ion", {"album": {"cache_hit": "hopefully"}}),
-        (MusicBrainzAPIClient, "musicbrainz.org", "release", "&mbid=69420&blah=not", {"musicbrainz-deeznuts": {"cache_hit": "hopefully"}}),
-    ]
+    "subclass, expected_base_domain, endpoint, params, mocked_json",
+    [
+        (
+            RedAPIClient,
+            "redacted.sh",
+            "browse",
+            "&some-fake-cache-check=testing&foo=blah",
+            {"response": {"cache_hit": "hopefully"}},
+        ),
+        (
+            LastFMAPIClient,
+            "ws.audioscrobbler.com",
+            "album.getinfo",
+            "&lastfmcachechecking&fun=ion",
+            {"album": {"cache_hit": "hopefully"}},
+        ),
+        (
+            MusicBrainzAPIClient,
+            "musicbrainz.org",
+            "release",
+            "&mbid=69420&blah=not",
+            {"musicbrainz-deeznuts": {"cache_hit": "hopefully"}},
+        ),
+    ],
 )
 def test_api_client_cache_hit(
     api_run_cache: RunCache,

@@ -1,15 +1,18 @@
 from datetime import datetime, timedelta
 from itertools import product
 from typing import Any, Callable, Dict, Optional, Tuple
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache, _tomorrow_midnight_datetime
+from lastfm_recs_scraper.run_cache.run_cache import (
+    CacheType,
+    RunCache,
+    _tomorrow_midnight_datetime,
+)
 from lastfm_recs_scraper.utils.exceptions import RunCacheException
 from tests.conftest import api_run_cache, scraper_run_cache, valid_app_config
-
 
 _DT_STR_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -21,31 +24,31 @@ def _is_none_data_validator(x: Any) -> bool:
 @pytest.mark.parametrize(
     "function_invoked_datetime, expected",
     [
-        ( # case 1: Invoked more than 20 before next midnight and result will be in same month.
+        (  # case 1: Invoked more than 20 before next midnight and result will be in same month.
             datetime.strptime("2025-10-13 12:00:00", _DT_STR_FORMAT),
             datetime.strptime("2025-10-14 00:00:00", _DT_STR_FORMAT),
         ),
-        ( # case 2: Invoked more than 20 before next midnight and result will be in following month.
+        (  # case 2: Invoked more than 20 before next midnight and result will be in following month.
             datetime.strptime("2025-10-31 09:59:00", _DT_STR_FORMAT),
             datetime.strptime("2025-11-01 00:00:00", _DT_STR_FORMAT),
         ),
-        ( # case 3: Invoked less than 20 before next midnight and result will be in same month.
+        (  # case 3: Invoked less than 20 before next midnight and result will be in same month.
             datetime.strptime("2025-01-07 23:59:00", _DT_STR_FORMAT),
             datetime.strptime("2025-01-09 00:00:00", _DT_STR_FORMAT),
         ),
-        ( # case 4: Invoked less than 20 before next midnight and result will be in following month.
+        (  # case 4: Invoked less than 20 before next midnight and result will be in following month.
             datetime.strptime("2025-10-31 23:41:00", _DT_STR_FORMAT),
             datetime.strptime("2025-11-02 00:00:00", _DT_STR_FORMAT),
         ),
-        ( # case 5: Invoked right on midnight.
+        (  # case 5: Invoked right on midnight.
             datetime.strptime("2025-04-20 00:00:00", _DT_STR_FORMAT),
             datetime.strptime("2025-04-21 00:00:00", _DT_STR_FORMAT),
         ),
-        ( # case 6: Invoked exactly 20 minutes before midnight
+        (  # case 6: Invoked exactly 20 minutes before midnight
             datetime.strptime("2025-04-20 23:40:00", _DT_STR_FORMAT),
             datetime.strptime("2025-04-22 00:00:00", _DT_STR_FORMAT),
-        )
-    ]
+        ),
+    ],
 )
 def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expected) -> None:
     # https://docs.python.org/3/library/unittest.mock-examples.html#partial-mocking
@@ -63,7 +66,7 @@ def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expecte
         (True, CacheType.API),
         (False, CacheType.SCRAPER),
         (True, CacheType.SCRAPER),
-    ]
+    ],
 )
 def test_run_cache_init(
     valid_app_config: AppConfig,
@@ -79,78 +82,82 @@ def test_run_cache_init(
             else:
                 mock_diskcache.assert_not_called()
             actual_enabled_attr = run_cache.enabled
-            assert actual_enabled_attr == enabled, f"Expected run_cach.enabled to be {enabled}, but got {actual_enabled_attr}"
+            assert (
+                actual_enabled_attr == enabled
+            ), f"Expected run_cach.enabled to be {enabled}, but got {actual_enabled_attr}"
 
 
 @pytest.mark.parametrize(
     "cache_type, enabled, cache_key, data_validator_fn, mock_cache_entries, expected",
     [
-        tuple([cache_type_val, *tup]) for tup in [
-            ( # case 1: disabled cache
+        tuple([cache_type_val, *tup])
+        for tup in [
+            (  # case 1: disabled cache
                 False,
                 "my-key",
                 lambda x: x is not None,
                 {},
                 None,
             ),
-            ( # case 2: enabled empty cache
+            (  # case 2: enabled empty cache
                 True,
                 "my-key",
                 lambda x: x is not None,
                 {},
                 None,
             ),
-            ( # case 3: enabled cache without desired key
+            (  # case 3: enabled cache without desired key
                 True,
                 "my-key",
                 lambda x: x is not None,
                 {"some-other-key": 69},
                 None,
             ),
-            ( # case 4: enabled cache with key, but with data_validation_fn returning False
+            (  # case 4: enabled cache with key, but with data_validation_fn returning False
                 True,
                 "my-key",
                 lambda x: False,
                 {"my-key": 100},
                 None,
             ),
-            ( # case 5: enabled cache with key, but exception raised during data validation
+            (  # case 5: enabled cache with key, but exception raised during data validation
                 True,
                 "will-raise-exception",
                 lambda x: x / 0,
                 {"will-raise-exception": 100},
                 None,
             ),
-            ( # case 6: enabled cache with key and valid data
+            (  # case 6: enabled cache with key and valid data
                 True,
                 "my-key",
                 lambda x: isinstance(x, int),
                 {"my-key": 100},
                 100,
             ),
-            ( # case 6: enabled cache with key and valid data
+            (  # case 6: enabled cache with key and valid data
                 True,
                 "my-key",
                 lambda x: isinstance(x, int),
                 {"my-key": 100},
                 100,
             ),
-            ( # case 7: enabled cache with tuple-key and valid data
+            (  # case 7: enabled cache with tuple-key and valid data
                 True,
                 ("my", "key"),
                 lambda x: isinstance(x, int),
                 {("my", "key"): 69},
                 69,
             ),
-            ( # case 8: enabled cache with tuple-key and valid dict data
+            (  # case 8: enabled cache with tuple-key and valid dict data
                 True,
                 ("my", "key"),
                 lambda x: isinstance(x, dict),
                 {("my", "key"): {"my": "dict", "value": "here"}},
                 {"my": "dict", "value": "here"},
             ),
-        ] for cache_type_val in list(CacheType)
-    ]
+        ]
+        for cache_type_val in list(CacheType)
+    ],
 )
 def test_run_cache_load_data_if_valid(
     valid_app_config: AppConfig,
@@ -175,7 +182,8 @@ def test_run_cache_load_data_if_valid(
 
 
 @pytest.mark.parametrize(
-    "cache_type, expire_datetime, fake_now_datetime, expected_seconds", [
+    "cache_type, expire_datetime, fake_now_datetime, expected_seconds",
+    [
         (
             CacheType.API,
             datetime.strptime("2025-11-01 00:00:00", _DT_STR_FORMAT),
@@ -194,7 +202,7 @@ def test_run_cache_load_data_if_valid(
             datetime.strptime("2025-10-31 23:00:00", _DT_STR_FORMAT),
             3600,
         ),
-    ]
+    ],
 )
 def test_seconds_to_expiry(
     valid_app_config: AppConfig,
@@ -221,10 +229,11 @@ def test_seconds_to_expiry(
 
 
 @pytest.mark.parametrize(
-    "cache_type, test_key, test_data", [
+    "cache_type, test_key, test_data",
+    [
         (CacheType.API, "my-fake-key", "my-fake-value"),
         (CacheType.SCRAPER, "my-fake-key", "my-fake-value"),
-    ]
+    ],
 )
 def test_run_cache_write_data_valid(
     valid_app_config: AppConfig,
@@ -249,10 +258,11 @@ def test_run_cache_write_data_valid(
 
 
 @pytest.mark.parametrize(
-    "cache_type, test_key, test_data", [
+    "cache_type, test_key, test_data",
+    [
         (CacheType.API, "my-fake-key", "my-fake-value"),
         (CacheType.SCRAPER, "my-fake-key", "my-fake-value"),
-    ]
+    ],
 )
 def test_run_cache_write_data_invalid(
     valid_app_config: AppConfig,
@@ -270,14 +280,14 @@ def test_run_cache_write_data_invalid(
                 actual = run_cache.write_data(cache_key=test_key, data=test_data)
 
 
-
 @pytest.mark.parametrize(
-    "cache_type, run_cache_enabled", [
+    "cache_type, run_cache_enabled",
+    [
         (CacheType.API, False),
         (CacheType.SCRAPER, False),
         (CacheType.API, True),
         (CacheType.SCRAPER, True),
-    ]
+    ],
 )
 def test_run_cache_clear(
     valid_app_config: AppConfig,
@@ -302,12 +312,13 @@ def test_run_cache_clear(
 
 
 @pytest.mark.parametrize(
-    "cache_type, run_cache_enabled", [
+    "cache_type, run_cache_enabled",
+    [
         (CacheType.API, False),
         (CacheType.SCRAPER, False),
         (CacheType.API, True),
         (CacheType.SCRAPER, True),
-    ]
+    ],
 )
 def test_print_summary_info(
     valid_app_config: AppConfig,
@@ -315,10 +326,12 @@ def test_print_summary_info(
     run_cache_enabled: bool,
 ) -> None:
     mock_diskcache = MagicMock()
+
     def _stats_side_effect(*args, **kwargs) -> Optional[Tuple[int, int]]:
         if len(args) > 0 or len(kwargs) > 0:
             return None
         return (69, 420)
+
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = run_cache_enabled
         with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:

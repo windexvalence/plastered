@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Any, Dict, Set, List, Tuple, Optional, Union
+from typing import Any, Dict, Optional, Set, Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -41,10 +41,12 @@ class ThrottledAPIBaseClient:
         self._valid_endpoints = valid_endpoints
         self._run_cache = run_cache
         self._non_cached_endpoints = non_cached_endpoints
-        
+
         # initialize _time_of_last_call to midnight of the current day
         init_time = datetime.now()
-        self._time_of_last_call = datetime(year=init_time.year, month=init_time.month, day=init_time.day, hour=0, minute=0)
+        self._time_of_last_call = datetime(
+            year=init_time.year, month=init_time.month, day=init_time.day, hour=0, minute=0
+        )
         self._base_domain = urlparse(base_api_url).netloc
         self._session = requests.Session()
         self._session.mount(
@@ -62,15 +64,15 @@ class ThrottledAPIBaseClient:
             wait_seconds = (self._throttle_period - time_since_last_call).seconds
             sleep(wait_seconds)
         self._time_of_last_call = datetime.now()
-    
+
     def _construct_cache_key(self, endpoint: str, params: str) -> Tuple[str, str, str]:
         """
         The universal cache key construction across all the ThrottleAPIClient subclasses. This simplifies
         the code while allowing each subclass instance to share the same cache instance without collisions due to
-        their cache keys being distinguished by the self._base_domain key prefix. 
+        their cache keys being distinguished by the self._base_domain key prefix.
         """
         return (self._base_domain, endpoint, params)
-    
+
     def _read_from_run_cache(self, endpoint: str, params: str) -> Optional[Dict[str, Any]]:
         """
         Return the cached API response if one exists and is valid, otherwise return None.
@@ -86,7 +88,7 @@ class ThrottledAPIBaseClient:
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
             data_validator_fn=lambda x: isinstance(x, dict),
         )
-    
+
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
             return False
@@ -101,6 +103,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
     RED-specific Subclass of the ThrottledAPIBaseClient for interacting with the RED API.
     Retries limit and throttling period are configured from user config.
     """
+
     def __init__(self, app_config: AppConfig, run_cache: RunCache):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
