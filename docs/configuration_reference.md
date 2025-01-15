@@ -1,12 +1,12 @@
 # Configuration Reference
 
-This doc covers the entire list of available configuration options for `last-red-recs`.
+This doc covers the entire list of available configuration options for `plastered`.
 
 > NOTE: You may check the full settings of your app (including default values) by running the following command:
 
 ```shell
 # assuming you mounted your config to /config/config.yaml inside the container
-docker run --rm -v /host/path/to/config/:/config ghcr.io/windexvalence/last-red-recs:latest conf --config /config/config.yaml
+docker run --rm -v /host/path/to/config/:/config ghcr.io/windexvalence/plastered:latest conf --config /config/config.yaml
 ```
 
 ## Config options reference table
@@ -19,24 +19,29 @@ The following parameters appear under the top-level `red` key in the YAML config
 
 <table>
     <tr><th>Parameter</th><th>Function</th><th>Required?</th><th>Default</th><th>CLI override?</th><th>Env var override?</th></tr>
-    <tr><td>red_user_id</td><td>Your RED user ID which may be found in your user profile URL</td><td>Yes</td><td>None</td><td>None</td><td>None</td></tr>
-    <tr><td>red_api_key</td><td>Your RED API key</td><td>Yes</td><td>None</td><td>--red-api-key</td><td>RED_API_KEY</td></tr>
+    <tr><td>red_user_id</td><td>Your RED user ID which may be found in your user profile URL</td><td>Yes</td><td>None</td><td>--red-user-id</td><td>PLASTERED_RED_USER_ID</td></tr>
+    <tr><td>red_api_key</td><td>Your RED API key</td><td>Yes</td><td>None</td><td>--red-api-key</td><td>PLASTERED_RED_API_KEY</td></tr>
     <tr><td>red_api_retries</td><td>Max # retries against RED API before failing</td><td>No</td><td>3</td><td>None</td><td>None</td></tr>
     <tr><td>red_api_seconds_between_calls</td><td>Min seconds to wait between RED API calls</td><td>No</td><td>5</td><td>None</td><td>None</td></tr>
 </table>
 
-### `last_fm` section parameters
+### `lfm` section parameters
 
-The following parameters appear under the top-level `last_fm` key in the YAML configuration:
+The following parameters appear under the top-level `lfm` key in the YAML configuration:
 
 <table>
     <tr><th>Parameter</th><th>Function</th><th>Required?</th><th>Default</th><th>CLI override?</th><th>Env var override?</th></tr>
-    <tr><td>last_fm_api_key</td><td>Your LFM API key</td><td>Yes</td><td>None</td><td>--last-fm-api-key</td><td>LAST_FM_API_KEY</td></tr>
-    <tr><td>last_fm_username</td><td>Your LFM Username</td><td>Yes</td><td>None</td><td>--last-fm-username</td><td>LAST_FM_USERNAME</td></tr>
-    <tr><td>last_fm_password</td><td>Your LFM Password</td><td>Yes</td><td>None</td><td>--last-fm-password</td><td>LAST_FM_PASSWORD</td></tr>
-    <tr><td>last_fm_api_retries</td><td>Max # retries against LFM API before failing</td><td>No</td><td>3</td><td>None</td><td>None</td></tr>
-    <tr><td>last_fm_api_seconds_between_calls</td><td>Min seconds to wait between LFM API calls</td><td>No</td><td>2</td><td>None</td><td>None</td></tr>
+    <tr><td>lfm_api_key</td><td>Your LFM API key</td><td>Yes</td><td>None</td><td>--lfm-api-key</td><td>PLASTERED_LFM_API_KEY</td></tr>
+    <tr><td>lfm_username</td><td>Your LFM Username</td><td>Yes</td><td>None</td><td>--lfm-username</td><td>PLASTERED_LFM_USERNAME</td></tr>
+    <tr><td>lfm_password</td><td>Your LFM Password</td><td>Yes</td><td>None</td><td>--lfm-password</td><td>PLASTERED_LFM_PASSWORD</td></tr>
+    <tr><td>lfm_api_retries</td><td>Max # retries against LFM API before failing</td><td>No</td><td>3</td><td>None</td><td>None</td></tr>
+    <tr><td>lfm_api_seconds_between_calls</td><td>Min seconds to wait between LFM API calls</td><td>No</td><td>2</td><td>None</td><td>None</td></tr>
+    <tr><td>enable_scraper_cache</td><td>enables/disables local caching of scraper results</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
+    <tr><td>allow_library_items</td><td>Enable pulling LFM recs which LFM has recommended based on the artist existing in your library</td><td>No</td><td>False</td><td>None</td><td>None</td></tr>
+    <tr><td>enable_scraper_cache</td><td>Indicate whether to cache the lfm recs results or not</td><td>No</td><td>True</td><td>None</td><td>None</td></tr>
 </table>
+
+<!-- <tr><td>param</td><td>function</td><td>Req</td><td>Default</td><td>cli</td><td>env</td></tr> -->
 
 ### `musicbrainz` section parameters
 
@@ -57,8 +62,9 @@ The following parameters appear under the top-level `search` key in the YAML con
     <tr><td>use_release_type</td><td>Filter RED search by rec's release type field</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
     <tr><td>use_first_release_year</td><td>Filter RED search by rec's initial release year</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
     <tr><td>use_record_label</td><td>Filter RED search by rec's record label</td><td>No</td><td>false</td><td>None</td><td>None</td></tr>
-    <tr><td>use_catalog_number</td><td>Filter RED search by rec's catalog number</td><td>No</td><td>false</td><td>None</td><td>None</td></tr>
-    <tr><td>output_summary_filepath</td><td>To be deleted - hardcoded path for app run's summary file output</td><td>No</td><td>/config/output_summary.tsv</td><td>None</td><td>None</td></tr>
+    <tr><td>use_catalog_number</td><td>Filter RED search by rec's catalog number - experimental and unreliable</td><td>No</td><td>false</td><td>None</td><td>None</td></tr>
+    <tr><td>enable_api_cache</td><td>Indicate whether to cache the lfm recs results or not</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
+    <tr><td>use_fl_tokens</td><td>Enable the use of available RED FL tokens or not</td><td>No</td><td>false</td><td>None</td><td>None</td></tr>
 </table>
 
 ### `snatches` section parameters
@@ -70,7 +76,7 @@ The following parameters appear under the top-level `snatches` key in the YAML c
     <tr><td>snatch_directory</td><td>Mounted directory to save .torrent downloads</td><td>Yes</td><td>None</td><td>None</td><td>None</td></tr>
     <tr><td>snatch_recs</td><td>Enable/disable .torrent file downloading</td><td>Yes</td><td>None</td><td>None</td><td>None</td></tr>
     <tr><td>skip_prior_snatches</td><td>Do not search RED for LFM recs that are already in your snatch history</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
-    <tr><td>max_size_gb</td><td>Max size, in GB, of any torrent snatch you wish to allow</td><td>Yes</td><td>None</td><td>None</td><td>None</td></tr>
+    <tr><td>max_size_gb</td><td>Max size, in GB, of any single RED snatch you wish to allow</td><td>Yes</td><td>None</td><td>None</td><td>None</td></tr>
 </table>
 
 ### `format_preferences` section parameters

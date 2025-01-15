@@ -1,13 +1,15 @@
+import logging
 import os
 import sys
 import traceback
-from collections import Counter
+from collections import Counter, defaultdict
+from datetime import datetime
 from typing import Any, Dict, List
 
 import jsonschema
 import yaml
 
-from lastfm_recs_scraper.config.config_schema import (
+from plastered.config.config_schema import (
     CD_ONLY_EXTRAS_KEY,
     CLI_SNATCH_DIRECTORY_KEY,
     CUE_KEY,
@@ -18,19 +20,17 @@ from lastfm_recs_scraper.config.config_schema import (
     FORMAT_PREFERENCES_KEY,
     LOG_KEY,
     MEDIA_KEY,
+    OPTIONAL_TOP_LEVEL_CLI_KEYS,
     PER_PREFERENCE_KEY,
+    get_sub_keys_from_top_level_keys,
     required_schema,
 )
-from lastfm_recs_scraper.utils.exceptions import AppConfigException
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
-from lastfm_recs_scraper.utils.red_utils import (
-    EncodingEnum,
-    FormatEnum,
-    MediaEnum,
-    RedFormat,
-)
+from plastered.utils.exceptions import AppConfigException
+from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat
 
-_LOGGER = get_custom_logger(__name__)
+_LOGGER = logging.getLogger(__name__)
+_CACHE_DIRNAME = "cache"
+_SUMMARIES_DIRNAME = "summaries"
 
 
 def load_init_config_template() -> str:
@@ -85,11 +85,18 @@ class AppConfig:
     def __init__(self, config_filepath: str, cli_params: Dict[str, Any]):
         if not os.path.exists(config_filepath):
             raise AppConfigException(f"Provided config filepath does not exist: '{config_filepath}'")
+        self._run_datestr = datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
         self._config_filepath = config_filepath
+        self._config_directory_path = os.path.dirname(os.path.abspath(config_filepath))
+        self._base_cache_directory_path = os.path.join(self._config_directory_path, _CACHE_DIRNAME)
+        self._summary_directory_path = os.path.join(self._config_directory_path, _SUMMARIES_DIRNAME)
+        if not os.path.isdir(self._summary_directory_path):
+            _LOGGER.info(f"{self._summary_directory_path} directory not found. Attempting to create ...")
+            os.makedirs(self._summary_directory_path, 0o755)
         self._cli_options = dict()
         with open(self._config_filepath, "r") as f:
             raw_config_data = yaml.safe_load(f.read())
-        # Allow for explicit click CLI params to override the values in the config file.
+        # run basic schema validation on data loaded from config file
         try:
             jsonschema.validate(instance=raw_config_data, schema=required_schema)
         except jsonschema.exceptions.ValidationError:
@@ -97,6 +104,10 @@ class AppConfig:
         for top_key in EXPECTED_TOP_LEVEL_CLI_KEYS:
             for option_key, option_value in raw_config_data[top_key].items():
                 self._cli_options[option_key] = option_value
+        for optional_top_key in OPTIONAL_TOP_LEVEL_CLI_KEYS:
+            if optional_top_key in raw_config_data:
+                for option_key, option_value in raw_config_data[optional_top_key].items():
+                    self._cli_options[option_key] = option_value
         # Set defaults for any fields which allow defaults and are not present in the config file
         for field_name, default_val in DEFAULTS_DICT.items():
             if field_name not in self._cli_options.keys():
@@ -105,9 +116,9 @@ class AppConfig:
         for cli_key, cli_val in cli_params.items():
             if cli_val is not None and cli_key in self._cli_options.keys():
                 _LOGGER.warning(
-                    f"CLI option '{cli_key}' provided and will override the value found in the provided config file ({config_filepath})."
+                    f"CLI/Env '{cli_key}' option provided will override the value found in the provided config file ({config_filepath})."
                 )
-            self._cli_options[cli_key] = cli_val
+                self._cli_options[cli_key] = cli_val
 
         self._validate_final_cli_options()
         self._red_preference_ordering = _load_red_formats_from_config(
@@ -132,12 +143,29 @@ class AppConfig:
     def get_cli_option(self, option_key: str) -> Any:
         return self._cli_options[option_key]
 
-    def pretty_print_config(self) -> None:
-        yaml.dump(self._cli_options, sys.stdout)
+    def get_output_summary_filepath_prefix(self) -> str:
+        return os.path.join(self._summary_directory_path, f"{self._run_datestr}")
 
-    def pretty_print_preference_ordering(self) -> None:
-        output_lines = [str(pref) for pref in self._red_preference_ordering]
-        yaml.dump(output_lines, sys.stdout)
+    def get_cache_directory_path(self, cache_type: str) -> str:
+        return os.path.join(self._base_cache_directory_path, cache_type)
+
+    def is_cache_enabled(self, cache_type: str) -> bool:
+        return self.get_cli_option(f"enable_{cache_type}_cache")
+
+    def _pretty_print_format_preferences(self) -> None:
+        formatted_dict = {
+            FORMAT_PREFERENCES_KEY: [pref.get_yaml_dict_for_pretty_print() for pref in self._red_preference_ordering]
+        }
+        yaml.dump(formatted_dict, sys.stdout)
+
+    def pretty_print_config(self) -> None:
+        top_level_keys_to_sub_keys = get_sub_keys_from_top_level_keys()
+        pp_dict = defaultdict(dict)
+        for top_level_key, sub_keys in top_level_keys_to_sub_keys.items():
+            for sub_key in sub_keys:
+                pp_dict[top_level_key][sub_key] = self._cli_options[sub_key]
+        yaml.dump(dict(pp_dict), sys.stdout)
+        self._pretty_print_format_preferences()
 
     def get_red_preference_ordering(self) -> List[RedFormat]:
         return self._red_preference_ordering

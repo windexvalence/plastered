@@ -2,8 +2,8 @@ from typing import Any, Dict
 
 import pytest
 
-from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
-from lastfm_recs_scraper.utils.red_utils import RedReleaseType
+from plastered.utils.musicbrainz_utils import MBRelease
+from plastered.utils.red_utils import RedReleaseType
 from tests.conftest import mock_musicbrainz_release_json
 
 

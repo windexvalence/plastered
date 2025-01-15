@@ -1,16 +1,15 @@
 services:
-  last-red-recs:
-    container_name: last-red-recs
+  plastered:
+    container_name: plastered
     build: .
     restart: on-failure
     environment:
       - RED_API_KEY=${MY_RED_API_KEY}
-      - LAST_FM_API_KEY=${MY_LAST_FM_API_KEY}
-      - LAST_FM_USERNAME=${MY_LAST_FM_USERNAME}
-      - LAST_FM_PASSWORD=${MY_LAST_FM_PASSWORD}
+      - LFM_API_KEY=${MY_LFM_API_KEY}
+      - LFM_USERNAME=${MY_LFM_USERNAME}
+      - LFM_PASSWORD=${MY_LFM_PASSWORD}
     volumes:
       - ./config.yml:/config.yml:ro
       - ./content:/content
     command: scrape
 
-# TODO: add a gluetun container to attach the lastfm-recs container to

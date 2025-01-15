@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
-from lastfm_recs_scraper.utils.red_utils import (
+from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
+from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
     MediaEnum,
@@ -52,6 +52,7 @@ def test_red_format_eq(other: Any, expected: bool) -> None:
                 has_log=False,
                 log_score=0,
                 has_cue=False,
+                can_use_token=False,
                 reported=None,
                 lossy_web=None,
                 lossy_master=None,
@@ -71,6 +72,7 @@ def test_red_format_eq(other: Any, expected: bool) -> None:
                 has_log=True,
                 log_score=100,
                 has_cue=True,
+                can_use_token=False,
                 reported=None,
                 lossy_web=None,
                 lossy_master=None,
@@ -103,6 +105,7 @@ def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_
                 has_log=True,
                 log_score=100,
                 has_cue=True,
+                can_use_token=False,
                 reported=None,
                 lossy_web=None,
                 lossy_master=None,
@@ -122,6 +125,7 @@ def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_
                 has_log=True,
                 log_score=100,
                 has_cue=True,
+                can_use_token=False,
                 reported=None,
                 lossy_web=None,
                 lossy_master=None,
@@ -143,6 +147,7 @@ def test_eq(other: Any, expected: bool) -> None:
         has_log=True,
         log_score=100,
         has_cue=True,
+        can_use_token=False,
         reported=None,
         lossy_web=None,
         lossy_master=None,
@@ -180,6 +185,7 @@ def test_torrent_entry_get_size(
         has_log=True,
         log_score=100,
         has_cue=True,
+        can_use_token=False,
         reported=None,
         lossy_web=None,
         lossy_master=None,
@@ -205,6 +211,7 @@ def test_torrent_entry_get_red_format() -> None:
         has_log=True,
         log_score=100,
         has_cue=True,
+        can_use_token=False,
         reported=None,
         lossy_web=None,
         lossy_master=None,
@@ -244,6 +251,7 @@ def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) 
                 has_log=True,
                 log_score=100,
                 has_cue=True,
+                can_use_token=False,
                 reported=False,
                 lossy_web=False,
                 lossy_master=False,

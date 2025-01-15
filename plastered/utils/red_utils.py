@@ -1,11 +1,14 @@
-from enum import Enum
+import re
+from enum import Enum, StrEnum
 from typing import Any, Dict, List, Optional, Tuple
 
-from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
+from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
+
+_CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
 # File formats
-class FormatEnum(Enum):
+class FormatEnum(StrEnum):
     """Enum class to map to the supported file format search fields on the RED API"""
 
     FLAC = "FLAC"
@@ -13,7 +16,7 @@ class FormatEnum(Enum):
 
 
 # Media
-class MediaEnum(Enum):
+class MediaEnum(StrEnum):
     """Enum class to map to the supported media search fields on the RED API"""
 
     ANY = "ANY"  # TODO: update search logic to omit media filters if this is the set value
@@ -25,7 +28,7 @@ class MediaEnum(Enum):
 
 
 # Encodings
-class EncodingEnum(Enum):
+class EncodingEnum(StrEnum):
     """Enum class to map to the supported encoding search fields on the RED API"""
 
     TWO_FOUR_BIT_LOSSLESS = "24bit+Lossless"
@@ -73,8 +76,12 @@ class RedUserDetails:
             )
             self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
 
-    def has_snatched_release(self, search_artist: str, search_release: str) -> bool:
-        return (search_artist, search_release) in self._snatched_torrents_dict
+    def has_snatched_release(self, artist: str, album: str) -> bool:
+        """
+        Searches whether the release was already listed in the user's snatched torrents.
+        NOTE: 'artist' and 'album' must be the human-readable, non URL-encoded strings.
+        """
+        return (artist.lower(), album.lower()) in self._snatched_torrents_dict
 
     def get_user_id(self) -> int:
         return self._user_id
@@ -105,6 +112,13 @@ class RedFormat:
 
     def __str__(self) -> str:
         return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"
+
+    def get_yaml_dict_for_pretty_print(self) -> Dict[str, Any]:
+        entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
+        if self._cd_only_extras:
+            log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self._cd_only_extras)[0]
+            entries["cd_only_extras"] = {"log": int(log_str), "has_cue": True if int(cue_str) else False}
+        return {"preference": entries}
 
     def __hash__(self) -> int:
         return self.__str__().__hash__()
@@ -169,6 +183,7 @@ class TorrentEntry:
         has_log: bool,
         log_score: float,
         has_cue: bool,
+        can_use_token: bool,
         reported: Optional[bool] = None,
         lossy_web: Optional[bool] = None,
         lossy_master: Optional[bool] = None,
@@ -184,6 +199,7 @@ class TorrentEntry:
         self.has_log = has_log
         self.log_score = log_score
         self.has_cue = has_cue
+        self.can_use_token = can_use_token
         self.reported = reported
         self.lossy_web = lossy_web
         self.lossy_master = lossy_master
@@ -201,6 +217,7 @@ class TorrentEntry:
             media=MediaEnum(media),
             cd_only_extras=cd_only_extras,
         )
+        self._matched_mbid: Optional[str] = None
 
     def __str__(self) -> str:  # pragma: no cover
         return str(vars(self))
@@ -234,7 +251,17 @@ class TorrentEntry:
             has_log=json_blob["hasLog"],
             log_score=json_blob["logScore"],
             has_cue=json_blob["hasCue"],
+            can_use_token=json_blob["canUseToken"],
         )
+
+    def set_matched_mbid(self, matched_mbid: str) -> None:
+        self._matched_mbid = matched_mbid
+
+    def get_matched_mbid(self) -> Optional[str]:
+        return self._matched_mbid
+
+    def token_usable(self) -> bool:
+        return self.can_use_token
 
     def get_size(self, unit: Optional[str] = "B") -> float:
         if unit not in STORAGE_UNIT_IDENTIFIERS:

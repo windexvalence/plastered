@@ -1,21 +1,21 @@
 import os
 from typing import Any, Dict, List, Optional
-from unittest.mock import mock_open, patch
+from unittest.mock import call, mock_open, patch
 
 import pytest
 
-from lastfm_recs_scraper.config.config_parser import (
+from plastered.config.config_parser import (
     AppConfig,
     _get_cd_only_extras_string,
     _load_red_formats_from_config,
     load_init_config_template,
 )
-from lastfm_recs_scraper.config.config_schema import (
+from plastered.config.config_schema import (
     CLI_SNATCH_DIRECTORY_KEY,
     FORMAT_PREFERENCES_KEY,
 )
-from lastfm_recs_scraper.utils.exceptions import AppConfigException
-from lastfm_recs_scraper.utils.red_utils import RedFormat
+from plastered.utils.exceptions import AppConfigException
+from plastered.utils.red_utils import RedFormat
 from tests.conftest import (
     INVALID_CONFIGS_DIR_PATH,
     MOCK_RESOURCES_DIR_PATH,
@@ -141,45 +141,45 @@ def test_invalid_dupe_load_red_formats_from_config(
             dict(),
             {
                 "red_api_key": "1234notarealapikey",
-                "last_fm_api_key": "5678alsonotarealapikey",
-                "last_fm_username": "fake-username",
-                "last_fm_password": "fake-password",
+                "lfm_api_key": "5678alsonotarealapikey",
+                "lfm_username": "fake-username",
+                "lfm_password": "fake-password",
             },
         ),
         (
             {"red_api_key": "cli-override-red-api-key"},
             {
                 "red_api_key": "cli-override-red-api-key",
-                "last_fm_api_key": "5678alsonotarealapikey",
-                "last_fm_username": "fake-username",
-                "last_fm_password": "fake-password",
+                "lfm_api_key": "5678alsonotarealapikey",
+                "lfm_username": "fake-username",
+                "lfm_password": "fake-password",
             },
         ),
         (
-            {"last_fm_api_key": "cli-override-last-fm-api-key"},
+            {"lfm_api_key": "cli-override-lfm-api-key"},
             {
                 "red_api_key": "1234notarealapikey",
-                "last_fm_api_key": "cli-override-last-fm-api-key",
-                "last_fm_username": "fake-username",
-                "last_fm_password": "fake-password",
+                "lfm_api_key": "cli-override-lfm-api-key",
+                "lfm_username": "fake-username",
+                "lfm_password": "fake-password",
             },
         ),
         (
-            {"last_fm_username": "cli-override-last-fm-username"},
+            {"lfm_username": "cli-override-lfm-username"},
             {
                 "red_api_key": "1234notarealapikey",
-                "last_fm_api_key": "5678alsonotarealapikey",
-                "last_fm_username": "cli-override-last-fm-username",
-                "last_fm_password": "fake-password",
+                "lfm_api_key": "5678alsonotarealapikey",
+                "lfm_username": "cli-override-lfm-username",
+                "lfm_password": "fake-password",
             },
         ),
         (
-            {"last_fm_password": "cli-override-last-fm-password"},
+            {"lfm_password": "cli-override-lfm-password"},
             {
                 "red_api_key": "1234notarealapikey",
-                "last_fm_api_key": "5678alsonotarealapikey",
-                "last_fm_username": "fake-username",
-                "last_fm_password": "cli-override-last-fm-password",
+                "lfm_api_key": "5678alsonotarealapikey",
+                "lfm_username": "fake-username",
+                "lfm_password": "cli-override-lfm-password",
             },
         ),
     ],
@@ -261,15 +261,18 @@ def test_validate_final_cli_options(
 
 def test_pretty_print_config(valid_config_filepath: str) -> None:
     with patch("yaml.dump") as mock_yaml_dump:
-        app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-        app_config.pretty_print_config()
-        mock_yaml_dump.assert_called_once()
+        with patch.object(AppConfig, "_pretty_print_format_preferences") as mock_pretty_print_format_preferences:
+            mock_pretty_print_format_preferences.return_value = None
+            app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+            app_config.pretty_print_config()
+            mock_yaml_dump.assert_called_once()
+            mock_pretty_print_format_preferences.assert_called_once()
 
 
-def test_pretty_print_preference_ordering(valid_config_filepath: str) -> None:
+def test_pretty_print_format_preferences(valid_config_filepath: str) -> None:
     with patch("yaml.dump") as mock_yaml_dump:
         app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-        app_config.pretty_print_preference_ordering()
+        app_config._pretty_print_format_preferences()
         mock_yaml_dump.assert_called_once()
 
 

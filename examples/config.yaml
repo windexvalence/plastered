@@ -4,13 +4,14 @@ red:
   red_api_key: 1234notarealapikey
   red_api_retries: 3
   red_api_seconds_between_calls: 5
-last_fm:
-  last_fm_api_key: 5678alsonotarealapikey
-  last_fm_username: fake-username
-  last_fm_password: fake-password
-  last_fm_api_retries: 3
-  last_fm_api_seconds_between_calls: 2
+lfm:
+  lfm_api_key: 5678alsonotarealapikey
+  lfm_username: fake-username
+  lfm_password: fake-password
+  lfm_api_retries: 3
+  lfm_api_seconds_between_calls: 2
   allow_library_items: false
+  enable_scraper_cache: true
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
@@ -20,8 +21,8 @@ search:
   use_first_release_year: true
   use_record_label: false
   use_catalog_number: false
-  # TODO: remove this and dynamically create filename based on exection timestamp
-  output_summary_filepath: /some/other/fake/file.tsv
+  enable_api_cache: true
+  use_fl_tokens: false
 
 snatches:
   snatch_directory: /app/tests/resources

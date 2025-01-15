@@ -2,20 +2,15 @@
 # and with all non-required fields omitted.
 #
 # For full configuration reference details, see the following link:
-# https://github.com/windexvalence/last-red-recs/blob/main/docs/configuration_reference.md
+# https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
 ---
 red:
   red_user_id: 12345
   red_api_key: 1234notarealapikey
-last_fm:
-  last_fm_api_key: 5678alsonotarealapikey
-  last_fm_username: fake-username
-  last_fm_password: fake-password
-
-search:
-  # NOTE: the output_summary_filepath should point to a directory 
-  # which is mounted by the container and exists on your host machine.
-  output_summary_filepath: /some/other/fake/file.tsv
+lfm:
+  lfm_api_key: 5678alsonotarealapikey
+  lfm_username: fake-username
+  lfm_password: fake-password
 
 snatches:
   # NOTE: the snatch_directory must point to a directory 
@@ -33,4 +28,4 @@ format_preferences:
         log: 100
         has_cue: true
 # Feel free to add and/or modify this list of preferences however you want.
-# Refer to https://github.com/windexvalence/last-red-recs/blob/main/docs/configuration_reference.md for more details.
+# Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.

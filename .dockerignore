@@ -4,7 +4,7 @@
 # whitelisted folders / files for the main docker image
 !build_scripts
 !examples
-!lastfm_recs_scraper
+!plastered
 !entrypoint.sh
 !requirements.txt 
 !tests

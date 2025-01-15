@@ -2,20 +2,20 @@
 # and with all non-required fields omitted.
 #
 # For full configuration reference details, see the following link:
-# https://github.com/windexvalence/last-red-recs/blob/main/docs/configuration_reference.md
+# https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
 ---
 red:
   red_user_id: # paste your RED user ID here (found on your RED profile URL: redacted.sh/user.php?id=USER_ID)
   red_api_key: # paste your RED API key here with "Torrents" and "Users" permissions granted
-last_fm:
-  last_fm_api_key: # paste your LastFM API key here (see their doc page [here](https://www.last.fm/api)
-  last_fm_username: # paste your LastFM username here
-  last_fm_password: # paste your LastFM password here
+lfm:
+  lfm_api_key: # paste your LFM API key here (see their doc page [here](https://www.last.fm/api)
+  lfm_username: # paste your LFM username here
+  lfm_password: # paste your LFM password here
 
 search:
   # NOTE: the output_summary_filepath should point to a filepath under the config directory 
   # mounted on your container.
-  output_summary_filepath: /config/summary_file.tsv
+
 
 snatches:
   # NOTE: the snatch_directory must point to the content directory 
@@ -25,7 +25,7 @@ snatches:
   max_size_gb: 2.0
 
 # Feel free to add and/or modify this list of preferences however you want.
-# Refer to https://github.com/windexvalence/last-red-recs/blob/main/docs/configuration_reference.md for more details.
+# Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.
 format_preferences:
   - preference:
       format: "FLAC"

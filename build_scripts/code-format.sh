@@ -7,7 +7,7 @@ else
     CHECK=1
 fi
 
-export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
+export PYTHONPATH="${APP_DIR}/plastered/"
 if [[ -z "${GITHUB_ACTIONS}" ]]; then
     echo "Not running in a github actions environment"
     cd /project_src_mnt
@@ -15,11 +15,11 @@ fi
 if [[ "$CHECK" == "1" ]]; then
     black --check .
     isort --check .
-    pylint --rcfile ./pyproject.toml lastfm_recs_scraper
+    pylint --rcfile ./pyproject.toml plastered
     bandit -c ./pyproject.toml -r . --severity-level all -n 1
 else
     black .
     isort .
-    pylint --rcfile ./pyproject.toml lastfm_recs_scraper
+    pylint --rcfile ./pyproject.toml plastered
     bandit -c ./pyproject.toml -r . --severity-level all -n 1
 fi
