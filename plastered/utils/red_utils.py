@@ -218,6 +218,10 @@ class TorrentEntry:
             cd_only_extras=cd_only_extras,
         )
         self._matched_mbid: Optional[str] = None
+        self._lfm_rec_type: Optional[str] = None
+        self._lfm_rec_context: Optional[str] = None
+        self._artist_name: Optional[str] = None
+        self._release_name: Optional[str] = None
 
     def __str__(self) -> str:  # pragma: no cover
         return str(vars(self))
@@ -257,8 +261,26 @@ class TorrentEntry:
     def set_matched_mbid(self, matched_mbid: str) -> None:
         self._matched_mbid = matched_mbid
 
+    def set_lfm_rec_fields(self, rec_type: str, rec_context: str, artist_name: str, release_name: str) -> None:
+        self._lfm_rec_type = rec_type
+        self._lfm_rec_context = rec_context
+        self._artist_name = artist_name
+        self._release_name = release_name
+
     def get_matched_mbid(self) -> Optional[str]:
         return self._matched_mbid
+
+    def get_lfm_rec_type(self) -> Optional[str]:
+        return self._lfm_rec_type
+
+    def get_lfm_rec_context(self) -> Optional[str]:
+        return self._lfm_rec_context
+
+    def get_artist_name(self) -> Optional[str]:
+        return self._artist_name
+
+    def get_release_name(self) -> Optional[str]:
+        return self._release_name
 
     def token_usable(self) -> bool:
         return self.can_use_token

@@ -11,7 +11,7 @@ help:           ## Show this help.
 docker-clean:  ## Remove old local docker image and container artifacts
 	docker ps -aq | xargs docker container stop
 	docker ps -aq | xargs docker container rm
-	docker images --filter=reference=wv/plastered -q | xargs docker rmi -f
+	docker images "*/*plastered*" -q | xargs docker rmi -f
 
 clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 	find . -type d -name '__pycache__' -print | xargs rm -rf

@@ -122,7 +122,19 @@ class ReleaseSearcher:
             [te.get_permalink_url(), te.get_matched_mbid(), snatch_failure_reason.value]
         )
 
-    def _add_snatch_row(self, te: TorrentEntry) -> None:  # pragma: no cover
+    def _add_snatch_row(self, te: TorrentEntry, snatch_path: str) -> None:  # pragma: no cover
+        self._snatch_summary_rows.append(
+            [
+                te.get_lfm_rec_type(),
+                te.get_lfm_rec_context(),
+                te.get_artist_name(),
+                te.get_release_name(),
+                te.torrent_id,
+                te.media,
+                "yes" if self._red_client.tid_snatched_with_fl_token(tid=te.torrent_id) else "no",
+                snatch_path,
+            ],
+        )
         pass  # TODO:
 
     # pylint: disable=redefined-builtin
@@ -239,6 +251,12 @@ class ReleaseSearcher:
         best_torrent_entry = self._search_red_release_by_preferences(lfm_rec=lfm_rec, search_kwargs=search_kwargs)
         if best_torrent_entry:
             best_torrent_entry.set_matched_mbid(matched_mbid=release_mbid)
+            best_torrent_entry.set_lfm_rec_fields(
+                rec_type=lfm_rec.rec_type.value,
+                rec_context=lfm_rec.rec_context.value,
+                artist_name=artist,
+                release_name=album,
+            )
             return best_torrent_entry
 
         _LOGGER.warning(f"Could not find any valid search matches for artist: '{artist}', album: '{album}'")
@@ -291,6 +309,7 @@ class ReleaseSearcher:
                 permalink = torrent_entry_to_snatch.get_permalink_url()
                 tid, out_filepath = self._get_tid_and_snatch_path(permalink=permalink)
                 _LOGGER.debug(f"Snatching {permalink} and saving to {out_filepath} ...")
+                failed_snatch = False
                 try:
                     binary_contents = self._red_client.snatch(
                         tid=tid,
@@ -299,6 +318,7 @@ class ReleaseSearcher:
                     with open(out_filepath, "wb") as f:
                         f.write(binary_contents)
                 except Exception as ex:
+                    failed_snatch = True
                     # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
                     if os.path.exists(out_filepath):
                         os.remove(out_filepath)
@@ -306,6 +326,8 @@ class ReleaseSearcher:
                         f"Failed to snatch - uncaught error during snatch attempt for: {permalink}: ", exc_info=True
                     )
                     self._add_failed_snatch_row(te=torrent_entry_to_snatch, exception_class_name=ex.__class__.__name__)
+                if not failed_snatch:
+                    self._add_snatch_row(te=torrent_entry_to_snatch, snatch_path=out_filepath)
 
     def generate_summary_stats(self) -> None:
         print_and_save_all_searcher_stats(

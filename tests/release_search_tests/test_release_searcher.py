@@ -483,6 +483,7 @@ def test_search_for_album_rec(
         if (use_release_type or use_first_release_year or use_record_label or use_catalog_number)
         else {}
     )
+    mock_artist, mock_release = "Foo", "Bar"
     expected_te_result = (
         TorrentEntry(
             torrent_id=69420,
@@ -503,6 +504,10 @@ def test_search_for_album_rec(
     )
     if found_te and mbid_result:
         expected_te_result.set_matched_mbid(matched_mbid=mbid_result)
+    if found_te:
+        expected_te_result.set_lfm_rec_fields(
+            rec_type="album", rec_context="similar-artist", artist_name=mock_artist, release_name=mock_release
+        )
     override_app_conf_options = {
         "use_release_type": use_release_type,
         "use_first_release_year": use_first_release_year,
@@ -525,8 +530,8 @@ def test_search_for_album_rec(
         release_searcher._resolve_mb_release.return_value = mock_mbr
         release_searcher._red_user_details = mock_red_user_details
         test_lfm_rec = LFMRec(
-            lfm_artist_str="Foo",
-            lfm_entity_str="Bar",
+            lfm_artist_str=mock_artist,
+            lfm_entity_str=mock_release,
             recommendation_type=RecommendationType.ALBUM,
             rec_context=RecContext.SIMILAR_ARTIST,
         )

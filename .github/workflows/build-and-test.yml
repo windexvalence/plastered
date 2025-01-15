@@ -1,6 +1,7 @@
 name: Build
 run-name: Build ${{ github.ref }} by ${{ github.actor }}
 on: [push]
+  tags-ignore: ["v*"]
 env:
   IMAGE_REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}

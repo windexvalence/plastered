@@ -127,6 +127,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         no_retries_adapter = requests.adapters.HTTPAdapter(max_retries=0)
         self._session.mount(f"{RED_API_BASE_URL}?action=download", no_retries_adapter)
         self._use_fl_tokens = app_config.get_cli_option("use_fl_tokens")
+        self._tids_snatched_with_fl_tokens: Set[str] = set()
 
     def request_api(self, action: str, params: str) -> Dict[str, Any]:
         """
@@ -172,12 +173,16 @@ class RedAPIClient(ThrottledAPIBaseClient):
             except Exception:
                 fl_snatch_failed = True
             if not fl_snatch_failed:
+                self._tids_snatched_with_fl_tokens.add(tid)
                 return response.content
             self._throttle()
         response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
         if response.status_code != 200:
             raise RedClientSnatchException(f"Non-200 status code in response: {response.status_code}.")
         return response.content
+
+    def tid_snatched_with_fl_token(self, tid: str) -> bool:
+        return tid in self._tids_snatched_with_fl_tokens
 
 
 class LFMAPIClient(ThrottledAPIBaseClient):

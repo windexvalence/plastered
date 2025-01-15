@@ -5,17 +5,12 @@
 # https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
 ---
 red:
-  red_user_id: # paste your RED user ID here (found on your RED profile URL: redacted.sh/user.php?id=USER_ID)
-  red_api_key: # paste your RED API key here with "Torrents" and "Users" permissions granted
+  red_user_id: '' # paste your RED user ID here (found on your RED profile URL: redacted.sh/user.php?id=USER_ID), wrapped in single quotes
+  red_api_key: '' # paste your RED API key here with "Torrents" and "Users" permissions granted, wrapped in single quotes
 lfm:
-  lfm_api_key: # paste your LFM API key here (see their doc page [here](https://www.last.fm/api)
-  lfm_username: # paste your LFM username here
-  lfm_password: # paste your LFM password here
-
-search:
-  # NOTE: the output_summary_filepath should point to a filepath under the config directory 
-  # mounted on your container.
-
+  lfm_api_key: '' # paste your LFM API key here (see their doc page [here](https://www.last.fm/api), wrapped in single quotes
+  lfm_username: '' # paste your LFM username here, wrapped in single quotes
+  lfm_password: '' # paste your LFM password here, wrapped in single quotes
 
 snatches:
   # NOTE: the snatch_directory must point to the content directory 

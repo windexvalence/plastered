@@ -66,6 +66,7 @@ class StatsTable:
             caption=self._caption,
             title_style="bold white",
             show_lines=True,
+            expand=True,
         )
         self._raw_rows: List[List[str]] = []
 
@@ -129,11 +130,11 @@ class SkippedSummaryTable(StatsTable):
         super().__init__(
             title="Unsnatched / Skipped LFM Recs",
             columns=[
-                Column(header="Type", justify="left"),
-                Column(header="LFM Rec context"),
-                Column(header="Artist", style="cyan"),
-                Column(header="Release", style="magenta"),
-                Column(header="Skip reason"),
+                Column(header="Type", justify="left", no_wrap=True),
+                Column(header="LFM Rec context", no_wrap=True),
+                Column(header="Artist", style="cyan", no_wrap=True),
+                Column(header="Release", style="magenta", no_wrap=True),
+                Column(header="Skip reason", no_wrap=True),
             ],
             tsv_output_path=tsv_output_path,
             cell_idxs_to_style_fns={4: self.stylize_skip_reason_entry},
@@ -158,9 +159,9 @@ class FailedSnatchSummaryTable(StatsTable):
         super().__init__(
             title="Failed Downloads",
             columns=[
-                Column(header="RED permalink", justify="left"),
-                Column(header="Matched MBID (if any)"),
-                Column(header="Failure reason", style="bright_red"),
+                Column(header="RED permalink", justify="left", no_wrap=True),
+                Column(header="Matched MBID (if any)", no_wrap=True),
+                Column(header="Failure reason", style="bright_red", no_wrap=True),
             ],
             tsv_output_path=tsv_output_path,
             cell_idxs_to_style_fns={2: self.stylize_failure_reason_entry},
@@ -175,13 +176,13 @@ class SnatchSummaryTable(StatsTable):
         super().__init__(
             title="Snatched LFM Recs",
             columns=[
-                Column(header="Type", justify="left"),
-                Column(header="LFM Rec context"),
-                Column(header="Artist", style="cyan"),
-                Column(header="Release", style="magenta"),
+                Column(header="Type", justify="left", no_wrap=True),
+                Column(header="LFM Rec context", no_wrap=True),
+                Column(header="Artist", style="cyan", no_wrap=True),
+                Column(header="Release", style="magenta", no_wrap=True),
                 Column(header="RED tid", no_wrap=True),
-                Column(header="Media"),
-                Column(header="FL token used", style="green"),
+                Column(header="Media", no_wrap=True),
+                Column(header="FL token used", style="green", no_wrap=True),
                 Column(header="Snatch path", no_wrap=True),
             ],
             tsv_output_path=tsv_output_path,
@@ -213,10 +214,10 @@ class RunCacheSummaryTable(StatsTable):
         super().__init__(
             title=f"Cache Summary: {cache_type_str}",
             columns=[
-                Column(header="Disk Usage (MB)", justify="left"),
-                Column(header="Cache hits (prior run)"),
-                Column(header="Cache misses (prior run)"),
-                Column(header="Cache hit rate (prior run)"),
+                Column(header="Disk Usage (MB)", justify="left", no_wrap=True),
+                Column(header="Cache hits (prior run)", no_wrap=True),
+                Column(header="Cache misses (prior run)", no_wrap=True),
+                Column(header="Cache hit rate (prior run)", no_wrap=True),
                 Column(header="Directory path in container", no_wrap=True),
             ],
             cell_idxs_to_style_fns={3: self.stylize_cache_hit_rate_entry},
