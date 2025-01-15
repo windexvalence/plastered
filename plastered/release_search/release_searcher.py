@@ -122,7 +122,7 @@ class ReleaseSearcher:
             [te.get_permalink_url(), te.get_matched_mbid(), snatch_failure_reason.value]
         )
 
-    def _add_snatch_row(self, te: TorrentEntry, snatch_path: str) -> None:  # pragma: no cover
+    def _add_snatch_row(self, te: TorrentEntry, snatch_path: str) -> None:
         self._snatch_summary_rows.append(
             [
                 te.get_lfm_rec_type(),
