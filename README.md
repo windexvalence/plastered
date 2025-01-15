@@ -24,7 +24,7 @@ Refer to the [User Guide page](./docs/user_guide.md) for installation, configura
 
 ## Releases
 
-Check out the [Releases](./docs/RELEASES.md) page for more details.
+Check out the [Releases page](https://github.com/windexvalence/plastered/releases) for more details.
 
 ## Bug Reports / Feature Requests
 
