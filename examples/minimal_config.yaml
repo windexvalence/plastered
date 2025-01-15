@@ -12,11 +12,6 @@ last_fm:
   last_fm_username: fake-username
   last_fm_password: fake-password
 
-search:
-  # NOTE: the output_summary_filepath should point to a directory 
-  # which is mounted by the container and exists on your host machine.
-  output_summary_filepath: /some/other/fake/file.tsv
-
 snatches:
   # NOTE: the snatch_directory must point to a directory 
   # which is mounted by the container and exists on your host machine.

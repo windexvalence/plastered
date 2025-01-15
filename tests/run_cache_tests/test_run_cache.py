@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-from itertools import product
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Tuple
 from unittest.mock import MagicMock, call, patch
 
@@ -11,7 +10,7 @@ from lastfm_recs_scraper.run_cache.run_cache import (
     RunCache,
     _tomorrow_midnight_datetime,
 )
-from lastfm_recs_scraper.utils.exceptions import RunCacheException
+from lastfm_recs_scraper.utils.exceptions import RunCacheException, RunCacheDisabledException
 from tests.conftest import api_run_cache, scraper_run_cache, valid_app_config
 
 _DT_STR_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -276,7 +275,7 @@ def test_run_cache_write_data_invalid(
         with patch.object(RunCache, "_seconds_to_expiry") as mock_seconds_to_expiry:
             mock_seconds_to_expiry.return_value = 600
             run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
-            with pytest.raises(RunCacheException, match="cache is not enabled"):
+            with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                 actual = run_cache.write_data(cache_key=test_key, data=test_data)
 
 
@@ -304,11 +303,47 @@ def test_run_cache_clear(
             mock_diskcache.clear.return_value = 10
             run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
             if not run_cache_enabled:
-                with pytest.raises(RunCacheException, match="cache is not enabled"):
+                with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                     actual = run_cache.clear()
             else:
                 actual = run_cache.clear()
                 mock_diskcache.clear.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "cache_type, run_cache_enabled, should_fail",
+    [
+        (CacheType.API, False, True),
+        (CacheType.SCRAPER, False, True),
+        (CacheType.API, True, False),
+        (CacheType.SCRAPER, True, False),
+    ],
+)
+def test_run_cache_check(
+    valid_app_config: AppConfig,
+    cache_type: CacheType,
+    run_cache_enabled: bool,
+    should_fail: bool,
+) -> None:
+    mock_diskcache = MagicMock()
+    expected_check_result_no_fail = ["fake warning"]
+    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
+        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+            mock_diskcache_constructor.return_value = mock_diskcache
+            mock_diskcache.stats.return_value = None
+            mock_diskcache.expire.return_value = None
+            mock_diskcache.check.return_value = expected_check_result_no_fail
+            mock_diskcache.volume.return_value = 10000.0
+            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            if should_fail:
+                with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
+                    run_cache.check()
+            else:
+                actual = run_cache.check()
+                assert actual == expected_check_result_no_fail, f"Expected {expected_check_result_no_fail}, but got {actual}"
+
+        pass  # TODO: implement
 
 
 @pytest.mark.parametrize(
@@ -341,7 +376,7 @@ def test_print_summary_info(
             mock_diskcache.volume.return_value = 10000.0
             run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
             if not run_cache_enabled:
-                with pytest.raises(RunCacheException, match="cache is not enabled"):
+                with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                     actual = run_cache.print_summary_info()
             else:
                 actual = run_cache.print_summary_info()

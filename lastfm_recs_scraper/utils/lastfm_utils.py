@@ -47,5 +47,3 @@ class LastFMAlbumInfo:
     def get_lastfm_url(self) -> str:
         return self._lastfm_url
 
-
-# TODO (later): figure out if we should handle tracks?

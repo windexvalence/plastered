@@ -1,6 +1,6 @@
 import os
 from typing import Any, Dict, List, Optional
-from unittest.mock import mock_open, patch
+from unittest.mock import call, mock_open, patch
 
 import pytest
 
@@ -261,15 +261,18 @@ def test_validate_final_cli_options(
 
 def test_pretty_print_config(valid_config_filepath: str) -> None:
     with patch("yaml.dump") as mock_yaml_dump:
-        app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-        app_config.pretty_print_config()
-        mock_yaml_dump.assert_called_once()
+        with patch.object(AppConfig, "_pretty_print_format_preferences") as mock_pretty_print_format_preferences:
+            mock_pretty_print_format_preferences.return_value = None
+            app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
+            app_config.pretty_print_config()
+            mock_yaml_dump.assert_called_once()
+            mock_pretty_print_format_preferences.assert_called_once()
 
 
-def test_pretty_print_preference_ordering(valid_config_filepath: str) -> None:
+def test_pretty_print_format_preferences(valid_config_filepath: str) -> None:
     with patch("yaml.dump") as mock_yaml_dump:
         app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-        app_config.pretty_print_preference_ordering()
+        app_config._pretty_print_format_preferences()
         mock_yaml_dump.assert_called_once()
 
 

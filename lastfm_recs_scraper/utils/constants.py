@@ -11,7 +11,7 @@ CACHE_TYPE_API = "api"
 CACHE_TYPE_SCRAPER = "scraper"
 
 # TODO: permit addtocollage as action
-PERMITTED_RED_API_ENDPOINTS = set(["browse", "download", "torrentgroup", "community_stats", "user_torrents"])
+PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents"])
 NON_CACHED_RED_API_ENDPOINTS = set(["download", "community_stats", "user_torrents"])
 PERMITTED_LAST_FM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
 PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release"])

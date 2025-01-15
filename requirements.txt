@@ -7,3 +7,4 @@ urllib3==2.2.3
 tqdm==4.67.1
 PyYAML==6.0.2
 rebrowser-playwright==1.47.0
+rich==13.9.4

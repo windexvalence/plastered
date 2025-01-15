@@ -22,8 +22,7 @@ search:
   use_record_label: false
   use_catalog_number: false
   enable_api_cache: true
-  # TODO: remove this and dynamically create filename based on exection timestamp
-  output_summary_filepath: /some/other/fake/file.tsv
+  use_fl_tokens: false
 
 snatches:
   snatch_directory: /app/tests/resources

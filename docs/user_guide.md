@@ -18,46 +18,41 @@ Additionally, you will need to:
 
 1. Create a dedicated config directory on your host machine. This will hold your app config file, and any summary output files from the app runs.
     ```shell
-    mkdir -p /your/host/path/to/config
+    mkdir -p /your/host/path/to/plastered_dir
     ```
 
 2. Initialize a config.yaml file in the directory you just created by running:
     ```shell
-    docker run --rm ghcr.io/windexvalence/last-red-recs:latest init-conf > /your/host/path/to/config/config.yaml
+    docker run --rm ghcr.io/windexvalence/plastered:latest init-conf > /your/host/path/to/plastered_dir/config.yaml
     ```
 
 3. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./configuration_reference.md) for additional details and information on non-required config settings.
 
+4. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
+  ```shell
+  alias plastered="docker run --rm -d --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest"
+  ```
+
+5. Verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
+  ```shell
+  plastered --help
+  ```
+
 ### 3: Run the App
 
-You can use either docker-compose, or the docker CLI to run the app:
+You can either immediately try snatching your LFM recs with the current default config you just created, or you can explore the [configuration reference](./configuration_reference.md) and fine-tune your config before snatching your LFM recs.
 
-#### docker-compose (recommended)
-
-```yaml
-services:
-  last-red-recs:
-    container_name: last-red-recs
-    image: ghcr.io/windexvalence/last-red-recs:latest
-    restart: unless-stopped
-    volumes:
-      - /host/path/to/config/:/config
-      - /host/path/to/downloads/:/downloads
-    command: scrape
-```
-
-#### docker CLI
+Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching.
 
 ```shell
-docker run --rm -d \
-    --name=last-red-recs \
-    --restart unless-stopped \
-    -v /host/path/to/config/:/config \
-    -v /host/path/to/downloads/:/downloads \
-    ghcr.io/windexvalence/last-red-recs:latest
+plastered scrape
 ```
 
+## Additional Commands
 
-## Additional Details
+Along with `scrape`, plastered offers a few other helpful commands. You can find the full list of commands by running `plastered --help`.
 
-TODO: fill this in 
+Further command-specific details are accessible by running the command of interest with the help flag, for example to see more details about the `plastered cache` command, run the following:
+```
+plastered cache --help
+```

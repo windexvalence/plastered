@@ -83,3 +83,12 @@ class MBRelease:
 
     def get_musicbrainz_release_group_url(self) -> str:
         return f"https://musicbrainz.org/release-group/{self._release_group_mbid}"
+    
+    def get_release_searcher_kwargs(self) -> Dict[str, Any]:
+        """Helper method to return the search_kwargs used by the ReleaseSearcher."""
+        return {
+            "release_type": self.get_red_release_type(),
+            "first_release_year": self.get_first_release_year(),
+            "record_label": self.get_label(),
+            "catalog_number": self.get_catalog_number(),
+        }

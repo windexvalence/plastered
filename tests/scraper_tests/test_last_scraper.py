@@ -2,13 +2,13 @@ import re
 from typing import Any, List
 from unittest.mock import MagicMock, call, patch
 
+from lastfm_recs_scraper.scraper.last_scraper import LastFMRec
 import pytest
 from rebrowser_playwright.sync_api import PlaywrightContextManager
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
 from lastfm_recs_scraper.scraper.last_scraper import (
-    LastFMRec,
     LastFMRecsScraper,
     RecContext,
     RecommendationType,
@@ -418,6 +418,41 @@ def test_scraper_init(lfm_rec_scraper: LastFMRecsScraper, valid_app_config: AppC
 def test_lastfmrec_str(lfm_rec: LastFMRec, expected: str) -> None:
     actual = lfm_rec.__str__()
     assert actual == expected, f"Expected __str__() result to be '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize(
+    "lfm_str, expected",
+    [
+        ("", ""),
+        ("Singleword", "Singleword"),
+        ("lowercase", "lowercase"),
+        ("Aphex+Twin", "Aphex Twin"),
+        ("Aphex Twin", "Aphex Twin"),
+        ("Double+Nickels+On+The+Dime", "Double Nickels On The Dime"),
+        ("Dr.+Octagonecologyst", "Dr. Octagonecologyst"),
+        ("Much+Against+Everyone%27s+Advice", "Much Against Everyone's Advice"),
+        ("Signals,+Calls+and+Marches", "Signals, Calls and Marches"),
+        ("This+Nation%27s+Saving+Grace", "This Nation's Saving Grace"),
+        ("500%25+More+Man", "500% More Man"),
+        ("MM...FOOD", "MM...FOOD"),
+        ("Chomp+(Remastered)", "Chomp (Remastered)"),
+        ("Lying+%2f+a+Wooden+Box", "Lying / a Wooden Box"),
+        ("Y", "Y"),
+        ("Frankjavcee+Collection,+Vol.+1,+pt.+II", "Frankjavcee Collection, Vol. 1, pt. II"),
+        ("Public+Image+LTD.", "Public Image LTD."),
+    ],
+)
+def test_get_human_readable_artist_str(lfm_str: str, expected: str) -> None:
+    test_lfm_rec = LastFMRec(
+        lastfm_artist_str=lfm_str,
+        lastfm_entity_str="Fake+Release",
+        recommendation_type=RecommendationType.ALBUM,
+        rec_context=RecContext.SIMILAR_ARTIST,
+    )
+    actual = test_lfm_rec.get_human_readable_artist_str()
+    assert (
+        actual == expected
+    ), f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
 
 
 @pytest.mark.parametrize(

@@ -4,9 +4,11 @@
 
 ![Built for RED](https://img.shields.io/badge/built_for-RED-%23a30800?style=for-the-badge)
 
-`last-red-recs` is a stand-alone tool for automatically inspecting your LFM album/track recommendations and snatching those recommended releases from RED.
+## `Python + Last + RED = plastered`
 
-The idea behind `last-red-recs` is similar to Lidarr's "import lists", but instead of automatically snatching from a Last.fm playlist, `last-red-recs` will automatically snatch based on your recommendations.
+`last-red-recs` is a standalone tool for automatically pulling your LFM album/track recommendations and snatching those recommended releases from RED.
+
+The idea behind `last-red-recs` is similar to L*darr's "import lists", but instead of automatically snatching from a LFM playlist, `last-red-recs` will automatically snatch based on your recommendations.
 
 Additionally, `last-red-recs` is completely agnostic to your download client as well as your library management, so it will not disrupt your existing music organization.
 

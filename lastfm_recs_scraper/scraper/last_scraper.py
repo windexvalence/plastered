@@ -1,8 +1,10 @@
+import logging
 import re
 from enum import StrEnum
 from random import randint
 from time import sleep
 from typing import Any, List, Optional, Union
+from urllib.parse import unquote_plus
 
 from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
@@ -29,9 +31,8 @@ from lastfm_recs_scraper.utils.constants import (
     TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
     TRACK_RECS_BASE_URL,
 )
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
 
-_LOGGER = get_custom_logger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 _ARTIST_ALBUM_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/(.+)$")
 _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
@@ -57,6 +58,15 @@ class RecContext(StrEnum):
 
     IN_LIBRARY = "in-library"
     SIMILAR_ARTIST = "similar-artist"
+
+
+def _sleep_random() -> None:
+    """
+    Very dumb utility function to sleep a bounded random number of seconds between selenium client interactions with the lastfm website to try avoid bot detection.
+    """
+    sleep_seconds = randint(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)  # nosec B311
+    _LOGGER.debug(f"Sleeping for {sleep_seconds} before continuing ...")
+    sleep(sleep_seconds)
 
 
 class LastFMRec:
@@ -100,9 +110,19 @@ class LastFMRec:
     def artist_str(self) -> str:
         return self._lastfm_artist_str
 
+    def get_human_readable_artist_str(self) -> str:
+        return unquote_plus(self._lastfm_artist_str)
+
+    def get_human_readable_entity_str(self) -> str:
+        return unquote_plus(self._lastfm_entity_str)
+
     @property
     def entity_str(self) -> str:
         return self._lastfm_entity_str
+
+    @property
+    def rec_type(self) -> RecommendationType:
+        return self._recommendation_type
 
     @property
     def rec_context(self) -> RecContext:
@@ -113,15 +133,6 @@ class LastFMRec:
         if self._recommendation_type == RecommendationType.ALBUM:
             return f"https://www.last.fm/music/{self._lastfm_artist_str}/{self._lastfm_entity_str}"
         return f"https://www.last.fm/music/{self._lastfm_artist_str}/_/{self._lastfm_entity_str}"
-
-
-def _sleep_random() -> None:
-    """
-    Very dumb utility function to sleep a bounded random number of seconds between selenium client interactions with the lastfm website to try avoid bot detection.
-    """
-    sleep_seconds = randint(RENDER_WAIT_SEC_MIN, RENDER_WAIT_SEC_MAX)  # nosec B311
-    _LOGGER.debug(f"Sleeping for {sleep_seconds} before continuing ...")
-    sleep(sleep_seconds)
 
 
 def cached_album_recs_validator(cached_data: Any) -> bool:
@@ -256,9 +267,6 @@ class LastFMRecsScraper:
             return self._loaded_from_run_cache
         _LOGGER.info(f"Scraping '{recommendation_type.value}' recommendations from LastFM ...")
         recs: List[LastFMRec] = []
-        # if self._enable_cache and validate_cache_file(json_filepath=self._album_cache_entry_filepath):
-        #     _LOGGER.info(f"Using locally cached scraper results at: {self._album_cache_entry_filepath}")
-        #     return load_recs_list_from_json_file(json_filepath=self._album_cache_entry_filepath)
         recs_base_url = ALBUM_RECS_BASE_URL if recommendation_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
         # needed to make sure tqdm doesn't break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
@@ -273,5 +281,7 @@ class LastFMRecsScraper:
                     self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=recommendation_type)
                 )
         if self._run_cache.enabled:
-            self._run_cache.write_data(cache_key=recommendation_type, data=recs)
+            _LOGGER.info(f"Attempting cache write for scraper ...")
+            cache_write_success = self._run_cache.write_data(cache_key=recommendation_type.value, data=recs)
+            _LOGGER.info(f"Scraper cache write: {cache_write_success}")
         return recs

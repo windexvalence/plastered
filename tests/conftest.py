@@ -195,15 +195,19 @@ def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
     This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
     """
     url_val = kwargs["url"]
-    if "action=download" in url_val:
-        resp_mock = MagicMock(name="content")
-        resp_mock.content.return_value = bytes("fakebytes", encoding="utf-8")
-    else:
-        m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
-        red_action = m.groups()[0]
-        resp_mock = MagicMock(name="json")
-        mock_json = _RED_ACTIONS_TO_MOCK_JSON[red_action]
-        resp_mock.json.return_value = mock_json
+    m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
+    red_action = m.groups()[0]
+    resp_mock = MagicMock(name="json")
+    mock_json = _RED_ACTIONS_TO_MOCK_JSON[red_action]
+    resp_mock.json.return_value = mock_json
+    resp_mock.status_code.return_value = 200
+    return resp_mock
+
+
+def mock_red_snatch_get_side_effect() -> bytes:
+    resp_mock = MagicMock()
+    resp_mock.content.return_value = bytes("fakebytes", encoding="utf-8")
+    resp_mock.status_code.return_value = 200
     return resp_mock
 
 

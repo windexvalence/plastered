@@ -15,7 +15,7 @@ last_fm:
 search:
   # NOTE: the output_summary_filepath should point to a filepath under the config directory 
   # mounted on your container.
-  output_summary_filepath: /config/summary_file.tsv
+
 
 snatches:
   # NOTE: the snatch_directory must point to the content directory 

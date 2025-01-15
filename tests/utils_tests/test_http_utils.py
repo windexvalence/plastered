@@ -1,11 +1,12 @@
 import datetime
 from typing import Any, Callable, Dict, List, Optional, Set
-from unittest.mock import Mock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
 from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
+from lastfm_recs_scraper.utils.exceptions import RedClientSnatchException
 from lastfm_recs_scraper.utils.http_utils import (
     LastFMAPIClient,
     MusicBrainzAPIClient,
@@ -17,8 +18,14 @@ from tests.conftest import (
     mock_last_fm_session_get_side_effect,
     mock_mb_session_get_side_effect,
     mock_red_session_get_side_effect,
+    mock_red_snatch_get_side_effect,
     valid_app_config,
 )
+
+# @pytest.fixture(scope="", autouse=True)
+# def default_noop_requests_session_get_mock():
+#     with patch("requests.Session.get", return_value=None) as mock_sesh_get_fixture:
+#         yield mock_sesh_get_fixture
 
 
 def _subclass_to_side_effect_fn(subclass_name: str) -> Callable:
@@ -242,7 +249,7 @@ def test_init_throttled_api_client(
         ("browse", set(["currentPage", "pages", "results"]), False, None, None),
         ("usersearch", set(), True, ValueError, "Invalid endpoint*"),
         ("somefakeaction", set(), True, ValueError, "Invalid endpoint*"),
-        ("download", None, False, None, None),
+        ("download", None, True, ValueError, "Invalid endpoint*"),
     ],
 )
 def test_request_red_api(
@@ -274,6 +281,103 @@ def test_request_red_api(
             )
             assert isinstance(result, dict), f"Expected result type to be a dict, but got: {type(result)}"
             assert set(result.keys()) == expected_top_keys, f"Unexpected top-level JSON keys in response."
+
+
+@pytest.mark.parametrize(
+    "mock_status_code_val, should_raise_exception", [
+        (200, False), (404, True)
+    ]
+)
+def test_snatch_red_api_no_fl(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
+    mock_status_code_val: int,
+    should_raise_exception: bool,
+) -> None:
+    with patch("requests.Session.get", return_value=MagicMock(status_code=mock_status_code_val)) as mock_sesh_get:
+        red_client = RedAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+        red_client._throttle = Mock(name="_throttle")
+        red_client._throttle.return_value = None
+        if should_raise_exception:
+            with pytest.raises(RedClientSnatchException):
+                result = red_client.snatch(tid="69", can_use_token_on_torrent=False)
+                red_client._throttle.assert_called_once()
+                mock_sesh_get.assert_called_once()
+        else:
+            result = red_client.snatch(tid="69", can_use_token_on_torrent=False)
+            mock_sesh_get.assert_called_once()
+            red_client._throttle.assert_called_once()
+
+
+
+@pytest.mark.parametrize(
+    "mock_response_list, expected_throttle_calls, expected_get_calls, expected_exception", [
+        (
+            [MagicMock(status_code=200, content=bytes("fake", encoding="utf-8"))],
+            1,
+            [call(url="https://redacted.sh/ajax.php?action=download&id=69&usetoken=1")],
+            None,
+        ),
+        (
+            [
+                MagicMock(status_code=404, content=bytes("fake", encoding="utf-8")),
+                MagicMock(status_code=200, content=bytes("another-fake", encoding="utf-8"))
+            ],
+            2,
+            [
+                call(url="https://redacted.sh/ajax.php?action=download&id=69&usetoken=1"),
+                call(url="https://redacted.sh/ajax.php?action=download&id=69"),
+            ],
+            None,
+        ),
+        (
+            [
+                MagicMock(status_code=404, content=bytes("fake", encoding="utf-8")),
+                MagicMock(status_code=404, content=bytes("another-fake", encoding="utf-8"))
+            ],
+            2,
+            [
+                call(url="https://redacted.sh/ajax.php?action=download&id=69&usetoken=1"),
+                call(url="https://redacted.sh/ajax.php?action=download&id=69"),
+            ],
+            RedClientSnatchException,
+        ),
+        (
+            [
+                lambda x: x / 0,
+                MagicMock(status_code=200, content=bytes("another-fake", encoding="utf-8"))
+            ],
+            2,
+            [
+                call(url="https://redacted.sh/ajax.php?action=download&id=69&usetoken=1"),
+                call(url="https://redacted.sh/ajax.php?action=download&id=69"),
+            ],
+            None,
+        ),
+    ]
+)
+def test_snatch_red_api_use_token(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
+    mock_response_list: List[MagicMock],
+    expected_throttle_calls: int,
+    expected_get_calls: List[Callable],
+    expected_exception: Optional[Exception],
+) -> None:
+    with patch("requests.Session.get") as mock_sesh_get:
+        mock_sesh_get.side_effect = mock_response_list
+        red_client = RedAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+        red_client._use_fl_tokens = True
+        red_client._throttle = Mock(name="_throttle")
+        red_client._throttle.return_value = None
+        if expected_exception:
+            with pytest.raises(expected_exception):
+                result = red_client.snatch(tid="69", can_use_token_on_torrent=True)
+        else:
+            result = red_client.snatch(tid="69", can_use_token_on_torrent=True)
+        mock_sesh_get.assert_has_calls(expected_get_calls)
+        actual_throttle_calls = len(red_client._throttle.mock_calls)
+        assert actual_throttle_calls == expected_throttle_calls, f"Expected {expected_throttle_calls}, but found {actual_throttle_calls}"
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,7 @@
+from typing import List
+
 from lastfm_recs_scraper.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
+
 
 # Top-level key constants
 CLI_RED_KEY = "red"
@@ -7,6 +10,7 @@ CLI_MUSICBRAINZ_KEY = "musicbrainz"
 CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
 CLI_SNATCH_DIRECTORY_KEY = "snatch_directory"
+ENABLE_SNATCHING_KEY = "snatch_recs"
 _DEFAULT_RETRIES = 3
 NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS = 2
 DEFAULTS_DICT = {
@@ -28,9 +32,9 @@ DEFAULTS_DICT = {
     "use_record_label": False,
     "use_catalog_number": False,
     "enable_api_cache": True,
-    "output_summary_filepath": "/config/output_summary.tsv",
     # RED snatching defaults
     "skip_prior_snatches": True,
+    "use_fl_tokens": False,
 }
 FORMAT_PREFERENCES_KEY = "format_preferences"
 EXPECTED_TOP_LEVEL_CLI_KEYS = set(
@@ -38,9 +42,9 @@ EXPECTED_TOP_LEVEL_CLI_KEYS = set(
         CLI_RED_KEY,
         CLI_LAST_FM_KEY,
         CLI_SNATCHES_KEY,
-        CLI_SEARCH_KEY,
     ]
 )
+OPTIONAL_TOP_LEVEL_CLI_KEYS = set([CLI_SEARCH_KEY])
 # Sub-key constants
 PER_PREFERENCE_KEY = "preference"
 FORMAT_KEY = "format"
@@ -67,6 +71,7 @@ required_schema = {
         CLI_RED_KEY: {
             "type": "object",
             "properties": {
+                "red_user_id": {"type": "integer"},
                 "red_api_key": {"type": "string"},
                 "red_api_retries": _RETRIES_SCHEMA,
                 "red_api_seconds_between_calls": {
@@ -76,7 +81,7 @@ required_schema = {
                     "default": DEFAULTS_DICT["red_api_seconds_between_calls"],
                 },
             },
-            "required": ["red_api_key"],
+            "required": ["red_user_id", "red_api_key"],
         },
         CLI_LAST_FM_KEY: {
             "type": "object",
@@ -125,22 +130,22 @@ required_schema = {
                     "type": "boolean",
                     "default": DEFAULTS_DICT["enable_api_cache"],
                 },
-                "output_summary_filepath": {"type": "string", "default": DEFAULTS_DICT["output_summary_filepath"]},
             },
         },
         CLI_SNATCHES_KEY: {
             "type": "object",
             "properties": {
                 "snatch_directory": {"type": "string"},
-                "snatch_recs": {"type": "boolean"},
+                ENABLE_SNATCHING_KEY: {"type": "boolean"},
                 "skip_prior_snatches": {"type": "boolean", "default": DEFAULTS_DICT["skip_prior_snatches"]},
                 "max_size_gb": {
                     "type": "number",
                     "minimum": 0.02,  # 20MB minimum
                     "maximum": 100.0,  # 100GB maximum
                 },
+                "use_fl_tokens": {"type": "boolean", "default": DEFAULTS_DICT["use_fl_tokens"]},
             },
-            "required": ["snatch_directory", "snatch_recs", "max_size_gb"],
+            "required": ["snatch_directory", ENABLE_SNATCHING_KEY, "max_size_gb"],
         },
         FORMAT_PREFERENCES_KEY: {
             "type": "array",
@@ -194,3 +199,13 @@ required_schema = {
         },
     },
 }
+
+
+def get_sub_keys_from_top_level_keys() -> List[str]:
+    """
+    Utility function for config pretty-printing via the CLI. 
+    Returns a dict mapping the top-level config keys to their corresponding list of sub-keys.
+    """
+    return {
+        top_level_key: required_schema["properties"][top_level_key]["properties"].keys() for top_level_key in EXPECTED_TOP_LEVEL_CLI_KEYS
+    }

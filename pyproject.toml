@@ -1,3 +1,8 @@
+[project]
+name = "last-red-recs"
+version = "0.0.2"
+requires-python = ">= 3.12"
+
 [tool.black]
 line-length = 120
 
@@ -6,8 +11,7 @@ profile = "black"
 
 [tool.pylint.main]
 ignore-patterns = ["^\\.#"]
-
-py-version = "3.13"
+py-version = "3.12"
 
 [tool.pylint.basic]
 no-docstring-rgx = "^_"

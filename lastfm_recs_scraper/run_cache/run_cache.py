@@ -1,15 +1,18 @@
+import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 
 from diskcache import Cache
 
 from lastfm_recs_scraper.config.config_parser import AppConfig
+from lastfm_recs_scraper.stats.stats import RunCacheSummaryTable
 from lastfm_recs_scraper.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
-from lastfm_recs_scraper.utils.exceptions import RunCacheException
-from lastfm_recs_scraper.utils.logging_utils import get_custom_logger
+from lastfm_recs_scraper.utils.exceptions import RunCacheDisabledException
 
-_LOGGER = get_custom_logger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CacheType(StrEnum):
@@ -45,13 +48,19 @@ class RunCache:
         self._expiration_datetime = _tomorrow_midnight_datetime()
         self._cache_type = cache_type
         self._enabled = app_config.is_cache_enabled(cache_type=self._cache_type)
+        _LOGGER.debug(f"This is a debug message")
+        _LOGGER.info(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_config.get_cache_directory_path(cache_type=self._cache_type)
+        _LOGGER.info(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
         self._cache: Optional[Cache] = None
         if self._enabled:
+            _LOGGER.info(f"Enabling diskcache for {self._cache_type.value} ...")
             self._cache = Cache(self._cache_dir_path)
+            _LOGGER.info(f"diskcache instantiated for {self._cache_type.value} ...")
             self._cache.stats(enable=True, reset=True)
             # TODO: make sure that this doesn't need to be called in each load call or more frequently than on construction
-            self._cache.expire()
+            num_expired = self._cache.expire()
+            _LOGGER.warning(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
             _LOGGER.info(
                 f"Any newly added {self._cache_type.value} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
             )
@@ -63,23 +72,38 @@ class RunCache:
 
     def print_summary_info(self) -> None:
         if not self._enabled:
-            raise RunCacheException(self._default_disabled_exception_msg)
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
+        disk_usage_mb = self._cache.volume() / float(1e6)
         hits, misses = self._cache.stats()
-        print(f"----------------------------------")
-        print(f"Cache Summary: {self._cache_type.value}")
-        print(f"    Directory path in container: {self._cache_dir_path}")
-        print(f"    Disk usage (MB): {self._cache.volume() / float(1e6)}")
-        print(f"    Cache hits (prior run):   {hits}")
-        print(f"    Cache misses (prior run): {misses}")
-        print(f"    Cache hit rate (prior run): {'NA' if hits + misses == 0 else float(hits) / float(hits + misses)}")
-        print(f"----------------------------------")
+        hit_rate_str = "NA" if hits + misses == 0 else str(float(hits) / float(hits + misses))
+        RunCacheSummaryTable(
+            cache_type_str=self._cache_type.value,
+            disk_usage_mb=str(disk_usage_mb),
+            hits=str(hits),
+            misses=str(misses),
+            hit_rate=hit_rate_str,
+            directory_path=self._cache_dir_path,
+        ).print_table()
+        # print(f"----------------------------------")
+        # print(f"Cache Summary: {self._cache_type.value}")
+        # print(f"    Directory path in container: {self._cache_dir_path}")
+        # print(f"    Disk usage (MB): {}")
+        # print(f"    Cache hits (prior run):   {hits}")
+        # print(f"    Cache misses (prior run): {misses}")
+        # print(f"    Cache hit rate (prior run): {}")
+        # if self._cache_type == CacheType.API:
+        #     base_domain_cache_cnts = defaultdict(int)
+        #     for cache_key in self._cache.iterkeys():
+        #         base_domain_cache_cnts[cache_key[0]] += 1
+        #     print(f"    Cache entries by base domains: {list(base_domain_cache_cnts.items())}")
+        # print(f"----------------------------------")
 
     def clear(self) -> int:
         """
-        Clear all entries in the RunCache. Raises a RunCacheException if instance is not enabled.
+        Clear all entries in the RunCache. Raises a RunCacheDisabledException if instance is not enabled.
         """
         if not self._enabled:
-            raise RunCacheException(self._default_disabled_exception_msg)
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.clear()
 
     def close(self) -> None:  # pragma: no cover
@@ -90,10 +114,19 @@ class RunCache:
             self._cache.close()
             return
         _LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
+    
+    def check(self) -> List[str]:
+        """
+        Runs disckcache.Cache's check() method if enabled. 
+        diskcache.Cache's check() call verifies cache consistency. 
+        It can also fix inconsistencies and reclaim unused space. The return value is a list of warnings
+        """
+        if not self._enabled:
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
+        return self._cache.check()
 
     def load_data_if_valid(self, cache_key: Any, data_validator_fn: Callable) -> Any:
         if not self._enabled:
-            _LOGGER.warning(f"{self._cache_type} cache is not enabled.")
             return None
         cached_data = self._cache.get(cache_key)
         if not cached_data:
@@ -115,5 +148,5 @@ class RunCache:
 
     def write_data(self, cache_key: Any, data: Any) -> bool:
         if not self._enabled:
-            raise RunCacheException(self._default_disabled_exception_msg)
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.set(cache_key, data, expire=self._seconds_to_expiry())

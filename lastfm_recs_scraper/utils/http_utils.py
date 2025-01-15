@@ -18,8 +18,9 @@ from lastfm_recs_scraper.utils.constants import (
     RED_API_BASE_URL,
     RED_JSON_RESPONSE_KEY,
 )
+from lastfm_recs_scraper.utils.exceptions import RedClientSnatchException
 
-
+# TODO: enabled logging for these classes without circular dependency
 class ThrottledAPIBaseClient:
     """
     Base class that wraps a distinct requests.Sesssion instance with retries and throttling.
@@ -49,6 +50,7 @@ class ThrottledAPIBaseClient:
         )
         self._base_domain = urlparse(base_api_url).netloc
         self._session = requests.Session()
+        # TODO: verify whether this should have the prefix set as the base_domain, or f"https://{base_domain}".
         self._session.mount(
             self._base_domain,
             requests.adapters.HTTPAdapter(max_retries=Retry(total=max_api_call_retries, backoff_factor=1.0)),
@@ -83,6 +85,7 @@ class ThrottledAPIBaseClient:
                 f"Invalid endpoint provided to {self.__class__.__name__}: '{endpoint}'. Valid endpoints are: {self._valid_endpoints}"
             )
         if endpoint in self._non_cached_endpoints:
+            print(f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}")
             return None
         return self._run_cache.load_data_if_valid(
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
@@ -91,6 +94,7 @@ class ThrottledAPIBaseClient:
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
+            print(f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}")
             return False
         return self._run_cache.write_data(
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
@@ -114,8 +118,12 @@ class RedAPIClient(ThrottledAPIBaseClient):
             non_cached_endpoints=NON_CACHED_RED_API_ENDPOINTS,
         )
         self._session.headers.update({"Authorization": app_config.get_cli_option("red_api_key")})
+        # Make sure there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
+        no_retries_adapter = requests.adapters.HTTPAdapter(max_retries=0)
+        self._session.mount(f"{RED_API_BASE_URL}?action=download", no_retries_adapter)
+        self._use_fl_tokens = app_config.get_cli_option("use_fl_tokens")
 
-    def request_api(self, action: str, params: str) -> Union[Dict[str, Any], bytes]:
+    def request_api(self, action: str, params: str) -> Dict[str, Any]:
         """
         Helper method to hit the RED API with retries and rate-limits.
         Returns the JSON response payload on success for all endpoints except 'download'.
@@ -129,16 +137,42 @@ class RedAPIClient(ThrottledAPIBaseClient):
         # Enforce request throttling
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
-        url = f"https://redacted.sh/ajax.php?action={action}&{params}"
-        if action == "download":
-            response = self._session.get(url=url)
-            return response.content
+        url = f"{RED_API_BASE_URL}?action={action}&{params}"
         json_data = self._session.get(url=url).json()
         if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
             raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]
-        self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
+        cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
+        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
+    
+    def snatch(self, tid: str, can_use_token_on_torrent: bool) -> bytes:
+        """
+        Dedicated method specifically for snatching from red and returning the 
+        response contents' bytes which may be written to a .torrent file.
+        This is separated from the `request_api` method since there's addition logic for FL tokens, and since we 
+        don't want to enable response caching for download requests.
+        """
+        self._throttle()
+        params = f"id={tid}"
+        # Try using a FL token if the app is configured to do so and the API states a FL token is usable.
+        # Fallback to non-FL download on error (i.e. out of tokens after API response, etc.)
+        if self._use_fl_tokens and can_use_token_on_torrent:
+            fl_snatch_failed = False
+            fl_params = f"{params}&usetoken=1"
+            try:
+                response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{fl_params}")
+                if response.status_code != 200:
+                    fl_snatch_failed = True
+            except Exception:
+                fl_snatch_failed = True
+            if not fl_snatch_failed:
+                return response.content
+            self._throttle()
+        response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
+        if response.status_code != 200:
+            raise RedClientSnatchException(f"Non-200 status code in response: {response.status_code}.")
+        return response.content
 
 
 class LastFMAPIClient(ThrottledAPIBaseClient):
@@ -171,12 +205,13 @@ class LastFMAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         json_data = self._session.get(
-            url=f"https://ws.audioscrobbler.com/2.0/?method={method}&api_key={self._api_key}&{params}&format=json",
+            url=f"{LAST_FM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
         ).json()
         top_key = method.split(".")[0]
         result_json = json_data[top_key]
-        self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
+        cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
+        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
 
@@ -212,8 +247,9 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             "inc=artist-credits" if entity_type == "release-group" else "inc=artist-credits+media+labels+release-groups"
         )
         json_data = self._session.get(
-            url=f"https://musicbrainz.org/ws/2/{entity_type}/{mbid}?{inc_params}",
+            url=f"{MUSICBRAINZ_API_BASE_URL}{entity_type}/{mbid}?{inc_params}",
             headers={"Accept": "application/json"},
         ).json()
-        self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
+        cache_write_success = self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
+        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return json_data
