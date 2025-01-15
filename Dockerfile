@@ -2,9 +2,8 @@ FROM python:3.12.8-slim
 
 COPY ./requirements.txt ./tests/test-requirements.txt /
 RUN pip install -r /requirements.txt --timeout=300 --no-cache-dir
-# TODO: Make sure we don't need the --with-deps flag, as that might be needed but makes the image much bigger
 RUN rebrowser_playwright install --with-deps chromium 
-# RUN rebrowser_playwright install --with-deps chromium
+
 ARG BUILD_ENV="test"
 RUN if [ "$BUILD_ENV" = "test" ]; then pip install -r /test-requirements.txt; fi
 RUN rm -rf /var/lib/apt/lists/*
