@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from time import sleep
 from typing import Any, Dict, Optional, Set, Tuple
@@ -19,6 +20,8 @@ from plastered.utils.constants import (
     RED_JSON_RESPONSE_KEY,
 )
 from plastered.utils.exceptions import RedClientSnatchException
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # TODO: enabled logging for these classes without circular dependency
@@ -86,7 +89,7 @@ class ThrottledAPIBaseClient:
                 f"Invalid endpoint provided to {self.__class__.__name__}: '{endpoint}'. Valid endpoints are: {self._valid_endpoints}"
             )
         if endpoint in self._non_cached_endpoints:
-            print(
+            _LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return None
@@ -97,7 +100,7 @@ class ThrottledAPIBaseClient:
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
-            print(
+            _LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return False
@@ -149,7 +152,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
             raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]
         cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
-        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
     def snatch(self, tid: str, can_use_token_on_torrent: bool) -> bytes:
@@ -221,7 +224,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         top_key = method.split(".")[0]
         result_json = json_data[top_key]
         cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
-        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
 
@@ -261,5 +264,5 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             headers={"Accept": "application/json"},
         ).json()
         cache_write_success = self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
-        print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return json_data
