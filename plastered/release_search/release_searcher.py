@@ -1,29 +1,25 @@
 import logging
-import csv
 import os
 from typing import List, Optional, Tuple
 from urllib.parse import quote_plus
 
-from lastfm_recs_scraper.scraper.last_scraper import LastFMRec
-from rich.table import Column, Table
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
-from lastfm_recs_scraper.scraper.last_scraper import RecContext
-from lastfm_recs_scraper.stats.stats import SkippedReason, SnatchFailureReason, print_and_save_all_searcher_stats
-from lastfm_recs_scraper.utils.exceptions import RedClientSnatchException, ReleaseSearcherException
-from lastfm_recs_scraper.utils.http_utils import (
-    LastFMAPIClient,
-    MusicBrainzAPIClient,
-    RedAPIClient,
+from plastered.config.config_parser import AppConfig
+from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.scraper.lfm_scraper import LFMRec, RecContext
+from plastered.stats.stats import (
+    SkippedReason,
+    SnatchFailureReason,
+    print_and_save_all_searcher_stats,
 )
-from lastfm_recs_scraper.utils.lastfm_utils import LastFMAlbumInfo
-from lastfm_recs_scraper.utils.musicbrainz_utils import MBRelease
-from lastfm_recs_scraper.utils.red_utils import (
+from plastered.utils.exceptions import ReleaseSearcherException
+from plastered.utils.http_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+from plastered.utils.lfm_utils import LFMAlbumInfo
+from plastered.utils.musicbrainz_utils import MBRelease
+from plastered.utils.red_utils import (
     RedFormat,
-    RedReleaseType,
     RedUserDetails,
     ReleaseEntry,
     TorrentEntry,
@@ -34,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 _SUMMARY_TSV_HEADER = [
     "entity_type",
     "rec_context",
-    "lastfm_entity_url",
+    "lfm_entity_url",
     "red_permalink",
     "snatch_path",
     "release_mbid",
@@ -49,9 +45,9 @@ def require_mbid_resolution(
 
 class ReleaseSearcher:
     """
-    General 'brains' for searching for a collection of LastFM-recommended releases.
+    General 'brains' for searching for a collection of LFM-recommended releases.
     Responsible for ultimately searching, filtering, and downloading matching releases from RED.
-    Optionally may interact with the official LastFM API to collect the MBID for a release, and may also optionally
+    Optionally may interact with the official LFM API to collect the MBID for a release, and may also optionally
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
@@ -77,10 +73,10 @@ class ReleaseSearcher:
         self._red_client = RedAPIClient(app_config=app_config, run_cache=self._run_cache)
 
         if self._require_mbid_resolution:
-            self._last_fm_client = LastFMAPIClient(app_config=app_config, run_cache=self._run_cache)
+            self._lfm_client = LFMAPIClient(app_config=app_config, run_cache=self._run_cache)
             self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config, run_cache=self._run_cache)
         else:
-            self._last_fm_client = None
+            self._lfm_client = None
             self._musicbrainz_client = None
         self._red_format_preferences = app_config.get_red_preference_ordering()
         self._max_size_gb = app_config.get_cli_option("max_size_gb")
@@ -103,8 +99,8 @@ class ReleaseSearcher:
             snatched_count=snatched_torrent_count,
             snatched_torrents_list=user_torrents_json["snatched"],
         )
-    
-    def _add_skipped_snatch_row(self, rec: LastFMRec, reason: SkippedReason) -> None:
+
+    def _add_skipped_snatch_row(self, rec: LFMRec, reason: SkippedReason) -> None:
         self._skipped_snatch_summary_rows.append(
             [
                 rec.rec_type.value,
@@ -114,18 +110,23 @@ class ReleaseSearcher:
                 reason.value,
             ]
         )
-    
+
     def _add_failed_snatch_row(self, te: TorrentEntry, exception_class_name: str) -> None:
         snatch_failure_reason = SnatchFailureReason.OTHER
-        if exception_class_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exception_class_name == SnatchFailureReason.FILE_ERROR:
+        if (
+            exception_class_name == SnatchFailureReason.RED_API_REQUEST_ERROR
+            or exception_class_name == SnatchFailureReason.FILE_ERROR
+        ):
             snatch_failure_reason = SnatchFailureReason(exception_class_name)
-        self._failed_snatches_summary_rows.append([te.get_permalink_url(), te.get_matched_mbid(), snatch_failure_reason.value])
-    
+        self._failed_snatches_summary_rows.append(
+            [te.get_permalink_url(), te.get_matched_mbid(), snatch_failure_reason.value]
+        )
+
     def _add_snatch_row(self, te: TorrentEntry) -> None:  # pragma: no cover
         pass  # TODO:
 
     # pylint: disable=redefined-builtin
-    def create_red_browse_params(self, red_format: RedFormat, lfm_rec: LastFMRec, **search_kwargs) -> str:
+    def create_red_browse_params(self, red_format: RedFormat, lfm_rec: LFMRec, **search_kwargs) -> str:
         """Utility method for creating the RED browse API params string"""
         artist_name = lfm_rec.artist_str
         album_name = lfm_rec.entity_str
@@ -148,10 +149,12 @@ class ReleaseSearcher:
             browse_request_params += f"&cataloguenumber={quote_plus(catalog_number)}"
         return browse_request_params
 
-    def _search_red_release_by_preferences(self, lfm_rec: LastFMRec, **search_kwargs) -> Optional[TorrentEntry]:
+    def _search_red_release_by_preferences(self, lfm_rec: LFMRec, **search_kwargs) -> Optional[TorrentEntry]:
         above_max_size_found = False
         for pref in self._red_format_preferences:
-            browse_request_params = self.create_red_browse_params(red_format=pref, lfm_rec=lfm_rec, search_kwargs=search_kwargs)
+            browse_request_params = self.create_red_browse_params(
+                red_format=pref, lfm_rec=lfm_rec, search_kwargs=search_kwargs
+            )
             try:
                 red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
             except Exception:
@@ -168,17 +171,14 @@ class ReleaseSearcher:
                     size_gb = torrent_entry.get_size(unit="GB")
                     if size_gb <= self._max_size_gb:
                         return torrent_entry
-                    else:
-                        above_max_size_found = True
-        if above_max_size_found:
-            self._add_skipped_snatch_row(rec=lfm_rec, reason=SkippedReason.ABOVE_MAX_SIZE)
-        else:
-            self._add_skipped_snatch_row(rec=lfm_rec, reason=SkippedReason.NO_MATCH_FOUND)
+                    above_max_size_found = True
+        skip_reason = SkippedReason.ABOVE_MAX_SIZE if above_max_size_found else SkippedReason.NO_MATCH_FOUND
+        self._add_skipped_snatch_row(rec=lfm_rec, reason=skip_reason)
         return None
 
-    def _resolve_last_fm_album_info(self, lfm_rec: LastFMRec) -> LastFMAlbumInfo:
-        return LastFMAlbumInfo.construct_from_api_response(
-            json_blob=self._last_fm_client.request_api(
+    def _resolve_lfm_album_info(self, lfm_rec: LFMRec) -> LFMAlbumInfo:
+        return LFMAlbumInfo.construct_from_api_response(
+            json_blob=self._lfm_client.request_api(
                 method="album.getinfo",
                 params=f"artist={lfm_rec.artist_str}&album={lfm_rec.entity_str}",
             )
@@ -188,8 +188,8 @@ class ReleaseSearcher:
         return MBRelease.construct_from_api(
             json_blob=self._musicbrainz_client.request_api(entity_type="release", mbid=mbid)
         )
-    
-    def _pre_search_filter_validate(self, lfm_rec: LastFMRec) -> bool:
+
+    def _pre_search_filter_validate(self, lfm_rec: LFMRec) -> bool:
         """
         Return True if the lfm_rec is valid to search for on the various APIs, or False if the lfm_rec should be skipped given the current app config settings.
         """
@@ -210,23 +210,23 @@ class ReleaseSearcher:
         return True
 
     # TODO: add logic for a `search_for_track_rec` that basically ends up just calling this
-    def search_for_album_rec(self, lfm_rec: LastFMRec) -> Optional[TorrentEntry]:
+    def search_for_album_rec(self, lfm_rec: LFMRec) -> Optional[TorrentEntry]:
         """
         Searches for the recommended album, and returns a tuple containing the permalink for the best RED match
-        and the release mbid (if an mbid is found / the app is configured to request an mbid from lastfm's API)
+        and the release mbid (if an mbid is found / the app is configured to request an mbid from LFM's API)
         according to format_preferences, search preferences, and snatch preferences.
         Returns None if no viable match is found.
         """
         if not self._pre_search_filter_validate(lfm_rec=lfm_rec):
-            return None 
+            return None
         artist = lfm_rec.get_human_readable_artist_str()
         album = lfm_rec.get_human_readable_entity_str()
-        # If filtering the RED searches by any of these fields, then grab the release mbid from lastfm, then hit musicbrainz to get the relevant data fields.
+        # If filtering the RED searches by any of these fields, then grab the release mbid from LFM, then hit musicbrainz to get the relevant data fields.
         release_mbid = None
         search_kwargs = {}
         if self._require_mbid_resolution:
-            lastfm_album_info = self._resolve_last_fm_album_info(lfm_rec=lfm_rec)
-            release_mbid = lastfm_album_info.get_release_mbid()
+            lfm_album_info = self._resolve_lfm_album_info(lfm_rec=lfm_rec)
+            release_mbid = lfm_album_info.get_release_mbid()
             if release_mbid:
                 _LOGGER.debug(
                     f"Attempting musicbrainz query for artist: {artist}, release: '{album}', release-mbid: '{release_mbid}'"
@@ -248,11 +248,10 @@ class ReleaseSearcher:
         tid = permalink.split("=")[-1]
         return tid, os.path.join(self._snatch_directory, f"{tid}.torrent")
 
-
-    def search_for_album_recs(self, album_recs: List[LastFMRec]) -> None:
+    def search_for_album_recs(self, album_recs: List[LFMRec]) -> None:
         """
         Iterate over the list of album_recs and search for each one on RED.
-        Returns the list of RED permalinks which match the search criteria for the given LastFMRec.
+        Returns the list of RED permalinks which match the search criteria for the given LFMRec.
         Optionally will save the .torrent files in the specified snatch directory.
         """
         if self._skip_prior_snatches and self._red_user_details is None:
@@ -262,14 +261,14 @@ class ReleaseSearcher:
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
             for album_rec in tqdm(album_recs, desc="Searching album recs"):
-                matched_torrent_entry = self.search_for_album_rec(last_fm_rec=album_rec)
+                matched_torrent_entry = self.search_for_album_rec(lfm_rec=album_rec)
                 if not matched_torrent_entry:
                     continue
                 permalink = matched_torrent_entry.get_permalink_url()
                 cur_tsv_output_row = (
                     "album",
                     album_rec.rec_context.value,
-                    album_rec.last_fm_entity_url,
+                    album_rec.lfm_entity_url,
                     permalink,
                     self._get_tid_and_snatch_path(permalink=permalink)[1],
                     str(matched_torrent_entry.get_matched_mbid()),
@@ -303,9 +302,11 @@ class ReleaseSearcher:
                     # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
                     if os.path.exists(out_filepath):
                         os.remove(out_filepath)
-                    _LOGGER.error(f"Failed to snatch - uncaught error during snatch attempt for: {permalink}: ", exc_info=True)
+                    _LOGGER.error(
+                        f"Failed to snatch - uncaught error during snatch attempt for: {permalink}: ", exc_info=True
+                    )
                     self._add_failed_snatch_row(te=torrent_entry_to_snatch, exception_class_name=ex.__class__.__name__)
-    
+
     def generate_summary_stats(self) -> None:
         print_and_save_all_searcher_stats(
             skipped_rows=self._skipped_snatch_summary_rows,

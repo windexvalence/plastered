@@ -6,7 +6,7 @@
 ## Setup / Installation
 This repo will require that you have Docker and `make` installed. All the builds and tests are executed inside of a docker container, so you do not need to have python installed locally.
 
-1. Clone the repo from git@github.com:windexvalence/last-red-recs.git
+1. Clone the repo from git@github.com:windexvalence/plastered.git
 2. Ensure that you're able to locally build the main Docker image from master by running `make docker-build`. Address any build issues or local dev issues as necessary
 3. Explore the full list of local development options by running `make` to see the help output.
 
@@ -26,21 +26,21 @@ Once those are installed, you can follow this one-time setup for creating a host
     ```
 2. Create a dedicated virtualenv via pyenv-virtualenv:
     ```shell
-    pyenv virtualenv 3.12.8 last-red-recs
+    pyenv virtualenv 3.12.8 plastered
     ```
 3. Activate the virtualenv you just created in step 2:
     ```shell
-    pyenv activate last-red-recs
+    pyenv activate plastered
     ```
 4. Install both the application and test pip requirements in your newly activated virtualenv:
     ```shell
     pip install -r requirements.txt && pip install -r tests/test-requirements.txt
     ```
-5. Lastly, configure your code editor / IDE of choice to use the `last-red-recs` virtualenv for this project.
+5. Lastly, configure your code editor / IDE of choice to use the `plastered` virtualenv for this project.
 
 ## Testing
 
-> Warning: Currently, there are some unit tests which will fail in a local environment as they depend on encrypted files which can only be decrypted by the GitHub actions script. The pending issue to resolve this may be found [here](https://github.com/windexvalence/last-red-recs/issues/13). Since these encrypted files are massive JSON / HTML blobs, they require a lot of time to comb through their contents to ensure they are not leaking any sensitive data.
+> Warning: Currently, there are some unit tests which will fail in a local environment as they depend on encrypted files which can only be decrypted by the GitHub actions script. The pending issue to resolve this may be found [here](https://github.com/windexvalence/plastered/issues/13). Since these encrypted files are massive JSON / HTML blobs, they require a lot of time to comb through their contents to ensure they are not leaking any sensitive data.
 
 1. To run code formatting checks, run: `make code-format-check`. 
     

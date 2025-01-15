@@ -11,9 +11,8 @@ else
     echo "Invalid number of arguments provided: {$#}. May either indicate a single test to run, provide 'tests' to run all tests." && exit 1
 fi
 
-# export PYTHONPATH="${APP_DIR}/lastfm_recs_scraper/"
+
 export PYTHONPATH="${APP_DIR}/"
-# pytest -s -vv --cov-report term-missing --cov=lastfm_recs_scraper "${APP_DIR}/tests"
 pytest -s -vv "${APP_DIR}/$1"
 if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     echo "Not running in a github actions environment. Updating pytest-coverage markdown badge ..."

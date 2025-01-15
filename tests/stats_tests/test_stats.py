@@ -6,8 +6,17 @@ from unittest.mock import call, patch
 import pytest
 from rich.table import Column
 
-from lastfm_recs_scraper.stats.stats import StatsTable, SkippedReason, SnatchFailureReason, SkippedSummaryTable, FailedSnatchSummaryTable, SnatchSummaryTable, RunCacheSummaryTable, print_and_save_all_searcher_stats
-from lastfm_recs_scraper.utils.exceptions import StatsTableException
+from plastered.stats.stats import (
+    FailedSnatchSummaryTable,
+    RunCacheSummaryTable,
+    SkippedReason,
+    SkippedSummaryTable,
+    SnatchFailureReason,
+    SnatchSummaryTable,
+    StatsTable,
+    print_and_save_all_searcher_stats,
+)
+from plastered.utils.exceptions import StatsTableException
 
 
 def _noop_col_fn(x: Any) -> Any:
@@ -42,14 +51,13 @@ def snatch_summary_rows() -> List[List[str]]:
 
 
 @pytest.mark.parametrize(
-    "bad_fn_mapping", [
+    "bad_fn_mapping",
+    [
         ({-1: _noop_col_fn}),
         ({0: _noop_col_fn, 1: _noop_col_fn, 2: _noop_col_fn, 3: _noop_col_fn}),
-    ]
+    ],
 )
-def test_invalid_stats_table_construction(
-    tmp_path: pytest.FixtureRequest, bad_fn_mapping: Dict[int, Callable]
-) -> None:
+def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_fn_mapping: Dict[int, Callable]) -> None:
     with pytest.raises(StatsTableException, match="Invalid cell_idxs_to_style_fns value"):
         bad_st = StatsTable(
             title="Should fail",
@@ -71,7 +79,8 @@ def test_invalid_add_rows(tmp_path: pytest.FixtureRequest) -> None:
 
 
 @pytest.mark.parametrize(
-    "hit_rate_str, expected", [
+    "hit_rate_str, expected",
+    [
         ("NA", "white"),
         ("0.0", "red3"),
         ("0.125", "red3"),
@@ -82,7 +91,7 @@ def test_invalid_add_rows(tmp_path: pytest.FixtureRequest) -> None:
         ("0.749", "green_yellow"),
         ("0.75", "green"),
         ("1.00", "green"),
-    ]
+    ],
 )
 def test_run_cache_summary_table_stylize_cache_hit_rate_entry(
     hit_rate_str: str,
@@ -112,11 +121,12 @@ def test_run_cache_summary_table_constructor(tmp_path: pytest.FixtureRequest) ->
 
 
 @pytest.mark.parametrize(
-    "expected_tsv_suffix, expected_tsv_row_cnt", [
+    "expected_tsv_suffix, expected_tsv_row_cnt",
+    [
         ("_skipped.tsv", 5),
         ("_failed.tsv", 4),
         ("_snatched.tsv", 3),
-    ]
+    ],
 )
 def test_print_and_save_all_searcher_stats(
     tmp_path: pytest.FixtureRequest,
@@ -139,4 +149,6 @@ def test_print_and_save_all_searcher_stats(
     with open(expected_tsv_filepath, "r") as f:
         tsv_reader = csv.reader(f, delimiter="t")
         actual_row_cnt = len([row for row in tsv_reader])
-    assert actual_row_cnt == expected_tsv_row_cnt, f"Expected output tsv to have {expected_tsv_row_cnt} rows, but got {actual_row_cnt}"
+    assert (
+        actual_row_cnt == expected_tsv_row_cnt
+    ), f"Expected output tsv to have {expected_tsv_row_cnt} rows, but got {actual_row_cnt}"

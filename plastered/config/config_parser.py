@@ -1,43 +1,36 @@
 import logging
-from datetime import datetime
 import os
 import sys
 import traceback
 from collections import Counter, defaultdict
+from datetime import datetime
 from typing import Any, Dict, List
 
 import jsonschema
 import yaml
 
-from lastfm_recs_scraper.config.config_schema import (
+from plastered.config.config_schema import (
     CD_ONLY_EXTRAS_KEY,
     CLI_SNATCH_DIRECTORY_KEY,
     CUE_KEY,
     DEFAULTS_DICT,
     ENCODING_KEY,
-    OPTIONAL_TOP_LEVEL_CLI_KEYS,
     EXPECTED_TOP_LEVEL_CLI_KEYS,
     FORMAT_KEY,
     FORMAT_PREFERENCES_KEY,
     LOG_KEY,
     MEDIA_KEY,
+    OPTIONAL_TOP_LEVEL_CLI_KEYS,
     PER_PREFERENCE_KEY,
-    required_schema,
     get_sub_keys_from_top_level_keys,
+    required_schema,
 )
-from lastfm_recs_scraper.utils.exceptions import AppConfigException
-from lastfm_recs_scraper.utils.red_utils import (
-    EncodingEnum,
-    FormatEnum,
-    MediaEnum,
-    RedFormat,
-)
+from plastered.utils.exceptions import AppConfigException
+from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat
 
 _LOGGER = logging.getLogger(__name__)
 _CACHE_DIRNAME = "cache"
 _SUMMARIES_DIRNAME = "summaries"
-
-
 
 
 def load_init_config_template() -> str:
@@ -160,7 +153,9 @@ class AppConfig:
         return self.get_cli_option(f"enable_{cache_type}_cache")
 
     def _pretty_print_format_preferences(self) -> None:
-        formatted_dict = {FORMAT_PREFERENCES_KEY: [pref.get_yaml_dict_for_pretty_print() for pref in self._red_preference_ordering]}
+        formatted_dict = {
+            FORMAT_PREFERENCES_KEY: [pref.get_yaml_dict_for_pretty_print() for pref in self._red_preference_ordering]
+        }
         yaml.dump(formatted_dict, sys.stdout)
 
     def pretty_print_config(self) -> None:

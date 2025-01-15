@@ -1,20 +1,14 @@
-# `last-red-recs` User Guide
+# `plastered` User Guide
 
-This guide covers the installation, configuration, and usage details of `last-red-recs`. For development documentation, please refer to the [Development Guide](./development_guide.md) instead.
+## 1: Pre-requisites
+Make sure you have completed the following before installing or using `plastered`:
 
-## Getting Started
-`last-red-recs` is a tool for automatically inspecting your Last.fm album/track recommendations and snatching those recommended releases from RED.
-
-### 1: Pre-requisites
-This tool assumes you have an existing Last.fm profile, with recommendations already present on your account.
-
-Additionally, you will need to:
 1. Setup a RED API key with `Torrents` and `Users` scoped permissions granted.
 2. Setup a Last.fm API key (see their instructions page [here](https://www.last.fm/api))
 3. Have [Docker](https://docs.docker.com/get-started/get-docker/) installed on the host machine you intend to run this from.
 4. Have at least 1.5GB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies)
 
-### 2: Configure the App
+## 2: Configure the App
 
 1. Create a dedicated config directory on your host machine. This will hold your app config file, and any summary output files from the app runs.
     ```shell
@@ -38,7 +32,7 @@ Additionally, you will need to:
   plastered --help
   ```
 
-### 3: Run the App
+## 3: Run the App
 
 You can either immediately try snatching your LFM recs with the current default config you just created, or you can explore the [configuration reference](./configuration_reference.md) and fine-tune your config before snatching your LFM recs.
 
@@ -48,7 +42,7 @@ Once you're happy with your config settings, simply run the following to kick of
 plastered scrape
 ```
 
-## Additional Commands
+### Additional Commands
 
 Along with `scrape`, plastered offers a few other helpful commands. You can find the full list of commands by running `plastered --help`.
 

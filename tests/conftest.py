@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
-from lastfm_recs_scraper.utils.red_utils import (
+from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
     MediaEnum,
@@ -19,9 +19,9 @@ from lastfm_recs_scraper.utils.red_utils import (
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
-ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "lastfm_recs_scraper")
+ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "plastered")
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
+from plastered.config.config_parser import AppConfig
 
 MOCK_RESOURCES_DIR_PATH = os.path.join(TEST_DIR_ABS_PATH, "resources")
 MOCK_JSON_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_api_responses")
@@ -35,12 +35,8 @@ _RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(
 _RED_MOCK_GROUP_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "mock_red_group_response.json")
 _RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_userstats_response.json")
 _RED_MOCK_USER_TORRENTS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_response.json")
-_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(
-    MOCK_JSON_RESPONSES_DIR_PATH, "last_fm_album_info_api_response.json"
-)
-_LAST_FM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(
-    MOCK_JSON_RESPONSES_DIR_PATH, "last_fm_track_info_api_response.json"
-)
+_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_album_info_api_response.json")
+_LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_api_response.json")
 _MUSICBRAINZ_MOCK_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json")
 
 
@@ -128,8 +124,8 @@ def mock_red_user_details(mock_red_user_torrents_response: Dict[str, Any]) -> Re
 
 
 @pytest.fixture(scope="session")
-def mock_last_fm_album_info_json() -> Dict[str, Any]:
-    return load_mock_response_json(json_filepath=_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH)
+def mock_lfm_album_info_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
@@ -211,19 +207,19 @@ def mock_red_snatch_get_side_effect() -> bytes:
     return resp_mock
 
 
-def mock_last_fm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+def mock_lfm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
     """
     Helper test function to pass as the value for any
-    patch('requests.Session.get', ...) mocks on a LastFMAPIClient test case.
+    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
     This ensures that the subsequent response's json() value is properly overridden with the desired data.
     """
     url_val = kwargs["url"]
     resp_mock = MagicMock(name="json")
     mock_json = None
     if "album.getinfo" in url_val:
-        mock_json = load_mock_response_json(json_filepath=_LAST_FM_MOCK_ALBUM_INFO_JSON_FILEPATH)
+        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
     elif "track.getinfo" in url_val:
-        mock_json = load_mock_response_json(json_filepath=_LAST_FM_MOCK_TRACK_INFO_JSON_FILEPATH)
+        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
     resp_mock.json.return_value = mock_json
     return resp_mock
 

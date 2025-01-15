@@ -2,4 +2,4 @@
 set -euo pipefail
 
 export PYTHONPATH="${APP_DIR}/"
-python ${APP_DIR}/lastfm_recs_scraper/cli.py "$@"
+python ${APP_DIR}/plastered/cli.py "$@"

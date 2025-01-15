@@ -1,5 +1,5 @@
 [project]
-name = "last-red-recs"
+name = "plastered"
 version = "0.0.2"
 requires-python = ">= 3.12"
 
@@ -82,7 +82,7 @@ enable = """
 ignored-argument-names = "_.*|^ignored_|^unused_"
 
 [tool.pytest.ini_options]
-addopts = "--cov-report term-missing --cov=lastfm_recs_scraper --cov-fail-under=100"
+addopts = "--cov-report term-missing --cov=plastered --cov-fail-under=100"
 
 [tool.bandit]
 exclude_dirs = [".github", "docs", "examples", "tests", "secrets"]

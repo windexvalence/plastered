@@ -1,7 +1,7 @@
 import re
 from typing import Any, Dict, Optional
 
-from lastfm_recs_scraper.utils.red_utils import RedReleaseType
+from plastered.utils.red_utils import RedReleaseType
 
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
 
@@ -83,7 +83,7 @@ class MBRelease:
 
     def get_musicbrainz_release_group_url(self) -> str:
         return f"https://musicbrainz.org/release-group/{self._release_group_mbid}"
-    
+
     def get_release_searcher_kwargs(self) -> Dict[str, Any]:
         """Helper method to return the search_kwargs used by the ReleaseSearcher."""
         return {

@@ -1,9 +1,8 @@
-from enum import Enum, StrEnum
 import re
+from enum import Enum, StrEnum
 from typing import Any, Dict, List, Optional, Tuple
 
-from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
-
+from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
 
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
@@ -79,7 +78,7 @@ class RedUserDetails:
 
     def has_snatched_release(self, artist: str, album: str) -> bool:
         """
-        Searches whether the release was already listed in the user's snatched torrents. 
+        Searches whether the release was already listed in the user's snatched torrents.
         NOTE: 'artist' and 'album' must be the human-readable, non URL-encoded strings.
         """
         return (artist.lower(), album.lower()) in self._snatched_torrents_dict
@@ -113,7 +112,7 @@ class RedFormat:
 
     def __str__(self) -> str:
         return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"
-    
+
     def get_yaml_dict_for_pretty_print(self) -> Dict[str, Any]:
         entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
         if self._cd_only_extras:
@@ -254,13 +253,13 @@ class TorrentEntry:
             has_cue=json_blob["hasCue"],
             can_use_token=json_blob["canUseToken"],
         )
-    
+
     def set_matched_mbid(self, matched_mbid: str) -> None:
         self._matched_mbid = matched_mbid
-    
+
     def get_matched_mbid(self) -> Optional[str]:
         return self._matched_mbid
-    
+
     def token_usable(self) -> bool:
         return self.can_use_token
 

@@ -3,23 +3,21 @@ from traceback import format_exc
 from typing import Any, List, Optional
 from unittest.mock import MagicMock, call, patch
 
-from lastfm_recs_scraper.scraper.last_scraper import LastFMRec
 import pytest
 from click.testing import CliRunner
 
-from lastfm_recs_scraper.cli import cli
-from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.release_search.release_searcher import (
-    ReleaseSearcher,
-)
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
-from lastfm_recs_scraper.scraper.last_scraper import (
-    LastFMRecsScraper,
+from plastered.cli import cli
+from plastered.config.config_parser import AppConfig
+from plastered.release_search.release_searcher import ReleaseSearcher
+from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.scraper.lfm_scraper import (
+    LFMRec,
+    LFMRecsScraper,
     RecContext,
     RecommendationType,
 )
-from lastfm_recs_scraper.utils.exceptions import RunCacheDisabledException
-from lastfm_recs_scraper.utils.red_utils import RedUserDetails
+from plastered.utils.exceptions import RunCacheDisabledException
+from plastered.utils.red_utils import RedUserDetails
 from tests.conftest import (
     api_run_cache,
     mock_red_user_details,
@@ -53,23 +51,21 @@ def mock_scraper_run_cache_instance() -> MagicMock:
 
 @pytest.fixture(scope="function")
 def mock_logger_set_level() -> MagicMock:
-    with patch("lastfm_recs_scraper.cli._LOGGER.setLevel") as mock_logger_set_level:
+    with patch("plastered.cli._LOGGER.setLevel") as mock_logger_set_level:
         mock_logger_set_level.return_value = None
         yield mock_logger_set_level
 
 
 @pytest.mark.parametrize("verbosity", ["DEBUG", "INFO", "WARNING", "ERROR"])
 def test_cli_help_command(verbosity: str) -> None:
-    with patch("lastfm_recs_scraper.cli._LOGGER.setLevel") as mock_logger_set_level:
+    with patch("plastered.cli._LOGGER.setLevel") as mock_logger_set_level:
         mock_logger_set_level.return_value = None
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, ["--help"])
         assert result.exit_code == 0, f"Expected cli command with --help flag to pass, but errored: {result.exception}"
 
 
-@pytest.mark.parametrize(
-    "verbosity", ["DEBUG", "INFO", "WARNING", "ERROR"]
-)
+@pytest.mark.parametrize("verbosity", ["DEBUG", "INFO", "WARNING", "ERROR"])
 def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: MagicMock, verbosity: bool) -> None:
     with patch.object(AppConfig, "pretty_print_config") as mock_pretty_print_config:
         cli_runner = CliRunner()
@@ -83,14 +79,14 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
 def test_cli_scrape_command(
     valid_config_filepath: str, valid_app_config: AppConfig, mock_red_user_details: RedUserDetails
 ) -> None:
-    with patch.object(LastFMRecsScraper, "__enter__") as mock_enter:
-        mock_enter.return_value = LastFMRecsScraper(app_config=valid_app_config)
-        with patch.object(LastFMRecsScraper, "scrape_recs_list") as mock_scrape_recs_list:
+    with patch.object(LFMRecsScraper, "__enter__") as mock_enter:
+        mock_enter.return_value = LFMRecsScraper(app_config=valid_app_config)
+        with patch.object(LFMRecsScraper, "scrape_recs_list") as mock_scrape_recs_list:
             mock_scrape_recs_list.return_value = [
-                LastFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                LastFMRec("Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                LFMRec("Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
             ]
-            with patch.object(LastFMRecsScraper, "__exit__") as mock_exit:
+            with patch.object(LFMRecsScraper, "__exit__") as mock_exit:
                 with patch.object(ReleaseSearcher, "search_for_album_recs") as mock_search_for_album_recs:
                     with patch.object(ReleaseSearcher, "gather_red_user_details") as mock_gather_red_user_details:
                         mock_gather_red_user_details.return_value = mock_red_user_details
@@ -153,7 +149,8 @@ def test_cli_cache_command(
             return mock_api_run_cache_instance
         if kwargs["cache_type"] == "scraper":
             return mock_scraper_run_cache_instance
-    with patch("lastfm_recs_scraper.cli.RunCache") as mock_run_cache_constructor:
+
+    with patch("plastered.cli.RunCache") as mock_run_cache_constructor:
         mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, test_cmd)
@@ -177,20 +174,21 @@ def test_cli_cache_disabled_exception(
     cli_runner = CliRunner()
     mock_api_run_cache_instance.check.side_effect = RunCacheDisabledException("")
     mock_scraper_run_cache_instance.check.side_effect = RunCacheDisabledException("")
+
     def _mock_run_cache_init_side_effect(*args, **kwargs) -> RunCache:
         if kwargs["cache_type"] == "api":
             return mock_api_run_cache_instance
         if kwargs["cache_type"] == "scraper":
             return mock_scraper_run_cache_instance
-    with patch("lastfm_recs_scraper.cli.RunCache") as mock_run_cache_constructor:
+
+    with patch("plastered.cli.RunCache") as mock_run_cache_constructor:
         mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
         result = cli_runner.invoke(cli, ["cache", "--config", valid_config_filepath, "--check", "@all"])
         assert result.exit_code != 0
-            
 
 
 def test_cli_init_conf_command() -> None:
-    with patch("lastfm_recs_scraper.cli.load_init_config_template") as mock_load_init_config_template:
+    with patch("plastered.cli.load_init_config_template") as mock_load_init_config_template:
         mock_load_init_config_template.return_value = ""
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, ["init-conf"])

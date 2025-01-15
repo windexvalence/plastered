@@ -1,16 +1,14 @@
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, Callable, List, Optional
 
 from diskcache import Cache
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.stats.stats import RunCacheSummaryTable
-from lastfm_recs_scraper.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
-from lastfm_recs_scraper.utils.exceptions import RunCacheDisabledException
-
+from plastered.config.config_parser import AppConfig
+from plastered.stats.stats import RunCacheSummaryTable
+from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.exceptions import RunCacheDisabledException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ def _tomorrow_midnight_datetime() -> datetime:
 class RunCache:
     """
     Wrapper class around a diskcache.Cache instance. Used by both
-    the LastFMRecsScraper and the ReleaseSearcher by default for caching the data they pull from the web.
+    the LFMRecsScraper and the ReleaseSearcher by default for caching the data they pull from the web.
     """
 
     def __init__(self, app_config: AppConfig, cache_type: CacheType):
@@ -114,11 +112,11 @@ class RunCache:
             self._cache.close()
             return
         _LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
-    
+
     def check(self) -> List[str]:
         """
-        Runs disckcache.Cache's check() method if enabled. 
-        diskcache.Cache's check() call verifies cache consistency. 
+        Runs disckcache.Cache's check() method if enabled.
+        diskcache.Cache's check() call verifies cache consistency.
         It can also fix inconsistencies and reclaim unused space. The return value is a list of warnings
         """
         if not self._enabled:

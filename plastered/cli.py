@@ -1,37 +1,31 @@
 """
-This script is meant to pull the relevant album / track recommendations from last.fm since their API does not directly 
-surface that information. Once the proper artists + album/track details are pulled via this scraper, they can subsequently be 
-used by the lastfm_recs_to_mbid.sh script to get the corresponding musicbrainz IDs and then those may be used with Lidarr auto-snatching.
-
 Expected Python version: 3.13 (with requirements.txt installed)
 
-USAGE: ./lastfm_recs_scraper.py
+USAGE: See docs/user_guide.md
 """
-from functools import wraps
+
 import logging
 from typing import Optional
 
+import click
+from rich.console import Console
+
 # https://stackoverflow.com/a/68878216
 from rich.logging import RichHandler
-# from rich.theme import Theme
-from rich.console import Console
-import click
 
-from lastfm_recs_scraper.version import get_project_version
-from lastfm_recs_scraper.config.config_parser import (
-    AppConfig,
-    load_init_config_template,
+from plastered.config.config_parser import AppConfig, load_init_config_template
+from plastered.config.config_schema import ENABLE_SNATCHING_KEY
+from plastered.release_search.release_searcher import ReleaseSearcher
+from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
+from plastered.utils.cli_utils import (
+    DEFAULT_VERBOSITY,
+    config_path_option,
+    subcommand_flag,
 )
-from lastfm_recs_scraper.config.config_schema import ENABLE_SNATCHING_KEY
-from lastfm_recs_scraper.release_search.release_searcher import ReleaseSearcher
-from lastfm_recs_scraper.run_cache.run_cache import CacheType, RunCache
-from lastfm_recs_scraper.scraper.last_scraper import (
-    LastFMRecsScraper,
-    RecommendationType,
-)
-from lastfm_recs_scraper.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
-from lastfm_recs_scraper.utils.cli_utils import config_path_option, DEFAULT_VERBOSITY, subcommand_flag
-from lastfm_recs_scraper.utils.exceptions import RunCacheDisabledException
+from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.exceptions import RunCacheDisabledException
+from plastered.version import get_project_version
 
 # RichHandler(log_time_format="%m/%d/%Y %H:%M:%S")
 FORMAT = "%(message)s"
@@ -39,12 +33,14 @@ logging.basicConfig(
     level="NOTSET",
     format=FORMAT,
     datefmt="[%m/%d/%Y %H:%M:%S]",
-    handlers=[RichHandler(
-        console=Console(width=120),
-        log_time_format="%m/%d/%Y %H:%M:%S",
-        omit_repeated_times=False,
-        tracebacks_word_wrap=False,
-    )],
+    handlers=[
+        RichHandler(
+            console=Console(width=120),
+            log_time_format="%m/%d/%Y %H:%M:%S",
+            omit_repeated_times=False,
+            tracebacks_word_wrap=False,
+        )
+    ],
 )  # set level=20 or logging.INFO to turn off debug
 _LOGGER = logging.getLogger()
 # _LOGGER = logging.getLogger("rich")
@@ -59,15 +55,16 @@ _CLI_ALL_CACHE_TYPES = "@all"
 # pylint: disable=unused-argument,too-many-arguments,no-value-for-parameter
 @click.group(
     context_settings={"auto_envvar_prefix": _OPTION_ENVVAR_PREFIX},
-    help="last-red-recs: Finds your LFM recs and snatches them from RED.",
+    help="plastered: Finds your LFM recs and snatches them from RED.",
 )
 @click.version_option(
     version=_APP_VERSION,
-    package_name="last-red-recs",
-    prog_name="last-red-recs",
+    package_name="plastered",
+    prog_name="plastered",
 )
 @click.option(
-    "-v", "--verbosity",
+    "-v",
+    "--verbosity",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
     default=DEFAULT_VERBOSITY,
     show_default=True,
@@ -75,18 +72,18 @@ _CLI_ALL_CACHE_TYPES = "@all"
 )
 @click.option("--red-user-id", type=click.INT, required=False, show_envvar=True)
 @click.option("--red-api-key", type=click.STRING, required=False, show_envvar=True)
-@click.option("--last-fm-api-key", type=click.STRING, required=False, show_envvar=True)
-@click.option("--last-fm-username", type=click.STRING, required=False, show_envvar=True)
-@click.option("--last-fm-password", type=click.STRING, required=False, show_envvar=True)
+@click.option("--lfm-api-key", type=click.STRING, required=False, show_envvar=True)
+@click.option("--lfm-username", type=click.STRING, required=False, show_envvar=True)
+@click.option("--lfm-password", type=click.STRING, required=False, show_envvar=True)
 @click.pass_context
 def cli(
     ctx,
     verbosity: Optional[str] = DEFAULT_VERBOSITY,
     red_user_id: Optional[int] = None,
     red_api_key: Optional[str] = None,
-    last_fm_api_key: Optional[str] = None,
-    last_fm_username: Optional[str] = None,
-    last_fm_password: Optional[str] = None,
+    lfm_api_key: Optional[str] = None,
+    lfm_username: Optional[str] = None,
+    lfm_password: Optional[str] = None,
 ) -> None:
     _LOGGER.setLevel(verbosity.upper())
     ctx.obj = {}
@@ -99,14 +96,14 @@ def cli(
 )
 @config_path_option
 @subcommand_flag(
-    "--no-snatch", help="When present, disables downloading the .torrent files matched to your LFM recs results."
+    "--no-snatch", help_msg="When present, disables downloading the .torrent files matched to your LFM recs results."
 )
 @click.pass_context
 def scrape(ctx, config: str, no_snatch: Optional[bool] = False) -> None:
     if no_snatch:  # pragma: no cover
         ctx.obj[_GROUP_PARAMS_KEY][ENABLE_SNATCHING_KEY] = False
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
-    with LastFMRecsScraper(app_config=app_config) as scraper:
+    with LFMRecsScraper(app_config=app_config) as scraper:
         album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
         # TODO (later): Enable track scraping
         # track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
@@ -129,25 +126,29 @@ def conf(ctx, config: str) -> None:
 
 
 @cli.command(
-    help="Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/last-red-recs/blob/main/docs/configuration_reference.md",
+    help="Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md",
     short_help="Helper command to inspect or empty the local run cache(s).",
 )
 @config_path_option
-@subcommand_flag("--info", help="Print meta-info about the disk cache(s).")
-@subcommand_flag("--empty", help="When present, clear cache specified by the command argument.")
-@subcommand_flag("--check", help="Verify / try to fix diskcache consistency for specified cache argument.")
-@click.argument("cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, _CLI_ALL_CACHE_TYPES]))
+@subcommand_flag("--info", help_msg="Print meta-info about the disk cache(s).")
+@subcommand_flag("--empty", help_msg="When present, clear cache specified by the command argument.")
+@subcommand_flag("--check", help_msg="Verify / try to fix diskcache consistency for specified cache argument.")
+@click.argument(
+    "target_cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, _CLI_ALL_CACHE_TYPES])
+)
 @click.pass_context
 def cache(
     ctx,
     config: str,
-    cache: str,
+    target_cache: str,
     info: Optional[bool] = False,
     empty: Optional[str] = False,
     check: Optional[str] = False,
 ) -> None:
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
-    target_cache_types = [cache_type for cache_type in CacheType] if cache == _CLI_ALL_CACHE_TYPES else [CacheType(cache)]
+    target_cache_types = (
+        [cache_type for cache_type in CacheType] if target_cache == _CLI_ALL_CACHE_TYPES else [CacheType(target_cache)]
+    )
     for target_cache_type in target_cache_types:
         target_run_cache = RunCache(app_config=app_config, cache_type=target_cache_type)
         try:
@@ -159,9 +160,11 @@ def cache(
             if check:
                 diskcache_warnings = target_run_cache.check()
                 print(f"{target_cache_type} check warnings (if any): ")
-                print('\n'.join(diskcache_warnings))
+                print("\n".join(diskcache_warnings))
         except RunCacheDisabledException:
-            _LOGGER.error(f"{target_cache_type} cache is not enabled. To enable it, set enable_{target_cache_type}_cache to true in config.yaml.")
+            _LOGGER.error(
+                f"{target_cache_type} cache is not enabled. To enable it, set enable_{target_cache_type}_cache to true in config.yaml."
+            )
             ctx.exit(2)
         target_run_cache.close()
 

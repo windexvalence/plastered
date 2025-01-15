@@ -1,5 +1,5 @@
 RED_API_BASE_URL = "https://redacted.sh/ajax.php"
-LAST_FM_API_BASE_URL = "https://ws.audioscrobbler.com/2.0/"
+LFM_API_BASE_URL = "https://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE_URL = "https://musicbrainz.org/ws/2/"
 
 RED_JSON_RESPONSE_KEY = "response"
@@ -13,7 +13,7 @@ CACHE_TYPE_SCRAPER = "scraper"
 # TODO: permit addtocollage as action
 PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents"])
 NON_CACHED_RED_API_ENDPOINTS = set(["download", "community_stats", "user_torrents"])
-PERMITTED_LAST_FM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
+PERMITTED_LFM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
 PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release"])
 
 RENDER_WAIT_SEC_MIN = 3

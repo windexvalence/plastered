@@ -6,14 +6,14 @@ from functools import wraps
 
 import click
 
-
 DEFAULT_VERBOSITY = "WARNING"
 
 
 # Adopted from here to reduce repeat code: https://github.com/pallets/click/issues/108#issuecomment-280489786
 def config_path_option(func):
     @click.option(
-        "-c", "--config",
+        "-c",
+        "--config",
         required=True,
         envvar="PLASTERED_CONFIG",
         show_envvar=True,
@@ -23,14 +23,17 @@ def config_path_option(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
+
     return wrapper
 
 
-def subcommand_flag(name, help):
+def subcommand_flag(name, help_msg):
     def decorator(func):
-        @click.option(name, envvar=None, is_flag=True, default=False, help=help)
+        @click.option(name, envvar=None, is_flag=True, default=False, help=help_msg)
         @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

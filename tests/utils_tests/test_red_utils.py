@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from lastfm_recs_scraper.utils.constants import STORAGE_UNIT_IDENTIFIERS
-from lastfm_recs_scraper.utils.red_utils import (
+from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
+from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
     MediaEnum,

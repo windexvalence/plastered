@@ -1,24 +1,25 @@
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Any, Dict, Optional, Set, Tuple, Union
+from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 import requests
 from urllib3.util import Retry
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.run_cache.run_cache import RunCache
-from lastfm_recs_scraper.utils.constants import (
-    LAST_FM_API_BASE_URL,
+from plastered.config.config_parser import AppConfig
+from plastered.run_cache.run_cache import RunCache
+from plastered.utils.constants import (
+    LFM_API_BASE_URL,
     MUSICBRAINZ_API_BASE_URL,
     NON_CACHED_RED_API_ENDPOINTS,
-    PERMITTED_LAST_FM_API_ENDPOINTS,
+    PERMITTED_LFM_API_ENDPOINTS,
     PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
     PERMITTED_RED_API_ENDPOINTS,
     RED_API_BASE_URL,
     RED_JSON_RESPONSE_KEY,
 )
-from lastfm_recs_scraper.utils.exceptions import RedClientSnatchException
+from plastered.utils.exceptions import RedClientSnatchException
+
 
 # TODO: enabled logging for these classes without circular dependency
 class ThrottledAPIBaseClient:
@@ -85,7 +86,9 @@ class ThrottledAPIBaseClient:
                 f"Invalid endpoint provided to {self.__class__.__name__}: '{endpoint}'. Valid endpoints are: {self._valid_endpoints}"
             )
         if endpoint in self._non_cached_endpoints:
-            print(f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}")
+            print(
+                f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}"
+            )
             return None
         return self._run_cache.load_data_if_valid(
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
@@ -94,7 +97,9 @@ class ThrottledAPIBaseClient:
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
-            print(f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}")
+            print(
+                f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}"
+            )
             return False
         return self._run_cache.write_data(
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
@@ -145,12 +150,12 @@ class RedAPIClient(ThrottledAPIBaseClient):
         cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
         print(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
-    
+
     def snatch(self, tid: str, can_use_token_on_torrent: bool) -> bytes:
         """
-        Dedicated method specifically for snatching from red and returning the 
+        Dedicated method specifically for snatching from red and returning the
         response contents' bytes which may be written to a .torrent file.
-        This is separated from the `request_api` method since there's addition logic for FL tokens, and since we 
+        This is separated from the `request_api` method since there's addition logic for FL tokens, and since we
         don't want to enable response caching for download requests.
         """
         self._throttle()
@@ -175,7 +180,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         return response.content
 
 
-class LastFMAPIClient(ThrottledAPIBaseClient):
+class LFMAPIClient(ThrottledAPIBaseClient):
     """
     LFM-specific Subclass of the ThrottledAPIBaseClient for interacting with the LFM API.
     Retries limit and throttling period are configured from user config.
@@ -183,19 +188,19 @@ class LastFMAPIClient(ThrottledAPIBaseClient):
 
     def __init__(self, app_config: AppConfig, run_cache: RunCache):
         super().__init__(
-            base_api_url=LAST_FM_API_BASE_URL,
-            max_api_call_retries=app_config.get_cli_option("last_fm_api_retries"),
-            seconds_between_api_calls=app_config.get_cli_option("last_fm_api_seconds_between_calls"),
+            base_api_url=LFM_API_BASE_URL,
+            max_api_call_retries=app_config.get_cli_option("lfm_api_retries"),
+            seconds_between_api_calls=app_config.get_cli_option("lfm_api_seconds_between_calls"),
             run_cache=run_cache,
-            valid_endpoints=PERMITTED_LAST_FM_API_ENDPOINTS,
+            valid_endpoints=PERMITTED_LFM_API_ENDPOINTS,
         )
         # TODO: figure out how to redact this from logs
-        self._api_key = app_config.get_cli_option("last_fm_api_key")
+        self._api_key = app_config.get_cli_option("lfm_api_key")
 
     def request_api(self, method: str, params: str) -> Dict[str, Any]:
         """
-        Helper function to hit the LastFM API with retries and rate-limits.
-        Returns the JSON response payload on success, and throws an Exception after MAX_LASTFM_API_RETRIES consecutive failures.
+        Helper function to hit the LFM API with retries and rate-limits.
+        Returns the JSON response payload on success, and throws an Exception after max allowed consecutive failures.
         """
         # Sanity check endpoint then attempt reading from cache
         loaded_from_cache = self._read_from_run_cache(endpoint=method, params=params)
@@ -205,7 +210,7 @@ class LastFMAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         json_data = self._session.get(
-            url=f"{LAST_FM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
+            url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
         ).json()
         top_key = method.split(".")[0]

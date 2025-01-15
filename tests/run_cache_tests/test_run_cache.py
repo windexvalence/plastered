@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from lastfm_recs_scraper.config.config_parser import AppConfig
-from lastfm_recs_scraper.run_cache.run_cache import (
+from plastered.config.config_parser import AppConfig
+from plastered.run_cache.run_cache import (
     CacheType,
     RunCache,
     _tomorrow_midnight_datetime,
 )
-from lastfm_recs_scraper.utils.exceptions import RunCacheException, RunCacheDisabledException
+from plastered.utils.exceptions import RunCacheDisabledException, RunCacheException
 from tests.conftest import api_run_cache, scraper_run_cache, valid_app_config
 
 _DT_STR_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -51,7 +51,7 @@ def _is_none_data_validator(x: Any) -> bool:
 )
 def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expected) -> None:
     # https://docs.python.org/3/library/unittest.mock-examples.html#partial-mocking
-    with patch("lastfm_recs_scraper.run_cache.run_cache.datetime", wraps=datetime) as mock_datetime:
+    with patch("plastered.run_cache.run_cache.datetime", wraps=datetime) as mock_datetime:
         mock_datetime.now.return_value = function_invoked_datetime
         mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
         actual = _tomorrow_midnight_datetime()
@@ -73,7 +73,7 @@ def test_run_cache_init(
     cache_type: CacheType,
 ) -> None:
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_is_cache_enabled:
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache:
             mock_app_conf_is_cache_enabled.return_value = enabled
             run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
             if enabled:
@@ -170,7 +170,7 @@ def test_run_cache_load_data_if_valid(
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = enabled
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
@@ -213,12 +213,12 @@ def test_seconds_to_expiry(
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = True
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
             # https://docs.python.org/3/library/unittest.mock-examples.html#partial-mocking
-            with patch("lastfm_recs_scraper.run_cache.run_cache.datetime", wraps=datetime) as mock_datetime:
+            with patch("plastered.run_cache.run_cache.datetime", wraps=datetime) as mock_datetime:
                 mock_datetime.now.return_value = fake_now_datetime
                 mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
                 run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
@@ -245,7 +245,7 @@ def test_run_cache_write_data_valid(
         mock_app_conf_cache_enabled.return_value = True
         with patch.object(RunCache, "_seconds_to_expiry") as mock_seconds_to_expiry:
             mock_seconds_to_expiry.return_value = 600
-            with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+            with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
                 mock_diskcache_constructor.return_value = mock_diskcache
                 mock_diskcache.stats.return_value = None
                 mock_diskcache.expire.return_value = None
@@ -296,7 +296,7 @@ def test_run_cache_clear(
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = run_cache_enabled
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
@@ -329,7 +329,7 @@ def test_run_cache_check(
     expected_check_result_no_fail = ["fake warning"]
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = run_cache_enabled
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
@@ -341,7 +341,9 @@ def test_run_cache_check(
                     run_cache.check()
             else:
                 actual = run_cache.check()
-                assert actual == expected_check_result_no_fail, f"Expected {expected_check_result_no_fail}, but got {actual}"
+                assert (
+                    actual == expected_check_result_no_fail
+                ), f"Expected {expected_check_result_no_fail}, but got {actual}"
 
         pass  # TODO: implement
 
@@ -369,7 +371,7 @@ def test_print_summary_info(
 
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = run_cache_enabled
-        with patch("lastfm_recs_scraper.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.side_effect = _stats_side_effect
             mock_diskcache.expire.return_value = None

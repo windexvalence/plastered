@@ -4,12 +4,12 @@ red:
   red_api_key: 1234notarealapikey
   red_api_retries: 3
   red_api_seconds_between_calls: 5
-last_fm:
-  last_fm_api_key: 5678alsonotarealapikey
-  last_fm_username: fake-username
-  last_fm_password: fake-password
-  last_fm_api_retries: 3
-  last_fm_api_seconds_between_calls: 2
+lfm:
+  lfm_api_key: 5678alsonotarealapikey
+  lfm_username: fake-username
+  lfm_password: fake-password
+  lfm_api_retries: 3
+  lfm_api_seconds_between_calls: 2
   allow_library_items: false
   enable_scraper_cache: true
 musicbrainz:
