@@ -4,12 +4,12 @@ COPY ./requirements.txt ./tests/test-requirements.txt /
 RUN pip install -r /requirements.txt --timeout=300 --no-cache-dir
 RUN rebrowser_playwright install --with-deps chromium 
 
-ARG BUILD_ENV="test"
+ARG BUILD_ENV="test" PLASTERED_RELEASE_TAG=""
 RUN if [ "$BUILD_ENV" = "test" ]; then pip install -r /test-requirements.txt; fi
 RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV APP_DIR=/app FORCE_COLOR=1
+ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
 ADD . .
 
 ENTRYPOINT ["/app/entrypoint.sh"]

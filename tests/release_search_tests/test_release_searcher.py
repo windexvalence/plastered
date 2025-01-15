@@ -63,7 +63,7 @@ def mock_mbr() -> MBRelease:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def mock_best_te() -> TorrentEntry:
     return TorrentEntry(
         torrent_id=69420,
@@ -289,6 +289,39 @@ def test_add_failed_snatch_row(
     assert expected == actual, f"expected {expected}, but got {actual}"
 
 
+@pytest.mark.parametrize("mock_fl_token_used, expected_fl_col_val", [(False, "no"), (True, "yes")])
+def test_add_snatch_row(
+    tmp_path: pytest.FixtureRequest,
+    valid_app_config: AppConfig,
+    mock_best_te: TorrentEntry,
+    mock_fl_token_used: bool,
+    expected_fl_col_val: str,
+) -> None:
+    with patch.object(RedAPIClient, "tid_snatched_with_fl_token") as mock_red_client_fl_used_check:
+        mock_red_client_fl_used_check.return_value = mock_fl_token_used
+        mock_best_te.set_lfm_rec_fields(
+            rec_type=RecommendationType.ALBUM.value,
+            rec_context=RecContext.SIMILAR_ARTIST.value,
+            artist_name="Fake Artist",
+            release_name="Fake Release",
+        )
+        mock_snatch_path = os.path.join(tmp_path, f"{mock_best_te.torrent_id}.torrent")
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._add_snatch_row(te=mock_best_te, snatch_path=mock_snatch_path)
+        assert len(release_searcher._snatch_summary_rows) == 1
+        mock_red_client_fl_used_check.assert_called_once_with(tid=mock_best_te.torrent_id)
+        assert release_searcher._snatch_summary_rows[0] == [
+            mock_best_te.get_lfm_rec_type(),
+            mock_best_te.get_lfm_rec_context(),
+            mock_best_te.get_artist_name(),
+            mock_best_te.get_release_name(),
+            mock_best_te.torrent_id,
+            mock_best_te.media,
+            expected_fl_col_val,
+            mock_snatch_path,
+        ]
+
+
 @pytest.mark.parametrize(
     "mock_response_fixture_names, mock_preference_ordering, expected_torrent_entry",
     [
@@ -483,6 +516,7 @@ def test_search_for_album_rec(
         if (use_release_type or use_first_release_year or use_record_label or use_catalog_number)
         else {}
     )
+    mock_artist, mock_release = "Foo", "Bar"
     expected_te_result = (
         TorrentEntry(
             torrent_id=69420,
@@ -503,6 +537,10 @@ def test_search_for_album_rec(
     )
     if found_te and mbid_result:
         expected_te_result.set_matched_mbid(matched_mbid=mbid_result)
+    if found_te:
+        expected_te_result.set_lfm_rec_fields(
+            rec_type="album", rec_context="similar-artist", artist_name=mock_artist, release_name=mock_release
+        )
     override_app_conf_options = {
         "use_release_type": use_release_type,
         "use_first_release_year": use_first_release_year,
@@ -525,8 +563,8 @@ def test_search_for_album_rec(
         release_searcher._resolve_mb_release.return_value = mock_mbr
         release_searcher._red_user_details = mock_red_user_details
         test_lfm_rec = LFMRec(
-            lfm_artist_str="Foo",
-            lfm_entity_str="Bar",
+            lfm_artist_str=mock_artist,
+            lfm_entity_str=mock_release,
             recommendation_type=RecommendationType.ALBUM,
             rec_context=RecContext.SIMILAR_ARTIST,
         )

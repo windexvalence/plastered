@@ -40,6 +40,30 @@ _LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, 
 _MUSICBRAINZ_MOCK_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json")
 
 
+# boilerplate for marking tests which should only run on release builds with the `--releasetests` flag
+# https://docs.pytest.org/en/latest/example/simple.html#control-skipping-of-tests-according-to-command-line-option
+def pytest_addoption(parser):
+    parser.addoption(
+        "--releasetests", action="store_true", default=False, help="run release tests in addition to standard tests"
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "releasetest: mark test as a release-only test which should be skipped on non-release builds."
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--releasetests"):
+        # --releasetests given in cli: do not skip release tests
+        return
+    skip_release = pytest.mark.skip(reason="need --releasetests option to run")
+    for item in items:
+        if "releasetest" in item.keywords:
+            item.add_marker(skip_release)
+
+
 def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
     """Utility function to load and return the mock API json blob located at the specified json_filepath."""
     with open(json_filepath, "r") as f:

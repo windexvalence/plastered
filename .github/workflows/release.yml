@@ -6,10 +6,7 @@ env:
 on:
   push:
     tags:
-      - "v*"
-
-# permissions:
-#   contents: write
+      - 'v*'
 
 jobs:
   build-and-test-image:
@@ -33,6 +30,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           tags: ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          build-args: |
+            PLASTERED_RELEASE_TAG=${{ steps.meta.outputs.tags }}
       - name: Code Format Check
         run: |
           docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}
@@ -42,7 +41,7 @@ jobs:
           TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run Unit Tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }} tests
+          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }} tests
       - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
         run: echo "TODO implement in followup PR"
       - name: Login to Container Registry
@@ -57,19 +56,8 @@ jobs:
         with:
           context: .
           push: true
-          build-args: BUILD_ENV=release
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ github.run_number }},${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:0.0.2,${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            BUILD_ENV=release
+            PLASTERED_RELEASE_TAG=${{ steps.meta.outputs.tags }}
+          tags: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-${{ github.run_number }},${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags }},${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           labels: ${{ steps.meta.outputs.labels }}
-  
-  # create-release:
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - name: Create release
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #         tag: ${{ github.ref_name }}
-  #       run: |
-  #         gh release create "$tag" \
-  #             --repo="$GITHUB_REPOSITORY" \
-  #             --title="${tag#v}" \
-  #             --generate-notes
