@@ -29,7 +29,7 @@ Make sure you have completed the following before installing or using `plastered
 
 4. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
   ```shell
-  alias plastered="docker run --rm -d --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest"
+  alias plastered='docker run --rm --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -e COLUMNS="$(tput cols)" -e LINES="$(tput lines)" -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
   ```
 
 5. Verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
