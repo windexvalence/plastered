@@ -69,5 +69,5 @@ jobs:
           build-args: |
             BUILD_ENV=release
             PLASTERED_RELEASE_TAG=${{ github.ref_name }}
-          tags: ${{ env.IMAGE_REGISTRY }}/${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
