@@ -13,7 +13,7 @@ with [schtasks](https://learn.microsoft.com/en-us/previous-versions/windows/it-p
 A crontab example which runs `plastered scrape` every other day is shown below:
 
 ```txt
-0 0 * * */2 docker run --rm --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest 
+0 0 * * */2 docker run --rm -d --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest 
 ```
 
 Use [crontab.guru](https://crontab.guru/#0_0_*_*_*/2) to find the cron pattern that defines the schedule which you want to run plastered scrape on.

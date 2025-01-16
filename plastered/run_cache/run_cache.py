@@ -58,7 +58,7 @@ class RunCache:
             self._cache.stats(enable=True, reset=True)
             # TODO: make sure that this doesn't need to be called in each load call or more frequently than on construction
             num_expired = self._cache.expire()
-            _LOGGER.warning(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
+            _LOGGER.info(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
             _LOGGER.info(
                 f"Any newly added {self._cache_type.value} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
             )

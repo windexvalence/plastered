@@ -5,6 +5,7 @@ USAGE: See docs/user_guide.md
 """
 
 import logging
+import os
 from typing import Optional
 
 import click
@@ -27,6 +28,8 @@ from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from plastered.utils.exceptions import RunCacheDisabledException
 from plastered.version import get_project_version
 
+_TERMINAL_COLS = int(os.getenv("COLUMNS", 120))
+
 # RichHandler(log_time_format="%m/%d/%Y %H:%M:%S")
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -35,7 +38,7 @@ logging.basicConfig(
     datefmt="[%m/%d/%Y %H:%M:%S]",
     handlers=[
         RichHandler(
-            console=Console(width=120),
+            console=Console(width=_TERMINAL_COLS),
             log_time_format="%m/%d/%Y %H:%M:%S",
             omit_repeated_times=False,
             tracebacks_word_wrap=False,
@@ -86,6 +89,7 @@ def cli(
     lfm_password: Optional[str] = None,
 ) -> None:
     _LOGGER.setLevel(verbosity.upper())
+    _LOGGER.debug(f"Detected terminal width: {_TERMINAL_COLS}")
     ctx.obj = {}
     ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
 
