@@ -3,7 +3,6 @@
 ![CI status](https://github.com/windexvalence/plastered/actions/workflows/build-and-test.yml/badge.svg?branch=main) ![coverage](./docs/image_assets/coverage.svg) ![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg) ![Linting](https://img.shields.io/badge/linting-pylint-4c1) ![Security: Bandit](https://img.shields.io/badge/security-bandit-8A2BE2) 
 
 ![Last release](https://img.shields.io/github/release/windexvalence/plastered?label=Last%20release)
-![Last Docker tag](https://img.shields.io/docker/v/windexvalence/plastered?sort=semver&label=Last%20Docker%20tag)
 
 
 ## `Python + Last + RED = plastered`
