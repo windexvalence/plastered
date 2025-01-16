@@ -20,19 +20,19 @@ Make sure you have completed the following before installing or using `plastered
   docker pull ghcr.io/windexvalence/plastered:latest
   ```
 
-2. Initialize a config.yaml file in the directory you just created by running:
+3. Initialize a config.yaml file in the directory you just created by running:
     ```shell
     docker run --rm ghcr.io/windexvalence/plastered:latest init-conf > /your/host/path/to/plastered_dir/config.yaml
     ```
 
-3. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./configuration_reference.md) for additional details and information on non-required config settings.
+4. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./configuration_reference.md) for additional details and information on non-required config settings.
 
-4. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
+5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
   ```shell
   alias plastered='docker run --rm --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -e COLUMNS="$(tput cols)" -e LINES="$(tput lines)" -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
   ```
 
-5. Verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
+6. Verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
   ```shell
   plastered --help
   ```
@@ -55,3 +55,13 @@ Further command-specific details are accessible by running the command of intere
 ```
 plastered cache --help
 ```
+
+### Inpsecting Prior Run Results
+
+Anytime you run `plastered scrape`, the app will create several TSV files which summarize the recommendations results, as well as the snatch status of each. This information is displayed at the end of each run in a set of printed tables; however, if you want to run some custom scripts off those results, you could use the equivalent TSV files as needed. The TSV file for a given scrape run can be found at the following paths:
+
+* `/config/summaries/<SCRAPE_RUN_DATE_HERE>_failed.tsv`: TSV of attempted snatches from RED which failed.
+
+* `/config/summaries/<SCRAPE_RUN_DATE_HERE>_skipped.tsv`: TSV of skipped RED snatches (due to user config filtering preferences).
+
+* `/config/summaries/<SCRAPE_RUN_DATE_HERE>_snatched.tsv`: TSV of successful snatches from RED.
