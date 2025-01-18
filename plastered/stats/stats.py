@@ -1,6 +1,8 @@
 import csv
 import logging
+import os
 import re
+from datetime import datetime
 from enum import StrEnum
 from typing import Callable, Dict, List, Optional
 
@@ -8,10 +10,19 @@ from rich.console import Console
 from rich.table import Column, Table
 from rich.text import Text
 
-from plastered.utils.constants import STATS_TRACK_REC_NONE
-from plastered.utils.exceptions import RedClientSnatchException, StatsTableException
+from plastered.config.config_parser import AppConfig
+from plastered.utils.constants import RUN_DATE_STR_FORMAT, STATS_TRACK_REC_NONE
+from plastered.utils.exceptions import (
+    PriorRunStatsException,
+    RedClientSnatchException,
+    StatsTableException,
+)
 
 _LOGGER = logging.getLogger(__name__)
+_FAILED = "failed"
+_SKIPPED = "skipped"
+_SNATCHED = "snatched"
+_VALID_SUMMARY_TABLE_TYPES = set([_FAILED, _SKIPPED, _SNATCHED])
 
 
 def _stylize_track_rec_entry(track_rec: str) -> str:
@@ -37,6 +48,19 @@ class SnatchFailureReason(StrEnum):
     OTHER = "Exception - other"
 
 
+def _get_tsv_path(filepath_prefix: str, table_type: str) -> str:
+    if table_type not in _VALID_SUMMARY_TABLE_TYPES:
+        raise StatsTableException(f"Invalid table_type provided. Must be one of: {_VALID_SUMMARY_TABLE_TYPES}")
+    return f"{filepath_prefix}_{table_type}.tsv"
+
+
+def _get_rows_from_tsv(tsv_path: str) -> List[List[str]]:
+    with open(tsv_path, "r") as f:
+        tsv_reader = csv.DictReader(f, delimiter="\t", lineterminator="\n")
+        tsv_rows = [list(row.values()) for row in tsv_reader]
+    return tsv_rows
+
+
 class StatsTable:
     """
     Helper class to create a Rich table for summary outputs on the CLI.
@@ -48,13 +72,15 @@ class StatsTable:
         self,
         title: str,
         columns: List[Column],
-        tsv_output_path: Optional[str] = None,
+        tsv_path: Optional[str] = None,
+        read_only: Optional[bool] = False,
         cell_idxs_to_style_fns: Optional[Dict[int, Callable]] = {},
         caption: Optional[str] = None,
     ):
         self._title = title
         self._columns = columns
-        self._tsv_output_path = tsv_output_path
+        self._tsv_output_path = tsv_path
+        self._read_only = read_only
         self._num_cols = len(self._columns)
         self._per_row_cell_style_fns = {}
         if len(cell_idxs_to_style_fns) > self._num_cols or any(
@@ -102,6 +128,10 @@ class StatsTable:
         console.print(self._table)
 
     def to_tsv_file(self) -> None:
+        if self._read_only:
+            raise StatsTableException(
+                f"Unexpected to_tsv_file call on a StatsTable instance with read_only set to {self._read_only}"
+            )
         tsv_header = [re.sub(r"\s+", "_", col.header) for col in self._table.columns]
         try:
             with open(self._tsv_output_path, "w") as f:
@@ -133,9 +163,15 @@ class SkippedSummaryTable(StatsTable):
             return "red3"
         return "white"
 
-    def __init__(self, rows: List[List[str]], tsv_output_path: str):
+    def __init__(
+        self,
+        rows: List[List[str]],
+        title: Optional[str] = "Unsnatched / Skipped LFM Recs",
+        filepath_prefix: Optional[str] = None,
+        read_only: Optional[bool] = False,
+    ):
         super().__init__(
-            title="Unsnatched / Skipped LFM Recs",
+            title=title,
             columns=[
                 Column(header="Type", justify="left", no_wrap=True),
                 Column(header="LFM Rec context", no_wrap=True),
@@ -146,6 +182,7 @@ class SkippedSummaryTable(StatsTable):
                 Column(header="Skip reason", no_wrap=False),
             ],
             tsv_output_path=tsv_output_path,
+            read_only=read_only,
             cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 6: self.stylize_skip_reason_entry},
             caption="Summary of LFM Recs which were either not found on RED, or ignored based on the search config settings.",
         )
@@ -164,15 +201,22 @@ class FailedSnatchSummaryTable(StatsTable):
             return "dark_orange3"
         return "bright_red"
 
-    def __init__(self, rows: List[List[str]], tsv_output_path: str):
+    def __init__(
+        self,
+        rows: List[List[str]],
+        title: Optional[str] = "Failed Downloads",
+        filepath_prefix: Optional[str] = None,
+        read_only: Optional[bool] = False,
+    ):
         super().__init__(
-            title="Failed Downloads",
+            title=title,
             columns=[
                 Column(header="RED permalink", justify="left", no_wrap=True, ratio=1),
                 Column(header="Matched MBID (if any)", no_wrap=True, ratio=1),
                 Column(header="Failure reason", style="bright_red", no_wrap=True, ratio=1),
             ],
-            tsv_output_path=tsv_output_path,
+            tsv_path=_get_tsv_path(filepath_prefix=filepath_prefix, table_type=_FAILED),
+            read_only=read_only,
             cell_idxs_to_style_fns={2: self.stylize_failure_reason_entry},
         )
         self.add_rows(rows)
@@ -181,9 +225,15 @@ class FailedSnatchSummaryTable(StatsTable):
 class SnatchSummaryTable(StatsTable):
     """Utility subclass of StatsTable for printing successful snatch stats."""
 
-    def __init__(self, rows: List[List[str]], tsv_output_path: str):
+    def __init__(
+        self,
+        rows: List[List[str]],
+        title: Optional[str] = "Snatched LFM Recs",
+        filepath_prefix: Optional[str] = None,
+        read_only: Optional[bool] = False,
+    ):
         super().__init__(
-            title="Snatched LFM Recs",
+            title=title,
             columns=[
                 Column(header="Type", justify="left", no_wrap=True, ratio=1),
                 Column(header="LFM Rec context", no_wrap=False, ratio=1),
@@ -195,7 +245,8 @@ class SnatchSummaryTable(StatsTable):
                 Column(header="FL token used", style="green", no_wrap=True, ratio=1),
                 Column(header="Snatch path", no_wrap=True, ratio=1),
             ],
-            tsv_output_path=tsv_output_path,
+            tsv_path=_get_tsv_path(filepath_prefix=filepath_prefix, table_type=_SNATCHED),
+            read_only=read_only,
             cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 7: lambda fl: "green" if fl == "yes" else "white"},
             caption="Summary of LFM Recs successfully found on RED and snatched.",
         )
@@ -241,10 +292,53 @@ def print_and_save_all_searcher_stats(
     snatch_summary_rows: List[List[str]],
     output_filepath_prefix: str,
 ) -> None:
-    SkippedSummaryTable(rows=skipped_rows, tsv_output_path=f"{output_filepath_prefix}_skipped.tsv").print_and_save()
-    FailedSnatchSummaryTable(
-        rows=failed_snatch_rows, tsv_output_path=f"{output_filepath_prefix}_failed.tsv"
-    ).print_and_save()
-    SnatchSummaryTable(
-        rows=snatch_summary_rows, tsv_output_path=f"{output_filepath_prefix}_snatched.tsv"
-    ).print_and_save()
+    """Utility function for printing and saving all the stats at the end of an active scrape run."""
+    SkippedSummaryTable(rows=skipped_rows, filepath_prefix=output_filepath_prefix).print_and_save()
+    FailedSnatchSummaryTable(rows=failed_snatch_rows, filepath_prefix=output_filepath_prefix).print_and_save()
+    SnatchSummaryTable(rows=snatch_summary_rows, filepath_prefix=output_filepath_prefix).print_and_save()
+
+
+class PriorRunStats:
+    """Class for surfacing summary stats from a prior scrape run. Used by the run_stats CLI command."""
+
+    def __init__(self, app_config: AppConfig, run_date: datetime):
+        _LOGGER.info("Attempting to load prior run stats from summary tsv files ...")
+        self._run_date = run_date
+        self._run_date_str = run_date.strftime(RUN_DATE_STR_FORMAT)
+        self._filepath_prefix = app_config.get_output_summary_filepath_prefix(date_str=self._run_date_str)
+        self._table_types_to_filepaths = {
+            table_type: _get_tsv_path(filepath_prefix=self._filepath_prefix, table_type=table_type)
+            for table_type in _VALID_SUMMARY_TABLE_TYPES
+        }
+        for table_type, filepath in self._table_types_to_filepaths.items():
+            if not os.path.exists(filepath):
+                _LOGGER.error(f"Could not find the expected filepath for {table_type}")
+                raise PriorRunStatsException(
+                    f"Filepath(s) for prior run date '{self._run_date_str}' do not exist: expected paths: {list(self._table_types_to_filepaths.values())}"
+                )
+        self._table_types_to_rows = {
+            table_type: _get_rows_from_tsv(
+                tsv_path=_get_tsv_path(filepath_prefix=self._filepath_prefix, table_type=table_type)
+            )
+            for table_type in _VALID_SUMMARY_TABLE_TYPES
+        }
+        self._skipped_stats_table = SkippedSummaryTable(
+            rows=self._table_types_to_rows[_SKIPPED],
+            title=f"Skipped LFM Recs (on {self._run_date_str})",
+            read_only=True,
+        )
+        self._failed_stats_table = FailedSnatchSummaryTable(
+            rows=self._table_types_to_rows[_FAILED],
+            title=f"Failed Downloads (on {self._run_date_str})",
+            read_only=True,
+        )
+        self._snatched_stats_table = SnatchSummaryTable(
+            rows=self._table_types_to_rows[_SNATCHED],
+            title=f"Snatched LFM Recs (on {self._run_date_str})",
+            read_only=True,
+        )
+
+    def print_summary_tables(self) -> None:
+        self._skipped_stats_table.print_table()
+        self._failed_stats_table.print_table()
+        self._snatched_stats_table.print_table()

@@ -142,6 +142,11 @@ def test_cli_scrape_command(
                     mock_search_for_recs.assert_called_once_with(rec_type_to_recs_list=mock_scrape_recs.return_value)
 
 
+@pytest.mark.parametrize("", [])
+def test_cli_run_stats_command(valid_app_config: AppConfig) -> None:
+    pass  # TODO: figure out how to even test this.
+
+
 @pytest.mark.parametrize(
     "cache_arg, info_flag_present, empty_flag_present, check_flag_present, expected_run_cache_calls",
     [

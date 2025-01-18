@@ -37,6 +37,8 @@ LOGIN_PASSWORD_FORM_LOCATOR = "[name='password']"  # nosec B105
 LOGIN_BUTTON_LOCATOR = "[name='submit']"
 LOGOUT_URL = "https://www.last.fm/logout"
 
+RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
+
 STORAGE_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
 
 STATS_TRACK_REC_NONE = "N/A"

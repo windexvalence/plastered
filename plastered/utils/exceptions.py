@@ -48,3 +48,11 @@ class StatsTableException(Exception):
     """
 
     pass
+
+
+class PriorRunStatsException(StatsTableException):
+    """
+    Exception for errors from PriorRunStats instances.
+    """
+
+    pass

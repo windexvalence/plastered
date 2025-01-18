@@ -108,7 +108,7 @@ def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_f
         bad_st = StatsTable(
             title="Should fail",
             columns=[Column(header="First Col"), Column(header="Second Col")],
-            tsv_output_path=os.path.join(tmp_path, "bad_st.tsv"),
+            tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
             cell_idxs_to_style_fns=bad_fn_mapping,
         )
 
@@ -117,7 +117,7 @@ def test_invalid_add_rows(tmp_path: pytest.FixtureRequest) -> None:
     test_st = StatsTable(
         title="Should fail",
         columns=[Column(header="First Col"), Column(header="Second Col")],
-        tsv_output_path=os.path.join(tmp_path, "bad_st.tsv"),
+        tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
     )
     rows_to_add = [["a", "b"], ["c", "d", "e"]]
     with pytest.raises(StatsTableException, match="Invalid row provided: length"):

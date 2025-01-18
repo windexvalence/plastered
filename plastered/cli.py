@@ -6,6 +6,7 @@ USAGE: See docs/user_guide.md
 
 import logging
 import os
+from datetime import datetime
 from typing import Optional
 
 import click
@@ -20,12 +21,18 @@ from plastered.config.config_schema import ENABLE_SNATCHING_KEY, REC_TYPES_TO_SC
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
+from plastered.stats.stats import PriorRunStats
 from plastered.utils.cli_utils import (
     DEFAULT_VERBOSITY,
+    StatsRunPicker,
     config_path_option,
     subcommand_flag,
 )
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.constants import (
+    CACHE_TYPE_API,
+    CACHE_TYPE_SCRAPER,
+    RUN_DATE_STR_FORMAT,
+)
 from plastered.utils.exceptions import RunCacheDisabledException
 from plastered.version import get_project_version
 
@@ -126,6 +133,33 @@ def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optio
     release_searcher = ReleaseSearcher(app_config=app_config)
     release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
     release_searcher.generate_summary_stats()
+
+
+@cli.command(
+    help="Gather and inspect the summary stats of a prior scrape run identified by the specified run_date.",
+    short_help="View the summary stats of a specific past scrape run",
+)
+@config_path_option
+@click.option(
+    "-d",
+    "--run-date",
+    type=click.DateTime(formats=[RUN_DATE_STR_FORMAT]),
+    required=False,
+    default=None,
+    envvar=None,
+    help="Specify the exact run date to inspect. Overrides the default interactive prompts for choosing the run date to inspect.",
+)
+@click.pass_context
+def run_stats(ctx, config: str, run_date: Optional[datetime] = None) -> None:
+    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
+    if not run_date:
+        _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
+        run_date = StatsRunPicker(
+            summaries_directory_path=app_config.get_summary_directory_path(),
+            date_str_format=RUN_DATE_STR_FORMAT,
+        ).get_run_date_from_user_prompts()
+    PriorRunStats(app_config=app_config, run_date=run_date).print_summary_tables()
 
 
 @cli.command(
