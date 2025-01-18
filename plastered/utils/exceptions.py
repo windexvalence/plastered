@@ -6,6 +6,7 @@ class AppConfigException(Exception):
 
 class LFMRecException(Exception):
     """Exception for invalid LFMRec instance configuration / execution errors."""
+
     pass
 
 

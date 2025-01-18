@@ -106,7 +106,11 @@ class ReleaseSearcher:
                 rec.rec_context.value,
                 rec.get_human_readable_artist_str(),
                 rec.get_human_readable_release_str(),
-                STATS_TRACK_REC_NONE if rec.rec_type == RecommendationType.ALBUM else rec.get_human_readable_entity_str(),
+                (
+                    STATS_TRACK_REC_NONE
+                    if rec.rec_type == RecommendationType.ALBUM
+                    else rec.get_human_readable_entity_str()
+                ),
                 reason.value,
             ]
         )
@@ -192,10 +196,11 @@ class ReleaseSearcher:
     def _resolve_lfm_album_info(self, lfm_rec: LFMRec) -> LFMAlbumInfo:
         return LFMAlbumInfo.construct_from_api_response(
             json_blob=self._lfm_client.request_api(
-                method="album.getinfo", params=f"artist={lfm_rec.artist_str}&album={lfm_rec.entity_str}",
+                method="album.getinfo",
+                params=f"artist={lfm_rec.artist_str}&album={lfm_rec.entity_str}",
             )
         )
-    
+
     def _resolve_lfm_track_info(self, lfm_rec: LFMRec) -> LFMTrackInfo:
         return LFMTrackInfo.construct_from_api_response(
             json_blob=self._lfm_client.request_api(
@@ -216,7 +221,9 @@ class ReleaseSearcher:
         release = lfm_rec.get_human_readable_entity_str()
         if self._skip_prior_snatches and self._red_user_details.has_snatched_release(artist=artist, release=release):
             _LOGGER.debug(f"'skip_prior_snatches' config field is set to True")
-            _LOGGER.debug(f"Skipped - artist: '{artist}', release: '{release}' due to prior snatch found in release group")
+            _LOGGER.debug(
+                f"Skipped - artist: '{artist}', release: '{release}' due to prior snatch found in release group"
+            )
             self._add_skipped_snatch_row(rec=lfm_rec, reason=SkippedReason.ALREADY_SNATCHED)
             return False
         if not self._allow_library_items and lfm_rec.rec_context == RecContext.IN_LIBRARY:
@@ -307,8 +314,8 @@ class ReleaseSearcher:
 
     def _search_for_track_recs(self, track_recs: List[LFMRec]) -> None:
         """
-        Iterate over the list of LFM track recs and first resolve the release the track originates from, 
-        then search for each one on RED. Returns the list of RED permalinks which match the search criteria 
+        Iterate over the list of LFM track recs and first resolve the release the track originates from,
+        then search for each one on RED. Returns the list of RED permalinks which match the search criteria
         for the given LFMRec.
         """
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
@@ -318,7 +325,7 @@ class ReleaseSearcher:
                 track_rec.set_track_origin_release(track_origin_release=lfm_track_info.get_release_name())
                 track_rec.set_track_origin_release_mbid(track_origin_release_mbid=lfm_track_info.get_release_mbid())
         self._search_for_release_recs(lfm_recs=track_recs, rec_type=RecommendationType.TRACK.value)
-    
+
     def search_for_recs(self, rec_type_to_recs_list: Dict[RecommendationType, List[LFMRec]]) -> None:
         """
         Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled.
@@ -330,13 +337,14 @@ class ReleaseSearcher:
             self._search_for_track_recs(track_recs=rec_type_to_recs_list[RecommendationType.TRACK])
         self._snatch_matches()
 
-
     def _snatch_matches(self) -> None:
         if not self._enable_snatches:
             _LOGGER.warning(f"Not configured to snatch. Please update your config to enable.")
             return
         if not self._torrent_entries_to_snatch:
-            _LOGGER.warning(f"No eligible torrents were matched to your LFM recs. Consider adjusting your search config preferences.")
+            _LOGGER.warning(
+                f"No eligible torrents were matched to your LFM recs. Consider adjusting your search config preferences."
+            )
             return
         _LOGGER.debug(f"Beginning to snatch matched permalinks to download directory '{self._snatch_directory}' ...")
         # Prepare a list of to-snatch torrents in descending size to ensure FL tokens are used optimally (if FL token usage is enabled).
@@ -374,4 +382,3 @@ class ReleaseSearcher:
             snatch_summary_rows=self._snatch_summary_rows,
             output_filepath_prefix=self._output_summary_filepath_prefix,
         )
-

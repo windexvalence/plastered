@@ -108,14 +108,16 @@ def cli(
     type=click.Choice(["album", "track", "@all"], case_sensitive=False),
     required=False,
     envvar=None,
-    help="Indicate what type of LFM recs to scrape and snatch. Defaults to 'rec_types_to_scrape' config setting otherwise."
+    help="Indicate what type of LFM recs to scrape and snatch. Defaults to 'rec_types_to_scrape' config setting otherwise.",
 )
 @click.pass_context
 def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optional[str] = None) -> None:
     if no_snatch:  # pragma: no cover
         ctx.obj[_GROUP_PARAMS_KEY][ENABLE_SNATCHING_KEY] = False
     if rec_types:
-        ctx.obj[_GROUP_PARAMS_KEY][REC_TYPES_TO_SCRAPE_KEY] = [rec_type.value for rec_type in RecommendationType] if rec_types == "@all" else [rec_types]
+        ctx.obj[_GROUP_PARAMS_KEY][REC_TYPES_TO_SCRAPE_KEY] = (
+            [rec_type.value for rec_type in RecommendationType] if rec_types == "@all" else [rec_types]
+        )
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     with LFMRecsScraper(app_config=app_config) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()

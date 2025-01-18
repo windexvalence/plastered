@@ -1,0 +1,284 @@
+from typing import Any, Optional
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
+from plastered.utils.exceptions import LFMRecException
+
+
+@pytest.mark.parametrize(
+    "lfm_rec, expected",
+    [
+        (
+            LFMRec(
+                lfm_artist_str="Some+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            "artist=Some+Bad+Artist, album=Some+Dumb+Album, context=similar-artist",
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "artist=Some+Other+Bad+Artist, track=Some+Dumb+Track, context=in-library",
+        ),
+    ],
+)
+def test_lfmrec_str(lfm_rec: LFMRec, expected: str) -> None:
+    actual = lfm_rec.__str__()
+    assert actual == expected, f"Expected __str__() result to be '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize(
+    "is_track_rec, should_fail, expected_attr_val", [(False, True, None), (True, False, "Some+Album+IDK")]
+)
+def test_set_track_origin_release(is_track_rec: bool, should_fail: bool, expected_attr_val: Optional[str]) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str="Some+Artist",
+        lfm_entity_str="Some+Entity",
+        recommendation_type=RecommendationType.TRACK if is_track_rec else RecommendationType.ALBUM,
+        rec_context=RecContext.IN_LIBRARY,
+    )
+    fake_release = "Some Album IDK"
+    if should_fail:
+        with pytest.raises(
+            LFMRecException,
+            match="Cannot set the track_origin_release on a LFMRec instance with a album reccommendation type",
+        ):
+            test_lfm_rec.set_track_origin_release(track_origin_release=fake_release)
+        assert test_lfm_rec._track_origin_release is None
+    else:
+        test_lfm_rec.set_track_origin_release(track_origin_release=fake_release)
+        actual_attr_val = test_lfm_rec.release_str
+        assert actual_attr_val == expected_attr_val, f"Expected '{expected_attr_val}', but got '{actual_attr_val}'"
+
+
+@pytest.mark.parametrize(
+    "is_track_rec, should_fail, expected_attr_val", [(False, True, None), (True, False, "abc-69-420")]
+)
+def test_set_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected_attr_val: Optional[str]) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str="Some+Artist",
+        lfm_entity_str="Some+Entity",
+        recommendation_type=RecommendationType.TRACK if is_track_rec else RecommendationType.ALBUM,
+        rec_context=RecContext.IN_LIBRARY,
+    )
+    fake_mbid = "abc-69-420"
+    if should_fail:
+        with pytest.raises(
+            LFMRecException,
+            match="Cannot set the track_origin_release_mbid on a LFMRec instance with a album reccommendation type",
+        ):
+            test_lfm_rec.set_track_origin_release_mbid(track_origin_release_mbid=fake_mbid)
+        assert test_lfm_rec._track_origin_release is None
+    else:
+        test_lfm_rec.set_track_origin_release_mbid(track_origin_release_mbid=fake_mbid)
+        actual_attr_val = test_lfm_rec.track_origin_release_mbid
+        assert actual_attr_val == expected_attr_val, f"Expected '{expected_attr_val}', but got '{actual_attr_val}'"
+
+
+@pytest.mark.parametrize(
+    "lfm_str, expected",
+    [
+        ("", ""),
+        ("Singleword", "Singleword"),
+        ("lowercase", "lowercase"),
+        ("Aphex+Twin", "Aphex Twin"),
+        ("Aphex Twin", "Aphex Twin"),
+        ("Double+Nickels+On+The+Dime", "Double Nickels On The Dime"),
+        ("Dr.+Octagonecologyst", "Dr. Octagonecologyst"),
+        ("Much+Against+Everyone%27s+Advice", "Much Against Everyone's Advice"),
+        ("Signals,+Calls+and+Marches", "Signals, Calls and Marches"),
+        ("This+Nation%27s+Saving+Grace", "This Nation's Saving Grace"),
+        ("500%25+More+Man", "500% More Man"),
+        ("MM...FOOD", "MM...FOOD"),
+        ("Chomp+(Remastered)", "Chomp (Remastered)"),
+        ("Lying+%2f+a+Wooden+Box", "Lying / a Wooden Box"),
+        ("Y", "Y"),
+        ("Frankjavcee+Collection,+Vol.+1,+pt.+II", "Frankjavcee Collection, Vol. 1, pt. II"),
+        ("Public+Image+LTD.", "Public Image LTD."),
+    ],
+)
+def test_get_human_readable_artist_str(lfm_str: str, expected: str) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str=lfm_str,
+        lfm_entity_str="Fake+Release",
+        recommendation_type=RecommendationType.ALBUM,
+        rec_context=RecContext.SIMILAR_ARTIST,
+    )
+    actual = test_lfm_rec.get_human_readable_artist_str()
+    assert (
+        actual == expected
+    ), f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "Some Entity")])
+def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, expected: Optional[str]) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str="Some+Artist",
+        lfm_entity_str="Some+Entity",
+        recommendation_type=RecommendationType.TRACK if is_track_rec else RecommendationType.ALBUM,
+        rec_context=RecContext.IN_LIBRARY,
+    )
+    if should_fail:
+        with pytest.raises(
+            LFMRecException, match="Cannot get the track name from an LFMRec instance with a album reccommendation type"
+        ):
+            test_lfm_rec.get_human_readable_track_str()
+    else:
+        actual = test_lfm_rec.get_human_readable_track_str()
+        assert actual == expected, f"Expected '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "Some Album")])
+def test_get_human_readable_track_origin_release_str(
+    is_track_rec: bool, should_fail: bool, expected: Optional[str]
+) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str="Some+Artist",
+        lfm_entity_str="Some+Entity",
+        recommendation_type=RecommendationType.TRACK if is_track_rec else RecommendationType.ALBUM,
+        rec_context=RecContext.IN_LIBRARY,
+    )
+    test_lfm_rec._track_origin_release = "Some+Album"
+    if should_fail:
+        with pytest.raises(
+            LFMRecException,
+            match="Cannot get the track_origin_release from an LFMRec instance with a album reccommendation type",
+        ):
+            test_lfm_rec.get_human_readable_track_origin_release_str()
+    else:
+        actual = test_lfm_rec.get_human_readable_track_origin_release_str()
+        assert actual == expected, f"Expected '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "abc-69-420")])
+def test_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected: Optional[str]) -> None:
+    test_lfm_rec = LFMRec(
+        lfm_artist_str="Some+Artist",
+        lfm_entity_str="Some+Entity",
+        recommendation_type=RecommendationType.TRACK if is_track_rec else RecommendationType.ALBUM,
+        rec_context=RecContext.IN_LIBRARY,
+    )
+    test_lfm_rec._track_origin_release_mbid = "abc-69-420"
+    if should_fail:
+        with pytest.raises(
+            LFMRecException,
+            match="Cannot get the track_origin_release_mbid from an LFMRec instance with a album reccommendation type",
+        ):
+            test_lfm_rec.track_origin_release_mbid
+    else:
+        actual = test_lfm_rec.track_origin_release_mbid
+        assert actual == expected, f"Expected '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize(
+    "lfm_rec, other, expected",
+    [
+        (
+            LFMRec(
+                lfm_artist_str="Some+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            None,
+            False,
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="Some+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            False,
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            True,
+        ),
+    ],
+)
+def test_lfmrec_eq(lfm_rec: LFMRec, other: Any, expected: bool) -> None:
+    actual = lfm_rec.__eq__(other=other)
+    assert actual == expected, f"Expected {lfm_rec}.__eq__(other={other}) result to be '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize(
+    "lfm_rec, expected",
+    [
+        (
+            LFMRec(
+                lfm_artist_str="Some+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            False,
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            True,
+        ),
+    ],
+)
+def test_lfmrec_is_track_rec(lfm_rec: LFMRec, expected: bool) -> None:
+    actual = lfm_rec.is_track_rec()
+    assert actual == expected, f"Expected {lfm_rec}.is_track_rec to be {expected}, but got {actual}"
+
+
+@pytest.mark.parametrize(
+    "lfm_rec, expected",
+    [
+        (
+            LFMRec(
+                lfm_artist_str="Some+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Album",
+                recommendation_type=RecommendationType.ALBUM,
+                rec_context=RecContext.SIMILAR_ARTIST,
+            ),
+            "https://www.last.fm/music/Some+Bad+Artist/Some+Dumb+Album",
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="Some+Other+Bad+Artist",
+                lfm_entity_str="Some+Dumb+Track",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "https://www.last.fm/music/Some+Other+Bad+Artist/_/Some+Dumb+Track",
+        ),
+    ],
+)
+def test_lfm_entity_url(lfm_rec: LFMRec, expected: str) -> None:
+    actual = lfm_rec.lfm_entity_url
+    assert actual == expected, f"Expected {lfm_rec}.lfm_entity_url to be '{expected}', but got '{actual}'"

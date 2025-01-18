@@ -4,7 +4,7 @@ from enum import StrEnum
 from random import randint
 from time import sleep
 from typing import Any, Dict, List, Optional, Union
-from urllib.parse import unquote_plus, quote_plus
+from urllib.parse import quote_plus, unquote_plus
 
 from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
@@ -110,7 +110,7 @@ class LFMRec:
                 f"Cannot set the track_origin_release on a LFMRec instance with a {self._recommendation_type.value} reccommendation type."
             )
         self._track_origin_release = quote_plus(track_origin_release)
-    
+
     def set_track_origin_release_mbid(self, track_origin_release_mbid) -> None:
         """Set the MBID of the release which the track rec originated from. Only used for RecommendationType.TRACK instances."""
         if not self.is_track_rec():
@@ -131,7 +131,7 @@ class LFMRec:
 
     def get_human_readable_artist_str(self) -> str:
         return unquote_plus(self._lfm_artist_str)
-    
+
     def get_human_readable_release_str(self) -> str:
         if self.is_track_rec():
             return unquote_plus(self._track_origin_release)
@@ -139,14 +139,14 @@ class LFMRec:
 
     def get_human_readable_entity_str(self) -> str:
         return unquote_plus(self._lfm_entity_str)
-    
+
     def get_human_readable_track_str(self) -> str:
         if not self.is_track_rec():
             raise LFMRecException(
                 f"Cannot get the track name from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."
             )
         return unquote_plus(self._lfm_entity_str)
-    
+
     def get_human_readable_track_origin_release_str(self) -> Optional[str]:
         if not self.is_track_rec():
             raise LFMRecException(
@@ -157,10 +157,14 @@ class LFMRec:
     @property
     def entity_str(self) -> str:
         return self._lfm_entity_str
-    
+
     @property
     def release_str(self) -> str:
-        return self._lfm_entity_str if self._recommendation_type == RecommendationType.ALBUM else self._track_origin_release
+        return (
+            self._lfm_entity_str
+            if self._recommendation_type == RecommendationType.ALBUM
+            else self._track_origin_release
+        )
 
     @property
     def rec_type(self) -> RecommendationType:
@@ -175,7 +179,7 @@ class LFMRec:
         if self._recommendation_type == RecommendationType.ALBUM:
             return f"https://www.last.fm/music/{self._lfm_artist_str}/{self._lfm_entity_str}"
         return f"https://www.last.fm/music/{self._lfm_artist_str}/_/{self._lfm_entity_str}"
-    
+
     @property
     def track_origin_release_mbid(self) -> str:
         if not self.is_track_rec():
@@ -205,7 +209,9 @@ class LFMRecsScraper:
             RecommendationType(rec_type) for rec_type in app_config.get_cli_option("rec_types_to_scrape")
         ]
         self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.SCRAPER)
-        self._loaded_from_run_cache: Dict[RecommendationType, Optional[List[LFMRec]]] = {rec_type: None for rec_type in RecommendationType}
+        self._loaded_from_run_cache: Dict[RecommendationType, Optional[List[LFMRec]]] = {
+            rec_type: None for rec_type in RecommendationType
+        }
         self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
         self._is_logged_in = False
         self._playwright: Optional[Playwright] = None
@@ -321,21 +327,15 @@ class LFMRecsScraper:
         recs_base_url = ALBUM_RECS_BASE_URL if rec_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
         # needed to make sure tqdm doesn't break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
-            for page_number in trange(
-                1, self._max_rec_pages_to_scrape + 1, desc=f"{rec_type.value} recs scraping"
-            ):
+            for page_number in trange(1, self._max_rec_pages_to_scrape + 1, desc=f"{rec_type.value} recs scraping"):
                 recs_page_url = f"{recs_base_url}?page={page_number}"
-                recs_page_source = self._navigate_to_page_and_get_page_source(
-                    url=recs_page_url, rec_type=rec_type
-                )
-                recs.extend(
-                    self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=rec_type)
-                )
+                recs_page_source = self._navigate_to_page_and_get_page_source(url=recs_page_url, rec_type=rec_type)
+                recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=rec_type))
         if self._run_cache.enabled:
             _LOGGER.info(f"Attempting cache write for scraper ...")
             cache_write_success = self._run_cache.write_data(cache_key=rec_type.value, data=recs)
             _LOGGER.info(f"Scraper cache write: {cache_write_success}")
         return recs
-    
+
     def scrape_recs(self) -> Dict[RecommendationType, List[LFMRec]]:
         return {rec_type: self._scrape_recs_list(rec_type=rec_type) for rec_type in self._rec_types_to_scrape}

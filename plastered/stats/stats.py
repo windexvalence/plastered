@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _stylize_track_rec_entry(track_rec: str) -> str:
-        return "white" if track_rec == STATS_TRACK_REC_NONE else "dark_magenta"
+    return "white" if track_rec == STATS_TRACK_REC_NONE else "dark_magenta"
 
 
 class SkippedReason(StrEnum):

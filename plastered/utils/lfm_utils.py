@@ -52,7 +52,7 @@ class LFMAlbumInfo:
 class LFMTrackInfo:
     """
     Utility class wrapping the results of the LFM API's track.getinfo endpoint.
-    Used by the ReleaseSearcher when mapping a track rec to the release it originated from. 
+    Used by the ReleaseSearcher when mapping a track rec to the release it originated from.
     Also optionally used by the ReleaseSearcher when resolving certain additional search fields (i.e. catalog number)
     from musicbrainz is required by the user's config.
     """
@@ -92,7 +92,7 @@ class LFMTrackInfo:
 
     def get_artist(self) -> str:
         return self._artist
-    
+
     def get_track_name(self) -> str:
         return self._track_name
 

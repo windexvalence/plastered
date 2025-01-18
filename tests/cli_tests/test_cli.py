@@ -74,22 +74,27 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
 
 
 @pytest.mark.parametrize(
-    "rec_types, mock_scrape_result", [
+    "rec_types, mock_scrape_result",
+    [
         (
             "album",
             {
                 RecommendationType.ALBUM: [
                     LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
+                    ),
                 ],
-            }
+            },
         ),
         (
             "track",
             {
                 RecommendationType.TRACK: [
                     LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+                    LFMRec(
+                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
+                    ),
                 ],
             },
         ),
@@ -98,11 +103,15 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
             {
                 RecommendationType.ALBUM: [
                     LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
+                    ),
                 ],
                 RecommendationType.TRACK: [
                     LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+                    LFMRec(
+                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
+                    ),
                 ],
             },
         ),
@@ -121,7 +130,9 @@ def test_cli_scrape_command(
             with patch.object(LFMRecsScraper, "__exit__") as mock_exit:
                 with patch.object(ReleaseSearcher, "search_for_recs") as mock_search_for_recs:
                     cli_runner = CliRunner()
-                    result = cli_runner.invoke(cli, ["scrape", "--config", valid_config_filepath, "--rec-types", rec_types])
+                    result = cli_runner.invoke(
+                        cli, ["scrape", "--config", valid_config_filepath, "--rec-types", rec_types]
+                    )
                     assert (
                         result.exit_code == 0
                     ), f"Expected cli command 'scrape' to pass but errored: {result.exception}"

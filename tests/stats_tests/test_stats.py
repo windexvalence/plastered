@@ -30,7 +30,14 @@ def skipped_rows() -> List[List[str]]:
         ["album", "similar-artist", "Some Other Artist", "Other Album", "N/A", SkippedReason.ABOVE_MAX_SIZE.value],
         ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", SkippedReason.NO_MATCH_FOUND.value],
         ["album", "in-library", "Another Artist", "Fake Album", "N/A", SkippedReason.REC_CONTEXT_FILTERING.value],
-        ["track", "in-library", "Another Artist", "Fake Release", "Some Track", SkippedReason.REC_CONTEXT_FILTERING.value],
+        [
+            "track",
+            "in-library",
+            "Another Artist",
+            "Fake Release",
+            "Some Track",
+            SkippedReason.REC_CONTEXT_FILTERING.value,
+        ],
     ]
 
 
@@ -46,9 +53,29 @@ def failed_snatch_rows() -> List[List[str]]:
 @pytest.fixture(scope="session")
 def snatch_summary_rows() -> List[List[str]]:
     return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", "Vinyl", "no", "/downloads/69420.torrent"],
+        [
+            "album",
+            "similar-artist",
+            "Some Artist",
+            "Their Album",
+            "N/A",
+            "69420",
+            "Vinyl",
+            "no",
+            "/downloads/69420.torrent",
+        ],
         ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
-        ["album", "similar-artist", "Fake Band", "Fake Album", "Fake Song", "420", "CD", "yes", "/downloads/420.torrent"],
+        [
+            "album",
+            "similar-artist",
+            "Fake Band",
+            "Fake Album",
+            "Fake Song",
+            "420",
+            "CD",
+            "yes",
+            "/downloads/420.torrent",
+        ],
     ]
 
 

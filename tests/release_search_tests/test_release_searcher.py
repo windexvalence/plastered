@@ -838,6 +838,7 @@ def test_search_for_album_recs(
 ) -> None:
     search_res_q = deque(mocked_search_results)
     expected_te_to_snatch_entries = [te for te in mocked_search_results if te is not None]
+
     def mock_search_side_effect(*args, **kwargs) -> Optional[Tuple[str, Optional[str]]]:
         return search_res_q.popleft()
 
@@ -853,7 +854,6 @@ def test_search_for_album_recs(
         for i, actual_te in enumerate(release_searcher._torrent_entries_to_snatch):
             expected_te = expected_te_to_snatch_entries[i]
             assert actual_te == expected_te, f"Expected TorrentEntry: {expected_te}, but got {actual_te}"
-
 
 
 @pytest.mark.parametrize(
@@ -1022,11 +1022,14 @@ def test_search_for_track_recs(valid_app_config: AppConfig) -> None:
             mock_resolve_lfm_track_info.assert_called_once_with(lfm_rec=test_lfm_rec)
             assert test_lfm_rec.get_human_readable_release_str() == test_track_info.get_release_name()
             assert test_lfm_rec.track_origin_release_mbid == test_track_info.get_release_mbid()
-            mock_search_for_release_recs.assert_called_once_with(lfm_recs=[test_lfm_rec], rec_type=RecommendationType.TRACK.value)
+            mock_search_for_release_recs.assert_called_once_with(
+                lfm_recs=[test_lfm_rec], rec_type=RecommendationType.TRACK.value
+            )
 
 
 @pytest.mark.parametrize(
-    "rec_type_to_recs_list, expected_search_for_release_recs_calls", [
+    "rec_type_to_recs_list, expected_search_for_release_recs_calls",
+    [
         ({}, 0),
         (
             {
@@ -1051,11 +1054,11 @@ def test_search_for_track_recs(valid_app_config: AppConfig) -> None:
                 ],
                 RecommendationType.TRACK: [
                     LFMRec("Some+Artist", "Some+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY),
-                ]
+                ],
             },
             2,
         ),
-    ] 
+    ],
 )
 def test_search_for_recs(
     valid_app_config: AppConfig,
@@ -1075,7 +1078,9 @@ def test_search_for_recs(
                     release_searcher.search_for_recs(rec_type_to_recs_list=rec_type_to_recs_list)
                     mock_gather_red_user_details.assert_called_once()
                     actual_num_search_for_release_recs_calls = len(mock_search_for_release_recs.mock_calls)
-                    assert actual_num_search_for_release_recs_calls == expected_search_for_release_recs_calls, f"Expected _search_for_release_recs to be called exactly {expected_search_for_release_recs_calls} times, but found: {actual_num_search_for_release_recs_calls}"
+                    assert (
+                        actual_num_search_for_release_recs_calls == expected_search_for_release_recs_calls
+                    ), f"Expected _search_for_release_recs to be called exactly {expected_search_for_release_recs_calls} times, but found: {actual_num_search_for_release_recs_calls}"
                     mock_snatch_matches.assert_called_once()
 
 
@@ -1088,7 +1093,9 @@ def test_search_for_album_recs_invalid_user_details(valid_app_config: AppConfig)
 
 
 def test_search_for_release_recs_mixed_rec_types(valid_app_config: AppConfig) -> None:
-    with pytest.raises(ReleaseSearcherException, match=f"Invalid lfm_recs list. All recs in list must have the same rec_type value"):
+    with pytest.raises(
+        ReleaseSearcherException, match=f"Invalid lfm_recs list. All recs in list must have the same rec_type value"
+    ):
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
         release_searcher._search_for_release_recs(
             lfm_recs=[
