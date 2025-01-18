@@ -26,10 +26,11 @@ def _noop_col_fn(x: Any) -> Any:
 @pytest.fixture(scope="session")
 def skipped_rows() -> List[List[str]]:
     return [
-        ["album", "similar-artist", "Some Artist", "Their Album", SkippedReason.ALREADY_SNATCHED.value],
-        ["album", "similar-artist", "Some Other Artist", "Other Album", SkippedReason.ABOVE_MAX_SIZE.value],
-        ["album", "similar-artist", "Another Artist", "Fake Album", SkippedReason.NO_MATCH_FOUND.value],
-        ["album", "in-library", "Another Artist", "Fake Album", SkippedReason.REC_CONTEXT_FILTERING.value],
+        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", SkippedReason.ALREADY_SNATCHED.value],
+        ["album", "similar-artist", "Some Other Artist", "Other Album", "N/A", SkippedReason.ABOVE_MAX_SIZE.value],
+        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", SkippedReason.NO_MATCH_FOUND.value],
+        ["album", "in-library", "Another Artist", "Fake Album", "N/A", SkippedReason.REC_CONTEXT_FILTERING.value],
+        ["track", "in-library", "Another Artist", "Fake Release", "Some Track", SkippedReason.REC_CONTEXT_FILTERING.value],
     ]
 
 
@@ -45,8 +46,9 @@ def failed_snatch_rows() -> List[List[str]]:
 @pytest.fixture(scope="session")
 def snatch_summary_rows() -> List[List[str]]:
     return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "69420", "Vinyl", "no", "/downloads/69420.torrent"],
-        ["album", "similar-artist", "Fake Band", "Fake Album", "69", "CD", "yes", "/downloads/69.torrent"],
+        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", "Vinyl", "no", "/downloads/69420.torrent"],
+        ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
+        ["album", "similar-artist", "Fake Band", "Fake Album", "Fake Song", "420", "CD", "yes", "/downloads/420.torrent"],
     ]
 
 
@@ -123,9 +125,9 @@ def test_run_cache_summary_table_constructor(tmp_path: pytest.FixtureRequest) ->
 @pytest.mark.parametrize(
     "expected_tsv_suffix, expected_tsv_row_cnt",
     [
-        ("_skipped.tsv", 5),
+        ("_skipped.tsv", 6),
         ("_failed.tsv", 4),
-        ("_snatched.tsv", 3),
+        ("_snatched.tsv", 4),
     ],
 )
 def test_print_and_save_all_searcher_stats(

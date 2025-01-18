@@ -96,13 +96,14 @@ class RunCache:
         #     print(f"    Cache entries by base domains: {list(base_domain_cache_cnts.items())}")
         # print(f"----------------------------------")
 
-    def clear(self) -> int:
+    def clear(self) -> None:
         """
         Clear all entries in the RunCache. Raises a RunCacheDisabledException if instance is not enabled.
         """
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        return self._cache.clear()
+        num_entries_removed = self._cache.clear()
+        _LOGGER.info(f"{self._cache_type.value} emptied: {num_entries_removed} entries removed.")
 
     def close(self) -> None:  # pragma: no cover
         """
@@ -113,15 +114,18 @@ class RunCache:
             return
         _LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
 
-    def check(self) -> List[str]:
+    def check(self) -> None:
         """
         Runs disckcache.Cache's check() method if enabled.
         diskcache.Cache's check() call verifies cache consistency.
-        It can also fix inconsistencies and reclaim unused space. The return value is a list of warnings
+        It can also fix inconsistencies and reclaim unused space. Logs any discovered warnings.
         """
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        return self._cache.check()
+        diskcache_warnings = self._cache.check()
+        if diskcache_warnings:
+            _LOGGER.warning(f"{self._cache_type.value} diskcache warnings: ")
+            _LOGGER.warning("\n".join(diskcache_warnings))
 
     def load_data_if_valid(self, cache_key: Any, data_validator_fn: Callable) -> Any:
         if not self._enabled:

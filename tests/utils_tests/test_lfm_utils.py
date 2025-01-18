@@ -61,6 +61,6 @@ def test_str() -> None:
         album_name="Some+Other+Album",
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    expected = "{'_artist': 'Dr. Octagon', '_release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed', '_album_name': 'Some+Other+Album', '_lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst'}"
+    expected = "{'_artist': 'Dr. Octagon', '_album_name': 'Some+Other+Album', '_lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', '_release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed'}"
     actual = lfmai.__str__()
     assert actual == expected, f"Expected __str__() method result to be {expected}, but got {actual}"

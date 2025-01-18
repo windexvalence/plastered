@@ -37,6 +37,7 @@ The following parameters appear under the top-level `lfm` key in the YAML config
     <tr><td>lfm_api_retries</td><td>Max # retries against LFM API before failing</td><td>No</td><td>3</td><td>None</td><td>None</td></tr>
     <tr><td>lfm_api_seconds_between_calls</td><td>Min seconds to wait between LFM API calls</td><td>No</td><td>2</td><td>None</td><td>None</td></tr>
     <tr><td>enable_scraper_cache</td><td>enables/disables local caching of scraper results</td><td>No</td><td>true</td><td>None</td><td>None</td></tr>
+    <tr><td>rec_types_to_scrape</td><td>List of LFM rec types ('album', 'track') to scrape and search for</td><td>No</td><td>['album', 'track']</td><td>--rec-types</td><td>None</td></tr>
     <tr><td>allow_library_items</td><td>Enable pulling LFM recs which LFM has recommended based on the artist existing in your library</td><td>No</td><td>False</td><td>None</td><td>None</td></tr>
     <tr><td>enable_scraper_cache</td><td>Indicate whether to cache the lfm recs results or not</td><td>No</td><td>True</td><td>None</td><td>None</td></tr>
 </table>

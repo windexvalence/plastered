@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from plastered.config.config_parser import AppConfig, load_init_config_template
-from plastered.config.config_schema import ENABLE_SNATCHING_KEY
+from plastered.config.config_schema import ENABLE_SNATCHING_KEY, REC_TYPES_TO_SCRAPE_KEY
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
@@ -102,19 +102,25 @@ def cli(
 @subcommand_flag(
     "--no-snatch", help_msg="When present, disables downloading the .torrent files matched to your LFM recs results."
 )
+@click.option(
+    "-r",
+    "--rec-types",
+    type=click.Choice(["album", "track", "@all"], case_sensitive=False),
+    required=False,
+    envvar=None,
+    help="Indicate what type of LFM recs to scrape and snatch. Defaults to 'rec_types_to_scrape' config setting otherwise."
+)
 @click.pass_context
-def scrape(ctx, config: str, no_snatch: Optional[bool] = False) -> None:
+def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optional[str] = None) -> None:
     if no_snatch:  # pragma: no cover
         ctx.obj[_GROUP_PARAMS_KEY][ENABLE_SNATCHING_KEY] = False
+    if rec_types:
+        ctx.obj[_GROUP_PARAMS_KEY][REC_TYPES_TO_SCRAPE_KEY] = [rec_type.value for rec_type in RecommendationType] if rec_types == "@all" else [rec_types]
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     with LFMRecsScraper(app_config=app_config) as scraper:
-        album_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.ALBUM)
-        # TODO (later): Enable track scraping
-        # track_recs_list = scraper.scrape_recs_list(recommendation_type=RecommendationType.TRACK)
+        rec_types_to_recs_list = scraper.scrape_recs()
     release_searcher = ReleaseSearcher(app_config=app_config)
-    release_searcher.gather_red_user_details()
-    release_searcher.search_for_album_recs(album_recs=album_recs_list)
-    release_searcher.snatch_matches()
+    release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
     release_searcher.generate_summary_stats()
 
 
@@ -159,12 +165,9 @@ def cache(
             if info:
                 target_run_cache.print_summary_info()
             if empty:
-                num_entries_removed = target_run_cache.clear()
-                _LOGGER.info(f"{target_cache_type} emptied: {num_entries_removed} entries removed.")
+                target_run_cache.clear()
             if check:
-                diskcache_warnings = target_run_cache.check()
-                print(f"{target_cache_type} check warnings (if any): ")
-                print("\n".join(diskcache_warnings))
+                target_run_cache.check()
         except RunCacheDisabledException:
             _LOGGER.error(
                 f"{target_cache_type} cache is not enabled. To enable it, set enable_{target_cache_type}_cache to true in config.yaml."

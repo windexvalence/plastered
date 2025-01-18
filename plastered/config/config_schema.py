@@ -10,6 +10,7 @@ CLI_SNATCHES_KEY = "snatches"
 CLI_SEARCH_KEY = "search"
 CLI_SNATCH_DIRECTORY_KEY = "snatch_directory"
 ENABLE_SNATCHING_KEY = "snatch_recs"
+REC_TYPES_TO_SCRAPE_KEY = "rec_types_to_scrape"
 _DEFAULT_RETRIES = 3
 NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS = 2
 DEFAULTS_DICT = {
@@ -20,6 +21,7 @@ DEFAULTS_DICT = {
     "lfm_api_retries": _DEFAULT_RETRIES,
     "lfm_api_seconds_between_calls": NON_RED_DEFAULT_SECONDS_BETWEEN_CALLS,
     "scraper_max_rec_pages_to_scrape": 5,
+    "rec_types_to_scrape": ["album", "track"],
     "allow_library_items": False,
     "enable_scraper_cache": True,
     # MusicBrainz API defaults
@@ -95,6 +97,16 @@ required_schema = {
                     "minimum": 1,
                     "maximum": 5,
                     "default": DEFAULTS_DICT["scraper_max_rec_pages_to_scrape"],
+                },
+                REC_TYPES_TO_SCRAPE_KEY: {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "items": {
+                        "type": "string",
+                        "enum": ["album", "track"],
+                    },
+                    "default": DEFAULTS_DICT[REC_TYPES_TO_SCRAPE_KEY],
                 },
                 "allow_library_items": {
                     "type": "boolean",

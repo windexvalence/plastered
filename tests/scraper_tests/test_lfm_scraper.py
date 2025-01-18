@@ -13,7 +13,7 @@ from plastered.scraper.lfm_scraper import (
     RecContext,
     RecommendationType,
     _sleep_random,
-    cached_album_recs_validator,
+    cached_lfm_recs_validator,
 )
 from plastered.utils.constants import (
     ALBUM_RECS_BASE_URL,
@@ -366,7 +366,7 @@ def test_cached_album_recs_validator(
     cached_data: Any,
     expected: bool,
 ) -> None:
-    actual = cached_album_recs_validator(cached_data=cached_data)
+    actual = cached_lfm_recs_validator(cached_data=cached_data)
     assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
@@ -759,17 +759,20 @@ def test_scrape_recs_list(
         mock_navigate_to_page.return_value = ""
         with patch.object(LFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
             mock_extract_recs.return_value = []
-            lfm_rec_scraper.scrape_recs_list(recommendation_type=rec_type)
+            lfm_rec_scraper._scrape_recs_list(rec_type=rec_type)
             mock_navigate_to_page.assert_called()
             mock_extract_recs.assert_called()
 
 
 def test_scrape_recs_list_cache_hit(lfm_rec_scraper: LFMRecsScraper) -> None:
-    lfm_rec_scraper._loaded_from_run_cache = {"Some": "cached-data", "69": 420}
+    lfm_rec_scraper._loaded_from_run_cache = {
+        RecommendationType.ALBUM: [LFMRec("A", "B", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST)],
+        RecommendationType.TRACK: [LFMRec("A+Artist", "A+Song", RecommendationType.TRACK, RecContext.IN_LIBRARY)],
+    }
     with patch.object(LFMRecsScraper, "_navigate_to_page_and_get_page_source") as mock_navigate_to_page:
         mock_navigate_to_page.return_value = ""
         with patch.object(LFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
             mock_extract_recs.return_value = []
-            lfm_rec_scraper.scrape_recs_list(RecommendationType.ALBUM)
+            lfm_rec_scraper._scrape_recs_list(RecommendationType.ALBUM)
             mock_navigate_to_page.assert_not_called()
             mock_extract_recs.assert_not_called()
