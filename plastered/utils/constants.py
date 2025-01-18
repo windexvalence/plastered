@@ -38,3 +38,5 @@ LOGIN_BUTTON_LOCATOR = "[name='submit']"
 LOGOUT_URL = "https://www.last.fm/logout"
 
 STORAGE_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
+
+STATS_TRACK_REC_NONE = "N/A"

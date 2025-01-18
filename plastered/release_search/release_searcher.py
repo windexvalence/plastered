@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
 
 from tqdm import tqdm
@@ -8,15 +8,16 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.scraper.lfm_scraper import LFMRec, RecContext
+from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
 from plastered.stats.stats import (
     SkippedReason,
     SnatchFailureReason,
     print_and_save_all_searcher_stats,
 )
+from plastered.utils.constants import STATS_TRACK_REC_NONE
 from plastered.utils.exceptions import ReleaseSearcherException
 from plastered.utils.http_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
-from plastered.utils.lfm_utils import LFMAlbumInfo
+from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import (
     RedFormat,
@@ -71,22 +72,20 @@ class ReleaseSearcher:
         )
         self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.API)
         self._red_client = RedAPIClient(app_config=app_config, run_cache=self._run_cache)
+        self._lfm_client = LFMAPIClient(app_config=app_config, run_cache=self._run_cache)
 
         if self._require_mbid_resolution:
-            self._lfm_client = LFMAPIClient(app_config=app_config, run_cache=self._run_cache)
             self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config, run_cache=self._run_cache)
         else:
-            self._lfm_client = None
             self._musicbrainz_client = None
         self._red_format_preferences = app_config.get_red_preference_ordering()
         self._max_size_gb = app_config.get_cli_option("max_size_gb")
-        self._tsv_output_summary_rows = []
         self._snatch_summary_rows: List[List[str]] = []
         self._skipped_snatch_summary_rows: List[List[str]] = []
         self._failed_snatches_summary_rows: List[List[str]] = []
         self._torrent_entries_to_snatch: List[TorrentEntry] = []
 
-    def gather_red_user_details(self) -> None:
+    def _gather_red_user_details(self) -> None:
         _LOGGER.info(f"Gathering red user details to help with search filtering ...")
         user_stats_json = self._red_client.request_api(action="community_stats", params=f"userid={self._red_user_id}")
         snatched_torrent_count = int(user_stats_json["snatched"].replace(",", ""))
@@ -106,7 +105,12 @@ class ReleaseSearcher:
                 rec.rec_type.value,
                 rec.rec_context.value,
                 rec.get_human_readable_artist_str(),
-                rec.get_human_readable_entity_str(),
+                rec.get_human_readable_release_str(),
+                (
+                    STATS_TRACK_REC_NONE
+                    if rec.rec_type == RecommendationType.ALBUM
+                    else rec.get_human_readable_entity_str()
+                ),
                 reason.value,
             ]
         )
@@ -129,6 +133,7 @@ class ReleaseSearcher:
                 te.get_lfm_rec_context(),
                 te.get_artist_name(),
                 te.get_release_name(),
+                STATS_TRACK_REC_NONE if not te.get_track_rec_name() else te.get_track_rec_name(),
                 te.torrent_id,
                 te.media,
                 "yes" if self._red_client.tid_snatched_with_fl_token(tid=te.torrent_id) else "no",
@@ -141,7 +146,7 @@ class ReleaseSearcher:
     def create_red_browse_params(self, red_format: RedFormat, lfm_rec: LFMRec, **search_kwargs) -> str:
         """Utility method for creating the RED browse API params string"""
         artist_name = lfm_rec.artist_str
-        album_name = lfm_rec.entity_str
+        album_name = lfm_rec.release_str
         format = red_format.get_format()
         encoding = red_format.get_encoding()
         media = red_format.get_media()
@@ -196,6 +201,13 @@ class ReleaseSearcher:
             )
         )
 
+    def _resolve_lfm_track_info(self, lfm_rec: LFMRec) -> LFMTrackInfo:
+        return LFMTrackInfo.construct_from_api_response(
+            json_blob=self._lfm_client.request_api(
+                method="track.getinfo", params=f"artist={lfm_rec.artist_str}&track={lfm_rec.entity_str}"
+            )
+        )
+
     def _resolve_mb_release(self, mbid: str) -> MBRelease:
         return MBRelease.construct_from_api(
             json_blob=self._musicbrainz_client.request_api(entity_type="release", mbid=mbid)
@@ -206,25 +218,26 @@ class ReleaseSearcher:
         Return True if the lfm_rec is valid to search for on the various APIs, or False if the lfm_rec should be skipped given the current app config settings.
         """
         artist = lfm_rec.get_human_readable_artist_str()
-        album = lfm_rec.get_human_readable_entity_str()
-        if self._skip_prior_snatches and self._red_user_details.has_snatched_release(artist=artist, album=album):
+        release = lfm_rec.get_human_readable_entity_str()
+        if self._skip_prior_snatches and self._red_user_details.has_snatched_release(artist=artist, release=release):
             _LOGGER.debug(f"'skip_prior_snatches' config field is set to True")
-            _LOGGER.debug(f"Skipped - artist: '{artist}', album: '{album}' due to prior snatch found in release group")
+            _LOGGER.debug(
+                f"Skipped - artist: '{artist}', release: '{release}' due to prior snatch found in release group"
+            )
             self._add_skipped_snatch_row(rec=lfm_rec, reason=SkippedReason.ALREADY_SNATCHED)
             return False
         if not self._allow_library_items and lfm_rec.rec_context == RecContext.IN_LIBRARY:
             _LOGGER.debug(f"'allow_library_items' config field is set to {self._allow_library_items}.")
             _LOGGER.debug(
-                f"Skipped - artist: '{artist}', album: '{album}'. Rec context is {RecContext.IN_LIBRARY.value}"
+                f"Skipped - artist: '{artist}', release: '{release}'. Rec context is {RecContext.IN_LIBRARY.value}"
             )
             self._add_skipped_snatch_row(rec=lfm_rec, reason=SkippedReason.REC_CONTEXT_FILTERING)
             return False
         return True
 
-    # TODO: add logic for a `search_for_track_rec` that basically ends up just calling this
-    def search_for_album_rec(self, lfm_rec: LFMRec) -> Optional[TorrentEntry]:
+    def search_for_release_rec(self, lfm_rec: LFMRec, release_mbid: Optional[str] = None) -> Optional[TorrentEntry]:
         """
-        Searches for the recommended album, and returns a tuple containing the permalink for the best RED match
+        Searches for the recommended release, and returns a tuple containing the permalink for the best RED match
         and the release mbid (if an mbid is found / the app is configured to request an mbid from LFM's API)
         according to format_preferences, search preferences, and snatch preferences.
         Returns None if no viable match is found.
@@ -232,21 +245,21 @@ class ReleaseSearcher:
         if not self._pre_search_filter_validate(lfm_rec=lfm_rec):
             return None
         artist = lfm_rec.get_human_readable_artist_str()
-        album = lfm_rec.get_human_readable_entity_str()
+        release = lfm_rec.get_human_readable_release_str()
         # If filtering the RED searches by any of these fields, then grab the release mbid from LFM, then hit musicbrainz to get the relevant data fields.
-        release_mbid = None
         search_kwargs = {}
         if self._require_mbid_resolution:
-            lfm_album_info = self._resolve_lfm_album_info(lfm_rec=lfm_rec)
-            release_mbid = lfm_album_info.get_release_mbid()
+            if lfm_rec.rec_type == RecommendationType.ALBUM:
+                lfm_album_info = self._resolve_lfm_album_info(lfm_rec=lfm_rec)
+                release_mbid = lfm_album_info.get_release_mbid()
             if release_mbid:
                 _LOGGER.debug(
-                    f"Attempting musicbrainz query for artist: {artist}, release: '{album}', release-mbid: '{release_mbid}'"
+                    f"Attempting musicbrainz query for artist: {artist}, release: '{release}', release-mbid: '{release_mbid}'"
                 )
                 mb_release = self._resolve_mb_release(mbid=release_mbid)
                 search_kwargs = mb_release.get_release_searcher_kwargs()
             else:  # pragma: no cover
-                _LOGGER.debug(f"LFM gave no MBID for artist: '{artist}', release: '{album}'")
+                _LOGGER.debug(f"LFM gave no MBID for artist: '{artist}', release: '{release}'")
 
         best_torrent_entry = self._search_red_release_by_preferences(lfm_rec=lfm_rec, search_kwargs=search_kwargs)
         if best_torrent_entry:
@@ -255,50 +268,83 @@ class ReleaseSearcher:
                 rec_type=lfm_rec.rec_type.value,
                 rec_context=lfm_rec.rec_context.value,
                 artist_name=artist,
-                release_name=album,
+                release_name=release,
+                track_rec_name=None if lfm_rec.is_album_rec else lfm_rec.get_human_readable_track_str(),
             )
             return best_torrent_entry
 
-        _LOGGER.warning(f"Could not find any valid search matches for artist: '{artist}', album: '{album}'")
+        _LOGGER.warning(f"Could not find any valid search matches for artist: '{artist}', album: '{release}'")
         return None
 
     def _get_tid_and_snatch_path(self, permalink: str) -> Tuple[str, str]:
         tid = permalink.split("=")[-1]
         return tid, os.path.join(self._snatch_directory, f"{tid}.torrent")
 
-    def search_for_album_recs(self, album_recs: List[LFMRec]) -> None:
+    def _search_for_release_recs(self, lfm_recs: List[LFMRec]) -> None:
         """
-        Iterate over the list of album_recs and search for each one on RED.
-        Returns the list of RED permalinks which match the search criteria for the given LFMRec.
-        Optionally will save the .torrent files in the specified snatch directory.
+        Iterate over the list of recs and search for each one on RED.
+        Returns the list of RED permalinks which match the search criteria for the given LFMRecs.
         """
+        if not lfm_recs:
+            _LOGGER.warning(f"Input lfm_recs list is empty. Skipping search.")
+            return
+        rec_type = lfm_recs[0].rec_type.value
+        if not all([lfm_rec.rec_type.value == rec_type for lfm_rec in lfm_recs]):
+            raise ReleaseSearcherException(
+                f"Invalid lfm_recs list. All recs in list must have the same rec_type value. Must be either '{RecommendationType.ALBUM.value}'or '{RecommendationType.TRACK.value}'"
+            )
         if self._skip_prior_snatches and self._red_user_details is None:
             raise ReleaseSearcherException(
                 f"self._skip_prior_snatches set to {self._skip_prior_snatches}, but self._red_user_details has not yet been populated."
             )
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
         with logging_redirect_tqdm(loggers=[_LOGGER]):
-            for album_rec in tqdm(album_recs, desc="Searching album recs"):
-                matched_torrent_entry = self.search_for_album_rec(lfm_rec=album_rec)
+            for rec in tqdm(lfm_recs, desc=f"Searching {rec_type} recs"):
+                if rec_type == RecommendationType.ALBUM.value:
+                    matched_torrent_entry = self.search_for_release_rec(lfm_rec=rec)
+                else:
+                    matched_torrent_entry = self.search_for_release_rec(
+                        lfm_rec=rec, release_mbid=rec.track_origin_release_mbid
+                    )
                 if not matched_torrent_entry:
                     continue
-                permalink = matched_torrent_entry.get_permalink_url()
-                cur_tsv_output_row = (
-                    "album",
-                    album_rec.rec_context.value,
-                    album_rec.lfm_entity_url,
-                    permalink,
-                    self._get_tid_and_snatch_path(permalink=permalink)[1],
-                    str(matched_torrent_entry.get_matched_mbid()),
-                )
-                self._tsv_output_summary_rows.append(cur_tsv_output_row)
                 self._torrent_entries_to_snatch.append(matched_torrent_entry)
         if self._run_cache.enabled:
             self._run_cache.close()
 
-    def snatch_matches(self) -> None:
+    def _search_for_track_recs(self, track_recs: List[LFMRec]) -> None:
+        """
+        Iterate over the list of LFM track recs and first resolve the release the track originates from,
+        then search for each one on RED. Returns the list of RED permalinks which match the search criteria
+        for the given LFMRec.
+        """
+        # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
+        with logging_redirect_tqdm(loggers=[_LOGGER]):
+            for track_rec in tqdm(track_recs, desc="Resolving track recs"):
+                lfm_track_info = self._resolve_lfm_track_info(lfm_rec=track_rec)
+                track_rec.set_track_origin_release(track_origin_release=lfm_track_info.get_release_name())
+                track_rec.set_track_origin_release_mbid(track_origin_release_mbid=lfm_track_info.get_release_mbid())
+        self._search_for_release_recs(lfm_recs=track_recs, rec_type=RecommendationType.TRACK.value)
+
+    def search_for_recs(self, rec_type_to_recs_list: Dict[RecommendationType, List[LFMRec]]) -> None:
+        """
+        Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled.
+        """
+        self._gather_red_user_details()
+        if RecommendationType.ALBUM in rec_type_to_recs_list:
+            self._search_for_release_recs(lfm_recs=rec_type_to_recs_list[RecommendationType.ALBUM])
+        if RecommendationType.TRACK in rec_type_to_recs_list:
+            self._search_for_track_recs(track_recs=rec_type_to_recs_list[RecommendationType.TRACK])
+        self._snatch_matches()
+
+    def _snatch_matches(self) -> None:
         if not self._enable_snatches:
             _LOGGER.warning(f"Not configured to snatch. Please update your config to enable.")
+            return
+        if not self._torrent_entries_to_snatch:
+            _LOGGER.warning(
+                f"No eligible torrents were matched to your LFM recs. Consider adjusting your search config preferences."
+            )
             return
         _LOGGER.debug(f"Beginning to snatch matched permalinks to download directory '{self._snatch_directory}' ...")
         # Prepare a list of to-snatch torrents in descending size to ensure FL tokens are used optimally (if FL token usage is enabled).
@@ -336,6 +382,3 @@ class ReleaseSearcher:
             snatch_summary_rows=self._snatch_summary_rows,
             output_filepath_prefix=self._output_summary_filepath_prefix,
         )
-
-    def get_output_summary_rows(self) -> List[Tuple[str, ...]]:  # pragma: no cover
-        return self._tsv_output_summary_rows

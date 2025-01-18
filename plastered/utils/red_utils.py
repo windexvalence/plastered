@@ -76,12 +76,12 @@ class RedUserDetails:
             )
             self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
 
-    def has_snatched_release(self, artist: str, album: str) -> bool:
+    def has_snatched_release(self, artist: str, release: str) -> bool:
         """
         Searches whether the release was already listed in the user's snatched torrents.
         NOTE: 'artist' and 'album' must be the human-readable, non URL-encoded strings.
         """
-        return (artist.lower(), album.lower()) in self._snatched_torrents_dict
+        return (artist.lower(), release.lower()) in self._snatched_torrents_dict
 
     def get_user_id(self) -> int:
         return self._user_id
@@ -222,6 +222,7 @@ class TorrentEntry:
         self._lfm_rec_context: Optional[str] = None
         self._artist_name: Optional[str] = None
         self._release_name: Optional[str] = None
+        self._track_rec_name: Optional[str] = None
 
     def __str__(self) -> str:  # pragma: no cover
         return str(vars(self))
@@ -261,11 +262,14 @@ class TorrentEntry:
     def set_matched_mbid(self, matched_mbid: str) -> None:
         self._matched_mbid = matched_mbid
 
-    def set_lfm_rec_fields(self, rec_type: str, rec_context: str, artist_name: str, release_name: str) -> None:
+    def set_lfm_rec_fields(
+        self, rec_type: str, rec_context: str, artist_name: str, release_name: str, track_rec_name: Optional[str] = None
+    ) -> None:
         self._lfm_rec_type = rec_type
         self._lfm_rec_context = rec_context
         self._artist_name = artist_name
         self._release_name = release_name
+        self._track_rec_name = track_rec_name
 
     def get_matched_mbid(self) -> Optional[str]:
         return self._matched_mbid
@@ -281,6 +285,9 @@ class TorrentEntry:
 
     def get_release_name(self) -> Optional[str]:
         return self._release_name
+
+    def get_track_rec_name(self) -> Optional[str]:
+        return self._track_rec_name
 
     def token_usable(self) -> bool:
         return self.can_use_token

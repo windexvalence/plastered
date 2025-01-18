@@ -10,6 +10,7 @@ lfm:
   lfm_password: fake-password
   lfm_api_retries: 3
   lfm_api_seconds_between_calls: 2
+  rec_types_to_scrape: [album, track]
   allow_library_items: false
   enable_scraper_cache: true
 musicbrainz:

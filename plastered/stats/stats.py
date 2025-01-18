@@ -8,9 +8,14 @@ from rich.console import Console
 from rich.table import Column, Table
 from rich.text import Text
 
+from plastered.utils.constants import STATS_TRACK_REC_NONE
 from plastered.utils.exceptions import RedClientSnatchException, StatsTableException
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _stylize_track_rec_entry(track_rec: str) -> str:
+    return "white" if track_rec == STATS_TRACK_REC_NONE else "dark_magenta"
 
 
 class SkippedReason(StrEnum):
@@ -86,7 +91,7 @@ class StatsTable:
         for row in rows:
             if len(row) != self._num_cols:
                 raise StatsTableException(
-                    f"Invalid row provided: length {len(row)}, but StatsTable instance has {self._num_cols} columns."
+                    f"Invalid row provided: length {len(row)}, but StatsTable instance has {self._num_cols} columns {row}"
                 )
             self.add_row(row)
 
@@ -134,10 +139,11 @@ class SkippedSummaryTable(StatsTable):
                 Column(header="LFM Rec context", no_wrap=True),
                 Column(header="Artist", style="cyan", no_wrap=False),
                 Column(header="Release", style="magenta", no_wrap=False),
+                Column(header="Track Rec", no_wrap=False),
                 Column(header="Skip reason", no_wrap=False),
             ],
             tsv_output_path=tsv_output_path,
-            cell_idxs_to_style_fns={4: self.stylize_skip_reason_entry},
+            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 5: self.stylize_skip_reason_entry},
             caption="Summary of LFM Recs which were either not found on RED, or ignored based on the search config settings.",
         )
         self.add_rows(rows)
@@ -180,13 +186,14 @@ class SnatchSummaryTable(StatsTable):
                 Column(header="LFM Rec context", no_wrap=False, ratio=1),
                 Column(header="Artist", style="cyan", no_wrap=False, ratio=1),
                 Column(header="Release", style="magenta", no_wrap=False, ratio=1),
+                Column(header="Track Rec", no_wrap=False),
                 Column(header="RED tid", no_wrap=True, ratio=1),
                 Column(header="Media", no_wrap=True, ratio=1),
                 Column(header="FL token used", style="green", no_wrap=True, ratio=1),
                 Column(header="Snatch path", no_wrap=True, ratio=1),
             ],
             tsv_output_path=tsv_output_path,
-            cell_idxs_to_style_fns={6: lambda fl: "green" if fl == "yes" else "white"},
+            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 7: lambda fl: "green" if fl == "yes" else "white"},
             caption="Summary of LFM Recs successfully found on RED and snatched.",
         )
         self.add_rows(rows)

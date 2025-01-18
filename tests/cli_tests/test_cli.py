@@ -1,6 +1,5 @@
 import logging
-from traceback import format_exc
-from typing import Any, List, Optional
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -17,10 +16,8 @@ from plastered.scraper.lfm_scraper import (
     RecommendationType,
 )
 from plastered.utils.exceptions import RunCacheDisabledException
-from plastered.utils.red_utils import RedUserDetails
 from tests.conftest import (
     api_run_cache,
-    mock_red_user_details,
     scraper_run_cache,
     valid_app_config,
     valid_config_filepath,
@@ -76,36 +73,73 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
         mock_logger_set_level.assert_called_once_with(verbosity)
 
 
+@pytest.mark.parametrize(
+    "rec_types, mock_scrape_result",
+    [
+        (
+            "album",
+            {
+                RecommendationType.ALBUM: [
+                    LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
+                    ),
+                ],
+            },
+        ),
+        (
+            "track",
+            {
+                RecommendationType.TRACK: [
+                    LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
+                    ),
+                ],
+            },
+        ),
+        (
+            "@all",
+            {
+                RecommendationType.ALBUM: [
+                    LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
+                    ),
+                ],
+                RecommendationType.TRACK: [
+                    LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
+                    LFMRec(
+                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
+                    ),
+                ],
+            },
+        ),
+    ],
+)
 def test_cli_scrape_command(
-    valid_config_filepath: str, valid_app_config: AppConfig, mock_red_user_details: RedUserDetails
+    valid_config_filepath: str,
+    valid_app_config: AppConfig,
+    rec_types: str,
+    mock_scrape_result: Dict[RecommendationType, List[LFMRec]],
 ) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as mock_enter:
         mock_enter.return_value = LFMRecsScraper(app_config=valid_app_config)
-        with patch.object(LFMRecsScraper, "scrape_recs_list") as mock_scrape_recs_list:
-            mock_scrape_recs_list.return_value = [
-                LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                LFMRec("Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-            ]
+        with patch.object(LFMRecsScraper, "scrape_recs") as mock_scrape_recs:
+            mock_scrape_recs.return_value = mock_scrape_result
             with patch.object(LFMRecsScraper, "__exit__") as mock_exit:
-                with patch.object(ReleaseSearcher, "search_for_album_recs") as mock_search_for_album_recs:
-                    with patch.object(ReleaseSearcher, "gather_red_user_details") as mock_gather_red_user_details:
-                        mock_gather_red_user_details.return_value = mock_red_user_details
-                        cli_runner = CliRunner()
-                        result = cli_runner.invoke(cli, ["scrape", "--config", valid_config_filepath])
-                        assert (
-                            result.exit_code == 0
-                        ), f"Expected cli command 'scrape' to pass but errored: {result.exception}"
-                        mock_enter.assert_called_once()
-                        mock_scrape_recs_list.assert_has_calls(
-                            [
-                                call(recommendation_type=RecommendationType.ALBUM),
-                                # call(recommendation_type=RecommendationType.TRACK),
-                            ]
-                        )
-                        mock_exit.assert_called_once()
-                        mock_search_for_album_recs.assert_called_once_with(
-                            album_recs=mock_scrape_recs_list.return_value
-                        )
+                with patch.object(ReleaseSearcher, "search_for_recs") as mock_search_for_recs:
+                    cli_runner = CliRunner()
+                    result = cli_runner.invoke(
+                        cli, ["scrape", "--config", valid_config_filepath, "--rec-types", rec_types]
+                    )
+                    assert (
+                        result.exit_code == 0
+                    ), f"Expected cli command 'scrape' to pass but errored: {result.exception}"
+                    mock_enter.assert_called_once()
+                    mock_scrape_recs.assert_called_once()
+                    mock_exit.assert_called_once()
+                    mock_search_for_recs.assert_called_once_with(rec_type_to_recs_list=mock_scrape_recs.return_value)
 
 
 @pytest.mark.parametrize(

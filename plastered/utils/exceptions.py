@@ -4,6 +4,12 @@ class AppConfigException(Exception):
     pass
 
 
+class LFMRecException(Exception):
+    """Exception for invalid LFMRec instance configuration / execution errors."""
+
+    pass
+
+
 class ReleaseSearcherException(Exception):
     """Exception for invalid ReleaseSearcher configurations or execution errors."""
 
