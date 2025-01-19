@@ -25,6 +25,7 @@ class SkippedReason(StrEnum):
     NO_MATCH_FOUND = "No RED match found."
     ALREADY_SNATCHED = "Pre-existing user snatch found in release group."
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
+    NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release entity."
 
 
 class SnatchFailureReason(StrEnum):

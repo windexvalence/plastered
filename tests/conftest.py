@@ -37,7 +37,17 @@ _RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, 
 _RED_MOCK_USER_TORRENTS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_response.json")
 _LFM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_album_info_api_response.json")
 _LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_api_response.json")
+# TODO: create this mock resource file + secret
+_LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_no_album_api_response.json"
+)
 _MUSICBRAINZ_MOCK_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json")
+_MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_arid.json"
+)
+_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_artist_name.json"
+)
 
 
 # boilerplate for marking tests which should only run on release builds with the `--releasetests` flag
@@ -153,8 +163,35 @@ def mock_lfm_album_info_json() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
+def mock_full_lfm_track_info_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_no_album_lfm_track_info_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
 def mock_musicbrainz_release_json() -> Dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_musicbrainz_track_search_arid_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_musicbrainz_track_search_artist_name_json() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_musicbrainz_track_search_no_release_name_json() -> Dict[str, Any]:
+    raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH)
+    del raw_data["recordings"][0]["releases"][0]["title"]
+    return raw_data
 
 
 @pytest.fixture(scope="session")

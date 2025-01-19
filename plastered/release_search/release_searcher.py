@@ -73,11 +73,7 @@ class ReleaseSearcher:
         self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.API)
         self._red_client = RedAPIClient(app_config=app_config, run_cache=self._run_cache)
         self._lfm_client = LFMAPIClient(app_config=app_config, run_cache=self._run_cache)
-
-        if self._require_mbid_resolution:
-            self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config, run_cache=self._run_cache)
-        else:
-            self._musicbrainz_client = None
+        self._musicbrainz_client = MusicBrainzAPIClient(app_config=app_config, run_cache=self._run_cache)
         self._red_format_preferences = app_config.get_red_preference_ordering()
         self._max_size_gb = app_config.get_cli_option("max_size_gb")
         self._snatch_summary_rows: List[List[str]] = []
@@ -201,16 +197,44 @@ class ReleaseSearcher:
             )
         )
 
-    def _resolve_lfm_track_info(self, lfm_rec: LFMRec) -> LFMTrackInfo:
-        return LFMTrackInfo.construct_from_api_response(
-            json_blob=self._lfm_client.request_api(
-                method="track.getinfo", params=f"artist={lfm_rec.artist_str}&track={lfm_rec.entity_str}"
+    def _resolve_lfm_track_info(self, lfm_rec: LFMRec) -> Optional[LFMTrackInfo]:
+        _LOGGER.debug(f"Resolving LFM track info for {str(lfm_rec)} ({lfm_rec.lfm_entity_url})...")
+        lfm_api_response = self._lfm_client.request_api(
+            method="track.getinfo",
+            params=f"artist={lfm_rec.artist_str}&track={lfm_rec.entity_str}",
+        )
+        if "album" in lfm_api_response:
+            return LFMTrackInfo.construct_from_api_response(json_blob=lfm_api_response)
+        _LOGGER.debug(
+            f"No origin release name found for track rec: '{lfm_rec.get_human_readable_entity_str()}' by '{lfm_rec.get_human_readable_artist_str()}'"
+        )
+        artist_mbid = None
+        try:
+            artist_mbid = lfm_api_response["track"]["artist"]["mbid"]
+        except KeyError:
+            _LOGGER.debug(
+                f"No ARID found for track rec: '{lfm_rec.get_human_readable_entity_str()}' by '{lfm_rec.get_human_readable_artist_str()}'"
+            )
+        mb_resolved_origin_release_fields = self._musicbrainz_client.request_release_details_for_track(
+            human_readable_track_name=lfm_rec.get_human_readable_track_str(),
+            artist_mbid=artist_mbid,
+            human_readable_artist_name=lfm_rec.get_human_readable_artist_str(),
+        )
+        return (
+            None
+            if not mb_resolved_origin_release_fields
+            else LFMTrackInfo(
+                artist=lfm_rec.get_human_readable_artist_str(),
+                track_name=lfm_rec.get_human_readable_track_str(),
+                lfm_url=lfm_rec.lfm_entity_url,
+                release_mbid=mb_resolved_origin_release_fields["origin_release_mbid"],
+                release_name=mb_resolved_origin_release_fields["origin_release_name"],
             )
         )
 
     def _resolve_mb_release(self, mbid: str) -> MBRelease:
         return MBRelease.construct_from_api(
-            json_blob=self._musicbrainz_client.request_api(entity_type="release", mbid=mbid)
+            json_blob=self._musicbrainz_client.request_release_details(entity_type="release", mbid=mbid)
         )
 
     def _pre_search_filter_validate(self, lfm_rec: LFMRec) -> bool:
@@ -298,7 +322,7 @@ class ReleaseSearcher:
                 f"self._skip_prior_snatches set to {self._skip_prior_snatches}, but self._red_user_details has not yet been populated."
             )
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
-        with logging_redirect_tqdm(loggers=[_LOGGER]):
+        with logging_redirect_tqdm():  # loggers=[_LOGGER]):
             for rec in tqdm(lfm_recs, desc=f"Searching {rec_type} recs"):
                 if rec_type == RecommendationType.ALBUM.value:
                     matched_torrent_entry = self.search_for_release_rec(lfm_rec=rec)
@@ -319,12 +343,17 @@ class ReleaseSearcher:
         for the given LFMRec.
         """
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
-        with logging_redirect_tqdm(loggers=[_LOGGER]):
+        resolved_track_recs = []
+        with logging_redirect_tqdm():  # loggers=[_LOGGER]):
             for track_rec in tqdm(track_recs, desc="Resolving track recs"):
                 lfm_track_info = self._resolve_lfm_track_info(lfm_rec=track_rec)
+                if not lfm_track_info:
+                    self._add_skipped_snatch_row(rec=track_rec, reason=SkippedReason.NO_SOURCE_RELEASE_FOUND)
+                    continue
                 track_rec.set_track_origin_release(track_origin_release=lfm_track_info.get_release_name())
                 track_rec.set_track_origin_release_mbid(track_origin_release_mbid=lfm_track_info.get_release_mbid())
-        self._search_for_release_recs(lfm_recs=track_recs, rec_type=RecommendationType.TRACK.value)
+                resolved_track_recs.append(track_rec)
+        self._search_for_release_recs(lfm_recs=resolved_track_recs)
 
     def search_for_recs(self, rec_type_to_recs_list: Dict[RecommendationType, List[LFMRec]]) -> None:
         """
@@ -350,7 +379,7 @@ class ReleaseSearcher:
         # Prepare a list of to-snatch torrents in descending size to ensure FL tokens are used optimally (if FL token usage is enabled).
         to_snatch = sorted(self._torrent_entries_to_snatch, key=lambda te: te.get_size(unit="MB"), reverse=True)
         # Required so that tqdm doesnt break logging: https://stackoverflow.com/a/69145493
-        with logging_redirect_tqdm(loggers=[_LOGGER]):
+        with logging_redirect_tqdm():  # loggers=[_LOGGER]):
             for torrent_entry_to_snatch in tqdm(to_snatch, desc="Snatching matched torrents"):
                 permalink = torrent_entry_to_snatch.get_permalink_url()
                 tid, out_filepath = self._get_tid_and_snatch_path(permalink=permalink)

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from time import sleep
 from typing import Any, Dict, Optional, Set, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 from urllib3.util import Retry
@@ -243,9 +243,9 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             valid_endpoints=PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
         )
 
-    def request_api(self, entity_type: str, mbid: str) -> Dict[str, Any]:
+    def request_release_details(self, entity_type: str, mbid: str) -> Dict[str, Any]:
         """
-        Helper function to hit the MusicBrainz API with retries and rate-limits.
+        Helper method to hit the MusicBrainz release API with retries and rate-limits.
         Returns the JSON response payload on success.
         Throws an Exception after `self._max_api_call_retries` consecutive failures.
         """
@@ -266,3 +266,73 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         cache_write_success = self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
         _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return json_data
+
+    def _get_track_search_query_str(
+        self,
+        human_readable_track_name: str,
+        artist_mbid: Optional[str] = None,
+        human_readable_artist_name: Optional[str] = None,
+    ) -> Optional[str]:
+        search_query_prefix = f"recording:{quote(human_readable_track_name + ' AND ')}"
+        if artist_mbid:
+            return search_query_prefix + f"arid:{artist_mbid}"
+        if human_readable_artist_name:
+            return search_query_prefix + f"artist:{quote(human_readable_artist_name)}"
+        _LOGGER.debug(
+            f"Cannot resolve origin release for track rec: '{human_readable_track_name}'. No available artist_mbid or human readable artist name provided."
+        )
+        return None
+
+    def request_release_details_for_track(
+        self,
+        human_readable_track_name: str,
+        artist_mbid: Optional[str] = None,
+        human_readable_artist_name: Optional[str] = None,
+    ) -> Optional[Dict[str, Optional[str]]]:
+        """
+        Helper method specifically for attempting to resolve a release name / MBID from which a track rec originated from
+        with retries and rate-limits. The underlying "endpoint" this method requests is MusicBrainz's "recording" search endpoint:
+        https://musicbrainz.org/doc/MusicBrainz_API/Search#Recording
+        This will only be called if the LFM API does not have a release name already associated with the track rec in question.
+
+        If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
+        Otherwise returns a dict of the the form {"origin_release_mbid": Optional[str], "origin_release_name": Optional[str]}
+        """
+        _LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
+        search_query_str = self._get_track_search_query_str(
+            human_readable_track_name=human_readable_track_name,
+            artist_mbid=artist_mbid,
+            human_readable_artist_name=human_readable_artist_name,
+        )
+        if not search_query_str:
+            return None
+        # Sanity check endpoint then attempt reading from cache
+        loaded_from_cache = self._read_from_run_cache(endpoint="recording", params=search_query_str)
+        if loaded_from_cache:
+            return loaded_from_cache
+        # Enforce request throttling
+        self._throttle()
+        # Once throttling requirements are met, continue with building and submitting the request
+        json_data = self._session.get(
+            url=f"{MUSICBRAINZ_API_BASE_URL}recording?query={search_query_str}&fmt=json",
+            headers={"Accept": "application/json"},
+        ).json()
+        try:
+            first_release_match_json = json_data["recordings"][0]["releases"][0]
+        except (KeyError, IndexError):  # pragma: no cover
+            _LOGGER.debug(
+                f"Unable to resolve an origin release for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
+            )
+            return None
+        rel_mbid, rel_name = first_release_match_json.get("id"), first_release_match_json.get("title")
+        if not rel_name:
+            _LOGGER.debug(
+                f"Unable to resolve origin release title for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
+            )
+            return None
+        release_details = {"origin_release_mbid": rel_mbid, "origin_release_name": rel_name}
+        cache_write_success = self._write_cache_if_enabled(
+            endpoint="recording", params=search_query_str, result_json=release_details
+        )
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        return release_details

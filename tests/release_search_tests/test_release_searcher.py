@@ -29,9 +29,13 @@ from plastered.utils.red_utils import (
     TorrentEntry,
 )
 from tests.conftest import (
+    mock_full_lfm_track_info_json,
     mock_lfm_album_info_json,
     mock_lfm_session_get_side_effect,
     mock_mb_session_get_side_effect,
+    mock_musicbrainz_track_search_arid_json,
+    mock_musicbrainz_track_search_artist_name_json,
+    mock_no_album_lfm_track_info_json,
     mock_red_browse_non_empty_response,
     mock_red_session_get_side_effect,
     mock_red_user_details,
@@ -207,20 +211,82 @@ def test_resolve_lfm_album_info(valid_app_config: AppConfig) -> None:
         )
 
 
-def test_resolve_lfm_track_info(valid_app_config: AppConfig) -> None:
-    with patch("requests.Session.get", side_effect=mock_lfm_session_get_side_effect) as mock_sesh_get:
-        release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        test_lfm_rec = LFMRec(
-            lfm_artist_str="Some+Artist",
-            lfm_entity_str="Their+Track",
-            recommendation_type=RecommendationType.TRACK,
-            rec_context=RecContext.IN_LIBRARY,
-        )
-        release_searcher._resolve_lfm_track_info(lfm_rec=test_lfm_rec)
-        mock_sesh_get.assert_called_once_with(
-            url="https://ws.audioscrobbler.com/2.0/?method=track.getinfo&api_key=5678alsonotarealapikey&artist=Some+Artist&track=Their+Track&format=json",
-            headers={"Accept": "application/json"},
-        )
+@pytest.mark.parametrize(
+    "test_lfm_rec, mock_lfm_json_fixture, mb_resolved_origin_release_fields, expected",
+    [
+        (
+            LFMRec(
+                lfm_artist_str="Dr.+Octagon",
+                lfm_entity_str="No+Awareness",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "mock_full_lfm_track_info_json",
+            None,
+            LFMTrackInfo(
+                artist="Dr. Octagon",
+                track_name="No Awareness",
+                release_name="Dr. Octagonecologyst",
+                lfm_url="https://www.last.fm/music/Dr.+Octagon/_/No+Awareness",
+                release_mbid="cddbf21f-9cd8-4665-a015-3cdc50cdcc72",
+            ),
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="The+Tuss",
+                lfm_entity_str="rushup+i+bank+12+M",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "mock_no_album_lfm_track_info_json",
+            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
+            LFMTrackInfo(
+                artist="The Tuss",
+                track_name="rushup i bank 12 M",
+                release_name="Rushup Edge",
+                lfm_url="https://www.last.fm/music/The+Tuss/_/rushup+i+bank+12+M",
+                release_mbid="3b08749b-b63e-46d3-b693-e0736faf046f",
+            ),
+        ),
+        (
+            LFMRec(
+                lfm_artist_str="The+Tuss",
+                lfm_entity_str="rushup+i+bank+12+M",
+                recommendation_type=RecommendationType.TRACK,
+                rec_context=RecContext.IN_LIBRARY,
+            ),
+            "mock_no_album_lfm_track_info_json",
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_lfm_track_info(
+    request: pytest.FixtureRequest,
+    valid_app_config: AppConfig,
+    test_lfm_rec: LFMRec,
+    mock_lfm_json_fixture: str,
+    mb_resolved_origin_release_fields: Optional[Dict[str, Optional[str]]],
+    expected: Optional[LFMTrackInfo],
+) -> None:
+    # TODO: refactor the logic here to follow the new parametrize structure above.
+    mock_lfm_response = request.getfixturevalue(mock_lfm_json_fixture)["track"]
+    with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
+        mock_lfm_request_api.return_value = mock_lfm_response
+        with patch.object(
+            MusicBrainzAPIClient, "request_release_details_for_track"
+        ) as mock_request_release_details_for_track:
+            mock_request_release_details_for_track.return_value = mb_resolved_origin_release_fields
+            release_searcher = ReleaseSearcher(app_config=valid_app_config)
+            actual = release_searcher._resolve_lfm_track_info(lfm_rec=test_lfm_rec)
+            mock_lfm_request_api.assert_called_once_with(
+                method="track.getinfo", params=f"artist={test_lfm_rec.artist_str}&track={test_lfm_rec.entity_str}"
+            )
+            if "album" in mock_lfm_response:
+                mock_request_release_details_for_track.assert_not_called()
+            else:
+                mock_request_release_details_for_track.assert_called_once()
+            assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 def test_resolve_mb_release(valid_app_config: AppConfig) -> None:
@@ -1010,21 +1076,28 @@ def test_search_for_release_recs_tracks(
             assert actual_te == expected_te, f"Expected TorrentEntry: {expected_te}, but got {actual_te}"
 
 
-def test_search_for_track_recs(valid_app_config: AppConfig) -> None:
+@pytest.mark.parametrize(
+    "mock_resolve_lfm_result",
+    [
+        (None),
+        (LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")),
+    ],
+)
+def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolve_lfm_result: Optional[LFMTrackInfo]) -> None:
     test_lfm_rec = LFMRec("Some+Artist", "Track+Title", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST)
-    test_track_info = LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")
     with patch.object(ReleaseSearcher, "_search_for_release_recs") as mock_search_for_release_recs:
         with patch.object(ReleaseSearcher, "_resolve_lfm_track_info") as mock_resolve_lfm_track_info:
-            mock_resolve_lfm_track_info.return_value = test_track_info
+            mock_resolve_lfm_track_info.return_value = mock_resolve_lfm_result
             mock_search_for_release_recs.return_value = None
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
             release_searcher._search_for_track_recs(track_recs=[test_lfm_rec])
             mock_resolve_lfm_track_info.assert_called_once_with(lfm_rec=test_lfm_rec)
-            assert test_lfm_rec.get_human_readable_release_str() == test_track_info.get_release_name()
-            assert test_lfm_rec.track_origin_release_mbid == test_track_info.get_release_mbid()
-            mock_search_for_release_recs.assert_called_once_with(
-                lfm_recs=[test_lfm_rec], rec_type=RecommendationType.TRACK.value
-            )
+            if not mock_resolve_lfm_result:
+                mock_search_for_release_recs.assert_called_once_with(lfm_recs=[])
+            else:
+                assert test_lfm_rec.get_human_readable_release_str() == mock_resolve_lfm_result.get_release_name()
+                assert test_lfm_rec.track_origin_release_mbid == mock_resolve_lfm_result.get_release_mbid()
+                mock_search_for_release_recs.assert_called_once_with(lfm_recs=[test_lfm_rec])
 
 
 @pytest.mark.parametrize(

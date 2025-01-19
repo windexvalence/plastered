@@ -17,6 +17,9 @@ from tests.conftest import (
     api_run_cache,
     mock_lfm_session_get_side_effect,
     mock_mb_session_get_side_effect,
+    mock_musicbrainz_track_search_arid_json,
+    mock_musicbrainz_track_search_artist_name_json,
+    mock_musicbrainz_track_search_no_release_name_json,
     mock_red_session_get_side_effect,
     mock_red_snatch_get_side_effect,
     valid_app_config,
@@ -479,10 +482,10 @@ def test_request_musicbrainz_api(
         mb_client._throttle.return_value = None
         if should_fail:
             with pytest.raises(exception_type, match=exception_message):
-                result = mb_client.request_api(entity_type=entity_type, mbid=expected_mbid)
+                result = mb_client.request_release_details(entity_type=entity_type, mbid=expected_mbid)
                 mb_client._throttle.assert_not_called()
         else:
-            result = mb_client.request_api(entity_type="release", mbid=expected_mbid)
+            result = mb_client.request_release_details(entity_type="release", mbid=expected_mbid)
             mb_client._throttle.assert_called_once()
             assert isinstance(result, dict), f"Expected result from request_api to be a dict, but was: {type(result)}"
             assert "id" in result.keys(), f"Missing expected top-level key in musicbrainz response: 'id'"
@@ -490,6 +493,111 @@ def test_request_musicbrainz_api(
             assert (
                 response_mbid == expected_mbid
             ), f"Mismatch between actual response mbid ('{response_mbid}') and expected mbid ('{expected_mbid}')"
+
+
+@pytest.mark.parametrize(
+    "track_name, artist_mbid, artist_name, expected",
+    [
+        ("Some Track", "69-420abc", "Some Artist", "recording:Some%20Track%20AND%20arid:69-420abc"),
+        ("Some Track", None, "Some Artist", "recording:Some%20Track%20AND%20artist:Some%20Artist"),
+        ("Some Track", None, None, None),
+    ],
+)
+def test_mb_get_track_search_query_str(
+    valid_app_config: AppConfig,
+    api_run_cache: RunCache,
+    track_name: str,
+    artist_mbid: Optional[str],
+    artist_name: Optional[str],
+    expected: Optional[str],
+) -> None:
+    with patch("requests.Session.get", side_effect=mock_mb_session_get_side_effect) as mock_sesh_get:
+        mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+        mb_client._throttle = Mock(name="_throttle")
+        mb_client._throttle.return_value = None
+        actual = mb_client._get_track_search_query_str(
+            human_readable_track_name=track_name,
+            artist_mbid=artist_mbid,
+            human_readable_artist_name=artist_name,
+        )
+        assert actual == expected, f"Expected '{expected}', but got '{actual}'"
+
+
+@pytest.mark.parametrize(
+    "mock_mb_json_response_fixture_name, track_name, artist_mbid, artist_name, mock_read_from_cache_result, expected",
+    [
+        (  # test case 1: cache hit
+            "mock_musicbrainz_track_search_arid_json",
+            "rushup i bank 12 M",
+            "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "The Tuss",
+            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
+            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
+        ),
+        (  # test case 2: no cache hit, full track info provided
+            "mock_musicbrainz_track_search_arid_json",
+            "rushup i bank 12 M",
+            "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "The Tuss",
+            None,
+            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
+        ),
+        (  # test case 3: no cache hit, result from searching by artist name and not arid.
+            "mock_musicbrainz_track_search_artist_name_json",
+            "rushup i bank 12 M",
+            None,
+            "The Tuss",
+            None,
+            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
+        ),
+        (  # test case 4: mbid response has no release title in it, should return None
+            "mock_musicbrainz_track_search_no_release_name_json",
+            "rushup i bank 12 M",
+            None,
+            "The Tuss",
+            None,
+            None,
+        ),
+        (  # test case 5: no cache hit, empty arid and artist name leading to nonetype result.
+            "mock_musicbrainz_track_search_artist_name_json",
+            "rushup i bank 12 M",
+            None,
+            None,
+            None,
+            None,
+        ),
+        # ("mock_musicbrainz_track_search_artist_name_json"),
+    ],
+)
+def test_request_release_details_for_track(
+    request: pytest.FixtureRequest,
+    valid_app_config: AppConfig,
+    api_run_cache: RunCache,
+    mock_mb_json_response_fixture_name: str,
+    track_name: str,
+    artist_mbid: Optional[str],
+    artist_name: Optional[str],
+    mock_read_from_cache_result: Optional[str],
+    expected: Optional[Dict[str, Optional[str]]],
+) -> None:
+    def _sesh_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+        resp_mock = MagicMock(name="json")
+        mock_json = request.getfixturevalue(mock_mb_json_response_fixture_name)
+        resp_mock.json.return_value = mock_json
+        return resp_mock
+
+    with patch("requests.Session.get", side_effect=_sesh_get_side_effect) as mock_sesh_get:
+        with patch.object(MusicBrainzAPIClient, "_read_from_run_cache") as mock_read_from_cache:
+            mock_read_from_cache.return_value = mock_read_from_cache_result
+            mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+            mb_client._throttle = Mock(name="_throttle")
+            mb_client._throttle.return_value = None
+            actual = mb_client.request_release_details_for_track(
+                human_readable_track_name=track_name,
+                artist_mbid=artist_mbid,
+                human_readable_artist_name=artist_name,
+            )
+            assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 @pytest.mark.parametrize(
@@ -532,6 +640,9 @@ def test_api_client_cache_hit(
         test_client = subclass(app_config=valid_app_config, run_cache=api_run_cache)
         expected_cache_key = (expected_base_domain, endpoint, params)
         api_run_cache._cache.set(expected_cache_key, mocked_json, expire=3600)
-        actual_result = test_client.request_api(endpoint, params)
+        if subclass.__name__ == "MusicBrainzAPIClient":
+            actual_result = test_client.request_release_details(endpoint, params)
+        else:
+            actual_result = test_client.request_api(endpoint, params)
         assert actual_result == mocked_json
         mock_sesh_get.assert_not_called()
