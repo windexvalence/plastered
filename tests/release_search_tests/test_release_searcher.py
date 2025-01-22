@@ -1,6 +1,6 @@
 import os
 from collections import deque
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -32,6 +32,7 @@ from tests.conftest import (
     mock_full_lfm_track_info_json,
     mock_lfm_album_info_json,
     mock_lfm_session_get_side_effect,
+    mock_lfm_track_info_raise_client_exception,
     mock_mb_session_get_side_effect,
     mock_musicbrainz_track_search_arid_json,
     mock_musicbrainz_track_search_artist_name_json,
@@ -40,7 +41,7 @@ from tests.conftest import (
     mock_red_session_get_side_effect,
     mock_red_user_details,
     mock_red_user_stats_response,
-    mock_red_user_torrents_response,
+    mock_red_user_torrents_snatched_response,
     valid_app_config,
 )
 
@@ -55,6 +56,11 @@ def mock_lfmai() -> LFMAlbumInfo:
 @pytest.fixture(scope="function")
 def mock_lfm_track_info() -> LFMTrackInfo:
     return LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")
+
+
+@pytest.fixture(scope="function")
+def no_snatch_user_details() -> RedUserDetails:
+    return RedUserDetails(user_id=12345, snatched_count=0, snatched_torrents_list=[])
 
 
 @pytest.fixture(scope="session")
@@ -259,6 +265,17 @@ def test_resolve_lfm_album_info(valid_app_config: AppConfig) -> None:
             None,
             None,
         ),
+        # (
+        #     LFMRec(
+        #         lfm_artist_str="The+Tuss",
+        #         lfm_entity_str="rushup+i+bank+12+M",
+        #         recommendation_type=RecommendationType.TRACK,
+        #         rec_context=RecContext.IN_LIBRARY,
+        #     ),
+        #     "mock_lfm_track_info_raise_client_exception",
+        #     None,
+        #     None,
+        # ),
     ],
 )
 def test_resolve_lfm_track_info(
@@ -269,7 +286,6 @@ def test_resolve_lfm_track_info(
     mb_resolved_origin_release_fields: Optional[Dict[str, Optional[str]]],
     expected: Optional[LFMTrackInfo],
 ) -> None:
-    # TODO: refactor the logic here to follow the new parametrize structure above.
     mock_lfm_response = request.getfixturevalue(mock_lfm_json_fixture)["track"]
     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
         mock_lfm_request_api.return_value = mock_lfm_response
@@ -287,6 +303,62 @@ def test_resolve_lfm_track_info(
             else:
                 mock_request_release_details_for_track.assert_called_once()
             assert actual == expected, f"Expected {expected}, but got {actual}"
+
+
+@pytest.mark.parametrize("lfm_api_response", [None, {"no-artist-key": "should-error"}])
+def test_resolve_lfm_track_info_bad_json(
+    valid_app_config: AppConfig,
+    lfm_api_response: Optional[Dict[str, Any]],
+) -> None:
+    rec = LFMRec("Fake+Artist", "Fake+Song", RecommendationType.TRACK, RecContext.IN_LIBRARY)
+    with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
+        mock_lfm_request_api.return_value = lfm_api_response
+        with patch.object(MusicBrainzAPIClient, "request_release_details_for_track") as mock_mb_request_method:
+            mock_mb_request_method.return_value = {
+                "origin_release_mbid": "69430-08749b-b",
+                "origin_release_name": "Some Release",
+            }
+            release_searcher = ReleaseSearcher(app_config=valid_app_config)
+            actual = release_searcher._resolve_lfm_track_info(lfm_rec=rec)
+            assert actual is not None
+            mock_mb_request_method.assert_called_once_with(
+                human_readable_track_name=rec.get_human_readable_track_str(),
+                artist_mbid=None,
+                human_readable_artist_name=rec.get_human_readable_artist_str(),
+            )
+
+
+# @pytest.mark.parametrize(
+#     "lfm_rec, lfm_json_fixture, expected", [
+#         (
+#             LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+#             "mock_lfm_track_info_raise_client_exception",
+#             None,
+#         ),
+#         (
+#             LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+#             "mock_lfm_track_info_raise_key_error_during_track_resolution",
+#             None,
+#         ),
+#     ]
+# )
+# def test_resolve_lfm_track_info_client_exception(
+#     request: pytest.FixtureRequest,
+#     valid_app_config: AppConfig,
+#     lfm_rec: LFMRec,
+#     lfm_json_fixture: str,
+#     expected: Optional[LFMTrackInfo],
+# ) -> None:
+#     mock_lfm_response = request.getfixturevalue(lfm_json_fixture)["track"]
+#     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
+#         mock_lfm_request_api.return_value = mock_lfm_response
+#         with patch.object(
+#             MusicBrainzAPIClient, "request_release_details_for_track"
+#         ) as mock_request_release_details_for_track:
+#             mock_request_release_details_for_track.return_value = None
+#             release_searcher = ReleaseSearcher(app_config=valid_app_config)
+#             actual = release_searcher._resolve_lfm_track_info(lfm_rec=lfm_rec)
+#             assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 def test_resolve_mb_release(valid_app_config: AppConfig) -> None:
@@ -342,7 +414,7 @@ def test_gather_red_user_details(valid_app_config: AppConfig) -> None:
             release_searcher._gather_red_user_details()
             assert (
                 release_searcher._red_user_details is not None
-            ), f"Expected ReleaseSearcher's subsequent value for _red_user_details attribute after invoking 'gather_red_user_details' to not be None, but got {type(release_searcher._red_user_details)}"
+            ), f"Expected to not be None, but got {type(release_searcher._red_user_details)}"
             expected_red_user_id = release_searcher._red_user_id
             red_user_details_user_id = release_searcher._red_user_details.get_user_id()
             assert (
@@ -404,7 +476,7 @@ def test_add_snatch_row(
             mock_best_te.get_artist_name(),
             mock_best_te.get_release_name(),
             "N/A",
-            mock_best_te.torrent_id,
+            str(mock_best_te.torrent_id),
             mock_best_te.media,
             expected_fl_col_val,
             mock_snatch_path,
@@ -565,6 +637,56 @@ def test_search_red_release_by_preferences_browse_exception_raised(
         )
         assert actual is None, f"Expected None, but got {actual}"
         mock_logger.error.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "lfm_rec, mock_tids_to_snatch, mock_red_user_has_snatched_tid_result, expected, expected_add_skip_row_call_kwargs",
+    [
+        (  # case 1: current best_te's TID already exists in the current to_snatch list
+            LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+            set([69420]),
+            False,
+            False,
+            {
+                "rec": LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+                "reason": SkippedReason.DUPE_OF_ANOTHER_REC,
+            },
+        ),
+        (  # case 2: current best_te's TID already marked as snatched or seeding by red user details
+            LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+            set([100]),
+            True,
+            False,
+            {
+                "rec": LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+                "reason": SkippedReason.ALREADY_SNATCHED,
+                "matched_tid": 69420,
+            },
+        ),
+    ],
+)
+def test_post_search_filter(
+    valid_app_config: AppConfig,
+    mock_best_te: TorrentEntry,
+    mock_red_user_details: RedUserDetails,
+    lfm_rec: LFMRec,
+    mock_tids_to_snatch: Set[int],
+    mock_red_user_has_snatched_tid_result: bool,
+    expected: bool,
+    expected_add_skip_row_call_kwargs: Optional[Dict[str, Any]],
+) -> None:
+    with patch("requests.Session.get", side_effect=mock_lfm_session_get_side_effect) as mock_sesh_get:
+        with patch.object(RedUserDetails, "has_snatched_tid") as mock_rud_has_snatched_tid:
+            with patch.object(ReleaseSearcher, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
+                mock_add_skipped_snatch_row.return_value = None
+                mock_rud_has_snatched_tid.return_value = mock_red_user_has_snatched_tid_result
+                release_searcher = ReleaseSearcher(app_config=valid_app_config)
+                release_searcher._red_user_details = mock_red_user_details
+                release_searcher._tids_to_snatch = mock_tids_to_snatch
+                actual = release_searcher._post_search_filter(lfm_rec=lfm_rec, best_te=mock_best_te)
+                assert actual == expected, f"Expected {expected} but got {actual}"
+                if expected_add_skip_row_call_kwargs:
+                    mock_add_skipped_snatch_row.assert_called_once_with(**expected_add_skip_row_call_kwargs)
 
 
 # TODO (later): clean up this nightmare of a test function
@@ -731,10 +853,11 @@ def test_search_for_album_rec_skip_prior_snatch(
     ],
 )
 def test_search_for_album_rec_allow_library_items(
+    valid_app_config: AppConfig,
+    no_snatch_user_details: RedUserDetails,
     rec_context: RecContext,
     allow_library_items: bool,
     expect_found: bool,
-    valid_app_config: AppConfig,
 ) -> None:
     lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
@@ -744,6 +867,7 @@ def test_search_for_album_rec_allow_library_items(
     )
     with patch.object(ReleaseSearcher, "_search_red_release_by_preferences") as mock_rfp_search:
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._red_user_details = no_snatch_user_details
         release_searcher._skip_prior_snatches = False
         release_searcher._allow_library_items = allow_library_items
         release_searcher._require_mbid_resolution = False

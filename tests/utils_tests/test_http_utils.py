@@ -1,12 +1,12 @@
 import datetime
 from typing import Any, Callable, Dict, List, Optional, Set
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
 
 import pytest
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.utils.exceptions import RedClientSnatchException
+from plastered.utils.exceptions import LFMClientException, RedClientSnatchException
 from plastered.utils.http_utils import (
     LFMAPIClient,
     MusicBrainzAPIClient,
@@ -37,6 +37,16 @@ def _subclass_to_side_effect_fn(subclass_name: str) -> Callable:
         "MusicBrainzAPIClient": mock_mb_session_get_side_effect,
         "RedAPIClient": mock_red_session_get_side_effect,
     }[subclass_name]
+
+
+@pytest.fixture(scope="session")
+def mb_track_response_raise_key_error() -> Dict[str, Any]:
+    return {"recordings": [{"missing_releases_key": True}]}
+
+
+@pytest.fixture(scope="session")
+def mb_track_response_raise_index_error() -> Dict[str, Any]:
+    return {"recordings": []}
 
 
 @pytest.fixture(scope="session")
@@ -440,6 +450,35 @@ def test_request_lfm_api(
             ), f"Unexpected mismatch in top-level JSON keys for request_lfm_api response."
 
 
+@pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
+def test_request_lfm_api_non_200_status(
+    api_run_cache: RunCache,
+    valid_app_config: AppConfig,
+    method: str,
+) -> None:
+    with patch("requests.Session.get", return_value=MagicMock(status_code=404)) as mock_sesh_get:
+        lfm_client = LFMAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+        lfm_client._throttle = Mock(name="_throttle")
+        lfm_client._throttle.return_value = None
+        with pytest.raises(LFMClientException, match=f"Unexpected LFM API error encountered for method '{method}'"):
+            result = lfm_client.request_api(method=method, params="fakekey=fakevalue")
+            lfm_client._throttle.assert_called_once()
+
+
+@pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
+def test_request_lfm_api_bad_json_response(api_run_cache: RunCache, valid_app_config: AppConfig, method: str) -> None:
+    resp_mock = MagicMock()
+    resp_mock.json.return_value = {"error": 123, "messsage": "LFM API handles errors like this sometimes"}
+    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
+    type(resp_mock).status_code = PropertyMock(return_value=200)
+    with patch("requests.Session.get", return_value=resp_mock) as mock_sesh_get:
+        lfm_client = LFMAPIClient(app_config=valid_app_config, run_cache=api_run_cache)
+        lfm_client._throttle = Mock(name="_throttle")
+        lfm_client._throttle.return_value = None
+        with pytest.raises(LFMClientException, match=f"LFM API error encounterd. LFM error code: '123'"):
+            lfm_client.request_api(method=method, params="fakekey=fakevalue")
+
+
 @pytest.mark.parametrize(
     "entity_type, expected_mbid, should_fail, exception_type, exception_message",
     [
@@ -563,6 +602,22 @@ def test_mb_get_track_search_query_str(
             "rushup i bank 12 M",
             None,
             None,
+            None,
+            None,
+        ),
+        (  # test case 6: json response triggers a KeyError, result should be None
+            "mb_track_response_raise_key_error",
+            "rushup i bank 12 M",
+            "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "The Tuss",
+            None,
+            None,
+        ),
+        (  # test case 6: json response triggers an IndexError, result should be None
+            "mb_track_response_raise_index_error",
+            "rushup i bank 12 M",
+            "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "The Tuss",
             None,
             None,
         ),

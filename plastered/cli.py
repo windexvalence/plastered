@@ -13,6 +13,7 @@ from rich.console import Console
 
 # https://stackoverflow.com/a/68878216
 from rich.logging import RichHandler
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from plastered.config.config_parser import AppConfig, load_init_config_template
 from plastered.config.config_schema import ENABLE_SNATCHING_KEY, REC_TYPES_TO_SCRAPE_KEY
@@ -89,9 +90,10 @@ def cli(
     lfm_password: Optional[str] = None,
 ) -> None:
     _LOGGER.setLevel(verbosity.upper())
-    _LOGGER.debug(f"Detected terminal width: {_TERMINAL_COLS}")
-    ctx.obj = {}
-    ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
+    with logging_redirect_tqdm():
+        _LOGGER.debug(f"Detected terminal width: {_TERMINAL_COLS}")
+        ctx.obj = {}
+        ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
 
 
 @cli.command(

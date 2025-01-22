@@ -26,16 +26,33 @@ def _noop_col_fn(x: Any) -> Any:
 @pytest.fixture(scope="session")
 def skipped_rows() -> List[List[str]]:
     return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", SkippedReason.ALREADY_SNATCHED.value],
-        ["album", "similar-artist", "Some Other Artist", "Other Album", "N/A", SkippedReason.ABOVE_MAX_SIZE.value],
-        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", SkippedReason.NO_MATCH_FOUND.value],
-        ["album", "in-library", "Another Artist", "Fake Album", "N/A", SkippedReason.REC_CONTEXT_FILTERING.value],
+        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
+        [
+            "album",
+            "similar-artist",
+            "Some Other Artist",
+            "Other Album",
+            "N/A",
+            "69420",
+            SkippedReason.ABOVE_MAX_SIZE.value,
+        ],
+        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkippedReason.NO_MATCH_FOUND.value],
+        [
+            "album",
+            "in-library",
+            "Another Artist",
+            "Fake Album",
+            "N/A",
+            "None",
+            SkippedReason.REC_CONTEXT_FILTERING.value,
+        ],
         [
             "track",
             "in-library",
             "Another Artist",
             "Fake Release",
             "Some Track",
+            "None",
             SkippedReason.REC_CONTEXT_FILTERING.value,
         ],
     ]
@@ -66,7 +83,7 @@ def snatch_summary_rows() -> List[List[str]]:
         ],
         ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
         [
-            "album",
+            "track",
             "similar-artist",
             "Fake Band",
             "Fake Album",

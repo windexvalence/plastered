@@ -10,7 +10,7 @@ from plastered.stats.stats import RunCacheSummaryTable
 from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from plastered.utils.exceptions import RunCacheDisabledException
 
-_LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class CacheType(StrEnum):
@@ -46,20 +46,20 @@ class RunCache:
         self._expiration_datetime = _tomorrow_midnight_datetime()
         self._cache_type = cache_type
         self._enabled = app_config.is_cache_enabled(cache_type=self._cache_type)
-        _LOGGER.debug(f"This is a debug message")
-        _LOGGER.info(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
+        LOGGER.debug(f"This is a debug message")
+        LOGGER.info(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_config.get_cache_directory_path(cache_type=self._cache_type)
-        _LOGGER.info(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
+        LOGGER.info(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
         self._cache: Optional[Cache] = None
         if self._enabled:
-            _LOGGER.info(f"Enabling diskcache for {self._cache_type.value} ...")
+            LOGGER.info(f"Enabling diskcache for {self._cache_type.value} ...")
             self._cache = Cache(self._cache_dir_path)
-            _LOGGER.info(f"diskcache instantiated for {self._cache_type.value} ...")
+            LOGGER.info(f"diskcache instantiated for {self._cache_type.value} ...")
             self._cache.stats(enable=True, reset=True)
             # TODO: make sure that this doesn't need to be called in each load call or more frequently than on construction
             num_expired = self._cache.expire()
-            _LOGGER.info(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
-            _LOGGER.info(
+            LOGGER.info(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
+            LOGGER.info(
                 f"Any newly added {self._cache_type.value} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
             )
         self._default_disabled_exception_msg = f"{self._cache_type} cache is not enabled. To enable it, set {self._cache_type.value}_cache_enabled to true in config.yaml."
@@ -103,7 +103,7 @@ class RunCache:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         num_entries_removed = self._cache.clear()
-        _LOGGER.info(f"{self._cache_type.value} emptied: {num_entries_removed} entries removed.")
+        LOGGER.info(f"{self._cache_type.value} emptied: {num_entries_removed} entries removed.")
 
     def close(self) -> None:  # pragma: no cover
         """
@@ -112,7 +112,7 @@ class RunCache:
         if self._enabled:
             self._cache.close()
             return
-        _LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
+        LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
 
     def check(self) -> None:
         """
@@ -124,8 +124,8 @@ class RunCache:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         diskcache_warnings = self._cache.check()
         if diskcache_warnings:
-            _LOGGER.warning(f"{self._cache_type.value} diskcache warnings: ")
-            _LOGGER.warning("\n".join(diskcache_warnings))
+            LOGGER.warning(f"{self._cache_type.value} diskcache warnings: ")
+            LOGGER.warning("\n".join(diskcache_warnings))
 
     def load_data_if_valid(self, cache_key: Any, data_validator_fn: Callable) -> Any:
         if not self._enabled:
@@ -135,10 +135,10 @@ class RunCache:
             return None
         try:
             if not data_validator_fn(cached_data):
-                _LOGGER.warning(f"Cached {self._cache_type} data is not valid.")
+                LOGGER.warning(f"Cached {self._cache_type} data is not valid.")
                 return None
         except Exception:
-            _LOGGER.error(
+            LOGGER.error(
                 f"Encountered uncaught error during validation of {self._cache_type} data under cache key '{cache_key}'."
             )
             del self._cache[cache_key]

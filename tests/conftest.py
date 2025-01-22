@@ -3,7 +3,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 import yaml
@@ -34,7 +34,12 @@ _RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(
 )
 _RED_MOCK_GROUP_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "mock_red_group_response.json")
 _RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_userstats_response.json")
-_RED_MOCK_USER_TORRENTS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_response.json")
+_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_snatched_response.json"
+)
+_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_seeding_response.json"
+)
 _LFM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_album_info_api_response.json")
 _LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_api_response.json")
 # TODO: create this mock resource file + secret
@@ -79,14 +84,6 @@ def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
     with open(json_filepath, "r") as f:
         json_data = json.load(f)
     return json_data
-
-
-_RED_ACTIONS_TO_MOCK_JSON = {
-    "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
-    "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
-    "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
-    "user_torrents": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_JSON_FILEPATH),
-}
 
 
 @pytest.fixture(scope="session")
@@ -146,14 +143,25 @@ def mock_red_user_stats_response() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_torrents_response() -> Dict[str, Any]:
-    return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_JSON_FILEPATH)
+def mock_red_user_torrents_snatched_response() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_details(mock_red_user_torrents_response: Dict[str, Any]) -> RedUserDetails:
+def mock_red_user_torrents_seeding_response() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_red_user_details(
+    mock_red_user_torrents_snatched_response: Dict[str, Any],
+    mock_red_user_torrents_seeding_response: Dict[str, Any],
+) -> RedUserDetails:
     return RedUserDetails(
-        user_id=69, snatched_count=5216, snatched_torrents_list=mock_red_user_torrents_response["response"]["snatched"]
+        user_id=69,
+        snatched_count=5216,
+        snatched_torrents_list=mock_red_user_torrents_snatched_response["response"]["snatched"]
+        + mock_red_user_torrents_seeding_response["response"]["seeding"],
     )
 
 
@@ -170,6 +178,11 @@ def mock_full_lfm_track_info_json() -> Dict[str, Any]:
 @pytest.fixture(scope="session")
 def mock_no_album_lfm_track_info_json() -> Dict[str, Any]:
     return load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
+def mock_lfm_track_info_raise_client_exception() -> Dict[str, Any]:
+    return {"error": "should-raise-LFMClientException"}
 
 
 @pytest.fixture(scope="session")
@@ -251,11 +264,24 @@ def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
     patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
     This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
     """
+    _red_actions_to_mock_json = {
+        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
+        "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
+        "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
+        "user_torrents": {
+            "snatched": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH),
+            "seeding": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH),
+        },
+    }
     url_val = kwargs["url"]
     m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
     red_action = m.groups()[0]
+    if red_action == "user_torrents":
+        key = "snatched" if "type=snatched" in kwargs["url"] else "seeding"
+        mock_json = _red_actions_to_mock_json[red_action][key]
+    else:
+        mock_json = _red_actions_to_mock_json[red_action]
     resp_mock = MagicMock(name="json")
-    mock_json = _RED_ACTIONS_TO_MOCK_JSON[red_action]
     resp_mock.json.return_value = mock_json
     resp_mock.status_code.return_value = 200
     return resp_mock
@@ -275,13 +301,16 @@ def mock_lfm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
     This ensures that the subsequent response's json() value is properly overridden with the desired data.
     """
     url_val = kwargs["url"]
-    resp_mock = MagicMock(name="json")
+    # resp_mock = MagicMock(name="json")
     mock_json = None
     if "album.getinfo" in url_val:
         mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
     elif "track.getinfo" in url_val:
         mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
+    resp_mock = MagicMock()
     resp_mock.json.return_value = mock_json
+    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
+    type(resp_mock).status_code = PropertyMock(return_value=200)
     return resp_mock
 
 
