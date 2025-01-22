@@ -405,8 +405,8 @@ def test_require_mbid_resolution(
 
 def test_gather_red_user_details(valid_app_config: AppConfig) -> None:
     with patch("requests.Session.get", side_effect=mock_red_session_get_side_effect) as mock_sesh_get:
-        with patch("plastered.utils.http_utils.sleep") as mock_sleep:
-            mock_sleep.return_value = None
+        with patch("plastered.utils.http_utils.precise_delay") as mock_precise_delay:
+            mock_precise_delay.return_value = None
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
             assert (
                 release_searcher._red_user_details is None

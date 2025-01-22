@@ -270,7 +270,7 @@ class ReleaseSearcher:
         """
         # No match found
         if not best_te:
-            _LOGGER.warning(
+            _LOGGER.info(
                 f"No valid RED match found for release: '{lfm_rec.get_human_readable_release_str()}' by '{lfm_rec.get_human_readable_artist_str()}'"
             )
             return False

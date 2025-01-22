@@ -1,4 +1,5 @@
 import datetime
+from time import time
 from typing import Any, Callable, Dict, List, Optional, Set
 from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
 
@@ -12,6 +13,7 @@ from plastered.utils.http_utils import (
     MusicBrainzAPIClient,
     RedAPIClient,
     ThrottledAPIBaseClient,
+    precise_delay,
 )
 from tests.conftest import (
     api_run_cache,
@@ -71,6 +73,16 @@ def api_client_to_app_config_keys() -> Dict[str, Dict[str, str]]:
             "period": "musicbrainz_api_seconds_between_calls",
         },
     }
+
+
+@pytest.mark.parametrize("sec_delay", [1, 2, 3, 6])
+def test_precise_delay(sec_delay: int) -> None:
+    start = time()
+    precise_delay(sec_delay=sec_delay)
+    end = time()
+    actual_delay_time = end - start
+    assert actual_delay_time >= sec_delay
+    assert actual_delay_time == pytest.approx(sec_delay, abs=0.1)  # Allow for some tolerance in clock precision
 
 
 @pytest.mark.parametrize(
@@ -151,12 +163,14 @@ def test_throttle(
     # NOTE: mocking datetime is funky. Had to follow this advice: https://stackoverflow.com/a/70598060
     with patch("plastered.utils.http_utils.datetime", wraps=datetime.datetime) as mock_dt:
         mock_dt.now.side_effect = dt_now_call_timestamps
-        with patch("plastered.utils.http_utils.sleep") as mock_sleep:
-            mock_sleep.return_value = None
+        with patch("plastered.utils.http_utils.precise_delay") as mock_precise_delay:
+            mock_precise_delay.return_value = None
             assert api_base_client._throttle_period == datetime.timedelta(seconds=client_throttle_sec)
             for i in range(expected_num_throttle_calls):
                 api_base_client._throttle()
-            mock_sleep.assert_has_calls([call.sleep(expected_arg) for expected_arg in expected_sleep_call_args])
+            mock_precise_delay.assert_has_calls(
+                [call(sec_delay=expected_arg) for expected_arg in expected_sleep_call_args]
+            )
             mock_dt.assert_has_calls([call.now() for _ in range(expected_datetime_now_call_cnt)])
 
 

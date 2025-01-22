@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from time import sleep
+from time import perf_counter_ns
 from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import quote, urlparse
 
@@ -22,6 +22,20 @@ from plastered.utils.constants import (
 from plastered.utils.exceptions import LFMClientException, RedClientSnatchException
 
 LOGGER = logging.getLogger(__name__)
+
+_NANOSEC_TO_SEC = 1e9
+
+
+# https://stackoverflow.com/a/74247651
+def precise_delay(sec_delay: int) -> None:
+    """
+    A helper function that handles more precise waits for throttled API client calls.
+    time.sleep can be inaccurate depending on the OS, and we need accuracy to avoid hitting rate limits.
+    Adopts the recommended approach here: https://stackoverflow.com/a/74247651
+    """
+    target = perf_counter_ns() + sec_delay * _NANOSEC_TO_SEC
+    while perf_counter_ns() < target:
+        pass
 
 
 # TODO: enabled logging for these classes without circular dependency
@@ -65,10 +79,11 @@ class ThrottledAPIBaseClient:
         """
         Helper method which the subclasses will call prior to submitting an API request. Ensures we are throttling each client request.
         """
+
         time_since_last_call = datetime.now() - self._time_of_last_call
         if time_since_last_call < self._throttle_period:
             wait_seconds = (self._throttle_period - time_since_last_call).seconds
-            sleep(wait_seconds)
+            precise_delay(sec_delay=wait_seconds)
         self._time_of_last_call = datetime.now()
 
     def _construct_cache_key(self, endpoint: str, params: str) -> Tuple[str, str, str]:
