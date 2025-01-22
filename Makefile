@@ -31,5 +31,9 @@ code-format-check: docker-build  ## Runs code-auto-formatting checks, lint check
 code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/plastered:latest
 
+# TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
+render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file
+	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered:latest
+
 docker-test: docker-build  ## Runs unit tests inside a local docker container
 	docker run -it --rm -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint /app/tests/tests_entrypoint.sh wv/plastered:latest "$(TEST_TARGET)"

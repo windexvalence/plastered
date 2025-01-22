@@ -49,6 +49,8 @@ plastered scrape
 
 ### Additional Commands
 
+For the exhaustive list of `plastered` CLI commands and options, refer to the [Plastered CLI Reference](./CLI_reference.md)
+
 Along with `scrape`, plastered offers a few other helpful commands. You can find the full list of commands by running `plastered --help`.
 
 Further command-specific details are accessible by running the command of interest with the help flag, for example to see more details about the `plastered cache` command, run the following:

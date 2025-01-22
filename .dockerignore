@@ -4,6 +4,7 @@
 # whitelisted folders / files for the main docker image
 !build_scripts
 !examples
+!docs
 !plastered
 !entrypoint.sh
 !requirements.txt 
