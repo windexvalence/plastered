@@ -14,7 +14,7 @@ CACHE_TYPE_SCRAPER = "scraper"
 PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents"])
 NON_CACHED_RED_API_ENDPOINTS = set(["download", "community_stats", "user_torrents"])
 PERMITTED_LFM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
-PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release"])
+PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release", "recording"])
 
 RENDER_WAIT_SEC_MIN = 3
 RENDER_WAIT_SEC_MAX = 7

@@ -62,26 +62,38 @@ class RedUserDetails:
         self._user_id = user_id
         self._snatched_count = snatched_count
         self._snatched_torrents = snatched_torrents_list
+        self._snatched_tids = set()
         # mapping from tuple(red artist name, red release name) to PriorSnatch object.
         self._snatched_torrents_dict: Dict[Tuple[str, str], PriorSnatch] = dict()
         for json_entry in self._snatched_torrents:
             red_artist_name = json_entry["artistName"]
             red_release_name = json_entry["name"]
+            tid = json_entry["torrentId"]
             prior_snatch = PriorSnatch(
                 group_id=json_entry["groupId"],
-                torrent_id=json_entry["torrentId"],
+                torrent_id=tid,
                 red_artist_name=red_artist_name,
                 red_release_name=red_release_name,
                 size=json_entry["torrentSize"],
             )
             self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
+            self._snatched_tids.add(tid)
 
+    # This method specifically is for pre-RED search filtering of the LFM recs, since the LFM recs do not yet have a potential TID associated with them.
     def has_snatched_release(self, artist: str, release: str) -> bool:
         """
         Searches whether the release was already listed in the user's snatched torrents.
         NOTE: 'artist' and 'album' must be the human-readable, non URL-encoded strings.
         """
         return (artist.lower(), release.lower()) in self._snatched_torrents_dict
+
+    # This method is for specifically pre-snatch filtering of matched RED releases.
+    def has_snatched_tid(self, tid: int) -> bool:
+        """
+        Returns True if the provided tid is already in the user's snatched / seeding torrents list.
+        Returns False otherwise.
+        """
+        return tid in self._snatched_tids
 
     def get_user_id(self) -> int:
         return self._user_id

@@ -24,7 +24,9 @@ class SkippedReason(StrEnum):
     ABOVE_MAX_SIZE = "All RED matches' size > 'max_size_gb' config setting."
     NO_MATCH_FOUND = "No RED match found."
     ALREADY_SNATCHED = "Pre-existing user snatch found in release group."
+    DUPE_OF_ANOTHER_REC = "Identical release as another rec which will be snatched."
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
+    NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release entity."
 
 
 class SnatchFailureReason(StrEnum):
@@ -140,10 +142,11 @@ class SkippedSummaryTable(StatsTable):
                 Column(header="Artist", style="cyan", no_wrap=False),
                 Column(header="Release", style="magenta", no_wrap=False),
                 Column(header="Track Rec", no_wrap=False),
+                Column(header="Matched RED TID", no_wrap=False),
                 Column(header="Skip reason", no_wrap=False),
             ],
             tsv_output_path=tsv_output_path,
-            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 5: self.stylize_skip_reason_entry},
+            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 6: self.stylize_skip_reason_entry},
             caption="Summary of LFM Recs which were either not found on RED, or ignored based on the search config settings.",
         )
         self.add_rows(rows)

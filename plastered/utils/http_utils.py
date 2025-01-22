@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime, timedelta
-from time import sleep
+from time import perf_counter_ns
 from typing import Any, Dict, Optional, Set, Tuple
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 from urllib3.util import Retry
@@ -19,9 +19,23 @@ from plastered.utils.constants import (
     RED_API_BASE_URL,
     RED_JSON_RESPONSE_KEY,
 )
-from plastered.utils.exceptions import RedClientSnatchException
+from plastered.utils.exceptions import LFMClientException, RedClientSnatchException
 
-_LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
+
+_NANOSEC_TO_SEC = 1e9
+
+
+# https://stackoverflow.com/a/74247651
+def precise_delay(sec_delay: int) -> None:
+    """
+    A helper function that handles more precise waits for throttled API client calls.
+    time.sleep can be inaccurate depending on the OS, and we need accuracy to avoid hitting rate limits.
+    Adopts the recommended approach here: https://stackoverflow.com/a/74247651
+    """
+    target = perf_counter_ns() + sec_delay * _NANOSEC_TO_SEC
+    while perf_counter_ns() < target:
+        pass
 
 
 # TODO: enabled logging for these classes without circular dependency
@@ -65,10 +79,11 @@ class ThrottledAPIBaseClient:
         """
         Helper method which the subclasses will call prior to submitting an API request. Ensures we are throttling each client request.
         """
+
         time_since_last_call = datetime.now() - self._time_of_last_call
         if time_since_last_call < self._throttle_period:
             wait_seconds = (self._throttle_period - time_since_last_call).seconds
-            sleep(wait_seconds)
+            precise_delay(sec_delay=wait_seconds)
         self._time_of_last_call = datetime.now()
 
     def _construct_cache_key(self, endpoint: str, params: str) -> Tuple[str, str, str]:
@@ -89,7 +104,7 @@ class ThrottledAPIBaseClient:
                 f"Invalid endpoint provided to {self.__class__.__name__}: '{endpoint}'. Valid endpoints are: {self._valid_endpoints}"
             )
         if endpoint in self._non_cached_endpoints:
-            _LOGGER.debug(
+            LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return None
@@ -100,7 +115,7 @@ class ThrottledAPIBaseClient:
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
-            _LOGGER.debug(
+            LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return False
@@ -152,7 +167,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
             raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]
         cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
-        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
     def snatch(self, tid: str, can_use_token_on_torrent: bool) -> bytes:
@@ -217,14 +232,22 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         # Enforce request throttling
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
-        json_data = self._session.get(
+        lfm_response = self._session.get(
             url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
-        ).json()
+        )
+        if lfm_response.status_code != 200:
+            raise LFMClientException(
+                f"Unexpected LFM API error encountered for method '{method}' and params '{params}'. Status code: {lfm_response.status_code}"
+            )
+        json_data = lfm_response.json()
+        # LMF API does non-standard stuff with surfacing errors sometimes.
+        if "error" in json_data:
+            raise LFMClientException(f"LFM API error encounterd. LFM error code: '{json_data['error']}'")
         top_key = method.split(".")[0]
         result_json = json_data[top_key]
         cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
-        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
 
@@ -243,9 +266,9 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             valid_endpoints=PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
         )
 
-    def request_api(self, entity_type: str, mbid: str) -> Dict[str, Any]:
+    def request_release_details(self, entity_type: str, mbid: str) -> Dict[str, Any]:
         """
-        Helper function to hit the MusicBrainz API with retries and rate-limits.
+        Helper method to hit the MusicBrainz release API with retries and rate-limits.
         Returns the JSON response payload on success.
         Throws an Exception after `self._max_api_call_retries` consecutive failures.
         """
@@ -264,5 +287,75 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             headers={"Accept": "application/json"},
         ).json()
         cache_write_success = self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
-        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return json_data
+
+    def _get_track_search_query_str(
+        self,
+        human_readable_track_name: str,
+        artist_mbid: Optional[str] = None,
+        human_readable_artist_name: Optional[str] = None,
+    ) -> Optional[str]:
+        search_query_prefix = f"recording:{quote(human_readable_track_name + ' AND ')}"
+        if artist_mbid:
+            return search_query_prefix + f"arid:{artist_mbid}"
+        if human_readable_artist_name:
+            return search_query_prefix + f"artist:{quote(human_readable_artist_name)}"
+        LOGGER.debug(
+            f"Cannot resolve origin release for track rec: '{human_readable_track_name}'. No available artist_mbid or human readable artist name provided."
+        )
+        return None
+
+    def request_release_details_for_track(
+        self,
+        human_readable_track_name: str,
+        artist_mbid: Optional[str] = None,
+        human_readable_artist_name: Optional[str] = None,
+    ) -> Optional[Dict[str, Optional[str]]]:
+        """
+        Helper method specifically for attempting to resolve a release name / MBID from which a track rec originated from
+        with retries and rate-limits. The underlying "endpoint" this method requests is MusicBrainz's "recording" search endpoint:
+        https://musicbrainz.org/doc/MusicBrainz_API/Search#Recording
+        This will only be called if the LFM API does not have a release name already associated with the track rec in question.
+
+        If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
+        Otherwise returns a dict of the the form {"origin_release_mbid": Optional[str], "origin_release_name": Optional[str]}
+        """
+        LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
+        search_query_str = self._get_track_search_query_str(
+            human_readable_track_name=human_readable_track_name,
+            artist_mbid=artist_mbid,
+            human_readable_artist_name=human_readable_artist_name,
+        )
+        if not search_query_str:
+            return None
+        # Sanity check endpoint then attempt reading from cache
+        loaded_from_cache = self._read_from_run_cache(endpoint="recording", params=search_query_str)
+        if loaded_from_cache:
+            return loaded_from_cache
+        # Enforce request throttling
+        self._throttle()
+        # Once throttling requirements are met, continue with building and submitting the request
+        json_data = self._session.get(
+            url=f"{MUSICBRAINZ_API_BASE_URL}recording?query={search_query_str}&fmt=json",
+            headers={"Accept": "application/json"},
+        ).json()
+        try:
+            first_release_match_json = json_data["recordings"][0]["releases"][0]
+        except (KeyError, IndexError):
+            LOGGER.debug(
+                f"Unable to resolve an origin release for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
+            )
+            return None
+        rel_mbid, rel_name = first_release_match_json.get("id"), first_release_match_json.get("title")
+        if not rel_name:
+            LOGGER.debug(
+                f"Unable to resolve origin release title for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
+            )
+            return None
+        release_details = {"origin_release_mbid": rel_mbid, "origin_release_name": rel_name}
+        cache_write_success = self._write_cache_if_enabled(
+            endpoint="recording", params=search_query_str, result_json=release_details
+        )
+        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        return release_details
