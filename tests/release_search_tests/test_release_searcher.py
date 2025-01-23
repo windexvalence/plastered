@@ -1470,13 +1470,13 @@ def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_confi
         "plastered.release_search.release_searcher.print_and_save_all_searcher_stats"
     ) as mock_print_and_save_all_searcher_stats:
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        mock_output_summary_filepath_prefix = os.path.join(tmp_path, "1969-12-31__10-10-59")
-        release_searcher._output_summary_filepath_prefix = mock_output_summary_filepath_prefix
+        mock_output_summary_dir_path = os.path.join(tmp_path, "1969-12-31__10-10-59")
+        release_searcher._output_summary_dir_path = mock_output_summary_dir_path
         mock_print_and_save_all_searcher_stats.return_value = None
         release_searcher.generate_summary_stats()
         mock_print_and_save_all_searcher_stats.assert_called_once_with(
             skipped_rows=[],
             failed_snatch_rows=[],
             snatch_summary_rows=[],
-            output_filepath_prefix=mock_output_summary_filepath_prefix,
+            output_summary_dir_path=mock_output_summary_dir_path,
         )

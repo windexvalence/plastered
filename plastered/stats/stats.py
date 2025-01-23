@@ -24,6 +24,10 @@ _SKIPPED = "skipped"
 _SNATCHED = "snatched"
 _VALID_SUMMARY_TABLE_TYPES = set([_FAILED, _SKIPPED, _SNATCHED])
 
+_FAILED_FILENAME = f"{_FAILED}.tsv"
+_SKIPPED_FILENAME = f"{_SKIPPED}.tsv"
+_SNATCHED_FILENAME = f"{_SNATCHED}.tsv"
+
 
 def _stylize_track_rec_entry(track_rec: str) -> str:
     return "white" if track_rec == STATS_TRACK_REC_NONE else "dark_magenta"
@@ -46,12 +50,6 @@ class SnatchFailureReason(StrEnum):
     RED_API_REQUEST_ERROR = RedClientSnatchException.__name__
     FILE_ERROR = OSError.__name__
     OTHER = "Exception - other"
-
-
-def _get_tsv_path(filepath_prefix: str, table_type: str) -> str:
-    if table_type not in _VALID_SUMMARY_TABLE_TYPES:
-        raise StatsTableException(f"Invalid table_type provided. Must be one of: {_VALID_SUMMARY_TABLE_TYPES}")
-    return f"{filepath_prefix}_{table_type}.tsv"
 
 
 def _get_rows_from_tsv(tsv_path: str) -> List[List[str]]:
@@ -79,7 +77,7 @@ class StatsTable:
     ):
         self._title = title
         self._columns = columns
-        self._tsv_output_path = tsv_path
+        self._tsv_path = tsv_path
         self._read_only = read_only
         self._num_cols = len(self._columns)
         self._per_row_cell_style_fns = {}
@@ -134,13 +132,13 @@ class StatsTable:
             )
         tsv_header = [re.sub(r"\s+", "_", col.header) for col in self._table.columns]
         try:
-            with open(self._tsv_output_path, "w") as f:
+            with open(self._tsv_path, "w") as f:
                 tsv_writer = csv.writer(f, delimiter="\t", lineterminator="\n")
                 tsv_writer.writerow(tsv_header)
                 tsv_writer.writerows(self._raw_rows)
         except Exception:  # pragma: no cover
             _LOGGER.error(
-                f"Failed to write TSV file for {self.__class__.__name__} to filepath: {self._tsv_output_path}",
+                f"Failed to write TSV file for {self.__class__.__name__} to filepath: {self._tsv_path}",
                 exc_info=True,
             )
 
@@ -166,8 +164,8 @@ class SkippedSummaryTable(StatsTable):
     def __init__(
         self,
         rows: List[List[str]],
+        tsv_path: Optional[str] = None,
         title: Optional[str] = "Unsnatched / Skipped LFM Recs",
-        filepath_prefix: Optional[str] = None,
         read_only: Optional[bool] = False,
     ):
         super().__init__(
@@ -181,7 +179,7 @@ class SkippedSummaryTable(StatsTable):
                 Column(header="Matched RED TID", no_wrap=False),
                 Column(header="Skip reason", no_wrap=False),
             ],
-            tsv_output_path=tsv_output_path,
+            tsv_path=tsv_path,
             read_only=read_only,
             cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 6: self.stylize_skip_reason_entry},
             caption="Summary of LFM Recs which were either not found on RED, or ignored based on the search config settings.",
@@ -204,8 +202,8 @@ class FailedSnatchSummaryTable(StatsTable):
     def __init__(
         self,
         rows: List[List[str]],
+        tsv_path: Optional[str] = None,
         title: Optional[str] = "Failed Downloads",
-        filepath_prefix: Optional[str] = None,
         read_only: Optional[bool] = False,
     ):
         super().__init__(
@@ -215,7 +213,7 @@ class FailedSnatchSummaryTable(StatsTable):
                 Column(header="Matched MBID (if any)", no_wrap=True, ratio=1),
                 Column(header="Failure reason", style="bright_red", no_wrap=True, ratio=1),
             ],
-            tsv_path=_get_tsv_path(filepath_prefix=filepath_prefix, table_type=_FAILED),
+            tsv_path=tsv_path,
             read_only=read_only,
             cell_idxs_to_style_fns={2: self.stylize_failure_reason_entry},
         )
@@ -228,8 +226,8 @@ class SnatchSummaryTable(StatsTable):
     def __init__(
         self,
         rows: List[List[str]],
+        tsv_path: Optional[str] = None,
         title: Optional[str] = "Snatched LFM Recs",
-        filepath_prefix: Optional[str] = None,
         read_only: Optional[bool] = False,
     ):
         super().__init__(
@@ -245,7 +243,7 @@ class SnatchSummaryTable(StatsTable):
                 Column(header="FL token used", style="green", no_wrap=True, ratio=1),
                 Column(header="Snatch path", no_wrap=True, ratio=1),
             ],
-            tsv_path=_get_tsv_path(filepath_prefix=filepath_prefix, table_type=_SNATCHED),
+            tsv_path=tsv_path,
             read_only=read_only,
             cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 7: lambda fl: "green" if fl == "yes" else "white"},
             caption="Summary of LFM Recs successfully found on RED and snatched.",
@@ -286,16 +284,28 @@ class RunCacheSummaryTable(StatsTable):
         self.add_row([disk_usage_mb, hits, misses, hit_rate, directory_path])
 
 
+def _get_tsv_output_filepaths(output_summary_dir_path: str) -> Dict[str, str]:
+    return {
+        _FAILED: os.path.join(output_summary_dir_path, _FAILED_FILENAME),
+        _SKIPPED: os.path.join(output_summary_dir_path, _SKIPPED_FILENAME),
+        _SNATCHED: os.path.join(output_summary_dir_path, _SNATCHED_FILENAME),
+    }
+
+
 def print_and_save_all_searcher_stats(
     skipped_rows: List[List[str]],
     failed_snatch_rows: List[List[str]],
     snatch_summary_rows: List[List[str]],
-    output_filepath_prefix: str,
+    output_summary_dir_path: str,
 ) -> None:
     """Utility function for printing and saving all the stats at the end of an active scrape run."""
-    SkippedSummaryTable(rows=skipped_rows, filepath_prefix=output_filepath_prefix).print_and_save()
-    FailedSnatchSummaryTable(rows=failed_snatch_rows, filepath_prefix=output_filepath_prefix).print_and_save()
-    SnatchSummaryTable(rows=snatch_summary_rows, filepath_prefix=output_filepath_prefix).print_and_save()
+    if not os.path.isdir(output_summary_dir_path):
+        _LOGGER.debug(f"{output_summary_dir_path} summary directory not found. Attempting to create ...")
+        os.makedirs(output_summary_dir_path, 0o755)
+    out_filepaths = _get_tsv_output_filepaths(output_summary_dir_path=output_summary_dir_path)
+    SkippedSummaryTable(rows=skipped_rows, tsv_path=out_filepaths[_SKIPPED]).print_and_save()
+    FailedSnatchSummaryTable(rows=failed_snatch_rows, tsv_path=out_filepaths[_FAILED]).print_and_save()
+    SnatchSummaryTable(rows=snatch_summary_rows, tsv_path=out_filepaths[_SNATCHED]).print_and_save()
 
 
 class PriorRunStats:
@@ -305,35 +315,25 @@ class PriorRunStats:
         _LOGGER.info("Attempting to load prior run stats from summary tsv files ...")
         self._run_date = run_date
         self._run_date_str = run_date.strftime(RUN_DATE_STR_FORMAT)
-        self._filepath_prefix = app_config.get_output_summary_filepath_prefix(date_str=self._run_date_str)
-        self._table_types_to_filepaths = {
-            table_type: _get_tsv_path(filepath_prefix=self._filepath_prefix, table_type=table_type)
-            for table_type in _VALID_SUMMARY_TABLE_TYPES
-        }
-        for table_type, filepath in self._table_types_to_filepaths.items():
+        self._output_summary_dir_path = app_config.get_output_summary_dir_path(date_str=self._run_date_str)
+        filepaths = _get_tsv_output_filepaths(output_summary_dir_path=self._output_summary_dir_path)
+        for table_type, filepath in filepaths.items():
             if not os.path.exists(filepath):
                 _LOGGER.error(f"Could not find the expected filepath for {table_type}")
-                raise PriorRunStatsException(
-                    f"Filepath(s) for prior run date '{self._run_date_str}' do not exist: expected paths: {list(self._table_types_to_filepaths.values())}"
-                )
-        self._table_types_to_rows = {
-            table_type: _get_rows_from_tsv(
-                tsv_path=_get_tsv_path(filepath_prefix=self._filepath_prefix, table_type=table_type)
-            )
-            for table_type in _VALID_SUMMARY_TABLE_TYPES
-        }
+                raise PriorRunStatsException(f"One or more summary tsvs for run date '{self._run_date_str}' do not exist.")
+        
         self._skipped_stats_table = SkippedSummaryTable(
-            rows=self._table_types_to_rows[_SKIPPED],
+            rows=_get_rows_from_tsv(tsv_path=filepaths[_SKIPPED]),
             title=f"Skipped LFM Recs (on {self._run_date_str})",
             read_only=True,
         )
         self._failed_stats_table = FailedSnatchSummaryTable(
-            rows=self._table_types_to_rows[_FAILED],
+            rows=_get_rows_from_tsv(tsv_path=filepaths[_FAILED]),
             title=f"Failed Downloads (on {self._run_date_str})",
             read_only=True,
         )
         self._snatched_stats_table = SnatchSummaryTable(
-            rows=self._table_types_to_rows[_SNATCHED],
+            rows=_get_rows_from_tsv(tsv_path=filepaths[_SNATCHED]),
             title=f"Snatched LFM Recs (on {self._run_date_str})",
             read_only=True,
         )

@@ -156,7 +156,7 @@ def run_stats(ctx, config: str, run_date: Optional[datetime] = None) -> None:
     if not run_date:
         _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
         run_date = StatsRunPicker(
-            summaries_directory_path=app_config.get_summary_directory_path(),
+            summaries_directory_path=app_config.get_root_summary_directory_path(),
             date_str_format=RUN_DATE_STR_FORMAT,
         ).get_run_date_from_user_prompts()
     PriorRunStats(app_config=app_config, run_date=run_date).print_summary_tables()

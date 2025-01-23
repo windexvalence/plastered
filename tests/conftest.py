@@ -87,6 +87,11 @@ def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
+def mock_run_date_str() -> str:
+    return "2025-01-20__00-24-42"
+
+
+@pytest.fixture(scope="session")
 def valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "config.yaml")
 

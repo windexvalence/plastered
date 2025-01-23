@@ -8,6 +8,7 @@ from plastered.config.config_parser import (
     AppConfig,
     _get_cd_only_extras_string,
     _load_red_formats_from_config,
+    _SUMMARIES_DIRNAME,
     load_init_config_template,
 )
 from plastered.config.config_schema import (
@@ -27,6 +28,7 @@ from tests.conftest import (
     valid_app_config,
     valid_config_filepath,
     valid_config_raw_data,
+    mock_run_date_str,
 )
 
 _EXPECTED_FORMAT_PREFERENCE_LENGTH = 6
@@ -257,6 +259,38 @@ def test_validate_final_cli_options(
             valid_app_config._validate_final_cli_options()
     else:
         valid_app_config._validate_final_cli_options()
+
+
+def test_get_root_summary_directory_path(valid_config_filepath: str, valid_app_config: AppConfig) -> None:
+    expected = os.path.join(os.path.dirname(valid_config_filepath), _SUMMARIES_DIRNAME)
+    actual = valid_app_config.get_root_summary_directory_path()
+    assert actual == expected
+
+
+@pytest.mark.parametrize("date_str_provided", [False, True])
+def test_get_output_summary_dir_path(
+    valid_config_filepath: str,
+    valid_app_config: AppConfig,
+    mock_run_date_str: str,
+    date_str_provided: bool,
+) -> None:
+    valid_app_config._run_datestr = mock_run_date_str
+    if not date_str_provided:
+        expected = os.path.join(
+            os.path.dirname(valid_config_filepath),
+            _SUMMARIES_DIRNAME,
+            mock_run_date_str,
+        )
+        actual = valid_app_config.get_output_summary_dir_path()
+    else:
+        date_str_arg = "2024-01-01__00-10-45"
+        expected = os.path.join(
+            os.path.dirname(valid_config_filepath),
+            _SUMMARIES_DIRNAME,
+            date_str_arg,
+        )
+        actual = valid_app_config.get_output_summary_dir_path(date_str=date_str_arg)
+    assert actual == expected
 
 
 def test_pretty_print_config(valid_config_filepath: str) -> None:
