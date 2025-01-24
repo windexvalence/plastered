@@ -3,7 +3,6 @@ Contains a few helper decorators / functions to reduce the repeated code in cli.
 """
 
 import os
-import re
 from datetime import datetime
 from functools import wraps
 from typing import List
@@ -55,26 +54,29 @@ class StatsRunPicker:
     def __init__(self, summaries_directory_path: str, date_str_format: str):
         self._summaries_directory_path = summaries_directory_path
         self._date_str_format = date_str_format
-        self._summary_filenames = [filename for filename in os.listdir() if filename.endswith(".tsv")]
-        self._possible_datestrs = set(
-            [
-                re.sub(r"(_[a-z]+\.tsv)$", "", filename)
-                for filename in os.listdir(self._summaries_directory_path)
-                if filename.endswith(".tsv")
-            ]
-        )
         self._possible_datetimes = [
-            datetime.strptime(date_str, self._date_str_format) for date_str in self._possible_datestrs
+            datetime.strptime(dir_name, self._date_str_format)
+            for dir_name in os.listdir(self._summaries_directory_path)
+            if os.path.isdir(os.path.join(self._summaries_directory_path, dir_name))
         ]
         self._candidate_dt = datetime(year=1970, month=1, day=1)
-    
+
     def _is_valid_candidate_dt(self, dt: datetime, dt_attr_name: str) -> bool:
         dt_attr_to_filter_fns = {
             "month": lambda dt: dt.year == self._candidate_dt.year,
             "day": lambda dt: dt.year == self._candidate_dt.year and dt.month == self._candidate_dt.month,
-            "hour": lambda dt: dt.year == self._candidate_dt.year and dt.month == self._candidate_dt.month and dt.day == self._candidate_dt.day,
-            "minute": lambda dt: dt.year == self._candidate_dt.year and dt.month == self._candidate_dt.month and dt.day == self._candidate_dt.day and dt.hour==self._candidate_dt.hour,
-            "second": lambda dt: dt.year == self._candidate_dt.year and dt.month == self._candidate_dt.month and dt.day == self._candidate_dt.day and dt.hour==self._candidate_dt.hour and dt.minute == self._candidate_dt.minute,
+            "hour": lambda dt: dt.year == self._candidate_dt.year
+            and dt.month == self._candidate_dt.month
+            and dt.day == self._candidate_dt.day,
+            "minute": lambda dt: dt.year == self._candidate_dt.year
+            and dt.month == self._candidate_dt.month
+            and dt.day == self._candidate_dt.day
+            and dt.hour == self._candidate_dt.hour,
+            "second": lambda dt: dt.year == self._candidate_dt.year
+            and dt.month == self._candidate_dt.month
+            and dt.day == self._candidate_dt.day
+            and dt.hour == self._candidate_dt.hour
+            and dt.minute == self._candidate_dt.minute,
         }
         filter_fn = dt_attr_to_filter_fns[dt_attr_name]
         return filter_fn(dt)
@@ -82,23 +84,27 @@ class StatsRunPicker:
     def _get_dt_choices(self, dt_attr_name: str) -> List[str]:
         if dt_attr_name == "year":
             return sorted(set([str(dt.__getattribute__(dt_attr_name)) for dt in self._possible_datetimes]))
-        return sorted(set(
-            [
-                str(dt.__getattribute__(dt_attr_name)) 
-                for dt in self._possible_datetimes
-                if self._is_valid_candidate_dt(dt=dt, dt_attr_name=dt_attr_name)
-            ]
-        ), key=lambda x: int(x))
+        return sorted(
+            set(
+                [
+                    str(dt.__getattribute__(dt_attr_name))
+                    for dt in self._possible_datetimes
+                    if self._is_valid_candidate_dt(dt=dt, dt_attr_name=dt_attr_name)
+                ]
+            ),
+            key=lambda x: int(x),  # pylint: disable=unnecessary-lambda
+        )
 
     def _prompt_date_component(self, dt_attr_name: str) -> int:
-        user_input = int(questionary.select(
-            f"Desired run date {dt_attr_name}?", choices=self._get_dt_choices(dt_attr_name=dt_attr_name)
-        ).ask())
+        user_input = int(
+            questionary.select(
+                f"Desired run date {dt_attr_name}?", choices=self._get_dt_choices(dt_attr_name=dt_attr_name)
+            ).ask()
+        )
         self._candidate_dt = self._candidate_dt.replace(**{dt_attr_name: user_input})
         return user_input
 
     def get_run_date_from_user_prompts(self) -> datetime:
-        candidate_run_dts = [dt for dt in self._possible_datetimes]
         input_year = self._prompt_date_component(dt_attr_name="year")
         input_month = self._prompt_date_component(dt_attr_name="month")
         input_day = self._prompt_date_component(dt_attr_name="day")
@@ -106,9 +112,8 @@ class StatsRunPicker:
         candidate_run_dts = [
             dt
             for dt in self._possible_datetimes
-            if (dt.year == input_year and dt.month == input_month and dt.day == input_day)
+            if (dt.year == input_year and dt.month == input_month and dt.day == input_day and dt.hour == input_hour)
         ]
-        print(f"candidate_run_dts: {[cdt.strftime(self._date_str_format) for cdt in candidate_run_dts]}")
         if len(candidate_run_dts) <= 10:
             final_date_str = questionary.select(
                 f"Choose the run date:",
@@ -116,8 +121,6 @@ class StatsRunPicker:
             ).ask()
             return datetime.strptime(final_date_str, self._date_str_format)
         input_minute = self._prompt_date_component(dt_attr_name="minute")
-
-        print(f"Current candidate dt: {self._candidate_dt.strftime(self._date_str_format)}")
         input_second = self._prompt_date_component(dt_attr_name="second")
         return datetime(
             year=input_year,

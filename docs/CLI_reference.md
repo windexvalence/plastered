@@ -1,4 +1,4 @@
-# `plastered` CLI Reference
+# `plastered` CLI Reference (v0.1.0)
 
 > NOTE: this doc is auto-generated from the CLI source code. For a more thorough version of this information, run `plastered --help`, as outlined in the user guide.
 plastered: Finds your LFM recs and snatches them from RED.
@@ -78,6 +78,28 @@ plastered init-conf [OPTIONS]
 
 ```text
   --help  Show this message and exit.
+```
+
+## inspect-stats
+
+Gather and inspect the summary stats of a prior scrape run identified by the specified run_date.
+
+**Usage:**
+
+```text
+plastered inspect-stats [OPTIONS]
+```
+
+**Options:**
+
+```text
+  -c, --config PATH               Absolute path to the application config.yaml
+                                  file.  [env var: PLASTERED_CONFIG; required]
+  -d, --run-date [%Y-%m-%d__%H-%M-%S]
+                                  Specify the exact run date to inspect.
+                                  Overrides the default interactive prompts
+                                  for choosing the run date to inspect.
+  --help                          Show this message and exit.
 ```
 
 ## scrape

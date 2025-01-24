@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import pytest
 import yaml
 
 from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
@@ -118,6 +120,141 @@ def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> Dict[st
 @pytest.fixture(scope="session")
 def minimal_valid_app_config(minimal_valid_config_filepath: str) -> AppConfig:
     return AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=dict())
+
+
+@pytest.fixture(scope="session")
+def mock_root_summary_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
+    return tmp_path_factory.mktemp("summaries")
+
+
+@pytest.fixture(scope="session")
+def mock_output_summary_dir_path(mock_root_summary_dir_path: Path, mock_run_date_str: str) -> Path:
+    run_summary_dir = mock_root_summary_dir_path / mock_run_date_str
+    run_summary_dir.mkdir()
+    return run_summary_dir
+
+
+@pytest.fixture(scope="session")
+def skipped_rows() -> List[List[str]]:
+    return [
+        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
+        [
+            "album",
+            "similar-artist",
+            "Some Other Artist",
+            "Other Album",
+            "N/A",
+            "69420",
+            SkippedReason.ABOVE_MAX_SIZE.value,
+        ],
+        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkippedReason.NO_MATCH_FOUND.value],
+        [
+            "album",
+            "in-library",
+            "Another Artist",
+            "Fake Album",
+            "N/A",
+            "None",
+            SkippedReason.REC_CONTEXT_FILTERING.value,
+        ],
+        [
+            "track",
+            "in-library",
+            "Another Artist",
+            "Fake Release",
+            "Some Track",
+            "None",
+            SkippedReason.REC_CONTEXT_FILTERING.value,
+        ],
+    ]
+
+
+@pytest.fixture(scope="session")
+def failed_snatch_rows() -> List[List[str]]:
+    return [
+        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", SnatchFailureReason.RED_API_REQUEST_ERROR.value],
+        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", SnatchFailureReason.FILE_ERROR.value],
+        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", SnatchFailureReason.OTHER.value],
+    ]
+
+
+@pytest.fixture(scope="session")
+def snatch_summary_rows() -> List[List[str]]:
+    return [
+        [
+            "album",
+            "similar-artist",
+            "Some Artist",
+            "Their Album",
+            "N/A",
+            "69420",
+            "Vinyl",
+            "no",
+            "/downloads/69420.torrent",
+        ],
+        ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
+        [
+            "track",
+            "similar-artist",
+            "Fake Band",
+            "Fake Album",
+            "Fake Song",
+            "420",
+            "CD",
+            "yes",
+            "/downloads/420.torrent",
+        ],
+    ]
+
+
+@pytest.fixture(scope="session")
+def mock_summary_tsvs(
+    mock_output_summary_dir_path: Path,
+    failed_snatch_rows: List[List[str]],
+    skipped_rows: List[List[str]],
+    snatch_summary_rows: List[List[str]],
+) -> Dict[str, str]:
+    type_to_headers = {
+        "failed": ["RED_permalink", "Matched_MBID_(if_any)", "Failure_reason"],
+        "snatched": [
+            "Type",
+            "LFM_Rec_context",
+            "Artist",
+            "Release",
+            "Track_Rec",
+            "RED_tid",
+            "Media",
+            "FL_token_used",
+            "Snatch_path",
+        ],
+        "skipped": [
+            "Type",
+            "LFM_Rec_context",
+            "Artist",
+            "Release",
+            "Track_Rec",
+            "Matched_RED_TID",
+            "Skip_reason",
+        ],
+    }
+
+    def _write_dummy_tsv(dummy_path: str, header: List[str], dummy_rows: List[List[str]]) -> None:
+        with open(dummy_path, "w") as f:
+            w = csv.writer(f, delimiter="\t", lineterminator="\n")
+            w.writerow(header)
+            w.writerows(dummy_rows)
+
+    failed_tsv_path = os.path.join(mock_output_summary_dir_path, "failed.tsv")
+    snatched_tsv_path = os.path.join(mock_output_summary_dir_path, "snatched.tsv")
+    skipped_tsv_path = os.path.join(mock_output_summary_dir_path, "skipped.tsv")
+    _write_dummy_tsv(failed_tsv_path, type_to_headers["failed"], failed_snatch_rows)
+    _write_dummy_tsv(snatched_tsv_path, type_to_headers["snatched"], snatch_summary_rows)
+    _write_dummy_tsv(skipped_tsv_path, type_to_headers["skipped"], skipped_rows)
+    return {
+        "failed": failed_tsv_path,
+        "snatched": snatched_tsv_path,
+        "skipped": skipped_tsv_path,
+    }
 
 
 @pytest.fixture(scope="session")

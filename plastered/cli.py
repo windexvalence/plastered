@@ -150,7 +150,7 @@ def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optio
     help="Specify the exact run date to inspect. Overrides the default interactive prompts for choosing the run date to inspect.",
 )
 @click.pass_context
-def run_stats(ctx, config: str, run_date: Optional[datetime] = None) -> None:
+def inspect_stats(ctx, config: str, run_date: Optional[datetime] = None) -> None:
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
     if not run_date:

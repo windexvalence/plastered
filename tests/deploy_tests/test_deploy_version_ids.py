@@ -27,6 +27,7 @@ def github_release_tag() -> str:
     return os.getenv(_GITHUB_RELEASE_TAG_ENV_VAR)
 
 
+# TODO: add unit test to check that the `plastered --version` output is also in sync (maybe in the test_cli.py file ?)
 @pytest.mark.releasetest
 def test_version_id_and_git_tag_match(pyproject_toml_data: Dict[str, Any], github_release_tag: Optional[str]) -> None:
     assert (

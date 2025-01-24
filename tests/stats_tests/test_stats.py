@@ -1,6 +1,6 @@
 import csv
-from datetime import datetime
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 from unittest.mock import call, patch
@@ -10,157 +10,46 @@ from rich.table import Column
 
 from plastered.config.config_parser import AppConfig
 from plastered.stats.stats import (
+    _FAILED,
+    _FAILED_FILENAME,
+    _SKIPPED,
+    _SKIPPED_FILENAME,
+    _SNATCHED,
+    _SNATCHED_FILENAME,
     FailedSnatchSummaryTable,
+    PriorRunStats,
     RunCacheSummaryTable,
     SkippedReason,
     SkippedSummaryTable,
     SnatchFailureReason,
     SnatchSummaryTable,
     StatsTable,
-    PriorRunStats,
-    print_and_save_all_searcher_stats,
-    _FAILED,
-    _FAILED_FILENAME,
     _get_rows_from_tsv,
-    _SKIPPED,
-    _SKIPPED_FILENAME,
-    _SNATCHED,
-    _SNATCHED_FILENAME,
+    print_and_save_all_searcher_stats,
 )
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import PriorRunStatsException, StatsTableException
-from tests.conftest import valid_app_config, mock_run_date_str
+from tests.conftest import (
+    failed_snatch_rows,
+    mock_run_date_str,
+    mock_summary_tsvs,
+    skipped_rows,
+    snatch_summary_rows,
+    valid_app_config,
+)
 
 
 def _noop_col_fn(x: Any) -> Any:
     return x
 
 
-@pytest.fixture(scope="session")
-def mock_root_summary_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
-    return tmp_path_factory.mktemp("summaries")
-
-
-@pytest.fixture(scope="session")
-def mock_output_summary_dir_path(mock_root_summary_dir_path: Path, mock_run_date_str: str) -> Path:
-    run_summary_dir = mock_root_summary_dir_path / mock_run_date_str
-    run_summary_dir.mkdir()
-    return run_summary_dir
-
-
-@pytest.fixture(scope="session")
-def skipped_rows() -> List[List[str]]:
-    return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
-        [
-            "album",
-            "similar-artist",
-            "Some Other Artist",
-            "Other Album",
-            "N/A",
-            "69420",
-            SkippedReason.ABOVE_MAX_SIZE.value,
-        ],
-        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkippedReason.NO_MATCH_FOUND.value],
-        [
-            "album",
-            "in-library",
-            "Another Artist",
-            "Fake Album",
-            "N/A",
-            "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
-        ],
-        [
-            "track",
-            "in-library",
-            "Another Artist",
-            "Fake Release",
-            "Some Track",
-            "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
-        ],
-    ]
-
-
-@pytest.fixture(scope="session")
-def failed_snatch_rows() -> List[List[str]]:
-    return [
-        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", SnatchFailureReason.RED_API_REQUEST_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", SnatchFailureReason.FILE_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", SnatchFailureReason.OTHER.value],
-    ]
-
-
-@pytest.fixture(scope="session")
-def snatch_summary_rows() -> List[List[str]]:
-    return [
-        [
-            "album",
-            "similar-artist",
-            "Some Artist",
-            "Their Album",
-            "N/A",
-            "69420",
-            "Vinyl",
-            "no",
-            "/downloads/69420.torrent",
-        ],
-        ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
-        [
-            "track",
-            "similar-artist",
-            "Fake Band",
-            "Fake Album",
-            "Fake Song",
-            "420",
-            "CD",
-            "yes",
-            "/downloads/420.torrent",
-        ],
-    ]
-
-
-@pytest.fixture(scope="session")
-def mock_summary_tsvs(
-    mock_output_summary_dir_path: Path,
-    failed_snatch_rows: List[List[str]],
-    skipped_rows: List[List[str]],
-    snatch_summary_rows: List[List[str]],
-) -> Dict[str, str]:
-    type_to_headers = {
-        _FAILED: ["RED_permalink", "Matched_MBID_(if_any)", "Failure_reason"],
-        _SNATCHED: [
-            "Type", "LFM_Rec_context", "Artist", "Release", "Track_Rec", "RED_tid", "Media", "FL_token_used", "Snatch_path",
-        ],
-        _SKIPPED: [
-            "Type", "LFM_Rec_context", "Artist", "Release", "Track_Rec", "Matched_RED_TID", "Skip_reason",
-        ],
-    }
-    def _write_dummy_tsv(dummy_path: str, header: List[str], dummy_rows: List[List[str]]) -> None:
-        with open(dummy_path, "w") as f:
-            w = csv.writer(f, delimiter="\t", lineterminator="\n")
-            w.writerow(header)
-            w.writerows(dummy_rows)
-    failed_tsv_path = os.path.join(mock_output_summary_dir_path, _FAILED_FILENAME)
-    snatched_tsv_path = os.path.join(mock_output_summary_dir_path, _SNATCHED_FILENAME)
-    skipped_tsv_path = os.path.join(mock_output_summary_dir_path, _SKIPPED_FILENAME)
-    _write_dummy_tsv(failed_tsv_path, type_to_headers[_FAILED], failed_snatch_rows)
-    _write_dummy_tsv(snatched_tsv_path, type_to_headers[_SNATCHED], snatch_summary_rows)
-    _write_dummy_tsv(skipped_tsv_path, type_to_headers[_SKIPPED], skipped_rows)
-    return {
-        _FAILED: failed_tsv_path,
-        _SNATCHED: snatched_tsv_path,
-        _SKIPPED: skipped_tsv_path,
-    }
-
-
 @pytest.mark.parametrize(
-    "table_type, expected_rows_fixture_name", [
+    "table_type, expected_rows_fixture_name",
+    [
         ("failed", "failed_snatch_rows"),
         ("skipped", "snatch_summary_rows"),
         ("snatched", "skipped_rows"),
-    ]
+    ],
 )
 def test_get_rows_from_tsv(
     request: pytest.FixtureRequest,
@@ -202,7 +91,9 @@ def test_invalid_to_tsv_file(tmp_path: pytest.FixtureRequest) -> None:
         tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
         read_only=True,
     )
-    with pytest.raises(StatsTableException, match="Unexpected to_tsv_file call on a StatsTable instance with read_only"):
+    with pytest.raises(
+        StatsTableException, match="Unexpected to_tsv_file call on a StatsTable instance with read_only"
+    ):
         test_st.to_tsv_file()
 
 
@@ -304,7 +195,8 @@ def test_init_prior_run_stats(
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = mock_summary_tsvs
             prs = PriorRunStats(
-                app_config=valid_app_config, run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT),
+                app_config=valid_app_config,
+                run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT),
             )
             prs.print_summary_tables()
 
@@ -324,5 +216,6 @@ def test_bad_init_prior_run_stats(
             }
             with pytest.raises(PriorRunStatsException, match="One or more summary tsvs for run date"):
                 prs = PriorRunStats(
-                    app_config=valid_app_config, run_date=datetime.now(),
+                    app_config=valid_app_config,
+                    run_date=datetime.now(),
                 )

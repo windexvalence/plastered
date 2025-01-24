@@ -146,7 +146,7 @@ class AppConfig:
 
     def get_root_summary_directory_path(self) -> str:
         return self._root_summary_directory_path
-    
+
     def get_output_summary_dir_path(self, date_str: Optional[str] = None) -> str:
         if not date_str:
             return os.path.join(self._root_summary_directory_path, self._run_datestr)

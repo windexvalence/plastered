@@ -5,10 +5,10 @@ from unittest.mock import call, mock_open, patch
 import pytest
 
 from plastered.config.config_parser import (
+    _SUMMARIES_DIRNAME,
     AppConfig,
     _get_cd_only_extras_string,
     _load_red_formats_from_config,
-    _SUMMARIES_DIRNAME,
     load_init_config_template,
 )
 from plastered.config.config_schema import (
@@ -25,10 +25,10 @@ from tests.conftest import (
     minimal_valid_app_config,
     minimal_valid_config_filepath,
     minimal_valid_config_raw_data,
+    mock_run_date_str,
     valid_app_config,
     valid_config_filepath,
     valid_config_raw_data,
-    mock_run_date_str,
 )
 
 _EXPECTED_FORMAT_PREFERENCE_LENGTH = 6

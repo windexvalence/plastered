@@ -320,8 +320,10 @@ class PriorRunStats:
         for table_type, filepath in filepaths.items():
             if not os.path.exists(filepath):
                 _LOGGER.error(f"Could not find the expected filepath for {table_type}")
-                raise PriorRunStatsException(f"One or more summary tsvs for run date '{self._run_date_str}' do not exist.")
-        
+                raise PriorRunStatsException(
+                    f"One or more summary tsvs for run date '{self._run_date_str}' do not exist."
+                )
+
         self._skipped_stats_table = SkippedSummaryTable(
             rows=_get_rows_from_tsv(tsv_path=filepaths[_SKIPPED]),
             title=f"Skipped LFM Recs (on {self._run_date_str})",
