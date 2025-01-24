@@ -5,6 +5,8 @@ from typing import List, Optional
 from mkdocs_click._extension import replace_command_docs
 from mkdocs_click._processing import replace_blocks
 
+from plastered.version import get_project_version
+
 # NOTE: the mkdocs_click CLI works with generating full mkdocs HTML,
 # But we just want plain `.md` files output from that library, so this script
 # uses the mkdocs_click lib to handle the static markdown file generation only.
@@ -37,7 +39,7 @@ def get_markdown_lines() -> List[str]:
         )
     )
     processed_markdown_lines = [
-        "# `plastered` CLI Reference",
+        f"# `plastered` CLI Reference (v{get_project_version()})",
         "",
         "> NOTE: this doc is auto-generated from the CLI source code. For a more thorough version of this information, run `plastered --help`, as outlined in the user guide.",
     ]

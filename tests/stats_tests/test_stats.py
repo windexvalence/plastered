@@ -1,99 +1,70 @@
 import csv
 import os
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List
 from unittest.mock import call, patch
 
 import pytest
 from rich.table import Column
 
+from plastered.config.config_parser import AppConfig
 from plastered.stats.stats import (
+    _FAILED,
+    _FAILED_FILENAME,
+    _SKIPPED,
+    _SKIPPED_FILENAME,
+    _SNATCHED,
+    _SNATCHED_FILENAME,
     FailedSnatchSummaryTable,
+    PriorRunStats,
     RunCacheSummaryTable,
     SkippedReason,
     SkippedSummaryTable,
     SnatchFailureReason,
     SnatchSummaryTable,
     StatsTable,
+    _get_rows_from_tsv,
     print_and_save_all_searcher_stats,
 )
-from plastered.utils.exceptions import StatsTableException
+from plastered.utils.constants import RUN_DATE_STR_FORMAT
+from plastered.utils.exceptions import PriorRunStatsException, StatsTableException
+from tests.conftest import (
+    failed_snatch_rows,
+    mock_run_date_str,
+    mock_summary_tsvs,
+    skipped_rows,
+    snatch_summary_rows,
+    valid_app_config,
+)
 
 
 def _noop_col_fn(x: Any) -> Any:
     return x
 
 
-@pytest.fixture(scope="session")
-def skipped_rows() -> List[List[str]]:
-    return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
-        [
-            "album",
-            "similar-artist",
-            "Some Other Artist",
-            "Other Album",
-            "N/A",
-            "69420",
-            SkippedReason.ABOVE_MAX_SIZE.value,
-        ],
-        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkippedReason.NO_MATCH_FOUND.value],
-        [
-            "album",
-            "in-library",
-            "Another Artist",
-            "Fake Album",
-            "N/A",
-            "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
-        ],
-        [
-            "track",
-            "in-library",
-            "Another Artist",
-            "Fake Release",
-            "Some Track",
-            "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
-        ],
-    ]
-
-
-@pytest.fixture(scope="session")
-def failed_snatch_rows() -> List[List[str]]:
-    return [
-        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", SnatchFailureReason.RED_API_REQUEST_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", SnatchFailureReason.FILE_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", SnatchFailureReason.OTHER.value],
-    ]
-
-
-@pytest.fixture(scope="session")
-def snatch_summary_rows() -> List[List[str]]:
-    return [
-        [
-            "album",
-            "similar-artist",
-            "Some Artist",
-            "Their Album",
-            "N/A",
-            "69420",
-            "Vinyl",
-            "no",
-            "/downloads/69420.torrent",
-        ],
-        ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
-        [
-            "track",
-            "similar-artist",
-            "Fake Band",
-            "Fake Album",
-            "Fake Song",
-            "420",
-            "CD",
-            "yes",
-            "/downloads/420.torrent",
-        ],
-    ]
+@pytest.mark.parametrize(
+    "table_type, expected_rows_fixture_name",
+    [
+        ("failed", "failed_snatch_rows"),
+        ("skipped", "snatch_summary_rows"),
+        ("snatched", "skipped_rows"),
+    ],
+)
+def test_get_rows_from_tsv(
+    request: pytest.FixtureRequest,
+    mock_summary_tsvs: Dict[str, str],
+    table_type: str,
+    expected_rows_fixture_name: str,
+) -> None:
+    tsv_filepath = mock_summary_tsvs[table_type]
+    expected_rows = request.getfixturevalue(expected_rows_fixture_name)
+    expected_rows_set = set([tuple(row) for row in expected_rows])
+    actual = _get_rows_from_tsv(tsv_path=tsv_filepath)
+    actual_rows_set = set([tuple(row) for row in expected_rows_set])
+    print(f"actual[0]: {actual[0]}")
+    print(f"expected_rows[0]: {expected_rows[0]}")
+    assert actual_rows_set == expected_rows_set
 
 
 @pytest.mark.parametrize(
@@ -108,16 +79,29 @@ def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_f
         bad_st = StatsTable(
             title="Should fail",
             columns=[Column(header="First Col"), Column(header="Second Col")],
-            tsv_output_path=os.path.join(tmp_path, "bad_st.tsv"),
+            tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
             cell_idxs_to_style_fns=bad_fn_mapping,
         )
+
+
+def test_invalid_to_tsv_file(tmp_path: pytest.FixtureRequest) -> None:
+    test_st = StatsTable(
+        title="should fail",
+        columns=[Column(header="foo")],
+        tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
+        read_only=True,
+    )
+    with pytest.raises(
+        StatsTableException, match="Unexpected to_tsv_file call on a StatsTable instance with read_only"
+    ):
+        test_st.to_tsv_file()
 
 
 def test_invalid_add_rows(tmp_path: pytest.FixtureRequest) -> None:
     test_st = StatsTable(
         title="Should fail",
         columns=[Column(header="First Col"), Column(header="Second Col")],
-        tsv_output_path=os.path.join(tmp_path, "bad_st.tsv"),
+        tsv_path=os.path.join(tmp_path, "bad_st.tsv"),
     )
     rows_to_add = [["a", "b"], ["c", "d", "e"]]
     with pytest.raises(StatsTableException, match="Invalid row provided: length"):
@@ -167,11 +151,11 @@ def test_run_cache_summary_table_constructor(tmp_path: pytest.FixtureRequest) ->
 
 
 @pytest.mark.parametrize(
-    "expected_tsv_suffix, expected_tsv_row_cnt",
+    "expected_tsv_filename, expected_tsv_row_cnt",
     [
-        ("_skipped.tsv", 6),
-        ("_failed.tsv", 4),
-        ("_snatched.tsv", 4),
+        ("skipped.tsv", 6),
+        ("failed.tsv", 4),
+        ("snatched.tsv", 4),
     ],
 )
 def test_print_and_save_all_searcher_stats(
@@ -179,16 +163,16 @@ def test_print_and_save_all_searcher_stats(
     skipped_rows: List[List[str]],
     failed_snatch_rows: List[List[str]],
     snatch_summary_rows: List[List[str]],
-    expected_tsv_suffix: str,
+    expected_tsv_filename: str,
     expected_tsv_row_cnt: int,
 ) -> None:
-    output_filepath_prefix = os.path.join(tmp_path, "2025-01-11_21-33-32")
-    expected_tsv_filepath = os.path.join(tmp_path, f"{output_filepath_prefix}{expected_tsv_suffix}")
+    output_summary_dir_path = os.path.join(tmp_path, "2025-01-11_21-33-32")
+    expected_tsv_filepath = os.path.join(output_summary_dir_path, expected_tsv_filename)
     print_and_save_all_searcher_stats(
         skipped_rows=skipped_rows,
         failed_snatch_rows=failed_snatch_rows,
         snatch_summary_rows=snatch_summary_rows,
-        output_filepath_prefix=output_filepath_prefix,
+        output_summary_dir_path=output_summary_dir_path,
     )
     assert os.path.exists(expected_tsv_filepath), f"Expected {expected_tsv_filepath} path to exist, but foes not."
     actual_row_cnt = 0
@@ -198,3 +182,40 @@ def test_print_and_save_all_searcher_stats(
     assert (
         actual_row_cnt == expected_tsv_row_cnt
     ), f"Expected output tsv to have {expected_tsv_row_cnt} rows, but got {actual_row_cnt}"
+
+
+def test_init_prior_run_stats(
+    valid_app_config: AppConfig,
+    mock_output_summary_dir_path: Path,
+    mock_summary_tsvs: Dict[str, str],
+    mock_run_date_str: str,
+) -> None:
+    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+        mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
+        with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
+            mock_get_tsv_output_filepaths.return_value = mock_summary_tsvs
+            prs = PriorRunStats(
+                app_config=valid_app_config,
+                run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT),
+            )
+            prs.print_summary_tables()
+
+
+def test_bad_init_prior_run_stats(
+    valid_app_config: AppConfig,
+    mock_output_summary_dir_path: Path,
+    mock_summary_tsvs: Dict[str, str],
+) -> None:
+    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+        mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
+        with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
+            mock_get_tsv_output_filepaths.return_value = {
+                _FAILED: os.path.join("not", "a", "real", "path"),
+                _SKIPPED: os.path.join("not", "a", "real", "path"),
+                _SNATCHED: os.path.join("not", "a", "real", "path"),
+            }
+            with pytest.raises(PriorRunStatsException, match="One or more summary tsvs for run date"):
+                prs = PriorRunStats(
+                    app_config=valid_app_config,
+                    run_date=datetime.now(),
+                )

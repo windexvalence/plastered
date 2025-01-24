@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, call, patch
 
@@ -15,9 +16,12 @@ from plastered.scraper.lfm_scraper import (
     RecContext,
     RecommendationType,
 )
+from plastered.utils.cli_utils import StatsRunPicker
+from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import RunCacheDisabledException
 from tests.conftest import (
     api_run_cache,
+    mock_run_date_str,
     scraper_run_cache,
     valid_app_config,
     valid_config_filepath,
@@ -142,6 +146,11 @@ def test_cli_scrape_command(
                     mock_search_for_recs.assert_called_once_with(rec_type_to_recs_list=mock_scrape_recs.return_value)
 
 
+@pytest.mark.parametrize("", [])
+def test_cli_run_stats_command(valid_app_config: AppConfig) -> None:
+    pass  # TODO: figure out how to even test this.
+
+
 @pytest.mark.parametrize(
     "cache_arg, info_flag_present, empty_flag_present, check_flag_present, expected_run_cache_calls",
     [
@@ -228,3 +237,26 @@ def test_cli_init_conf_command() -> None:
         result = cli_runner.invoke(cli, ["init-conf"])
         assert result.exit_code == 0, f"Expected cli command with --help flag to pass, but errored: {result.exception}"
         mock_load_init_config_template.assert_called_once()
+
+
+@pytest.mark.parametrize("run_date_provided", [False, True])
+def test_cli_inspect_stats_command(
+    valid_config_filepath: str,
+    mock_run_date_str: str,
+    run_date_provided: bool,
+) -> None:
+    test_cmd = ["inspect-stats", "--config", valid_config_filepath]
+    if run_date_provided:
+        test_cmd.append("--run-date")
+        test_cmd.append(mock_run_date_str)
+    with patch.object(StatsRunPicker, "get_run_date_from_user_prompts") as mock_srp_get_run_date:
+        mock_srp_get_run_date.return_value = datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
+        with patch("plastered.cli.PriorRunStats") as mock_prior_run_stats_constructor:
+            mock_prs_instance = MagicMock()
+            mock_prior_run_stats_constructor.return_value = mock_prs_instance
+            mock_prs_instance.print_summary_tables.return_value = None
+            cli_runner = CliRunner()
+            result = cli_runner.invoke(cli, test_cmd)
+            assert result.exit_code == 0
+            mock_prior_run_stats_constructor.assert_called_once()
+            mock_prs_instance.print_summary_tables.assert_called_once()

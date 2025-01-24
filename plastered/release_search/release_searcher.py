@@ -47,7 +47,7 @@ class ReleaseSearcher:
         self._red_user_details: Optional[RedUserDetails] = None
         self._skip_prior_snatches = app_config.get_cli_option("skip_prior_snatches")
         self._allow_library_items = app_config.get_cli_option("allow_library_items")
-        self._output_summary_filepath_prefix = app_config.get_output_summary_filepath_prefix()
+        self._output_summary_dir_path = app_config.get_output_summary_dir_path()
         self._enable_snatches = app_config.get_cli_option("snatch_recs")
         self._snatch_directory = app_config.get_cli_option("snatch_directory")
         self._use_release_type = app_config.get_cli_option("use_release_type")
@@ -433,5 +433,5 @@ class ReleaseSearcher:
             skipped_rows=self._skipped_snatch_summary_rows,
             failed_snatch_rows=self._failed_snatches_summary_rows,
             snatch_summary_rows=self._snatch_summary_rows,
-            output_filepath_prefix=self._output_summary_filepath_prefix,
+            output_summary_dir_path=self._output_summary_dir_path,
         )

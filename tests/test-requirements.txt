@@ -5,4 +5,6 @@ pylint==3.3.3
 pytest==8.3.4
 pytest-cov==6.0.0
 coverage-badge==1.1.2
+# NOTE: changing the version of mkdocs-click will require a validation that it
+# doesn't break the CLI_reference.md doc auto-generation, since that uses the library's internal API.
 mkdocs-click==0.8.1

@@ -4,7 +4,7 @@ import sys
 import traceback
 from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import jsonschema
 import yaml
@@ -25,6 +25,7 @@ from plastered.config.config_schema import (
     get_sub_keys_from_top_level_keys,
     required_schema,
 )
+from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import AppConfigException
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat
 
@@ -85,14 +86,14 @@ class AppConfig:
     def __init__(self, config_filepath: str, cli_params: Dict[str, Any]):
         if not os.path.exists(config_filepath):
             raise AppConfigException(f"Provided config filepath does not exist: '{config_filepath}'")
-        self._run_datestr = datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
+        self._run_datestr = datetime.now().strftime(RUN_DATE_STR_FORMAT)
         self._config_filepath = config_filepath
         self._config_directory_path = os.path.dirname(os.path.abspath(config_filepath))
         self._base_cache_directory_path = os.path.join(self._config_directory_path, _CACHE_DIRNAME)
-        self._summary_directory_path = os.path.join(self._config_directory_path, _SUMMARIES_DIRNAME)
-        if not os.path.isdir(self._summary_directory_path):
-            _LOGGER.info(f"{self._summary_directory_path} directory not found. Attempting to create ...")
-            os.makedirs(self._summary_directory_path, 0o755)
+        self._root_summary_directory_path = os.path.join(self._config_directory_path, _SUMMARIES_DIRNAME)
+        if not os.path.isdir(self._root_summary_directory_path):
+            _LOGGER.info(f"{self._root_summary_directory_path} directory not found. Attempting to create ...")
+            os.makedirs(self._root_summary_directory_path, 0o755)
         self._cli_options = dict()
         with open(self._config_filepath, "r") as f:
             raw_config_data = yaml.safe_load(f.read())
@@ -143,8 +144,13 @@ class AppConfig:
     def get_cli_option(self, option_key: str) -> Any:
         return self._cli_options[option_key]
 
-    def get_output_summary_filepath_prefix(self) -> str:
-        return os.path.join(self._summary_directory_path, f"{self._run_datestr}")
+    def get_root_summary_directory_path(self) -> str:
+        return self._root_summary_directory_path
+
+    def get_output_summary_dir_path(self, date_str: Optional[str] = None) -> str:
+        if not date_str:
+            return os.path.join(self._root_summary_directory_path, self._run_datestr)
+        return os.path.join(self._root_summary_directory_path, date_str)
 
     def get_cache_directory_path(self, cache_type: str) -> str:
         return os.path.join(self._base_cache_directory_path, cache_type)
