@@ -43,6 +43,10 @@ plastered cache [OPTIONS] {api|scraper|@all}
                      argument.
   --check            Verify / try to fix diskcache consistency for specified
                      cache argument.
+  --list-keys        When present, list all the current keys available in the
+                     cache
+  --read-value TEXT  Retrieves the string representation of the value for the
+                     specified cache key.
   --help             Show this message and exit.
 ```
 
