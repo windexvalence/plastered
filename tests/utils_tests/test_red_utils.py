@@ -13,6 +13,7 @@ from plastered.utils.red_utils import (
     RedReleaseType,
     ReleaseEntry,
     TorrentEntry,
+    _red_release_type_str_to_enum,
 )
 from tests.conftest import (
     expected_red_format_list,
@@ -34,6 +35,35 @@ def test_red_format_eq(other: Any, expected: bool) -> None:
     test_instance = RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.WEB)
     actual = test_instance.__eq__(other)
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
+
+
+@pytest.mark.parametrize(
+    "release_type_str, expected",
+    [
+        ("Album", RedReleaseType.ALBUM),
+        ("Soundtrack", RedReleaseType.SOUNDTRACK),
+        ("EP", RedReleaseType.EP),
+        ("Anthology", RedReleaseType.ANTHOLOGY),
+        ("Compilation", RedReleaseType.COMPILATION),
+        ("single", RedReleaseType.SINGLE),
+        ("Live Album", RedReleaseType.LIVE_ALBUM),
+        ("Remix", RedReleaseType.REMIX),
+        ("Bootleg", RedReleaseType.BOOTLEG),
+        ("Interview", RedReleaseType.INTERVIEW),
+        ("Mixtape", RedReleaseType.MIXTAPE),
+        ("Demo", RedReleaseType.DEMO),
+        ("Concert Recording", RedReleaseType.CONCERT_RECORDING),
+        ("Dj mix", RedReleaseType.DJ_MIX),
+        ("Unknown", RedReleaseType.UNKNOWN),
+        ("Produced By", RedReleaseType.PRODUCED_BY),
+        ("Composition", RedReleaseType.COMPOSITION),
+        ("Remixed by", RedReleaseType.REMIXED_BY),
+        ("Guest Appearance", RedReleaseType.GUEST_APPEARANCE),
+    ],
+)
+def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleaseType) -> None:
+    actual = _red_release_type_str_to_enum(release_type_str=release_type_str)
+    assert actual == expected
 
 
 @pytest.mark.parametrize(

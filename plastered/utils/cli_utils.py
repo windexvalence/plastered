@@ -10,6 +10,8 @@ from typing import List
 import click
 import questionary
 
+from plastered.utils.exceptions import StatsRunPickerException
+
 DEFAULT_VERBOSITY = "WARNING"
 
 
@@ -59,6 +61,8 @@ class StatsRunPicker:
             for dir_name in os.listdir(self._summaries_directory_path)
             if os.path.isdir(os.path.join(self._summaries_directory_path, dir_name))
         ]
+        if len(self._possible_datetimes) == 0:
+            raise StatsRunPickerException("No run summary directories found.")
         self._candidate_dt = datetime(year=1970, month=1, day=1)
 
     def _is_valid_candidate_dt(self, dt: datetime, dt_attr_name: str) -> bool:

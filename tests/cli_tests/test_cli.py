@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -18,7 +18,10 @@ from plastered.scraper.lfm_scraper import (
 )
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
-from plastered.utils.exceptions import RunCacheDisabledException
+from plastered.utils.exceptions import (
+    RunCacheDisabledException,
+    StatsRunPickerException,
+)
 from tests.conftest import (
     api_run_cache,
     mock_run_date_str,
@@ -152,21 +155,33 @@ def test_cli_run_stats_command(valid_app_config: AppConfig) -> None:
 
 
 @pytest.mark.parametrize(
-    "cache_arg, info_flag_present, empty_flag_present, check_flag_present, expected_run_cache_calls",
+    "cache_arg, info_flag_present, empty_flag_present, check_flag_present, list_flag_present, read_value, expected_run_cache_calls",
     [
-        ("api", False, False, False, [call.close()]),
-        ("api", False, True, False, [call.clear(), call.close()]),
-        ("api", True, False, False, [call.print_summary_info(), call.close()]),
-        ("api", True, True, False, [call.print_summary_info(), call.clear(), call.close()]),
-        ("scraper", False, False, False, [call.close()]),
-        ("scraper", False, True, False, [call.clear(), call.close()]),
-        ("scraper", True, False, False, [call.print_summary_info(), call.close()]),
-        ("scraper", True, True, False, [call.print_summary_info(), call.clear(), call.close()]),
-        ("@all", False, False, False, [call.close()]),
-        ("@all", False, True, False, [call.clear(), call.close()]),
-        ("@all", True, False, False, [call.print_summary_info(), call.close()]),
-        ("@all", True, True, False, [call.print_summary_info(), call.clear(), call.close()]),
-        ("@all", False, False, True, [call.check(), call.close()]),
+        ("api", False, False, False, False, None, [call.close()]),
+        ("api", False, True, False, False, None, [call.clear(), call.close()]),
+        ("api", True, False, False, False, None, [call.print_summary_info(), call.close()]),
+        ("api", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
+        ("scraper", False, False, False, False, None, [call.close()]),
+        ("scraper", False, True, False, False, None, [call.clear(), call.close()]),
+        ("scraper", True, False, False, False, None, [call.print_summary_info(), call.close()]),
+        ("scraper", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
+        ("@all", False, False, False, False, None, [call.close()]),
+        ("@all", False, True, False, False, None, [call.clear(), call.close()]),
+        ("@all", True, False, False, False, None, [call.print_summary_info(), call.close()]),
+        ("@all", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
+        ("@all", False, False, True, False, None, [call.check(), call.close()]),
+        ("api", False, False, False, True, None, [call.cli_list_cache_keys()]),
+        ("scraper", False, False, False, True, None, [call.cli_list_cache_keys()]),
+        ("api", False, False, False, False, "false-key", [call.cli_print_cached_value(key="false-key"), call.close()]),
+        (
+            "scraper",
+            False,
+            False,
+            False,
+            False,
+            "false-key",
+            [call.cli_print_cached_value(key="false-key"), call.close()],
+        ),
     ],
 )
 def test_cli_cache_command(
@@ -177,6 +192,8 @@ def test_cli_cache_command(
     info_flag_present: bool,
     empty_flag_present: bool,
     check_flag_present: bool,
+    list_flag_present: bool,
+    read_value: Optional[str],
     expected_run_cache_calls: List[Any],
 ) -> None:
     test_cmd = ["cache", "--config", valid_config_filepath, cache_arg]
@@ -186,6 +203,10 @@ def test_cli_cache_command(
         test_cmd.append("--empty")
     if check_flag_present:
         test_cmd.append("--check")
+    if list_flag_present:
+        test_cmd.append("--list-keys")
+    if read_value:
+        test_cmd.extend(["--read-value", read_value])
 
     def _mock_run_cache_init_side_effect(*args, **kwargs) -> RunCache:
         if kwargs["cache_type"] == "api":
@@ -260,3 +281,21 @@ def test_cli_inspect_stats_command(
             assert result.exit_code == 0
             mock_prior_run_stats_constructor.assert_called_once()
             mock_prs_instance.print_summary_tables.assert_called_once()
+
+
+def test_cli_inspect_stats_command_exception(
+    valid_config_filepath: str,
+    mock_run_date_str: str,
+) -> None:
+    test_cmd = ["inspect-stats", "--config", valid_config_filepath]
+
+    def _prs_side_effect(*args, **kwargs) -> None:
+        raise StatsRunPickerException("No run summary directories found.")
+
+    with patch.object(
+        StatsRunPicker, "get_run_date_from_user_prompts", side_effect=_prs_side_effect
+    ) as mock_srp_get_run_date:
+        mock_srp_get_run_date.return_value = datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(cli, test_cmd)
+        assert result.exit_code != 0

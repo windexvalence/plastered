@@ -8,6 +8,7 @@ import pytest
 
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
+from plastered.utils.exceptions import StatsRunPickerException
 from tests.conftest import (
     mock_output_summary_dir_path,
     mock_root_summary_dir_path,
@@ -29,6 +30,11 @@ def test_init_stats_run_picker(
     assert srp._candidate_dt.year == 1970
     assert srp._candidate_dt.month == 1
     assert srp._candidate_dt.day == 1
+
+
+def test_init_stats_run_picker_no_runs(tmp_path: pytest.FixtureRequest) -> None:
+    with pytest.raises(StatsRunPickerException, match="No run summary directories found"):
+        srp = StatsRunPicker(summaries_directory_path=str(tmp_path), date_str_format=RUN_DATE_STR_FORMAT)
 
 
 @pytest.mark.parametrize(

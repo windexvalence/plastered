@@ -34,7 +34,7 @@ class RunCacheException(Exception):
     pass
 
 
-class RunCacheDisabledException(Exception):
+class RunCacheDisabledException(RunCacheException):
     """
     Specific Exception raised when enabled-only methods are called on a RunCache instance which is not enabled.
     """
@@ -45,6 +45,14 @@ class RunCacheDisabledException(Exception):
 class StatsTableException(Exception):
     """
     Exception for errors from StatsTable / subclasses.
+    """
+
+    pass
+
+
+class StatsRunPickerException(Exception):
+    """
+    Exception specifically for the StatsRunPicker errors.
     """
 
     pass
