@@ -1,7 +1,9 @@
+import json
 import logging
+from ast import literal_eval as make_tuple
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 
 from diskcache import Cache
 
@@ -152,3 +154,31 @@ class RunCache:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.set(cache_key, data, expire=self._seconds_to_expiry())
+
+    def cli_list_cache_keys(self) -> List[str]:
+        """
+        Convenience method exclusively for use by the cache CLI command.
+        Prints the list of string representations of all currently available cache keys.
+        """
+        if not self._enabled:
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
+        for str_key in [str(raw_key) for raw_key in list(self._cache)]:
+            print(str_key)
+
+    def cli_print_cached_value(self, key: str) -> str:
+        """
+        Convenience method exclusively for use by the cache CLI command.
+        Prints the string representation of the cached value assigned to the given cache key.
+        """
+        if not self._enabled:
+            raise RunCacheDisabledException(self._default_disabled_exception_msg)
+        if self._cache_type == CacheType.API:
+            key = make_tuple(key)
+        value = self._cache.get(key)
+        if self._cache_type == CacheType.API:
+            print(json.dumps(str(value)))
+            return
+        print("[")
+        for rec in value:
+            print(f"\t{str(rec)},")
+        print("]")

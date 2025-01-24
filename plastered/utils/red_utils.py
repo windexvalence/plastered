@@ -176,6 +176,15 @@ class RedReleaseType(Enum):
     CONCERT_RECORDING = 18
     DJ_MIX = 19
     UNKNOWN = 21
+    PRODUCED_BY = 1021
+    COMPOSITION = 1022
+    REMIXED_BY = 1023
+    GUEST_APPEARANCE = 1024
+
+
+# NOTE: the browse response returns the releaseType string value, rather than the int
+def _red_release_type_str_to_enum(release_type_str: str) -> RedReleaseType:
+    return RedReleaseType[release_type_str.replace(" ", "_").upper()]
 
 
 class TorrentEntry:
@@ -369,7 +378,7 @@ class ReleaseEntry:
             remaster_year=first_torrent_blob["remasterYear"],
             remaster_title=first_torrent_blob["remasterTitle"],
             remaster_catalogue_number=first_torrent_blob["remasterCatalogueNumber"],
-            release_type=RedReleaseType[json_blob["releaseType"].upper()],
+            release_type=_red_release_type_str_to_enum(release_type_str=json_blob["releaseType"]),
             torrent_entries=torrent_entries,
         )
 

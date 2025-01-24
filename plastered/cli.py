@@ -33,7 +33,10 @@ from plastered.utils.constants import (
     CACHE_TYPE_SCRAPER,
     RUN_DATE_STR_FORMAT,
 )
-from plastered.utils.exceptions import RunCacheDisabledException
+from plastered.utils.exceptions import (
+    RunCacheDisabledException,
+    StatsRunPickerException,
+)
 from plastered.version import get_project_version
 
 _TERMINAL_COLS = int(os.getenv("COLUMNS", 120))
@@ -155,10 +158,14 @@ def inspect_stats(ctx, config: str, run_date: Optional[datetime] = None) -> None
     # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
     if not run_date:
         _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
-        run_date = StatsRunPicker(
-            summaries_directory_path=app_config.get_root_summary_directory_path(),
-            date_str_format=RUN_DATE_STR_FORMAT,
-        ).get_run_date_from_user_prompts()
+        try:
+            run_date = StatsRunPicker(
+                summaries_directory_path=app_config.get_root_summary_directory_path(),
+                date_str_format=RUN_DATE_STR_FORMAT,
+            ).get_run_date_from_user_prompts()
+        except StatsRunPickerException:
+            _LOGGER.error(f"No run prior run summaries available for inspection.")
+            ctx.exit(2)
     PriorRunStats(app_config=app_config, run_date=run_date).print_summary_tables()
 
 
@@ -181,6 +188,15 @@ def conf(ctx, config: str) -> None:
 @subcommand_flag("--info", help_msg="Print meta-info about the disk cache(s).")
 @subcommand_flag("--empty", help_msg="When present, clear cache specified by the command argument.")
 @subcommand_flag("--check", help_msg="Verify / try to fix diskcache consistency for specified cache argument.")
+@subcommand_flag("--list-keys", help_msg="When present, list all the current keys available in the cache")
+@click.option(
+    "--read-value",
+    type=click.STRING,
+    required=False,
+    default=None,
+    envvar=None,
+    help="Retrieves the string representation of the value for the specified cache key.",
+)
 @click.argument(
     "target_cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, _CLI_ALL_CACHE_TYPES])
 )
@@ -190,8 +206,10 @@ def cache(
     config: str,
     target_cache: str,
     info: Optional[bool] = False,
-    empty: Optional[str] = False,
-    check: Optional[str] = False,
+    empty: Optional[bool] = False,
+    check: Optional[bool] = False,
+    list_keys: Optional[bool] = False,
+    read_value: Optional[str] = None,
 ) -> None:
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     target_cache_types = (
@@ -206,6 +224,10 @@ def cache(
                 target_run_cache.clear()
             if check:
                 target_run_cache.check()
+            if list_keys:
+                target_run_cache.cli_list_cache_keys()
+            if read_value:
+                target_run_cache.cli_print_cached_value(key=read_value)
         except RunCacheDisabledException:
             _LOGGER.error(
                 f"{target_cache_type} cache is not enabled. To enable it, set enable_{target_cache_type}_cache to true in config.yaml."

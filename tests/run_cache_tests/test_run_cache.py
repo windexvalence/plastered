@@ -381,3 +381,82 @@ def test_print_summary_info(
             else:
                 actual = run_cache.print_summary_info()
                 mock_diskcache.stats.assert_has_calls([call(enable=True, reset=True), call()])
+
+
+@pytest.mark.parametrize(
+    "cache_type, run_cache_enabled, mock_cache_entries, expected_print_call_cnt",
+    [
+        (CacheType.API, False, {}, 0),
+        (CacheType.SCRAPER, False, {}, 0),
+        (CacheType.API, True, {("redacted.sh", "endpoint", "params"): {"fake-key": "fake-value"}}, 1),
+        (CacheType.SCRAPER, True, {"some-key": 420, "some-other-key": 69}, 2),
+    ],
+)
+def test_cli_list_cache_keys(
+    valid_app_config: AppConfig,
+    cache_type: CacheType,
+    run_cache_enabled: bool,
+    mock_cache_entries,
+    expected_print_call_cnt: int,
+) -> None:
+    mock_diskcache = MagicMock()
+    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
+        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+        with patch("builtins.print", return_value=None) as mock_print:
+            with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+                mock_diskcache_constructor.return_value = mock_diskcache
+                mock_diskcache.stats.return_value = None
+                mock_diskcache.expire.return_value = None
+                mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
+                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+                with patch("builtins.list", return_value=[k for k in mock_cache_entries.keys()]) as mock_list:
+                    if not run_cache_enabled:
+                        with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
+                            run_cache.cli_list_cache_keys()
+                    else:
+                        run_cache.cli_list_cache_keys()
+                    actual_print_call_cnt = len(mock_print.mock_calls)
+                    assert actual_print_call_cnt == expected_print_call_cnt
+
+
+@pytest.mark.parametrize(
+    "cache_type, run_cache_enabled, key, mock_cache_entries, expected_print_call_cnt",
+    [
+        (CacheType.API, False, "key", {}, 0),
+        (CacheType.SCRAPER, False, "key", {}, 0),
+        (
+            CacheType.API,
+            True,
+            '("redacted.sh", "endpoint", "params")',
+            {("redacted.sh", "endpoint", "params"): {"fake-key": "fake-value"}},
+            1,
+        ),
+        (CacheType.SCRAPER, True, "some-key", {"some-key": [420, 69], "some-other-key": 69}, 4),
+    ],
+)
+def test_cli_print_cached_value(
+    valid_app_config: AppConfig,
+    cache_type: CacheType,
+    run_cache_enabled: bool,
+    key: str,
+    mock_cache_entries,
+    expected_print_call_cnt: int,
+) -> None:
+    mock_diskcache = MagicMock()
+    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
+        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+        with patch("builtins.print", return_value=None) as mock_print:
+            with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
+                mock_diskcache_constructor.return_value = mock_diskcache
+                mock_diskcache.stats.return_value = None
+                mock_diskcache.expire.return_value = None
+                mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
+                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+                with patch("builtins.list", return_value=[k for k in mock_cache_entries.keys()]) as mock_list:
+                    if not run_cache_enabled:
+                        with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
+                            run_cache.cli_print_cached_value(key=key)
+                    else:
+                        run_cache.cli_print_cached_value(key=key)
+                    actual_print_call_cnt = len(mock_print.mock_calls)
+                    assert actual_print_call_cnt == expected_print_call_cnt
