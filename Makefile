@@ -19,6 +19,8 @@ clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 docker-build:  ## Build the plastered docker image locally
 	docker build -t wv/plastered:$$(date +%s) -t wv/plastered:latest .
 
+dl-build:  ## Build the distroless plastered image
+
 docker-build-no-test:  ## Build the plastered docker image locally without test-requirements installed
 	docker build --build-arg BUILD_ENV=non-test -t wv/plastered:non-test .
 
@@ -36,4 +38,5 @@ render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown
 	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint /app/tests/tests_entrypoint.sh wv/plastered:latest "$(TEST_TARGET)"
+	docker run -it --rm -e TEST_TARGET="$(TEST_TARGET)" -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint=/bin/sh wv/plastered:latest /app/tests/tests_entrypoint.sh
+	
