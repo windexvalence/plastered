@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+. ${VIRTUAL_ENV}/bin/activate
 export PYTHONPATH="${APP_DIR}/"
 export TARGET_DOC_FILEPATH="${APP_DIR}/docs/CLI_reference.md"
 if [[ -z "${GITHUB_ACTIONS}" ]]; then

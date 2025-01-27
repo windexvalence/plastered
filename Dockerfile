@@ -1,4 +1,4 @@
-FROM python:3.12.5-slim AS app-builder
+FROM python:3.12.2-slim AS app-builder
 
 WORKDIR /tmp
 ENV VIRTUAL_ENV=/home/venv
@@ -11,8 +11,9 @@ RUN python -m venv ${VIRTUAL_ENV} \
 ARG BUILD_ENV="test" PLASTERED_RELEASE_TAG=""
 RUN if [ "$BUILD_ENV" = "test" ]; then . ${VIRTUAL_ENV}/bin/activate && pip install --no-cache-dir -r ./test-requirements.txt; fi
 
+# pinned to the 3.12.2 variant until there's an upgrade from 3.12.5 to another version since black doesn't support 3.12.5
 # https://github.com/alexdmoss/distroless-python
-FROM al3xos/python-distroless:3.12-debian12-debug
+FROM al3xos/python-distroless:3.12-debian12-debug-intermediate-1340150716
 
 ARG BUILD_ENV="test" PLASTERED_RELEASE_TAG=""
 ENV VIRTUAL_ENV=/home/venv APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}

@@ -19,23 +19,21 @@ clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 docker-build:  ## Build the plastered docker image locally
 	docker build -t wv/plastered:$$(date +%s) -t wv/plastered:latest .
 
-dl-build:  ## Build the distroless plastered image
-
 docker-build-no-test:  ## Build the plastered docker image locally without test-requirements installed
 	docker build --build-arg BUILD_ENV=non-test -t wv/plastered:non-test .
 
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
-	docker run -it --rm --entrypoint /bin/bash wv/plastered:latest
+	docker run -it --rm --entrypoint=/bin/sh wv/plastered:latest
 
 code-format-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
-	docker run -t --rm -e CODE_FORMAT_CHECK=1 -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/plastered:latest
+	docker run -t --rm -e CODE_FORMAT_CHECK=1 -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint=/bin/sh wv/plastered:latest /app/build_scripts/code-format.sh
 
 code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
-	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/code-format.sh wv/plastered:latest
+	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint=/bin/sh wv/plastered:latest /app/build_scripts/code-format.sh
 
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file
-	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered:latest
+	docker run -it --rm -v $(PROJECT_DIR_PATH):/project_src_mnt --entrypoint=/bin/sh wv/plastered:latest /app/build_scripts/render-cli-docs.sh
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
 	docker run -it --rm -e TEST_TARGET="$(TEST_TARGET)" -v $(PROJECT_DIR_PATH)/docs:/docs --entrypoint=/bin/sh wv/plastered:latest /app/tests/tests_entrypoint.sh

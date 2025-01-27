@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -exo pipefail
+set -eo pipefail
 
 if [[ "${TEST_TARGET}" == "tests" ]]; then
     echo "No test target specified. Running all tests ..."
