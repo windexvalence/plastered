@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
 
-# source $HOME/.profile
+source $HOME/.profile
 stty cols $COLUMNS &> /dev/null && stty rows $LINES &> /dev/null
 export PYTHONPATH="${APP_DIR}/"
-/home/venv/bin/python ${APP_DIR}/plastered/cli.py "$@"
+python ${APP_DIR}/plastered/cli.py "$@"

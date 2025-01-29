@@ -1,29 +1,15 @@
-FROM python:3.12.2-slim AS app-builder
+FROM python:3.12.8-slim
 
-WORKDIR /tmp
-ENV VIRTUAL_ENV=/home/venv
-COPY ./requirements.txt ./tests/test-requirements.txt ./
-RUN python -m venv ${VIRTUAL_ENV} \
-    && . ${VIRTUAL_ENV}/bin/activate \
-    && pip install --no-cache-dir -r ./requirements.txt --timeout=300 \
-    && rebrowser_playwright install --with-deps chromium 
+COPY ./requirements.txt ./tests/test-requirements.txt /
+RUN pip install -r /requirements.txt --timeout=300 --no-cache-dir
+RUN rebrowser_playwright install --with-deps chromium 
 
 ARG BUILD_ENV="test" PLASTERED_RELEASE_TAG=""
-RUN if [ "$BUILD_ENV" = "test" ]; then . ${VIRTUAL_ENV}/bin/activate && pip install --no-cache-dir -r ./test-requirements.txt; fi
+RUN if [ "$BUILD_ENV" = "test" ]; then pip install -r /test-requirements.txt; fi
+RUN rm -rf /var/lib/apt/lists/*
 
-# pinned to the 3.12.2 variant until there's an upgrade from 3.12.5 to another version since black doesn't support 3.12.5
-# https://github.com/alexdmoss/distroless-python
-FROM al3xos/python-distroless:3.12-debian12-debug-intermediate-1340150716
-
-ARG BUILD_ENV="test" PLASTERED_RELEASE_TAG=""
-ENV VIRTUAL_ENV=/home/venv APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
-USER root
 WORKDIR /app
-# https://stackoverflow.com/a/71756170
-COPY --from=busybox:1.36.1-glibc /bin/sh /bin/sh
+ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
+ADD . .
 
-COPY --from=app-builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
-COPY --from=app-builder /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0
-COPY . .
-
-ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-if [[ "${TEST_TARGET}" == "tests" ]]; then
-    echo "No test target specified. Running all tests ..."
+if [ $# -eq 1 ]; then
+    if [[ "$1" == "tests" ]]; then
+        echo "No test target specified. Running all tests ..."
+    else
+        echo "Test target specified as '$1' . Will only run that test."
+    fi
 else
-    echo "Test target specified as '$TEST_TARGET' . Will only run that test."
+    echo "Invalid number of arguments provided: {$#}. May either indicate a single test to run, provide 'tests' to run all tests." && exit 1
 fi
 
-TEST_PATH="${APP_DIR}/$TEST_TARGET"
-. ${VIRTUAL_ENV}/bin/activate
 
 export PYTHONPATH="${APP_DIR}/"
 # Conditionally run the additional release-only tests if running on a release GH workflow, otherwise don't run the release-only tests.
 if [[ -z "${RELEASE_TESTS}" ]]; then
-    pytest -s -vv "${TEST_PATH}"
+    pytest -s -vv "${APP_DIR}/$1"
 else 
-    pytest -s -vv --releasetests "${TEST_PATH}"
+    pytest -s -vv --releasetests "${APP_DIR}/$1"
 fi
 
-if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$TEST_TARGET" == "tests" ]]; then
+if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     echo "Not running in a github actions environment. Updating pytest-coverage markdown badge ..."
     coverage-badge -f -o "/docs/image_assets/coverage.svg"
 fi

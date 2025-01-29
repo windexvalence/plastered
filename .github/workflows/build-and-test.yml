@@ -22,11 +22,11 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ github.run_number }}-test
       - name: Code Format Check
         run: |
-          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint=/bin/sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}-test /app/build_scripts/code-format.sh
+          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}-test
       - name: Decrypt Test HTML Assets
         run: ./build_scripts/gh_action_decrypt_test_html.sh
         env:
           TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run Unit Tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 -e TEST_TARGET=tests -v ./tests/resources:/app/tests/resources --rm --entrypoint=/bin/sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}-test /app/tests/tests_entrypoint.sh
+          docker run -t -e GITHUB_ACTIONS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}-test tests

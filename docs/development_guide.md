@@ -14,7 +14,7 @@ This repo will require that you have Docker and `make` installed. All the builds
 
 While this application along with all its tests / code analysis is fully containerized with Docker, if 
 you wish to have accurate imports and syntax highlighting in your code editor, you should configure a 
-dedicated virtual environment running Python version `3.12.2` on your host machine which you're running the code editor from.
+dedicated virtual environment running Python version `3.12.8` on your host machine which you're running the code editor from.
 
 The **strongly** recommended approach for this is to use [pyenv](https://github.com/pyenv/pyenv) along with [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv). Both those links detail the installation and setup process for those tools.
 
@@ -22,11 +22,11 @@ Once those are installed, you can follow this one-time setup for creating a host
 
 1. Install the correct Python version via pyenv:
     ```shell
-    pyenv install 3.12.2
+    pyenv install 3.12.8
     ```
 2. Create a dedicated virtualenv via pyenv-virtualenv:
     ```shell
-    pyenv virtualenv 3.12.2 plastered
+    pyenv virtualenv 3.12.8 plastered
     ```
 3. Activate the virtualenv you just created in step 2:
     ```shell
