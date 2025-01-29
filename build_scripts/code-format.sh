@@ -7,7 +7,6 @@ else
     CHECK=1
 fi
 
-. ${VIRTUAL_ENV}/bin/activate
 export PYTHONPATH="${APP_DIR}/plastered/"
 if [[ -z "${GITHUB_ACTIONS}" ]]; then
     echo "Not running in a github actions environment"
