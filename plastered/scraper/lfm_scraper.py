@@ -284,6 +284,7 @@ class LFMRecsScraper:
             else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
         )
         recs_page_locator = self._page.locator(wait_css_selector)  # pylint: disable=unused-variable
+        recs_page_locator.first.wait_for()
         _sleep_random()
         return self._page.content()
 
