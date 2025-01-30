@@ -570,6 +570,7 @@ def test_navigate_to_page_and_get_page_source(
             [
                 call.goto(fake_url, wait_until="domcontentloaded"),
                 call.locator(expected_css_selector),
+                call.locator().first.wait_for(),
                 call.content(),
             ]
         )
