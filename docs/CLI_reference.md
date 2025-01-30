@@ -1,4 +1,4 @@
-# `plastered` CLI Reference (v0.1.0)
+# `plastered` CLI Reference (v0.1.1)
 
 > NOTE: this doc is auto-generated from the CLI source code. For a more thorough version of this information, run `plastered --help`, as outlined in the user guide.
 plastered: Finds your LFM recs and snatches them from RED.
