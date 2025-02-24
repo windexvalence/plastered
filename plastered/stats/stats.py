@@ -42,6 +42,7 @@ class SkippedReason(StrEnum):
     DUPE_OF_ANOTHER_REC = "Identical release as another rec which will be snatched."
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
     NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release entity."
+    MIN_RATIO_LIMIT = "Snatch would drop ratio below configured 'min_allowed_ratio'."
 
 
 class SnatchFailureReason(StrEnum):

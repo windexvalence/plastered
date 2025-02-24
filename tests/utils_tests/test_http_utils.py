@@ -323,11 +323,11 @@ def test_snatch_red_api_no_fl(
         red_client._throttle.return_value = None
         if should_raise_exception:
             with pytest.raises(RedClientSnatchException):
-                result = red_client.snatch(tid="69", can_use_token_on_torrent=False)
+                result = red_client.snatch(tid="69", can_use_token=False)
                 red_client._throttle.assert_called_once()
                 mock_sesh_get.assert_called_once()
         else:
-            result = red_client.snatch(tid="69", can_use_token_on_torrent=False)
+            result = red_client.snatch(tid="69", can_use_token=False)
             mock_sesh_get.assert_called_once()
             red_client._throttle.assert_called_once()
 
@@ -392,9 +392,9 @@ def test_snatch_red_api_use_token(
         red_client._throttle.return_value = None
         if expected_exception:
             with pytest.raises(expected_exception):
-                result = red_client.snatch(tid="69", can_use_token_on_torrent=True)
+                result = red_client.snatch(tid="69", can_use_token=True)
         else:
-            result = red_client.snatch(tid="69", can_use_token_on_torrent=True)
+            result = red_client.snatch(tid="69", can_use_token=True)
         mock_sesh_get.assert_has_calls(expected_get_calls)
         actual_throttle_calls = len(red_client._throttle.mock_calls)
         assert (

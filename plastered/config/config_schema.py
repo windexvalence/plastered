@@ -36,6 +36,7 @@ DEFAULTS_DICT = {
     # RED snatching defaults
     "skip_prior_snatches": True,
     "use_fl_tokens": False,
+    "min_allowed_ratio": -1.0,
 }
 FORMAT_PREFERENCES_KEY = "format_preferences"
 EXPECTED_TOP_LEVEL_CLI_KEYS = set(
@@ -155,6 +156,7 @@ required_schema = {
                     "maximum": 100.0,  # 100GB maximum
                 },
                 "use_fl_tokens": {"type": "boolean", "default": DEFAULTS_DICT["use_fl_tokens"]},
+                "min_allowed_ratio": {"type": "number", "default": DEFAULTS_DICT["min_allowed_ratio"]},
             },
             "required": ["snatch_directory", ENABLE_SNATCHING_KEY, "max_size_gb"],
         },

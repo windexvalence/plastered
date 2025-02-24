@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import quote, urlparse
 
 import requests
+import requests.adapters
 from urllib3.util import Retry
 
 from plastered.config.config_parser import AppConfig
@@ -21,7 +22,7 @@ from plastered.utils.constants import (
 )
 from plastered.utils.exceptions import LFMClientException, RedClientSnatchException
 
-LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 _NANOSEC_TO_SEC = 1e9
 
@@ -74,6 +75,10 @@ class ThrottledAPIBaseClient:
             requests.adapters.HTTPAdapter(max_retries=Retry(total=max_api_call_retries, backoff_factor=1.0)),
         )
 
+    def close_session(self) -> None:
+        if self._session:
+            self._session.close()
+
     # adopted from https://gist.github.com/johncadengo/0f54a9ff5b53d10024ed
     def _throttle(self) -> None:
         """
@@ -104,7 +109,7 @@ class ThrottledAPIBaseClient:
                 f"Invalid endpoint provided to {self.__class__.__name__}: '{endpoint}'. Valid endpoints are: {self._valid_endpoints}"
             )
         if endpoint in self._non_cached_endpoints:
-            LOGGER.debug(
+            _LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return None
@@ -115,7 +120,7 @@ class ThrottledAPIBaseClient:
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: Dict[str, Any]) -> bool:
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
-            LOGGER.debug(
+            _LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return False
@@ -144,8 +149,15 @@ class RedAPIClient(ThrottledAPIBaseClient):
         # Make sure there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
         no_retries_adapter = requests.adapters.HTTPAdapter(max_retries=0)
         self._session.mount(f"{RED_API_BASE_URL}?action=download", no_retries_adapter)
+        self._available_fl_tokens = 0
         self._use_fl_tokens = app_config.get_cli_option("use_fl_tokens")
         self._tids_snatched_with_fl_tokens: Set[str] = set()
+
+    def set_initial_available_fl_tokens(self, initial_available_fl_tokens: int) -> None:
+        self._available_fl_tokens = initial_available_fl_tokens
+        if self._use_fl_tokens and self._available_fl_tokens == 0:
+            _LOGGER.warning(f"Currently have zero RED FL tokens available. Ignoring 'use_fl_tokens' config setting.")
+            self._use_fl_tokens = False
 
     def request_api(self, action: str, params: str) -> Dict[str, Any]:
         """
@@ -167,10 +179,10 @@ class RedAPIClient(ThrottledAPIBaseClient):
             raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]
         cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
-    def snatch(self, tid: str, can_use_token_on_torrent: bool) -> bytes:
+    def snatch(self, tid: str, can_use_token: bool) -> bytes:
         """
         Dedicated method specifically for snatching from red and returning the
         response contents' bytes which may be written to a .torrent file.
@@ -181,7 +193,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         params = f"id={tid}"
         # Try using a FL token if the app is configured to do so and the API states a FL token is usable.
         # Fallback to non-FL download on error (i.e. out of tokens after API response, etc.)
-        if self._use_fl_tokens and can_use_token_on_torrent:
+        if self._use_fl_tokens and can_use_token and self._available_fl_tokens > 0:
             fl_snatch_failed = False
             fl_params = f"{params}&usetoken=1"
             try:
@@ -192,6 +204,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
                 fl_snatch_failed = True
             if not fl_snatch_failed:
                 self._tids_snatched_with_fl_tokens.add(tid)
+                self._available_fl_tokens -= 1
                 return response.content
             self._throttle()
         response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
@@ -247,7 +260,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         top_key = method.split(".")[0]
         result_json = json_data[top_key]
         cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
 
@@ -287,7 +300,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             headers={"Accept": "application/json"},
         ).json()
         cache_write_success = self._write_cache_if_enabled(endpoint=entity_type, params=mbid, result_json=json_data)
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return json_data
 
     def _get_track_search_query_str(
@@ -301,7 +314,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             return search_query_prefix + f"arid:{artist_mbid}"
         if human_readable_artist_name:
             return search_query_prefix + f"artist:{quote(human_readable_artist_name)}"
-        LOGGER.debug(
+        _LOGGER.debug(
             f"Cannot resolve origin release for track rec: '{human_readable_track_name}'. No available artist_mbid or human readable artist name provided."
         )
         return None
@@ -321,7 +334,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
         Otherwise returns a dict of the the form {"origin_release_mbid": Optional[str], "origin_release_name": Optional[str]}
         """
-        LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
+        _LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
         search_query_str = self._get_track_search_query_str(
             human_readable_track_name=human_readable_track_name,
             artist_mbid=artist_mbid,
@@ -343,13 +356,13 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         try:
             first_release_match_json = json_data["recordings"][0]["releases"][0]
         except (KeyError, IndexError):
-            LOGGER.debug(
+            _LOGGER.debug(
                 f"Unable to resolve an origin release for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
             )
             return None
         rel_mbid, rel_name = first_release_match_json.get("id"), first_release_match_json.get("title")
         if not rel_name:
-            LOGGER.debug(
+            _LOGGER.debug(
                 f"Unable to resolve origin release title for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
             )
             return None
@@ -357,5 +370,5 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         cache_write_success = self._write_cache_if_enabled(
             endpoint="recording", params=search_query_str, result_json=release_details
         )
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        _LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return release_details

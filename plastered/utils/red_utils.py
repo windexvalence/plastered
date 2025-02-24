@@ -2,7 +2,7 @@ import re
 from enum import Enum, StrEnum
 from typing import Any, Dict, List, Optional, Tuple
 
-from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
+from plastered.utils.constants import BYTES_IN_GB, STORAGE_UNIT_IDENTIFIERS
 
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
@@ -58,10 +58,27 @@ class RedUserDetails:
     Used by the ReleaseSearcher to determine the user's pre-snatched torrents, and filter out any pre-snatched recommendations.
     """
 
-    def __init__(self, user_id: int, snatched_count: int, snatched_torrents_list: List[Dict[str, Any]]):
+    def __init__(
+        self,
+        user_id: int,
+        snatched_count: int,
+        snatched_torrents_list: List[Dict[str, Any]],
+        user_profile_json: Dict[str, Any],
+    ):
         self._user_id = user_id
         self._snatched_count = snatched_count
         self._snatched_torrents = snatched_torrents_list
+        # giftTokens, meritTokens.
+        user_profile_stats = user_profile_json["stats"]
+        user_profile_personal = user_profile_json["personal"]
+        self._initial_uploaded_gb = float(user_profile_stats["uploaded"]) / BYTES_IN_GB
+        self._initial_downloaded_gb = float(user_profile_stats["downloaded"]) / BYTES_IN_GB
+        self._initial_buffer_gb = float(user_profile_stats["buffer"]) / BYTES_IN_GB
+        self._initial_ratio = float(user_profile_stats["ratio"])
+        self._required_ratio = float(user_profile_stats["requiredRatio"])
+        self._initial_available_fl_tokens = (user_profile_personal.get("giftTokens") or 0) + (
+            user_profile_personal.get("meritTokens")
+        )
         self._snatched_tids = set()
         # mapping from tuple(red artist name, red release name) to PriorSnatch object.
         self._snatched_torrents_dict: Dict[Tuple[str, str], PriorSnatch] = dict()
@@ -100,6 +117,36 @@ class RedUserDetails:
 
     def get_snatched_count(self) -> int:
         return self._snatched_count
+
+    def get_initial_ratio(self) -> float:
+        return self._initial_ratio
+
+    def get_required_ratio(self) -> float:
+        return self._required_ratio
+
+    def get_initial_buffer_gb(self) -> float:
+        return self._initial_buffer_gb
+
+    def get_initial_available_fl_tokens(self) -> int:
+        """
+        Returns the initial number of FL tokens available at the start of a scrape run.
+        Passed to the RedApiClient instance for the client to maintain a relatively accurate accounting of FL tokens
+        if FL usage is enabled.
+        """
+        return self._initial_available_fl_tokens
+
+    def calculate_max_download_allowed_gb(self, min_allowed_ratio: float) -> float:
+        """
+        Calculates the maximum total GB which can be snatched from RED during the current run.
+        Returns the lesser of the two values:
+            (a) the user's initial buffer at the start of the run,
+            (b) OR the additional DL (in GB) required to bring the user's ratio down to their configured 'min_allowed_ratio' config setting.
+        """
+        if min_allowed_ratio <= 0:
+            return self._initial_buffer_gb
+        # Solve for constraint init_U / (init_D + max_allowed_run_dl) >= min_allowed_ratio
+        ratio_max_allowed_run_dl = self._initial_uploaded_gb / min_allowed_ratio - self._initial_downloaded_gb
+        return min(ratio_max_allowed_run_dl, self._initial_buffer_gb)
 
 
 # Defines a singular search preference
@@ -322,7 +369,7 @@ class TorrentEntry:
             return self.size
         if unit == "MB":
             return float(self.size) / float(1e6)
-        return float(self.size) / float(1e9)
+        return float(self.size) / BYTES_IN_GB
 
     def get_red_format(self) -> RedFormat:
         return self.red_format

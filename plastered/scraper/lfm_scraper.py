@@ -111,7 +111,7 @@ class LFMRec:
             )
         self._track_origin_release = quote_plus(track_origin_release)
 
-    def set_track_origin_release_mbid(self, track_origin_release_mbid) -> None:
+    def set_track_origin_release_mbid(self, track_origin_release_mbid: str) -> None:
         """Set the MBID of the release which the track rec originated from. Only used for RecommendationType.TRACK instances."""
         if not self.is_track_rec():
             raise LFMRecException(
@@ -183,7 +183,7 @@ class LFMRec:
         return f"https://www.last.fm/music/{self._lfm_artist_str}/_/{self._lfm_entity_str}"
 
     @property
-    def track_origin_release_mbid(self) -> str:
+    def track_origin_release_mbid(self) -> Optional[str]:
         if not self.is_track_rec():
             raise LFMRecException(
                 f"Cannot get the track_origin_release_mbid from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."

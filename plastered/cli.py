@@ -133,9 +133,9 @@ def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optio
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     with LFMRecsScraper(app_config=app_config) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()
-    release_searcher = ReleaseSearcher(app_config=app_config)
-    release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
-    release_searcher.generate_summary_stats()
+    with ReleaseSearcher(app_config=app_config) as release_searcher:
+        release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
+        release_searcher.generate_summary_stats()
 
 
 @cli.command(

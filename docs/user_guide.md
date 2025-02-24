@@ -41,7 +41,7 @@ Make sure you have completed the following before installing or using `plastered
 
 You can either immediately try snatching your LFM recs with the current default config you just created, or you can explore the [configuration reference](./configuration_reference.md) and fine-tune your config before snatching your LFM recs.
 
-Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching.
+Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching. If you want to run the scraper without snatching anything from red, add the `--no-snatch` flag to the command below:
 
 ```shell
 plastered scrape

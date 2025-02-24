@@ -42,6 +42,7 @@ _RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH = os.path.join(
 _RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "red_user_torrents_seeding_response.json"
 )
+_RED_MOCK_USER_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_user_response.json")
 _LFM_MOCK_ALBUM_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_album_info_api_response.json")
 _LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_api_response.json")
 # TODO: create this mock resource file + secret
@@ -295,15 +296,22 @@ def mock_red_user_torrents_seeding_response() -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
+def mock_red_user_response() -> Dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_USER_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
 def mock_red_user_details(
     mock_red_user_torrents_snatched_response: Dict[str, Any],
     mock_red_user_torrents_seeding_response: Dict[str, Any],
+    mock_red_user_response: Dict[str, Any],
 ) -> RedUserDetails:
     return RedUserDetails(
         user_id=69,
         snatched_count=5216,
         snatched_torrents_list=mock_red_user_torrents_snatched_response["response"]["snatched"]
         + mock_red_user_torrents_seeding_response["response"]["seeding"],
+        user_profile_json=mock_red_user_response["response"],
     )
 
 

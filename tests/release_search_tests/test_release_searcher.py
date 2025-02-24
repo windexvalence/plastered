@@ -8,8 +8,11 @@ import pytest
 from plastered.config.config_parser import AppConfig
 from plastered.release_search.release_searcher import (
     ReleaseSearcher,
-    require_mbid_resolution,
+    SearchItem,
+    SearchState,
+    _TorrentMatch,
 )
+from plastered.release_search.search_helpers import _require_mbid_resolution
 from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.exceptions import (
@@ -40,15 +43,14 @@ from tests.conftest import (
     mock_red_browse_non_empty_response,
     mock_red_session_get_side_effect,
     mock_red_user_details,
+    mock_red_user_response,
     mock_red_user_stats_response,
     mock_red_user_torrents_snatched_response,
     valid_app_config,
 )
 
-_EXPECTED_TSV_OUTPUT_HEADER = "entity_type\trec_context\tlfm_entity_url\tred_permalink\trelease_mbid\n"
 
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def mock_lfmai() -> LFMAlbumInfo:
     return LFMAlbumInfo(artist="Foo", release_mbid="1234", album_name="Bar", lfm_url="https://blah.com")
 
@@ -59,11 +61,18 @@ def mock_lfm_track_info() -> LFMTrackInfo:
 
 
 @pytest.fixture(scope="function")
-def no_snatch_user_details() -> RedUserDetails:
-    return RedUserDetails(user_id=12345, snatched_count=0, snatched_torrents_list=[])
+def no_snatch_user_details(mock_red_user_response: Dict[str, Any]) -> RedUserDetails:
+    return RedUserDetails(
+        user_id=12345, snatched_count=0, snatched_torrents_list=[], user_profile_json=mock_red_user_response["response"]
+    )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
+def initial_search_state(valid_app_config: AppConfig) -> SearchState:
+    return SearchState(app_config=valid_app_config)
+
+
+@pytest.fixture(scope="session", autouse=True)
 def mock_mbr() -> MBRelease:
     return MBRelease(
         mbid="1234",
@@ -78,7 +87,7 @@ def mock_mbr() -> MBRelease:
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", autouse=True)
 def mock_best_te() -> TorrentEntry:
     return TorrentEntry(
         torrent_id=69420,
@@ -99,108 +108,6 @@ def mock_best_te() -> TorrentEntry:
     )
 
 
-@pytest.mark.parametrize(
-    "red_format, release_type, first_release_year, record_label, catalog_number, expected_browse_params",
-    [
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-            None,
-            None,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
-        ),
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.WEB),
-            None,
-            None,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
-        ),
-        (
-            RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.WEB),
-            None,
-            None,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=WEB&group_results=1&order_by=seeders&order_way=desc",
-        ),
-        (
-            RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.CD),
-            None,
-            None,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=CD&group_results=1&order_by=seeders&order_way=desc",
-        ),
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-            RedReleaseType.ALBUM,
-            None,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1",
-        ),
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-            None,
-            1969,
-            None,
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&year=1969",
-        ),
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-            None,
-            None,
-            "Fake Label",
-            None,
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&recordlabel=Fake+Label",
-        ),
-        (
-            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-            None,
-            None,
-            None,
-            "FL 69420",
-            f"artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&cataloguenumber=FL+69420",
-        ),
-    ],
-)
-def test_create_browse_params(
-    valid_app_config: AppConfig,
-    red_format: RedFormat,
-    release_type: Optional[RedReleaseType],
-    first_release_year: Optional[int],
-    record_label: Optional[str],
-    catalog_number: Optional[str],
-    expected_browse_params: str,
-) -> None:
-    release_searcher = ReleaseSearcher(app_config=valid_app_config)
-    release_searcher._use_release_type = True
-    release_searcher._use_first_release_year = True
-    release_searcher._use_record_label = True
-    release_searcher._use_catalog_number = True
-    lfm_rec = LFMRec(
-        lfm_artist_str="Some+Artist",
-        lfm_entity_str="Some+Bad+Album",
-        recommendation_type=RecommendationType.ALBUM,
-        rec_context=RecContext.SIMILAR_ARTIST,
-    )
-    actual_browse_params = release_searcher.create_red_browse_params(
-        red_format=red_format,
-        lfm_rec=lfm_rec,
-        release_type=release_type,
-        first_release_year=first_release_year,
-        record_label=record_label,
-        catalog_number=catalog_number,
-    )
-    assert (
-        actual_browse_params == expected_browse_params
-    ), f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
-
-
 def test_resolve_lfm_album_info(valid_app_config: AppConfig) -> None:
     with patch("requests.Session.get", side_effect=mock_lfm_session_get_side_effect) as mock_sesh_get:
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
@@ -210,7 +117,7 @@ def test_resolve_lfm_album_info(valid_app_config: AppConfig) -> None:
             recommendation_type=RecommendationType.ALBUM,
             rec_context=RecContext.IN_LIBRARY,
         )
-        release_searcher._resolve_lfm_album_info(lfm_rec=test_lfm_rec)
+        release_searcher._resolve_lfm_album_info(si=test_lfm_rec)
         mock_sesh_get.assert_called_once_with(
             url="https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=5678alsonotarealapikey&artist=Some+Artist&album=Their+Album&format=json",
             headers={"Accept": "application/json"},
@@ -265,17 +172,6 @@ def test_resolve_lfm_album_info(valid_app_config: AppConfig) -> None:
             None,
             None,
         ),
-        # (
-        #     LFMRec(
-        #         lfm_artist_str="The+Tuss",
-        #         lfm_entity_str="rushup+i+bank+12+M",
-        #         recommendation_type=RecommendationType.TRACK,
-        #         rec_context=RecContext.IN_LIBRARY,
-        #     ),
-        #     "mock_lfm_track_info_raise_client_exception",
-        #     None,
-        #     None,
-        # ),
     ],
 )
 def test_resolve_lfm_track_info(
@@ -294,7 +190,7 @@ def test_resolve_lfm_track_info(
         ) as mock_request_release_details_for_track:
             mock_request_release_details_for_track.return_value = mb_resolved_origin_release_fields
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
-            actual = release_searcher._resolve_lfm_track_info(lfm_rec=test_lfm_rec)
+            actual = release_searcher._resolve_lfm_track_info(si=test_lfm_rec)
             mock_lfm_request_api.assert_called_once_with(
                 method="track.getinfo", params=f"artist={test_lfm_rec.artist_str}&track={test_lfm_rec.entity_str}"
             )
@@ -319,46 +215,13 @@ def test_resolve_lfm_track_info_bad_json(
                 "origin_release_name": "Some Release",
             }
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
-            actual = release_searcher._resolve_lfm_track_info(lfm_rec=rec)
+            actual = release_searcher._resolve_lfm_track_info(si=rec)
             assert actual is not None
             mock_mb_request_method.assert_called_once_with(
                 human_readable_track_name=rec.get_human_readable_track_str(),
                 artist_mbid=None,
                 human_readable_artist_name=rec.get_human_readable_artist_str(),
             )
-
-
-# @pytest.mark.parametrize(
-#     "lfm_rec, lfm_json_fixture, expected", [
-#         (
-#             LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
-#             "mock_lfm_track_info_raise_client_exception",
-#             None,
-#         ),
-#         (
-#             LFMRec("The+Tuss", "rushup+i+bank+12+M", RecommendationType.TRACK, RecContext.IN_LIBRARY),
-#             "mock_lfm_track_info_raise_key_error_during_track_resolution",
-#             None,
-#         ),
-#     ]
-# )
-# def test_resolve_lfm_track_info_client_exception(
-#     request: pytest.FixtureRequest,
-#     valid_app_config: AppConfig,
-#     lfm_rec: LFMRec,
-#     lfm_json_fixture: str,
-#     expected: Optional[LFMTrackInfo],
-# ) -> None:
-#     mock_lfm_response = request.getfixturevalue(lfm_json_fixture)["track"]
-#     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
-#         mock_lfm_request_api.return_value = mock_lfm_response
-#         with patch.object(
-#             MusicBrainzAPIClient, "request_release_details_for_track"
-#         ) as mock_request_release_details_for_track:
-#             mock_request_release_details_for_track.return_value = None
-#             release_searcher = ReleaseSearcher(app_config=valid_app_config)
-#             actual = release_searcher._resolve_lfm_track_info(lfm_rec=lfm_rec)
-#             assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 def test_resolve_mb_release(valid_app_config: AppConfig) -> None:
@@ -369,38 +232,6 @@ def test_resolve_mb_release(valid_app_config: AppConfig) -> None:
             url="https://musicbrainz.org/ws/2/release/some-fake-mbid?inc=artist-credits+media+labels+release-groups",
             headers={"Accept": "application/json"},
         )
-
-
-@pytest.mark.parametrize(
-    "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
-    [
-        (False, False, False, False, False),
-        (False, False, False, True, True),
-        (False, False, True, False, True),
-        (False, True, False, False, True),
-        (True, False, False, False, True),
-        (True, False, False, True, True),
-        (True, False, True, False, True),
-        (True, True, False, False, True),
-        (True, True, False, True, True),
-        (True, True, True, False, True),
-        (True, True, True, True, True),
-    ],
-)
-def test_require_mbid_resolution(
-    use_release_type: bool,
-    use_first_release_year: bool,
-    use_record_label: bool,
-    use_catalog_number: bool,
-    expected: bool,
-) -> None:
-    actual = require_mbid_resolution(
-        use_release_type=use_release_type,
-        use_first_release_year=use_first_release_year,
-        use_record_label=use_record_label,
-        use_catalog_number=use_catalog_number,
-    )
-    assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 def test_gather_red_user_details(valid_app_config: AppConfig) -> None:
@@ -552,7 +383,7 @@ def test_search_red_release_by_preferences(
         side_effect=[request.getfixturevalue(fixture_name)["response"] for fixture_name in mock_response_fixture_names],
     )
     actual_torrent_entry = release_searcher._search_red_release_by_preferences(
-        lfm_rec=LFMRec(
+        si=LFMRec(
             lfm_artist_str="Fake+Artist",
             lfm_entity_str="Fake+Release",
             recommendation_type=RecommendationType.ALBUM,
@@ -602,7 +433,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
             ],
         )
         actual_torrent_entry = release_searcher._search_red_release_by_preferences(
-            lfm_rec=test_lfm_rec,
+            si=test_lfm_rec,
             release_type=RedReleaseType.ALBUM,
             first_release_year=1899,
         )
@@ -631,7 +462,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(
         release_searcher._red_client.request_api = Mock(name="request_api", side_effect=_raise_excp)
 
         actual = release_searcher._search_red_release_by_preferences(
-            lfm_rec=test_lfm_rec,
+            si=test_lfm_rec,
             release_type=RedReleaseType.ALBUM,
             first_release_year=1899,
         )
@@ -779,7 +610,7 @@ def test_search_for_album_rec(
             recommendation_type=RecommendationType.ALBUM,
             rec_context=RecContext.SIMILAR_ARTIST,
         )
-        actual = release_searcher.search_for_release_rec(lfm_rec=test_lfm_rec)
+        actual = release_searcher._search_for_release_te(si=test_lfm_rec)
         if release_searcher._require_mbid_resolution:
             release_searcher._resolve_lfm_album_info.assert_called_once()
             release_searcher._resolve_mb_release.assert_called_once_with(mbid=mock_lfmai.get_release_mbid())
@@ -790,6 +621,72 @@ def test_search_for_album_rec(
             lfm_rec=test_lfm_rec, search_kwargs=expected_search_kwargs
         )
         assert actual == expected_te_result, f"Expected result: {expected_te_result}, but got {actual}"
+
+
+@pytest.mark.parametrize(
+    "pre_search_filter_res, require_mbid_resolution, post_search_filer_res", [
+        (False, False, False),
+        (True, False, False),
+        (True, True, False),
+        (True, False, False),
+    ]
+)
+def test_search_for_release_te_none(
+    valid_app_config: AppConfig,
+    pre_search_filter_res: bool,
+    require_mbid_resolution: bool,
+    post_search_filer_res: bool,
+) -> None:
+    """Validates that the conditions where _search_for_release_te should return None do so."""
+    with patch.object(SearchState, "pre_search_filter", return_value=pre_search_filter_res) as mock_ss_pre_filter, \
+        patch.object(SearchState, "post_search_filter", return_value=post_search_filer_res) as mock_ss_post_filter, \
+        patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai, \
+        patch.object(ReleaseSearcher, "_resolve_mb_release", return_value=mock_mbr) as mock_resolve_mbr, \
+        patch.object(ReleaseSearcher, "_search_red_release_by_preferences", return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False)) as mocked_torrent_match:
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
+        si = SearchItem(LFMRec("", "", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST))
+        actual = release_searcher._search_for_release_te(si=si)
+    assert actual is None
+
+
+@pytest.mark.parametrize("require_mbid_resolution", [False, True])
+def test_search_for_release_te(valid_app_config: AppConfig, require_mbid_resolution: bool) -> None:
+    """Validates that the conditions where _search_for_release_te should return non-None do so."""
+    with patch.object(SearchState, "pre_search_filter", return_value=True) as mock_ss_pre_filter, \
+        patch.object(SearchState, "post_search_filter", return_value=True) as mock_ss_post_filter, \
+        patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai, \
+        patch.object(ReleaseSearcher, "_resolve_mb_release", return_value=mock_mbr) as mock_resolve_mbr, \
+        patch.object(ReleaseSearcher, "_search_red_release_by_preferences", return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False)) as mocked_torrent_match:
+        release_searcher = ReleaseSearcher(app_config=valid_app_config)
+        release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
+        si = SearchItem(LFMRec("", "", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST))
+        actual = release_searcher._search_for_release_te(si=si)
+        mock_ss_pre_filter.assert_called_once()
+        mock_ss_post_filter.assert_called_once()
+    assert actual is not None
+    assert actual.torrent_entry is not None
+    assert actual.torrent_entry == mock_best_te
+
+
+
+# @pytest.mark.parametrize(
+#     "input_si, pre_search_filter_res, require_mbid_resolution, post_search_filer_res, expected",
+#     [
+#         (
+#             SearchItem(...), False, True, True, None,
+#         ),
+#         (
+#             SearchItem(...), True, True, True, None,
+#         ),
+#     ]
+# )
+# def test_search_for_release_te(
+#     valid_app_config: AppConfig,
+#     initial_search_state: SearchState,
+# ) -> None:
+#     release_searcher = ReleaseSearcher(app_config=valid_app_config)
+#     pass  # TODO: implement
 
 
 @pytest.mark.parametrize(
@@ -824,8 +721,8 @@ def test_search_for_album_rec_skip_prior_snatch(
                 release_searcher._red_user_details = mock_red_user_details
                 with patch.object(RedUserDetails, "has_snatched_release") as mock_rud_has_snatched_release:
                     mock_rud_has_snatched_release.return_value = True
-                    actual_search_result = release_searcher.search_for_release_rec(
-                        lfm_rec=LFMRec(
+                    actual_search_result = release_searcher._search_for_release_te(
+                        si=LFMRec(
                             lfm_artist_str=lfm_artist_str,
                             lfm_entity_str=lfm_album_str,
                             recommendation_type=RecommendationType.ALBUM,
@@ -838,59 +735,6 @@ def test_search_for_album_rec_skip_prior_snatch(
                     assert (
                         actual_search_result is None
                     ), f"Expected pre-snatched release to cause search_for_album_rec to return None, but got {actual_search_result}"
-
-
-# ("https://redacted.sh/torrents.php?torrentid=123", None)
-
-
-@pytest.mark.parametrize(
-    "rec_context, allow_library_items, expect_found",
-    [
-        (RecContext.SIMILAR_ARTIST, False, True),
-        (RecContext.SIMILAR_ARTIST, True, True),
-        (RecContext.IN_LIBRARY, False, False),
-        (RecContext.IN_LIBRARY, True, True),
-    ],
-)
-def test_search_for_album_rec_allow_library_items(
-    valid_app_config: AppConfig,
-    no_snatch_user_details: RedUserDetails,
-    rec_context: RecContext,
-    allow_library_items: bool,
-    expect_found: bool,
-) -> None:
-    lfm_rec = LFMRec(
-        lfm_artist_str="Some+Artist",
-        lfm_entity_str="Some+Album",
-        recommendation_type=RecommendationType.ALBUM,
-        rec_context=rec_context,
-    )
-    with patch.object(ReleaseSearcher, "_search_red_release_by_preferences") as mock_rfp_search:
-        release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        release_searcher._red_user_details = no_snatch_user_details
-        release_searcher._skip_prior_snatches = False
-        release_searcher._allow_library_items = allow_library_items
-        release_searcher._require_mbid_resolution = False
-        res_te = TorrentEntry(
-            torrent_id=123,
-            media="CD",
-            format="FLAC",
-            encoding="Lossless",
-            size=12345,
-            scene=False,
-            trumpable=False,
-            has_snatched=False,
-            has_log=True,
-            log_score=100,
-            has_cue=True,
-            can_use_token=False,
-        )
-        mock_rfp_search.return_value = res_te
-        expected = res_te if expect_found else None
-        actual_result = release_searcher.search_for_release_rec(lfm_rec=lfm_rec)
-        assert (
-            actual_result == expected
-        ), f"Expected search result to be {expected} for allow_library_items set to {allow_library_items} and rec_context set to {rec_context}, but got {actual_result}"
 
 
 @pytest.mark.parametrize(
@@ -1032,11 +876,11 @@ def test_search_for_album_recs(
     def mock_search_side_effect(*args, **kwargs) -> Optional[Tuple[str, Optional[str]]]:
         return search_res_q.popleft()
 
-    with patch.object(ReleaseSearcher, "search_for_release_rec") as mock_search_for_release_rec:
-        mock_search_for_release_rec.side_effect = mock_search_side_effect
+    with patch.object(ReleaseSearcher, "_search_for_release_te") as mock_search_for_release_te:
+        mock_search_for_release_te.side_effect = mock_search_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
         release_searcher._red_user_details = release_searcher._red_user_details = mock_red_user_details
-        release_searcher._search_for_release_recs(lfm_recs=lfm_recs)
+        release_searcher._search(search_items=lfm_recs)
         actual_to_snatch_len = len(release_searcher._torrent_entries_to_snatch)
         assert (
             actual_to_snatch_len == expected_to_snatch_length
@@ -1186,11 +1030,11 @@ def test_search_for_release_recs_tracks(
     def mock_search_side_effect(*args, **kwargs) -> Optional[Tuple[str, Optional[str]]]:
         return search_res_q.popleft()
 
-    with patch.object(ReleaseSearcher, "search_for_release_rec") as mock_search_for_release_rec:
-        mock_search_for_release_rec.side_effect = mock_search_side_effect
+    with patch.object(ReleaseSearcher, "_search_for_release_te") as mock_search_for_release_te:
+        mock_search_for_release_te.side_effect = mock_search_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
         release_searcher._red_user_details = release_searcher._red_user_details = mock_red_user_details
-        release_searcher._search_for_release_recs(lfm_recs=lfm_recs)
+        release_searcher._search(search_items=lfm_recs)
         actual_to_snatch_len = len(release_searcher._torrent_entries_to_snatch)
         assert (
             actual_to_snatch_len == expected_to_snatch_length
@@ -1214,7 +1058,7 @@ def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolve_lfm_res
             mock_resolve_lfm_track_info.return_value = mock_resolve_lfm_result
             mock_search_for_release_recs.return_value = None
             release_searcher = ReleaseSearcher(app_config=valid_app_config)
-            release_searcher._search_for_track_recs(track_recs=[test_lfm_rec])
+            release_searcher._search_for_track_recs(search_items=[test_lfm_rec])
             mock_resolve_lfm_track_info.assert_called_once_with(lfm_rec=test_lfm_rec)
             if not mock_resolve_lfm_result:
                 mock_search_for_release_recs.assert_called_once_with(lfm_recs=[])
@@ -1284,8 +1128,8 @@ def test_search_for_recs(
 def test_search_for_album_recs_invalid_user_details(valid_app_config: AppConfig) -> None:
     with pytest.raises(ReleaseSearcherException, match="self._red_user_details has not yet been populated"):
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        release_searcher._search_for_release_recs(
-            lfm_recs=[LFMRec("A", "B", RecommendationType.ALBUM, RecContext.IN_LIBRARY)],
+        release_searcher._search(
+            search_items=[LFMRec("A", "B", RecommendationType.ALBUM, RecContext.IN_LIBRARY)],
         )
 
 
@@ -1294,10 +1138,10 @@ def test_search_for_release_recs_mixed_rec_types(valid_app_config: AppConfig) ->
         ReleaseSearcherException, match=f"Invalid lfm_recs list. All recs in list must have the same rec_type value"
     ):
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        release_searcher._search_for_release_recs(
-            lfm_recs=[
-                LFMRec("A", "B", RecommendationType.ALBUM, RecContext.IN_LIBRARY),
-                LFMRec("C", "D", RecommendationType.TRACK, RecContext.IN_LIBRARY),
+        release_searcher._search(
+            search_items=[
+                SearchItem(_lfm_rec=LFMRec("A", "B", RecommendationType.ALBUM, RecContext.IN_LIBRARY)),
+                SearchItem(LFMRec("C", "D", RecommendationType.TRACK, RecContext.IN_LIBRARY)),
             ],
         )
 
