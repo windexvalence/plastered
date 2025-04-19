@@ -189,10 +189,6 @@ class ReleaseSearcher:
             return None
         return si
 
-    def _get_tid_and_snatch_path(self, permalink: str) -> Tuple[str, str]:
-        tid = permalink.split("=")[-1]
-        return tid, os.path.join(self._snatch_directory, f"{tid}.torrent")
-
     def _search(self, search_items: List[SearchItem]) -> None:
         """
         Iterate over the list of SearchItems and search for a TE match on RED for each one.

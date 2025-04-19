@@ -1,3 +1,5 @@
+# TODO: ensure no http requests leak to a real network call by
+# using pytest-httpx:  https://pypi.org/project/pytest-httpx/
 import csv
 import json
 import os

@@ -763,19 +763,27 @@ def test_search_for_album_rec_skip_prior_snatch(
                 )
             ],
             [
-                TorrentEntry(
-                    torrent_id=69420,
-                    media="CD",
-                    format="FLAC",
-                    encoding="Lossless",
-                    size=12345,
-                    scene=False,
-                    trumpable=False,
-                    has_snatched=False,
-                    has_log=True,
-                    log_score=100,
-                    has_cue=True,
-                    can_use_token=False,
+                SearchItem(
+                    _lfm_rec=LFMRec(
+                        lfm_artist_str="Some+Artist",
+                        lfm_entity_str="Their+Album",
+                        recommendation_type=RecommendationType.ALBUM,
+                        rec_context=RecContext.SIMILAR_ARTIST,
+                    ),
+                    _torrent_entry=TorrentEntry(
+                        torrent_id=69420,
+                        media="CD",
+                        format="FLAC",
+                        encoding="Lossless",
+                        size=12345,
+                        scene=False,
+                        trumpable=False,
+                        has_snatched=False,
+                        has_log=True,
+                        log_score=100,
+                        has_cue=True,
+                        can_use_token=False,
+                    ),
                 ),
             ],
             1,
@@ -790,19 +798,27 @@ def test_search_for_album_rec_skip_prior_snatch(
                 )
             ],
             [
-                TorrentEntry(
-                    torrent_id=69420,
-                    media="CD",
-                    format="FLAC",
-                    encoding="Lossless",
-                    size=12345,
-                    scene=False,
-                    trumpable=False,
-                    has_snatched=False,
-                    has_log=True,
-                    log_score=100,
-                    has_cue=True,
-                    can_use_token=False,
+                SearchItem(
+                    _lfm_rec=LFMRec(
+                        lfm_artist_str="Some+Artist",
+                        lfm_entity_str="Their+Album",
+                        recommendation_type=RecommendationType.ALBUM,
+                        rec_context=RecContext.SIMILAR_ARTIST,
+                    ),
+                    _torrent_entry=TorrentEntry(
+                        torrent_id=69420,
+                        media="CD",
+                        format="FLAC",
+                        encoding="Lossless",
+                        size=12345,
+                        scene=False,
+                        trumpable=False,
+                        has_snatched=False,
+                        has_log=True,
+                        log_score=100,
+                        has_cue=True,
+                        can_use_token=False,
+                    ),
                 ),
             ],
             1,
@@ -829,34 +845,50 @@ def test_search_for_album_rec_skip_prior_snatch(
                 ),
             ],
             [
-                TorrentEntry(
-                    torrent_id=69420,
-                    media="CD",
-                    format="FLAC",
-                    encoding="Lossless",
-                    size=12345,
-                    scene=False,
-                    trumpable=False,
-                    has_snatched=False,
-                    has_log=True,
-                    log_score=100,
-                    has_cue=True,
-                    can_use_token=False,
+                SearchItem(
+                    _lfm_rec=LFMRec(
+                        lfm_artist_str="Some+Artist",
+                        lfm_entity_str="Their+Album",
+                        recommendation_type=RecommendationType.ALBUM,
+                        rec_context=RecContext.SIMILAR_ARTIST,
+                    ),
+                    _torrent_entry=TorrentEntry(
+                        torrent_id=69420,
+                        media="CD",
+                        format="FLAC",
+                        encoding="Lossless",
+                        size=12345,
+                        scene=False,
+                        trumpable=False,
+                        has_snatched=False,
+                        has_log=True,
+                        log_score=100,
+                        has_cue=True,
+                        can_use_token=False,
+                    ),
                 ),
                 None,
-                TorrentEntry(
-                    torrent_id=666,
-                    media="CD",
-                    format="FLAC",
-                    encoding="Lossless",
-                    size=12345,
-                    scene=False,
-                    trumpable=False,
-                    has_snatched=False,
-                    has_log=True,
-                    log_score=100,
-                    has_cue=True,
-                    can_use_token=False,
+                SearchItem(
+                    _lfm_rec=LFMRec(
+                        lfm_artist_str="Some+Bad+Artist",
+                        lfm_entity_str="Bad+Album",
+                        recommendation_type=RecommendationType.ALBUM,
+                        rec_context=RecContext.IN_LIBRARY,
+                    ),
+                    _torrent_entry=TorrentEntry(
+                        torrent_id=666,
+                        media="CD",
+                        format="FLAC",
+                        encoding="Lossless",
+                        size=12345,
+                        scene=False,
+                        trumpable=False,
+                        has_snatched=False,
+                        has_log=True,
+                        log_score=100,
+                        has_cue=True,
+                        can_use_token=False,
+                    ),
                 ),
             ],
             2,
@@ -865,29 +897,30 @@ def test_search_for_album_rec_skip_prior_snatch(
 )
 def test_search_for_album_recs(
     lfm_recs: List[LFMRec],
-    mocked_search_results: List[Optional[Tuple[str, Optional[str]]]],
+    mocked_search_results: List[Optional[SearchItem]],
     expected_to_snatch_length: int,
     valid_app_config: AppConfig,
     mock_red_user_details: RedUserDetails,
 ) -> None:
     search_res_q = deque(mocked_search_results)
-    expected_te_to_snatch_entries = [te for te in mocked_search_results if te is not None]
+    expected_si_to_snatch = [si for si in mocked_search_results if si is not None]
 
-    def mock_search_side_effect(*args, **kwargs) -> Optional[Tuple[str, Optional[str]]]:
+    def mock_search_side_effect(*args, **kwargs) -> Optional[SearchItem]:
         return search_res_q.popleft()
 
     with patch.object(ReleaseSearcher, "_search_for_release_te") as mock_search_for_release_te:
         mock_search_for_release_te.side_effect = mock_search_side_effect
         release_searcher = ReleaseSearcher(app_config=valid_app_config)
-        release_searcher._red_user_details = release_searcher._red_user_details = mock_red_user_details
-        release_searcher._search(search_items=lfm_recs)
-        actual_to_snatch_len = len(release_searcher._torrent_entries_to_snatch)
+        release_searcher._search_state._red_user_details = mock_red_user_details
+        release_searcher._search(search_items=[SearchItem(lfm_rec) for lfm_rec in lfm_recs])
+        actual_to_snatch = release_searcher._search_state.get_search_items_to_snatch()
+        actual_to_snatch_len = len(actual_to_snatch)
         assert (
             actual_to_snatch_len == expected_to_snatch_length
-        ), f"Expected {expected_to_snatch_length} entries in _torrent_entries_to_snatch, but got {actual_to_snatch_len} instead."
-        for i, actual_te in enumerate(release_searcher._torrent_entries_to_snatch):
-            expected_te = expected_te_to_snatch_entries[i]
-            assert actual_te == expected_te, f"Expected TorrentEntry: {expected_te}, but got {actual_te}"
+        ), f"Expected {expected_to_snatch_length}, but got {actual_to_snatch_len}"
+        for i, actual_si in enumerate(actual_to_snatch):
+            expected_si = expected_si_to_snatch[i]
+            assert actual_si == expected_si, f"Expected SearchItem: {expected_si}, but got {actual_si}"
 
 
 @pytest.mark.parametrize(
