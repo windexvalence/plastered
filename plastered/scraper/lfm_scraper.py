@@ -134,9 +134,7 @@ class LFMRec:
 
     def get_human_readable_release_str(self) -> str:
         if self.is_track_rec():
-            if not self._track_origin_release:
-                return "None"
-            return unquote_plus(self._track_origin_release)
+            return "None" if not self._track_origin_release else unquote_plus(self._track_origin_release)
         return unquote_plus(self._lfm_entity_str)
 
     def get_human_readable_entity_str(self) -> str:

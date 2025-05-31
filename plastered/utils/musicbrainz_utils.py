@@ -1,6 +1,8 @@
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import quote_plus
 
 from plastered.utils.red_utils import RedReleaseType
 
@@ -64,11 +66,20 @@ class MBRelease:
     def get_musicbrainz_release_group_url(self) -> str:
         return f"https://musicbrainz.org/release-group/{self.release_group_mbid}"
 
-    def get_release_searcher_kwargs(self) -> Dict[str, Any]:
-        """Helper method to return the search_kwargs used by the ReleaseSearcher."""
-        return {
-            "release_type": self.get_red_release_type(),
-            "first_release_year": self.get_first_release_year(),
-            "record_label": self.get_label(),
-            "catalog_number": self.get_catalog_number(),
-        }
+    def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
+        """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""
+        return OrderedDict(
+            [
+                ("releasetype", self.get_red_release_type().value),
+                (
+                    "year",
+                    (
+                        self.first_release_year
+                        if (self.first_release_year is not None and self.first_release_year > 0)
+                        else None
+                    ),
+                ),
+                ("recordlabel", quote_plus(self.label) if self.label else None),
+                ("cataloguenumber", quote_plus(self.catalog_number) if self.catalog_number else None),
+            ]
+        )

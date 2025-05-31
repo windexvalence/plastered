@@ -118,6 +118,20 @@ def test_get_human_readable_artist_str(lfm_str: str, expected: str) -> None:
     ), f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
 
 
+@pytest.mark.parametrize("track_origin_release, expected", [(None, "None"), ("Title", "Title")])
+def test_get_human_readable_release_str_track(track_origin_release: str, expected: str) -> None:
+    test_lfm_rec = LFMRec("Artist", "Fake+Release", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST)
+    test_lfm_rec._track_origin_release = track_origin_release
+    actual = test_lfm_rec.get_human_readable_release_str()
+    assert actual == expected
+
+
+def test_get_human_readable_release_str_album() -> None:
+    test_lfm_rec = LFMRec("Artist", "Fake+Release", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST)
+    actual = test_lfm_rec.get_human_readable_release_str()
+    assert actual == "Fake Release"
+
+
 @pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "Some Entity")])
 def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, expected: Optional[str]) -> None:
     test_lfm_rec = LFMRec(

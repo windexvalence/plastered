@@ -68,9 +68,10 @@ class RedUserDetails:
         self._user_id = user_id
         self._snatched_count = snatched_count
         self._snatched_torrents = snatched_torrents_list
+        self._user_profile_json = user_profile_json
         # giftTokens, meritTokens.
-        user_profile_stats = user_profile_json["stats"]
-        user_profile_personal = user_profile_json["personal"]
+        user_profile_stats = self._user_profile_json["stats"]
+        user_profile_personal = self._user_profile_json["personal"]
         self._initial_uploaded_gb = float(user_profile_stats["uploaded"]) / BYTES_IN_GB
         self._initial_downloaded_gb = float(user_profile_stats["downloaded"]) / BYTES_IN_GB
         self._initial_buffer_gb = float(user_profile_stats["buffer"]) / BYTES_IN_GB
@@ -112,21 +113,6 @@ class RedUserDetails:
         """
         return tid in self._snatched_tids
 
-    def get_user_id(self) -> int:
-        return self._user_id
-
-    def get_snatched_count(self) -> int:
-        return self._snatched_count
-
-    def get_initial_ratio(self) -> float:
-        return self._initial_ratio
-
-    def get_required_ratio(self) -> float:
-        return self._required_ratio
-
-    def get_initial_buffer_gb(self) -> float:
-        return self._initial_buffer_gb
-
     def get_initial_available_fl_tokens(self) -> int:
         """
         Returns the initial number of FL tokens available at the start of a scrape run.
@@ -146,7 +132,7 @@ class RedUserDetails:
             return self._initial_buffer_gb
         # Solve for constraint init_U / (init_D + max_allowed_run_dl) >= min_allowed_ratio
         ratio_max_allowed_run_dl = self._initial_uploaded_gb / min_allowed_ratio - self._initial_downloaded_gb
-        return min(ratio_max_allowed_run_dl, self._initial_buffer_gb)
+        return max(min(ratio_max_allowed_run_dl, self._initial_buffer_gb), 0.0)
 
 
 # Defines a singular search preference
@@ -327,26 +313,8 @@ class TorrentEntry:
             can_use_token=json_blob["canUseToken"],
         )
 
-    def set_matched_mbid(self, matched_mbid: str) -> None:
-        self._matched_mbid = matched_mbid
-
-    def set_lfm_rec_fields(
-        self, rec_type: str, rec_context: str, artist_name: str, release_name: str, track_rec_name: Optional[str] = None
-    ) -> None:
-        self._lfm_rec_type = rec_type
-        self._lfm_rec_context = rec_context
-        self._artist_name = artist_name
-        self._release_name = release_name
-        self._track_rec_name = track_rec_name
-
     def get_matched_mbid(self) -> Optional[str]:
         return self._matched_mbid
-
-    def get_lfm_rec_type(self) -> Optional[str]:
-        return self._lfm_rec_type
-
-    def get_lfm_rec_context(self) -> Optional[str]:
-        return self._lfm_rec_context
 
     def get_artist_name(self) -> Optional[str]:
         return self._artist_name

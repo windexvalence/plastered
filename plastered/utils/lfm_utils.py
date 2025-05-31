@@ -14,9 +14,6 @@ class LFMAlbumInfo:
     lfm_url: str
     release_mbid: Optional[str] = None
 
-    def __str__(self) -> str:
-        return str(vars(self))
-
     @classmethod
     def construct_from_api_response(cls, json_blob: Dict[str, Any]):
         """Constructs an LFMAlbumInfo instance from the LFM API's album.getinfo endpoint JSON response."""
@@ -27,17 +24,8 @@ class LFMAlbumInfo:
             lfm_url=json_blob["url"],
         )
 
-    def get_artist(self) -> str:
-        return self.artist
-
     def get_release_mbid(self) -> Optional[str]:
         return self.release_mbid
-
-    def get_album_name(self) -> str:
-        return self.album_name
-
-    def get_lfm_url(self) -> str:
-        return self.lfm_url
 
 
 @dataclass
@@ -68,17 +56,5 @@ class LFMTrackInfo:
             lfm_url=json_blob["url"],
         )
 
-    def get_artist(self) -> str:
-        return self.artist
-
-    def get_track_name(self) -> str:
-        return self.track_name
-
     def get_release_mbid(self) -> Optional[str]:
         return self.release_mbid
-
-    def get_release_name(self) -> str:
-        return self.release_name
-
-    def get_lfm_url(self) -> str:
-        return self.lfm_url

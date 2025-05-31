@@ -83,6 +83,11 @@ ignored-argument-names = "_.*|^ignored_|^unused_"
 
 [tool.pytest.ini_options]
 addopts = "--cov-report term-missing --cov=plastered --cov-fail-under=100"
+markers = [
+    "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
+    "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
+    "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+]
 
 [tool.bandit]
 exclude_dirs = [".github", "docs", "examples", "tests", "secrets"]

@@ -1,15 +1,16 @@
-# TODO: ensure no http requests leak to a real network call by
-# using pytest-httpx:  https://pypi.org/project/pytest-httpx/
+import copy
 import csv
 import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, PropertyMock
+from typing import Any, Dict, Generator, List, Tuple
+from unittest.mock import MagicMock
 
+import httpx
 import pytest
 import yaml
+from pytest_httpx import HTTPXMock
 
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
@@ -51,11 +52,13 @@ _LFM_MOCK_TRACK_INFO_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, 
 _LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "lfm_track_info_no_album_api_response.json"
 )
-_MUSICBRAINZ_MOCK_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json")
+_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json"
+)
 _MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_arid.json"
 )
-_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH = os.path.join(
+_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_artist_name.json"
 )
 
@@ -66,22 +69,26 @@ def pytest_addoption(parser):
     parser.addoption(
         "--releasetests", action="store_true", default=False, help="run release tests in addition to standard tests"
     )
-
-
-def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "releasetest: mark test as a release-only test which should be skipped on non-release builds."
+    parser.addoption(
+        "--slowtests", action="store_true", default=False, help="run slow tests in addition to standard tests"
     )
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--releasetests"):
-        # --releasetests given in cli: do not skip release tests
-        return
-    skip_release = pytest.mark.skip(reason="need --releasetests option to run")
+    # `True` when `--releasetests` provided in cli: do not skip release tests
+    include_release_tests = config.getoption("--releasetests")
+    # `True` when `--slowtests` provided in cli: do not skip slow tests
+    include_slow_tests = config.getoption("--slowtests")
+    skip_release = pytest.mark.skip(reason="--releasetests option required to run release tests")
+    skip_slow = pytest.mark.skip(reason="--slowtests option required to run slow tests")
     for item in items:
-        if "releasetest" in item.keywords:
+        if "releasetest" in item.keywords and not include_release_tests:
             item.add_marker(skip_release)
+        if "slow" in item.keywords and not include_slow_tests:
+            item.add_marker(skip_slow)
+        # https://pypi.org/project/pytest-httpx/#for-the-whole-test-suite
+        # TODO: see if this can be removed
+        item.add_marker(pytest.mark.httpx_mock(assert_all_responses_were_requested=False))
 
 
 def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
@@ -317,6 +324,17 @@ def mock_red_user_details(
     )
 
 
+@pytest.fixture(scope="function")
+def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> RedUserDetails:
+    """Same contents as the session-scoped one above, but function-scoped to allow for per-test attribute overrides."""
+    return RedUserDetails(
+        user_id=mock_red_user_details._user_id,
+        snatched_count=mock_red_user_details._snatched_count,
+        snatched_torrents_list=copy.deepcopy(mock_red_user_details._snatched_torrents),
+        user_profile_json=copy.deepcopy(mock_red_user_details._user_profile_json),
+    )
+
+
 @pytest.fixture(scope="session")
 def mock_lfm_album_info_json() -> Dict[str, Any]:
     return load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
@@ -339,7 +357,7 @@ def mock_lfm_track_info_raise_client_exception() -> Dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def mock_musicbrainz_release_json() -> Dict[str, Any]:
-    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
@@ -349,12 +367,12 @@ def mock_musicbrainz_track_search_arid_json() -> Dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def mock_musicbrainz_track_search_artist_name_json() -> Dict[str, Any]:
-    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH)
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
 def mock_musicbrainz_track_search_no_release_name_json() -> Dict[str, Any]:
-    raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARTIST_NAME_JSON_FILEPATH)
+    raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
     del raw_data["recordings"][0]["releases"][0]["title"]
     return raw_data
 
@@ -404,39 +422,21 @@ def api_run_cache(valid_config_filepath: str) -> RunCache:
     return RunCache(app_config=app_config, cache_type=CacheType.API)
 
 
+@pytest.fixture(scope="function")
+def enabled_api_run_cache(api_run_cache: RunCache) -> RunCache:
+    """
+    Function-scoped fixture which consumes the session-scoped api_run_cache fixture, and
+    clears the state to ensure the cache is not altered by unrelated tests.
+    """
+    api_run_cache._enabled = True
+    api_run_cache.clear()
+    return api_run_cache
+
+
 @pytest.fixture(scope="session")
 def scraper_run_cache(valid_config_filepath: AppConfig) -> RunCache:
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
     return RunCache(app_config=app_config, cache_type=CacheType.SCRAPER)
-
-
-def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
-    """
-    Helper test function to pass as the value for any
-    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
-    This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
-    """
-    _red_actions_to_mock_json = {
-        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
-        "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
-        "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
-        "user_torrents": {
-            "snatched": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH),
-            "seeding": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH),
-        },
-    }
-    url_val = kwargs["url"]
-    m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
-    red_action = m.groups()[0]
-    if red_action == "user_torrents":
-        key = "snatched" if "type=snatched" in kwargs["url"] else "seeding"
-        mock_json = _red_actions_to_mock_json[red_action][key]
-    else:
-        mock_json = _red_actions_to_mock_json[red_action]
-    resp_mock = MagicMock(name="json")
-    resp_mock.json.return_value = mock_json
-    resp_mock.status_code.return_value = 200
-    return resp_mock
 
 
 def mock_red_snatch_get_side_effect() -> bytes:
@@ -446,24 +446,53 @@ def mock_red_snatch_get_side_effect() -> bytes:
     return resp_mock
 
 
-def mock_lfm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
-    """
-    Helper test function to pass as the value for any
-    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
-    This ensures that the subsequent response's json() value is properly overridden with the desired data.
-    """
-    url_val = kwargs["url"]
-    # resp_mock = MagicMock(name="json")
-    mock_json = None
-    if "album.getinfo" in url_val:
-        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
-    elif "track.getinfo" in url_val:
-        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
-    resp_mock = MagicMock()
-    resp_mock.json.return_value = mock_json
-    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
-    type(resp_mock).status_code = PropertyMock(return_value=200)
-    return resp_mock
+# -def mock_lfm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+# -    """
+# -    Helper test function to pass as the value for any
+# -    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
+# -    This ensures that the subsequent response's json() value is properly overridden with the desired data.
+# -    """
+# -    url_val = kwargs["url"]
+# -    # resp_mock = MagicMock(name="json")
+# -    mock_json = None
+# -    if "album.getinfo" in url_val:
+# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
+# -    elif "track.getinfo" in url_val:
+# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
+# -    resp_mock = MagicMock()
+# -    resp_mock.json.return_value = mock_json
+# -    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
+# -    type(resp_mock).status_code = PropertyMock(return_value=200)
+# -    return resp_mock
+
+
+# -def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+# -    """
+# -    Helper test function to pass as the value for any
+# -    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
+# -    This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
+# -    """
+# -    _red_actions_to_mock_json = {
+# -        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
+# -        "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
+# -        "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
+# -        "user_torrents": {
+# -            "snatched": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH),
+# -            "seeding": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH),
+# -        },
+# -    }
+# -    url_val = kwargs["url"]
+# -    m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
+# -    red_action = m.groups()[0]
+# -    if red_action == "user_torrents":
+# -        key = "snatched" if "type=snatched" in kwargs["url"] else "seeding"
+# -        mock_json = _red_actions_to_mock_json[red_action][key]
+# -    else:
+# -        mock_json = _red_actions_to_mock_json[red_action]
+# -    resp_mock = MagicMock(name="json")
+# -    resp_mock.json.return_value = mock_json
+# -    resp_mock.status_code.return_value = 200
+# -    return resp_mock
 
 
 def mock_mb_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
@@ -473,7 +502,7 @@ def mock_mb_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
     This ensures that the subsequent response's json() value is properly overridden with the desired data.
     """
     resp_mock = MagicMock(name="json")
-    mock_json = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_JSON_FILEPATH)
+    mock_json = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH)
     resp_mock.json.return_value = mock_json
     return resp_mock
 
@@ -503,3 +532,145 @@ def expected_red_format_list() -> List[RedFormat]:
         ),
         RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.ANY),
     ]
+
+
+def mock_lfm_client_callback(request: httpx.Request) -> httpx.Response:
+    """
+    Callback function used by the global_httpx_mock fixture (defined below) for any
+    unit tests which run HTTP calls to the LFM api.
+    """
+    lfm_actions_to_mock_json = {
+        "album.getinfo": load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH),
+        "track.getinfo": load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH),
+    }
+    m = re.match(r"^.*\?.*method=(album\.getinfo|track\.getinfo).*$", str(request.url))
+    lfm_action = m.groups()[0]
+    mock_json = lfm_actions_to_mock_json[lfm_action]
+    return httpx.Response(status_code=200, json=mock_json)
+
+
+def mock_musicbrainz_client_callback(request: httpx.Request) -> httpx.Response:
+    """
+    Callback function used by the global_httpx_mock fixture (defined below) for any
+    unit tests which run HTTP calls to the musicbrainz api.
+    """
+    mb_endpoints_to_mock_json = {
+        "release": load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH),
+        "recording": load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH),
+    }
+    # "https://musicbrainz.org/ws/2/" + "(release|recording)/.*"
+    url_val = str(request.url)
+    m = re.match(r"^.*musicbrainz\.org/ws/2/(release|recording)/.*", url_val)
+    mb_endpoint = m.groups()[0]
+    mock_json = mb_endpoints_to_mock_json[mb_endpoint]
+    return httpx.Response(status_code=200, json=mock_json)
+
+
+@pytest.fixture(scope="session")
+def red_url_regex_to_mock_json(
+    mock_red_browse_non_empty_response: Dict[str, Any],
+    mock_red_group_response: Dict[str, Any],
+    mock_red_user_stats_response: Dict[str, Any],
+    mock_red_user_torrents_snatched_response: Dict[str, Any],
+    mock_red_user_torrents_seeding_response: Dict[str, Any],
+    mock_red_user_response: Dict[str, Any],
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """
+    Utility fixture consumed by `global_httpx_mock` to map RED API url patterns to mock JSON response payloads
+    """
+    return [
+        (r"^https://redacted\.sh/ajax\.php\?action=browse.*$", mock_red_browse_non_empty_response),
+        (r"^https://redacted\.sh/ajax\.php\?action=torrentgroup.*$", mock_red_group_response),
+        (r"^https://redacted\.sh/ajax\.php\?action=community_stats.*$", mock_red_user_stats_response),
+        # ?action=user_torrents&type=snatched&...
+        (
+            r"^https://redacted\.sh/ajax\.php\?action=user_torrents.*type=snatched.*$",
+            mock_red_user_torrents_snatched_response,
+        ),
+        # ?action=user_torrents&... WITHOUT `type=snatched` appearing in the request url
+        (
+            r"^https://redacted\.sh/ajax\.php\?action=user_torrents.*(?!.*type=snatched).*$",
+            mock_red_user_torrents_seeding_response,
+        ),
+        # action=user& endpoint (not to be confused with user_torrents endpoint)
+        (r"^https://redacted\.sh/ajax\.php\?action=user\&.*$", mock_red_user_response),
+    ]
+
+
+@pytest.fixture(scope="session")
+def lfm_url_regex_to_mock_json(
+    mock_lfm_album_info_json: Dict[str, Any], mock_full_lfm_track_info_json: Dict[str, Any]
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """
+    Utility fixture consumed by `global_httpx_mock` to map LFM API url patterns to mock JSON response payloads.
+    """
+    return [
+        (r"^https://ws\.audioscrobbler\.com/2\.0/\?method=album\.getinfo.*$", mock_lfm_album_info_json),
+        (r"^https://ws\.audioscrobbler\.com/2\.0/\?method=track\.getinfo.*$", mock_full_lfm_track_info_json),
+    ]
+
+
+@pytest.fixture(scope="session")
+def mb_url_regex_to_mock_json(
+    mock_musicbrainz_release_json: Dict[str, Any],
+    mock_musicbrainz_track_search_arid_json: Dict[str, Any],
+    mock_musicbrainz_track_search_artist_name_json: Dict[str, Any],
+) -> List[Tuple[str, str]]:
+    """
+    Utility fixture consumed by `global_httpx_mock` to map MB API url patterns to mock JSON response payloads.
+    """
+    return [
+        (r"https://musicbrainz\.org/ws/2/release/.*$", mock_musicbrainz_release_json),
+        (
+            r"https://musicbrainz\.org/ws/2/recording\?query=.*recording:.+AND.+arid:.*$",
+            mock_musicbrainz_track_search_arid_json,
+        ),
+        (
+            r"https://musicbrainz\.org/ws/2/recording\?query=.*recording:.+AND.+artist:.*$",
+            mock_musicbrainz_track_search_artist_name_json,
+        ),
+    ]
+
+
+@pytest.fixture(scope="function", autouse=True)
+def global_httpx_mock(
+    request: pytest.FixtureRequest,
+    httpx_mock: HTTPXMock,
+    red_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
+    lfm_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
+    mb_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
+) -> Generator[HTTPXMock, Any, Any]:
+    """
+    Globally applied fixture to ensure no HTTP requests in the unit tests
+    leak out to the actual network. via pytest-httpx:  https://pypi.org/project/pytest-httpx/
+    """
+    # Do not add any expected responses to this fixture for the edge-case tests which need to run with their own
+    # function-specific mock responses. https://stackoverflow.com/a/38763328
+    if "override_global_httpx_mock" in request.keywords:
+        yield httpx_mock
+    else:
+        for red_regex_and_json in red_url_regex_to_mock_json:
+            request_url_pattern, resp_mock_json = red_regex_and_json
+            httpx_mock.add_response(
+                url=re.compile(request_url_pattern),
+                json=resp_mock_json,
+                is_optional=True,
+                is_reusable=True,
+            )
+        for lfm_regex_and_json in lfm_url_regex_to_mock_json:
+            request_url_pattern, resp_mock_json = lfm_regex_and_json
+            httpx_mock.add_response(
+                url=re.compile(request_url_pattern),
+                json=resp_mock_json,
+                is_optional=True,
+                is_reusable=True,
+            )
+        for mb_regex_and_json in mb_url_regex_to_mock_json:
+            request_url_pattern, resp_mock_json = mb_regex_and_json
+            httpx_mock.add_response(
+                url=re.compile(request_url_pattern),
+                json=resp_mock_json,
+                is_optional=True,
+                is_reusable=True,
+            )
+        yield httpx_mock

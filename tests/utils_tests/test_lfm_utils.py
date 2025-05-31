@@ -50,7 +50,7 @@ def test_lfmai_eq(other: Any, expected: bool) -> None:
         album_name="Dr. Octagonecologyst",
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    actual = test_instance.__eq__(other)
+    actual = test_instance == other
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
 
 
@@ -88,7 +88,7 @@ def test_lfmti_eq(other: Any, expected: bool) -> None:
         release_name="Dr. Octagonecologyst",
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    actual = test_instance.__eq__(other)
+    actual = test_instance == other
     assert actual == expected
 
 
@@ -99,19 +99,20 @@ def test_lfmai_str() -> None:
         album_name="Some+Other+Album",
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    expected = "{'_artist': 'Dr. Octagon', '_album_name': 'Some+Other+Album', '_lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', '_release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed'}"
-    actual = lfmai.__str__()
-    assert actual == expected, f"Expected __str__() method result to be {expected}, but got {actual}"
+    # expected = "{'artist': 'Dr. Octagon', 'album_name': 'Some+Other+Album', 'lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', 'release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed'}"
+    expected = "LFMAlbumInfo(artist='Dr. Octagon', album_name='Some+Other+Album', lfm_url='https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', release_mbid='2271e923-291d-4dd0-96d7-3cf3f9d294ed')"
+    actual = str(lfmai)
+    assert actual == expected, f"Expected str(lmfti) result to be {expected}, but got {actual}"
 
 
 def test_lfmti_str() -> None:
-    lfmai = LFMTrackInfo(
+    lfmti = LFMTrackInfo(
         artist="Dr. Octagon",
         track_name="Some Track",
         release_mbid="2271e923-291d-4dd0-96d7-3cf3f9d294ed",
         release_name="Some+Other+Album",
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
-    expected = "{'_artist': 'Dr. Octagon', '_track_name': 'Some Track', '_release_name': 'Some+Other+Album', '_lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', '_release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed'}"
-    actual = lfmai.__str__()
-    assert actual == expected, f"Expected __str__() method result to be {expected}, but got {actual}"
+    expected = "LFMTrackInfo(artist='Dr. Octagon', track_name='Some Track', release_name='Some+Other+Album', lfm_url='https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', release_mbid='2271e923-291d-4dd0-96d7-3cf3f9d294ed')"
+    actual = str(lfmti)
+    assert actual == expected, f"Expected str(lmfti) result to be {expected}, but got {actual}"

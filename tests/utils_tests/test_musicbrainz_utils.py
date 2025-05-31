@@ -1,4 +1,5 @@
-from typing import Any, Dict
+from collections import OrderedDict
+from typing import Any, Dict, Optional
 
 import pytest
 
@@ -68,7 +69,7 @@ def test_eq(other: Any, expected: bool) -> None:
         catalog_number="58010",
         release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
     )
-    actual = test_instance.__eq__(other)
+    actual = test_instance == other
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
 
 
@@ -135,3 +136,80 @@ def test_release_year_non_match(
     assert (
         actual_release_year == expected_year
     ), f"Expected first_release_year of {expected_year}, but got {actual_release_year} instead."
+
+
+@pytest.mark.parametrize(
+    "primary_type, first_release_year, label, catalog_number, expected",
+    [
+        (
+            "album",
+            None,
+            None,
+            None,
+            OrderedDict([("releasetype", 1), ("year", None), ("recordlabel", None), ("cataloguenumber", None)]),
+        ),
+        (
+            "single",
+            None,
+            None,
+            None,
+            OrderedDict([("releasetype", 9), ("year", None), ("recordlabel", None), ("cataloguenumber", None)]),
+        ),
+        (
+            "album",
+            1969,
+            None,
+            None,
+            OrderedDict([("releasetype", 1), ("year", 1969), ("recordlabel", None), ("cataloguenumber", None)]),
+        ),
+        (
+            "album",
+            None,
+            "Fake Label",
+            None,
+            OrderedDict([("releasetype", 1), ("year", None), ("recordlabel", "Fake+Label"), ("cataloguenumber", None)]),
+        ),
+        (
+            "single",
+            None,
+            None,
+            "DOODOO 89",
+            OrderedDict([("releasetype", 9), ("year", None), ("recordlabel", None), ("cataloguenumber", "DOODOO+89")]),
+        ),
+        (
+            "album",
+            1969,
+            "Fake Label",
+            "DOODOO 89",
+            OrderedDict(
+                [("releasetype", 1), ("year", 1969), ("recordlabel", "Fake+Label"), ("cataloguenumber", "DOODOO+89")]
+            ),
+        ),
+    ],
+)
+def test_get_release_searcher_kwargs(
+    primary_type: str,
+    first_release_year: Optional[int],
+    label: Optional[str],
+    catalog_number: Optional[str],
+    expected: OrderedDict[str, Any],
+) -> None:
+    mbr = MBRelease(
+        mbid="m",
+        title="t",
+        artist="a",
+        release_date="r",
+        release_group_mbid="rgm",
+        primary_type=primary_type,
+        first_release_year=first_release_year,
+        label=label,
+        catalog_number=catalog_number,
+    )
+    actual = mbr.get_release_searcher_kwargs()
+    assert isinstance(actual, OrderedDict)
+    assert len(actual) == len(expected)
+    actual_keys = set(actual.keys())
+    expected_keys = set(expected.keys())
+    assert actual_keys == expected_keys
+    for actual_key, actual_val in actual.items():
+        assert actual_val == expected[actual_key]
