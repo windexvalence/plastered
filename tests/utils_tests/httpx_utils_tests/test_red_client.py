@@ -1,5 +1,4 @@
 from contextlib import nullcontext
-from typing import Optional, Set
 from unittest.mock import Mock
 
 import pytest
@@ -7,7 +6,7 @@ from pytest_httpx import HTTPXMock
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
-from plastered.utils.httpx_utils import RedAPIClient
+from plastered.utils.httpx_utils.red_client import RedAPIClient
 
 
 @pytest.mark.httpx_mock(assert_all_requests_were_expected=False)
@@ -59,7 +58,7 @@ def test_request_red_api(
     disabled_api_run_cache: RunCache,
     valid_app_config: AppConfig,
     action: str,
-    expected_top_keys: Optional[Set[str]],
+    expected_top_keys: set[str] | None,
     should_fail: bool,
 ) -> None:
     expected_throttle_call_cnt = 0 if should_fail else 1

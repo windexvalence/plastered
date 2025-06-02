@@ -12,14 +12,14 @@ from plastered.utils.constants import (
     MUSICBRAINZ_API_BASE_URL,
     RED_API_BASE_URL,
 )
-from plastered.utils.httpx_utils import (
-    LFMAPIClient,
-    MusicBrainzAPIClient,
-    RedAPIClient,
-    RedSnatchAPIClient,
+from plastered.utils.httpx_utils.base_client import (
     ThrottledAPIBaseClient,
     precise_delay,
 )
+from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
+from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
+from plastered.utils.httpx_utils.red_client import RedAPIClient
+from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 
 _API_CLIENT_TO_APP_CONFIG_KEYS = {
     "RedAPIClient": {"retries": "red_api_retries", "period": "red_api_seconds_between_calls", "key": "red_api_key"},
@@ -38,8 +38,7 @@ def test_precise_delay(sec_delay: int) -> None:
     precise_delay(sec_delay=sec_delay)
     end = time()
     actual_delay_time = end - start
-    assert actual_delay_time >= sec_delay
-    assert actual_delay_time == pytest.approx(sec_delay, abs=0.1)  # Allow for some tolerance in clock precision
+    assert actual_delay_time == pytest.approx(sec_delay, abs=0.01)  # Allow for some tolerance in clock precision
 
 
 @pytest.mark.parametrize(
@@ -119,9 +118,9 @@ def test_throttle(
     expected_num_throttle_calls = len(dt_now_call_timestamps) // 2
     expected_datetime_now_call_cnt = len(dt_now_call_timestamps)
     # NOTE: mocking datetime is funky. Had to follow this advice: https://stackoverflow.com/a/70598060
-    with patch("plastered.utils.httpx_utils.datetime", wraps=datetime.datetime) as mock_dt:
+    with patch("plastered.utils.httpx_utils.base_client.datetime", wraps=datetime.datetime) as mock_dt:
         mock_dt.now.side_effect = dt_now_call_timestamps
-        with patch("plastered.utils.httpx_utils.precise_delay") as mock_precise_delay:
+        with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
             mock_precise_delay.return_value = None
             assert api_base_client._throttle_period == datetime.timedelta(seconds=client_throttle_sec)
             for _ in range(expected_num_throttle_calls):

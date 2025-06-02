@@ -9,7 +9,7 @@ from diskcache import Cache
 
 from plastered.config.config_parser import AppConfig
 from plastered.stats.stats import RunCacheSummaryTable
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.constants import BYTES_IN_MB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from plastered.utils.exceptions import RunCacheDisabledException
 
 LOGGER = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ class RunCache:
     def print_summary_info(self) -> None:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        disk_usage_mb = self._cache.volume() / float(1e6)
+        disk_usage_mb = self._cache.volume() / BYTES_IN_MB
         hits, misses = self._cache.stats()
         hit_rate_str = "NA" if hits + misses == 0 else str(float(hits) / float(hits + misses))
         RunCacheSummaryTable(

@@ -73,7 +73,7 @@ required_schema = {
         CLI_RED_KEY: {
             "type": "object",
             "properties": {
-                "red_user_id": {"type": "integer"},
+                "red_user_id": {"type": ["string", "integer"]},
                 "red_api_key": {"type": "string"},
                 "red_api_retries": _RETRIES_SCHEMA,
                 "red_api_seconds_between_calls": {

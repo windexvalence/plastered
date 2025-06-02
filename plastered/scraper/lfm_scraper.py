@@ -70,6 +70,7 @@ def _sleep_random() -> None:
     sleep(sleep_seconds)
 
 
+# TODO (later): refactor this as a dataclass
 class LFMRec:
     """
     Class representing a singular recommendation from LFM.

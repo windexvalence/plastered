@@ -1,0 +1,52 @@
+from typing import Any
+
+from plastered.config.config_parser import AppConfig
+from plastered.run_cache.run_cache import RunCache
+from plastered.utils.constants import (
+    NON_CACHED_RED_API_ENDPOINTS,
+    PERMITTED_RED_API_ENDPOINTS,
+    RED_API_BASE_URL,
+    RED_JSON_RESPONSE_KEY,
+)
+from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+
+
+class RedAPIClient(ThrottledAPIBaseClient):
+    """
+    RED-specific Subclass of the ThrottledAPIBaseClient for interacting with the RED API.
+    Retries limit and throttling period are configured from user config.
+    """
+
+    def __init__(self, app_config: AppConfig, run_cache: RunCache):
+        super().__init__(
+            base_api_url=RED_API_BASE_URL,
+            max_api_call_retries=app_config.get_cli_option("red_api_retries"),
+            seconds_between_api_calls=app_config.get_cli_option("red_api_seconds_between_calls"),
+            valid_endpoints=PERMITTED_RED_API_ENDPOINTS,
+            run_cache=run_cache,
+            non_cached_endpoints=NON_CACHED_RED_API_ENDPOINTS,
+        )
+        self._session.headers.update({"Authorization": app_config.get_cli_option("red_api_key")})
+
+    def request_api(self, action: str, params: str) -> dict[str, Any]:
+        """
+        Helper method to hit the RED API with retries and rate-limits.
+        Returns the JSON response payload on success for all endpoints except 'download'.
+        Successful requests to the 'download' endpoint will have a return type of `bytes`.
+        Throws an Exception after `self.max_api_call_retries` consecutive failures.
+        """
+        # Sanity check endpoint then attempt reading from cache
+        loaded_from_cache = self._read_from_run_cache(endpoint=action, params=params)
+        if loaded_from_cache:
+            return loaded_from_cache
+        # Enforce request throttling
+        self._throttle()
+        # Once throttling requirements are met, continue with building and submitting the request
+        url = f"{RED_API_BASE_URL}?action={action}&{params}"
+        json_data = self._session.get(url=url).json()
+        if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
+            raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
+        result_json = json_data[RED_JSON_RESPONSE_KEY]
+        cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
+        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
+        return result_json

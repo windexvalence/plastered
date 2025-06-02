@@ -30,7 +30,7 @@ Make sure you have completed the following before installing or using `plastered
 
 5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
   ```shell
-  alias plastered='docker run --rm --name=plastered \
+  alias plastered='docker run -it --rm --name=plastered \
     -e PLASTERED_CONFIG=/config/config.yaml \
     -e COLUMNS="$(tput cols)" \
     -e LINES="$(tput lines)" \

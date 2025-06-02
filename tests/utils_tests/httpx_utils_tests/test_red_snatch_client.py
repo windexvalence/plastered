@@ -1,5 +1,5 @@
 from contextlib import nullcontext
-from typing import Callable, List, Set
+from typing import Callable
 from unittest.mock import Mock
 
 import pytest
@@ -8,7 +8,7 @@ from pytest_httpx import HTTPXMock
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedClientSnatchException
-from plastered.utils.httpx_utils import RedSnatchAPIClient
+from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 
 
 @pytest.mark.parametrize(
@@ -68,8 +68,8 @@ def test_snatch_red_api_use_token(
     httpx_mock: HTTPXMock,
     disabled_api_run_cache: RunCache,
     valid_app_config: AppConfig,
-    mock_response_codes: List[int],
-    expected_get_params: List[Callable],
+    mock_response_codes: list[int],
+    expected_get_params: list[Callable],
     raise_client_exc: bool,
 ) -> None:
     expected_get_urls = [f"https://redacted.sh/ajax.php?action=download&{params}" for params in expected_get_params]
@@ -106,7 +106,7 @@ def test_snatch_red_api_use_token(
 def test_tid_snatched_with_fl_token(
     disabled_api_run_cache: RunCache,
     valid_app_config: AppConfig,
-    mock_snatched_tids: Set[str],
+    mock_snatched_tids: set[str],
     tid_arg: str,
     expected: bool,
 ) -> None:

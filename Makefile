@@ -14,9 +14,9 @@ help:           ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 docker-clean:  ## Remove old local docker image and container artifacts
-	docker container stop $(docker ps -aq)
-	docker container rm $(docker ps -aq)
-	docker rmi -f $(docker images "*/*plastered*" -q)
+	docker ps -aq | xargs docker container stop
+	docker ps -aq | xargs docker container rm
+	docker images "*/*plastered*" -q | xargs docker rmi -f
 
 clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 	find . -type d -name '__pycache__' -print | xargs rm -rf

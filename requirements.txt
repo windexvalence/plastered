@@ -6,6 +6,7 @@ requests==2.32.3
 httpx==0.28.1
 urllib3==2.2.3
 tqdm==4.67.1
+pydantic==2.11.5
 PyYAML==6.0.2
 questionary==2.1.0
 rebrowser-playwright==1.49.1

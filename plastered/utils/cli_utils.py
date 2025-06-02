@@ -5,7 +5,6 @@ Contains a few helper decorators / functions to reduce the repeated code in cli.
 import os
 from datetime import datetime
 from functools import wraps
-from typing import List
 
 import click
 import questionary
@@ -85,7 +84,7 @@ class StatsRunPicker:
         filter_fn = dt_attr_to_filter_fns[dt_attr_name]
         return filter_fn(dt)
 
-    def _get_dt_choices(self, dt_attr_name: str) -> List[str]:
+    def _get_dt_choices(self, dt_attr_name: str) -> list[str]:
         if dt_attr_name == "year":
             return sorted(set([str(dt.__getattribute__(dt_attr_name)) for dt in self._possible_datetimes]))
         return sorted(

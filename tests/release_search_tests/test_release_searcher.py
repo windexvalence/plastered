@@ -1,7 +1,7 @@
 import os
 import re
-from collections import deque
-from typing import Any, Dict, List, Optional, Set, Tuple
+from copy import deepcopy
+from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, call, patch
 
 import pytest
@@ -27,12 +27,10 @@ from plastered.utils.exceptions import (
     RedClientSnatchException,
     ReleaseSearcherException,
 )
-from plastered.utils.httpx_utils import (
-    LFMAPIClient,
-    MusicBrainzAPIClient,
-    RedAPIClient,
-    RedSnatchAPIClient,
-)
+from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
+from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
+from plastered.utils.httpx_utils.red_client import RedAPIClient
+from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import EncodingEnum as ee
@@ -130,7 +128,7 @@ def test_resolve_lfm_album_info(
 
 
 @pytest.mark.parametrize(
-    "test_lfm_rec, mock_lfm_json_fixture, mb_resolved_origin_release_fields, expected",
+    "test_lfm_rec, mock_lfm_json_fixture, mb_resolved_origin_release_fields, expected_lfmti",
     [
         (
             LFMRec(
@@ -184,10 +182,11 @@ def test_resolve_lfm_track_info(
     valid_app_config: AppConfig,
     test_lfm_rec: SearchItem,
     mock_lfm_json_fixture: str,
-    mb_resolved_origin_release_fields: Optional[Dict[str, Optional[str]]],
-    expected: Optional[LFMTrackInfo],
+    mb_resolved_origin_release_fields: dict[str, str | None] | None,
+    expected_lfmti: LFMTrackInfo | None,
 ) -> None:
-    test_si = SearchItem(lfm_rec=test_lfm_rec)
+    input_si = SearchItem(lfm_rec=test_lfm_rec)
+    expected_si = SearchItem(lfm_rec=test_lfm_rec, lfm_track_info=expected_lfmti)
     mock_lfm_response = request.getfixturevalue(mock_lfm_json_fixture)["track"]
     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
         mock_lfm_request_api.return_value = mock_lfm_response
@@ -196,16 +195,16 @@ def test_resolve_lfm_track_info(
         ) as mock_request_release_details_for_track:
             mock_request_release_details_for_track.return_value = mb_resolved_origin_release_fields
             with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
-                actual = release_searcher._resolve_lfm_track_info(si=test_si)
+                actual = release_searcher._resolve_lfm_track_info(si=input_si)
                 mock_lfm_request_api.assert_called_once_with(
                     method="track.getinfo",
-                    params=f"artist={test_si.lfm_rec.artist_str}&track={test_si.lfm_rec.entity_str}",
+                    params=f"artist={input_si.lfm_rec.artist_str}&track={input_si.lfm_rec.entity_str}",
                 )
                 if "album" in mock_lfm_response:
                     mock_request_release_details_for_track.assert_not_called()
                 else:
                     mock_request_release_details_for_track.assert_called_once()
-                assert actual == expected, f"Expected {expected}, but got {actual}"
+                assert actual == expected_si, f"Expected {expected_si}, but got {actual}"
 
 
 @pytest.mark.parametrize("lfm_api_response", [None, {"no-artist-key": "should-error"}])
@@ -232,22 +231,58 @@ def test_resolve_lfm_track_info_bad_json(
 
 
 @pytest.mark.override_global_httpx_mock
-def test_resolve_mb_release(
-    httpx_mock: HTTPXMock, valid_app_config: AppConfig, mock_musicbrainz_release_json: Dict[str, Any]
+@pytest.mark.parametrize(
+    "test_si, mock_matched_mbid",
+    [
+        pytest.param(
+            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.ALBUM, rc.IN_LIBRARY)),
+            None,
+            id="album-no-mbid",
+        ),
+        pytest.param(
+            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.ALBUM, rc.IN_LIBRARY)),
+            "d211379d-3203-47ed-a0c5-e564815bb45a",
+            id="album-has-mbid",
+        ),
+        pytest.param(
+            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.TRACK, rc.IN_LIBRARY)),
+            None,
+            id="track-no-mbid",
+        ),
+        pytest.param(
+            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.TRACK, rc.IN_LIBRARY)),
+            "d211379d-3203-47ed-a0c5-e564815bb45a",
+            id="track-has-mbid",
+        ),
+    ],
+)
+def test_attempt_resolve_mb_release(
+    httpx_mock: HTTPXMock,
+    valid_app_config: AppConfig,
+    mock_musicbrainz_release_json: dict[str, Any],
+    expected_mb_release: MBRelease,
+    test_si: SearchItem,
+    mock_matched_mbid: str | None,
 ) -> None:
+    expected = deepcopy(test_si)
+    if mock_matched_mbid:
+        expected.set_mb_release(expected_mb_release)
     httpx_mock.add_response(
-        url="https://musicbrainz.org/ws/2/release/some-fake-mbid?inc=artist-credits+media+labels+release-groups",
+        url=f"https://musicbrainz.org/ws/2/release/{mock_matched_mbid}?inc=artist-credits+media+labels+release-groups",
         headers={"Accept": "application/json"},
         json=mock_musicbrainz_release_json,
     )
-    with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
-        release_searcher._resolve_mb_release(mbid="some-fake-mbid")
+    with patch.object(SearchItem, "get_matched_mbid", return_value=mock_matched_mbid) as mock_get_matched_mbid_fn:
+        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            actual = release_searcher._attempt_resolve_mb_release(si=test_si)
+            mock_get_matched_mbid_fn.assert_called_once()
+            assert actual == expected
 
 
 def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_config: AppConfig) -> None:
     expected_red_user_id = valid_app_config.get_cli_option("red_user_id")
     expected_snatch_count = 5216
-    with patch("plastered.utils.httpx_utils.precise_delay") as mock_precise_delay:
+    with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
         mock_precise_delay.return_value = None
         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
             assert (
@@ -457,40 +492,104 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
         mock_logger.error.assert_called_once()
 
 
+# Rewrite the dogshit test below
+
+# @pytest.mark.parametrize(
+#     "pre_mbid_search_filter_res, require_mbid_resolution, post_red_search_filer_res",
+#     [
+#         (False, False, False),
+#         (True, False, False),
+#         (True, True, False),
+#         (True, False, False),
+#     ],
+# )
+# def test_search_for_release_te_none(
+#     valid_app_config: AppConfig,
+#     mock_lfmai: LFMAlbumInfo,
+#     mock_mbr: MBRelease,
+#     pre_mbid_search_filter_res: bool,
+#     require_mbid_resolution: bool,
+#     post_red_search_filer_res: bool,
+# ) -> None:
+#     """Validates that the conditions where _search_for_release_te should return None do so."""
+#     si = SearchItem(LFMRec("", "", rt.ALBUM, rc.SIMILAR_ARTIST))
+#     with (
+#         patch.object(SearchState, "pre_mbid_resolution_filter", return_value=pre_mbid_search_filter_res) as mock_ss_pre_filter,
+#         patch.object(SearchState, "post_red_search_filter", return_value=post_red_search_filer_res) as mock_ss_post_filter,
+#         patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai,
+#         patch.object(ReleaseSearcher, "_attempt_resolve_mb_release", return_value=si) as mock_resolve_mbr,
+#         patch.object(
+#             ReleaseSearcher,
+#             "_search_red_release_by_preferences",
+#             return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
+#         ) as mocked_torrent_match,
+#     ):
+#         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+#             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
+#             actual = release_searcher._search_for_release_te(si=si)
+#     assert actual is None
+
+
 @pytest.mark.parametrize(
-    "pre_search_filter_res, require_mbid_resolution, post_search_filer_res",
+    "pre_mbid_resolution_filter_res, require_mbid_resolution, post_mbid_resolution_filter_res, post_red_search_filer_res",
     [
-        (False, False, False),
-        (True, False, False),
-        (True, True, False),
-        (True, False, False),
+        (False, False, False, False),
+        (True, False, False, False),
+        (True, True, False, False),
+        (True, True, True, False),
     ],
 )
 def test_search_for_release_te_none(
     valid_app_config: AppConfig,
     mock_lfmai: LFMAlbumInfo,
     mock_mbr: MBRelease,
-    pre_search_filter_res: bool,
+    pre_mbid_resolution_filter_res: bool,
     require_mbid_resolution: bool,
-    post_search_filer_res: bool,
+    post_mbid_resolution_filter_res: bool,
+    post_red_search_filer_res: bool,
 ) -> None:
-    """Validates that the conditions where _search_for_release_te should return None do so."""
+    """Validates that the conditions where _search_for_release_te should return non-None do so."""
+    expect_resolve_calls = pre_mbid_resolution_filter_res and require_mbid_resolution
+    expect_search_red_call = expect_resolve_calls and post_mbid_resolution_filter_res
+
+    def _mock_attempt_resolve_mb_release_side_effect(*args, **kwargs) -> SearchItem:
+        _si: SearchItem = kwargs.get("si")
+        _si.set_mb_release(mock_mbr)
+        return _si
+
     with (
-        patch.object(SearchState, "pre_search_filter", return_value=pre_search_filter_res) as mock_ss_pre_filter,
-        patch.object(SearchState, "post_search_filter", return_value=post_search_filer_res) as mock_ss_post_filter,
+        patch.object(
+            SearchState, "pre_mbid_resolution_filter", return_value=pre_mbid_resolution_filter_res
+        ) as mock_ss_pre_mbid_filter,
         patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai,
-        patch.object(ReleaseSearcher, "_resolve_mb_release", return_value=mock_mbr) as mock_resolve_mbr,
+        patch.object(
+            ReleaseSearcher, "_attempt_resolve_mb_release", side_effect=_mock_attempt_resolve_mb_release_side_effect
+        ) as mock_resolve_mbr,
+        patch.object(
+            SearchState, "post_mbid_resolution_filter", return_value=post_mbid_resolution_filter_res
+        ) as mock_post_mbid_filter,
         patch.object(
             ReleaseSearcher,
             "_search_red_release_by_preferences",
-            return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
-        ) as mocked_torrent_match,
+            return_value=_TorrentMatch(torrent_entry=None, above_max_size_found=False),
+        ) as mock_search_red_by_prefs,
+        patch.object(
+            SearchState, "post_red_search_filter", return_value=post_red_search_filer_res
+        ) as mock_ss_post_red_filter,
     ):
         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
-            si = SearchItem(LFMRec("", "", rt.ALBUM, rc.SIMILAR_ARTIST))
+            si = SearchItem(LFMRec("a", "aa", rt.ALBUM, rc.SIMILAR_ARTIST))
             actual = release_searcher._search_for_release_te(si=si)
-    assert actual is None
+            assert actual is None
+            mock_ss_pre_mbid_filter.assert_called_once()
+            if expect_resolve_calls:
+                mock_resolve_lfmai.assert_called_once()
+                mock_resolve_mbr.assert_called_once()
+                mock_post_mbid_filter.assert_called_once()
+                if expect_search_red_call:
+                    mock_search_red_by_prefs.assert_called_once()
+                    mock_ss_post_red_filter.assert_called_once()
 
 
 @pytest.mark.parametrize("require_mbid_resolution", [False, True])
@@ -501,11 +600,19 @@ def test_search_for_release_te(
     require_mbid_resolution: bool,
 ) -> None:
     """Validates that the conditions where _search_for_release_te should return non-None do so."""
+
+    def _mock_attempt_resolve_mb_release_side_effect(*args, **kwargs) -> SearchItem:
+        _si: SearchItem = kwargs.get("si")
+        _si.set_mb_release(mock_mbr)
+        return _si
+
     with (
-        patch.object(SearchState, "pre_search_filter", return_value=True) as mock_ss_pre_filter,
-        patch.object(SearchState, "post_search_filter", return_value=True) as mock_ss_post_filter,
+        patch.object(SearchState, "pre_mbid_resolution_filter", return_value=True) as mock_ss_pre_filter,
+        patch.object(SearchState, "post_red_search_filter", return_value=True) as mock_ss_post_filter,
         patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai,
-        patch.object(ReleaseSearcher, "_resolve_mb_release", return_value=mock_mbr) as mock_resolve_mbr,
+        patch.object(
+            ReleaseSearcher, "_attempt_resolve_mb_release", side_effect=_mock_attempt_resolve_mb_release_side_effect
+        ) as mock_resolve_mbr,
         patch.object(
             ReleaseSearcher,
             "_search_red_release_by_preferences",
@@ -524,25 +631,33 @@ def test_search_for_release_te(
 
 
 @pytest.mark.parametrize(
-    "mock_resolve_lfm_result",
-    [
-        (None),
-        (LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")),
-    ],
+    "mock_resolved_lfmti",
+    [None, LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")],
 )
-def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolve_lfm_result: Optional[LFMTrackInfo]) -> None:
+def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolved_lfmti: LFMTrackInfo | None) -> None:
     test_si = SearchItem(lfm_rec=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST))
+    mock_si_with_resolved_ti = deepcopy(test_si)
+    mock_si_with_resolved_ti.lfm_track_info = mock_resolved_lfmti
     with patch.object(ReleaseSearcher, "_search") as mock_search_fn:
         with patch.object(ReleaseSearcher, "_resolve_lfm_track_info") as mock_resolve_lfm_track_info:
-            mock_resolve_lfm_track_info.return_value = mock_resolve_lfm_result
+            mock_resolve_lfm_track_info.return_value = mock_si_with_resolved_ti
             mock_search_fn.return_value = None
             with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
                 release_searcher._search_for_track_recs(search_items=[test_si])
                 mock_resolve_lfm_track_info.assert_called_once_with(si=test_si)
-                if not mock_resolve_lfm_result:
+                if not mock_resolved_lfmti:
                     mock_search_fn.assert_called_once_with(search_items=[])
                 else:
-                    mock_search_fn.assert_called_once_with(search_items=[test_si])
+                    mock_search_fn.assert_called_once_with(search_items=[mock_si_with_resolved_ti])
+
+
+def test_search_for_track_recs_empty_input(valid_app_config: AppConfig) -> None:
+    with patch.object(ReleaseSearcher, "_search") as mock_search_fn:
+        with patch.object(ReleaseSearcher, "_resolve_lfm_track_info") as mock_resolve_lfm_track_info_fn:
+            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+                release_searcher._search_for_track_recs(search_items=[])
+                mock_resolve_lfm_track_info_fn.assert_not_called()
+                mock_search_fn.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -562,12 +677,26 @@ def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolve_lfm_res
 )
 def test_search_for_recs(
     valid_app_config: AppConfig,
-    rec_type_to_recs_list: Dict[rt, List[LFMRec]],
+    rec_type_to_recs_list: dict[rt, list[LFMRec]],
     expected_search_call_cnt: int,
 ) -> None:
+    def _resolve_lfmti_side_effect(*args, **kwargs) -> SearchItem:
+        input_si: SearchItem = kwargs["si"]
+        resolved_search_item = deepcopy(input_si)
+        resolved_search_item.lfm_track_info = LFMTrackInfo(
+            artist=input_si.artist_name,
+            track_name=input_si.track_name,
+            release_mbid="foo",
+            release_name="title",
+            lfm_url=input_si.lfm_rec.lfm_entity_url,
+        )
+        return resolved_search_item
+
     with (
         patch.object(ReleaseSearcher, "_gather_red_user_details", return_value=None) as mock_gather_red_user_details,
-        patch.object(ReleaseSearcher, "_resolve_lfm_track_info", return_value=None) as mock_resolve_lfm_track_info,
+        patch.object(
+            ReleaseSearcher, "_resolve_lfm_track_info", side_effect=_resolve_lfmti_side_effect
+        ) as mock_resolve_lfm_track_info,
         patch.object(ReleaseSearcher, "_search", return_value=None) as mock_search,
         patch.object(ReleaseSearcher, "_snatch_matches", return_value=None) as mock_snatch_matches,
     ):
@@ -749,7 +878,7 @@ def test_snatch_exception_handling(
                 expected_failed_snatch_rows = [
                     [
                         mock_best_te.get_permalink_url(),
-                        mock_best_te.get_matched_mbid(),
+                        mock_best_te.matched_mbid,
                         exception_type.__name__,
                     ],
                 ]

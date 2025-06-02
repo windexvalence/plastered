@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -6,16 +6,16 @@ from pytest_httpx import HTTPXMock
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
-from plastered.utils.httpx_utils import MusicBrainzAPIClient
+from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 
 
 @pytest.fixture(scope="session")
-def mb_track_response_raise_index_error() -> Dict[str, Any]:
+def mb_track_response_raise_index_error() -> dict[str, Any]:
     return {"recordings": []}
 
 
 @pytest.fixture(scope="session")
-def mb_track_response_raise_key_error() -> Dict[str, Any]:
+def mb_track_response_raise_key_error() -> dict[str, Any]:
     return {"recordings": [{"missing_releases_key": True}]}
 
 
@@ -50,9 +50,9 @@ def test_mb_get_track_search_query_str(
     valid_app_config: AppConfig,
     disabled_api_run_cache: RunCache,
     track_name: str,
-    artist_mbid: Optional[str],
-    artist_name: Optional[str],
-    expected: Optional[str],
+    artist_mbid: str | None,
+    artist_name: str | None,
+    expected: str | None,
 ) -> None:
     mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
@@ -128,9 +128,9 @@ def test_request_release_details_for_track(
     disabled_api_run_cache: RunCache,
     mock_mb_json_response_fixture_name: str,
     track_name: str,
-    artist_mbid: Optional[str],
-    artist_name: Optional[str],
-    expected: Optional[Dict[str, Optional[str]]],
+    artist_mbid: str | None,
+    artist_name: str | None,
+    expected: dict[str, str | None] | None,
 ) -> None:
     mock_json_resp = request.getfixturevalue(mock_mb_json_response_fixture_name)
     httpx_mock.add_response(json=mock_json_resp)
@@ -166,9 +166,9 @@ def test_request_release_details_for_track_cache_hit(
     valid_app_config: AppConfig,
     enabled_api_run_cache: RunCache,
     track_name: str,
-    artist_mbid: Optional[str],
-    artist_name: Optional[str],
-    expected_cache_val: Optional[Dict[str, Optional[str]]],
+    artist_mbid: str | None,
+    artist_name: str | None,
+    expected_cache_val: dict[str, str | None] | None,
 ) -> None:
     mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=enabled_api_run_cache)
     query_params = mb_client._get_track_search_query_str(

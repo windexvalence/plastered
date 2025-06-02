@@ -1,7 +1,7 @@
 import logging
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Any, List, Optional, Set
+from dataclasses import dataclass, field
+from typing import Any
 
 from plastered.config.config_parser import AppConfig
 from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
@@ -10,7 +10,14 @@ from plastered.stats.stats import (
     SnatchFailureReason,
     print_and_save_all_searcher_stats,
 )
-from plastered.utils.constants import STATS_NONE, STATS_TRACK_REC_NONE
+from plastered.utils.constants import (
+    RED_PARAM_CATALOG_NUMBER,
+    RED_PARAM_RECORD_LABEL,
+    RED_PARAM_RELEASE_TYPE,
+    RED_PARAM_RELEASE_YEAR,
+    STATS_NONE,
+    STATS_TRACK_REC_NONE,
+)
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import RedFormat, RedUserDetails, TorrentEntry
@@ -24,6 +31,21 @@ def _require_mbid_resolution(
     return use_release_type or use_first_release_year or use_record_label or use_catalog_number
 
 
+def _required_search_kwargs(
+    use_release_type: bool, use_first_release_year: bool, use_record_label: bool, use_catalog_number: bool
+) -> set[str]:
+    required_kwargs = set()
+    if use_release_type:
+        required_kwargs.add(RED_PARAM_RELEASE_TYPE)
+    if use_first_release_year:
+        required_kwargs.add(RED_PARAM_RELEASE_YEAR)
+    if use_record_label:
+        required_kwargs.add(RED_PARAM_RECORD_LABEL)
+    if use_catalog_number:
+        required_kwargs.add(RED_PARAM_CATALOG_NUMBER)
+    return required_kwargs
+
+
 @dataclass
 class SearchItem:
     """
@@ -33,24 +55,32 @@ class SearchItem:
     """
 
     lfm_rec: LFMRec
-    above_max_size_te_found: Optional[bool] = False
-    torrent_entry: Optional[TorrentEntry] = None
-    lfm_album_info: Optional[LFMAlbumInfo] = None
-    lfm_track_info: Optional[LFMTrackInfo] = None
-    mb_release: Optional[MBRelease] = None
-    skip_reason: Optional[SkippedReason] = None
-    snatch_failure_reason: Optional[SnatchFailureReason] = None
-    search_kwargs: Optional[OrderedDict[str, Any]] = None
+    release_name: str = field(init=False)
+    above_max_size_te_found: bool | None = False
+    torrent_entry: TorrentEntry | None = None
+    lfm_album_info: LFMAlbumInfo | None = None
+    lfm_track_info: LFMTrackInfo | None = None
+    mb_release: MBRelease | None = None
+    skip_reason: SkippedReason | None = None
+    snatch_failure_reason: SnatchFailureReason | None = None
+    search_kwargs: OrderedDict[str, Any] | None = field(default_factory=OrderedDict)
+
+    def __post_init__(self):
+        """
+        Set the initial `release_name` value based on the instance's other attributes.
+        Note: The `release_name` value may change later on for a Track rec, depending on
+        LFMTi resolution (see `ReleaseSearcher._resolve__resolve_lfm_track_info` and `SearchItem.set_lfm_track_info`).
+        For more on dataclasses and __post_init__ method, see this SO answer: https://stackoverflow.com/a/76187691
+        """
+        if self.lfm_rec.rec_type == RecommendationType.ALBUM.value:
+            self.release_name = self.lfm_rec.get_human_readable_release_str()
+        else:
+            self.release_name = "None" if not self.lfm_track_info else self.lfm_track_info.release_name
 
     @property
     def artist_name(self) -> str:
         """Returns the human-readable artist name."""
         return self.lfm_rec.get_human_readable_artist_str()
-
-    @property
-    def release_name(self) -> str:
-        """Returns the human-readable release name."""
-        return self.lfm_rec.get_human_readable_release_str()
 
     @property
     def track_name(self) -> str:
@@ -62,8 +92,17 @@ class SearchItem:
             return {}
         return self.search_kwargs
 
+    def search_kwargs_has_all_required_fields(self, required_kwargs: set[str]) -> bool:
+        """
+        Return `True` if all the specified fields are set to non-empty values.
+        Return `False` otherwise.
+        """
+        if not required_kwargs.issubset(set(self.search_kwargs.keys())):
+            return False
+        return all([self.search_kwargs[k] is not None for k in required_kwargs])
+
     @property
-    def track_rec_name(self) -> Optional[str]:
+    def track_rec_name(self) -> str | None:
         return (
             STATS_TRACK_REC_NONE
             if self.lfm_rec.rec_type == RecommendationType.ALBUM.value
@@ -85,8 +124,10 @@ class SearchItem:
     def set_lfm_album_info(self, lfmai: LFMAlbumInfo) -> None:
         self.lfm_album_info = lfmai
 
-    def set_lfm_track_info(self, lfmti: LFMTrackInfo) -> None:
+    def set_lfm_track_info(self, lfmti: LFMTrackInfo | None) -> None:
         self.lfm_track_info = lfmti
+        if lfmti:
+            self.release_name = lfmti.release_name
 
     def set_mb_release(self, mbr: MBRelease) -> None:
         self.mb_release = mbr
@@ -112,18 +153,24 @@ class SearchState:
             use_record_label=self._use_record_label,
             use_catalog_number=self._use_catalog_number,
         )
+        self._required_red_search_kwargs: set[str] = _required_search_kwargs(
+            use_release_type=self._use_release_type,
+            use_first_release_year=self._use_first_release_year,
+            use_record_label=self._use_record_label,
+            use_catalog_number=self._use_catalog_number,
+        )
         self._red_format_preferences = app_config.get_red_preference_ordering()
         self._max_size_gb = app_config.get_cli_option("max_size_gb")
         self._min_allowed_ratio = app_config.get_cli_option("min_allowed_ratio")
         self._output_summary_dir_path = app_config.get_output_summary_dir_path()
         self._max_download_allowed_gb = 0.0
-        self._red_user_details: Optional[RedUserDetails] = None
+        self._red_user_details: RedUserDetails | None = None
         self._run_download_total_gb = 0.0
-        self._snatch_summary_rows: List[List[str]] = []
-        self._skipped_snatch_summary_rows: List[List[str]] = []
-        self._failed_snatches_summary_rows: List[List[str]] = []
-        self._tids_to_snatch: Set[int] = set()
-        self._search_items_to_snatch: List[SearchItem] = []
+        self._snatch_summary_rows: list[list[str]] = []
+        self._skipped_snatch_summary_rows: list[list[str]] = []
+        self._failed_snatches_summary_rows: list[list[str]] = []
+        self._tids_to_snatch: set[int] = set()
+        self._search_items_to_snatch: list[SearchItem] = []
 
     def set_red_user_details(self, red_user_details: RedUserDetails) -> None:
         """
@@ -133,6 +180,20 @@ class SearchState:
             min_allowed_ratio=self._min_allowed_ratio,
         )
         self._red_user_details = red_user_details
+
+    # TODO: implement this
+    def _get_browse_request_param_suffix(self, si: SearchItem) -> str:
+        """
+        Utility method for returning only the optional extra RED browse request params
+        which the user has specified to search with, if any. Any missing fields which
+        the user marked as required will force this to raise an exception and add the si to the
+        skipped snatch rows.
+
+        For example, if the user specified
+        `use_record_label = true`, while leaving the following as false:
+        `use_release_type`, `use_first_release_year`, `use_catalog_number`,
+        then this would only return '&recordlabel=<record-label-field-from-si>' if the field exists in si.
+        """
 
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
@@ -146,7 +207,7 @@ class SearchState:
         params_prefix = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
         browse_request_params = "&".join(
             [params_prefix]
-            + [
+            + [  # TODO: fix bug where if any of the search kwarg fields are required by user config, they are ALL added to the red request params.
                 f"{red_param_key}={red_param_val}"
                 for red_param_key, red_param_val in si.get_search_kwargs().items()
                 if red_param_val is not None
@@ -160,6 +221,7 @@ class SearchState:
         Return False otherwise if the SearchItem should be skipped given the lack of resolved origin release.
         """
         if not si.lfm_track_info:
+            _LOGGER.info(f"Unable to find origin release for track rec: '{si.track_name}' by '{si.artist_name}'")
             self._add_skipped_snatch_row(si=si, reason=SkippedReason.NO_SOURCE_RELEASE_FOUND)
             return False
         return True
@@ -176,10 +238,11 @@ class SearchState:
         """
         return not self._allow_library_items and si.lfm_rec.rec_context == RecContext.IN_LIBRARY
 
-    def pre_search_filter(self, si: SearchItem) -> bool:
+    def pre_mbid_resolution_filter(self, si: SearchItem) -> bool:
         """
-        Return `True` if the lfm_rec is valid to search for on the various APIs,
-        or False if the lfm_rec should be skipped given the current app config settings.
+        Return `True` if the SearchItem is valid to continue searching for on the various
+        field resolution APIs (mb / LFM), or False if the SearchItem should be skipped given
+        the current user-specified app config settings.
         """
         artist = si.artist_name
         release = si.lfm_rec.get_human_readable_entity_str()
@@ -192,6 +255,20 @@ class SearchState:
             _LOGGER.debug(f"'allow_library_items' config field is set to {self._allow_library_items}.")
             _LOGGER.debug(f"Skipped '{release}' by '{artist}'. Rec context is {RecContext.IN_LIBRARY.value}")
             self._add_skipped_snatch_row(si=si, reason=SkippedReason.REC_CONTEXT_FILTERING)
+            return False
+        return True
+
+    def post_mbid_resolution_filter(self, si: SearchItem) -> bool:
+        """
+        Return `True` if the SearchItem is valid to continue searching for on RED after having attempted to
+        resolve the additional fields for building the RED browse query params.
+        Return `False` if the SearchItem should be skipped due to missing fields which are marked as required
+        by the current user-specified app config settings.
+        """
+        if not self._require_mbid_resolution:
+            return True
+        if not si.search_kwargs_has_all_required_fields(required_kwargs=self._required_red_search_kwargs):
+            self._add_skipped_snatch_row(si=si, reason=SkippedReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS)
             return False
         return True
 
@@ -213,9 +290,9 @@ class SearchState:
             return True
         return False
 
-    def post_search_filter(self, si: SearchItem) -> bool:
+    def post_red_search_filter(self, si: SearchItem) -> bool:
         """
-        Return `True` if the provided lfm_rec and corresponding matched_te is valid to add to the
+        Return `True` if the provided SearchItem and associated matched_te is valid to add to the
         pending list of torrents to snatch, otherwise update the skipped_snatch_rows accordingly and return False.
         """
         # No match found
@@ -232,7 +309,7 @@ class SearchState:
         return True
 
     def add_snatch_final_status_row(
-        self, si: SearchItem, snatched_with_fl: bool, snatch_path: Optional[str], exc_name: Optional[str]
+        self, si: SearchItem, snatched_with_fl: bool, snatch_path: str | None, exc_name: str | None
     ) -> None:
         """
         Called for any torrent once it has either been successfully snatched, or a failure during the snatch attempt took place.
@@ -253,7 +330,7 @@ class SearchState:
     def requires_mbid_resolution(self) -> bool:  # pragma: no cover
         return self._require_mbid_resolution
 
-    def get_search_items_to_snatch(self) -> List[SearchItem]:
+    def get_search_items_to_snatch(self) -> list[SearchItem]:
         """
         Called by the ReleaseSearcher, returns the list of SearchItems which should be snatched following the full searching and filtering of recs.
         The returned list is sorted from largest to smallest torrent, in order to optimize FL token usage (if enabled and tokens are available).
@@ -263,7 +340,7 @@ class SearchState:
         search_elems_by_size = sorted(
             self._search_items_to_snatch, key=lambda si: si.torrent_entry.get_size(unit="MB"), reverse=True
         )
-        will_snatch: List[SearchItem] = []
+        will_snatch: list[SearchItem] = []
         cumulative_dl_size_gb = 0.0
         for si in search_elems_by_size:
             cur_te_size_gb = si.torrent_entry.get_size("GB")
@@ -305,9 +382,9 @@ class SearchState:
             [
                 str(lfm_rec.rec_type),
                 str(lfm_rec.rec_context),
-                str(te.get_artist_name()),
-                str(te.get_release_name()),
-                str(STATS_TRACK_REC_NONE if not te.get_track_rec_name() else te.get_track_rec_name()),
+                str(te.artist_name),
+                str(te.release_name),
+                str(STATS_TRACK_REC_NONE if not te.track_rec_name else te.track_rec_name),
                 str(te.torrent_id),
                 str(te.media),
                 str("yes" if snatched_with_fl else "no"),
@@ -324,7 +401,7 @@ class SearchState:
         )
 
     @property
-    def red_format_preferences(self) -> List[RedFormat]:
+    def red_format_preferences(self) -> list[RedFormat]:
         return self._red_format_preferences
 
     @property

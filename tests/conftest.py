@@ -14,6 +14,7 @@ from pytest_httpx import HTTPXMock
 
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
+from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
@@ -375,6 +376,21 @@ def mock_musicbrainz_track_search_no_release_name_json() -> Dict[str, Any]:
     raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
     del raw_data["recordings"][0]["releases"][0]["title"]
     return raw_data
+
+
+@pytest.fixture(scope="session")
+def expected_mb_release() -> MBRelease:
+    return MBRelease(
+        mbid="d211379d-3203-47ed-a0c5-e564815bb45a",
+        title="Dr. Octagonecologyst",
+        artist="Dr. Octagon",
+        primary_type="Album",
+        first_release_year=1996,
+        release_date="2017-05-19",
+        label="Get On Down",
+        catalog_number="58010",
+        release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+    )
 
 
 @pytest.fixture(scope="session")

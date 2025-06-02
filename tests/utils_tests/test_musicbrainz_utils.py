@@ -8,21 +8,6 @@ from plastered.utils.red_utils import RedReleaseType
 from tests.conftest import mock_musicbrainz_release_json
 
 
-@pytest.fixture(scope="session")
-def expected_mb_release() -> MBRelease:
-    return MBRelease(
-        mbid="d211379d-3203-47ed-a0c5-e564815bb45a",
-        title="Dr. Octagonecologyst",
-        artist="Dr. Octagon",
-        primary_type="Album",
-        first_release_year=1996,
-        release_date="2017-05-19",
-        label="Get On Down",
-        catalog_number="58010",
-        release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
-    )
-
-
 @pytest.mark.parametrize(
     "other, expected",
     [

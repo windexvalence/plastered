@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, call, patch
 
@@ -16,6 +17,7 @@ from plastered.scraper.lfm_scraper import (
     RecContext,
     RecommendationType,
 )
+from plastered.stats.stats import PriorRunStats
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import (
@@ -147,11 +149,6 @@ def test_cli_scrape_command(
                     mock_scrape_recs.assert_called_once()
                     mock_exit.assert_called_once()
                     mock_search_for_recs.assert_called_once_with(rec_type_to_recs_list=mock_scrape_recs.return_value)
-
-
-@pytest.mark.parametrize("", [])
-def test_cli_run_stats_command(valid_app_config: AppConfig) -> None:
-    pass  # TODO: figure out how to even test this.
 
 
 @pytest.mark.parametrize(

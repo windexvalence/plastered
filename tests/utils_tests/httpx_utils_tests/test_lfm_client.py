@@ -1,5 +1,4 @@
 from contextlib import nullcontext
-from typing import Dict, Set
 from unittest.mock import Mock
 
 import pytest
@@ -8,11 +7,11 @@ from pytest_httpx import HTTPXMock
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException
-from plastered.utils.httpx_utils import LFMAPIClient
+from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 
 
 @pytest.fixture(scope="session")
-def expected_lfm_request_api_res_top_keys() -> Dict[str, Set[str]]:
+def expected_lfm_request_api_res_top_keys() -> dict[str, set[str]]:
     """
     Utility fixture which maps an LFM API endpoint to the expected set of top-level keys
     returned by the lfm_client.request_api call.
@@ -45,7 +44,7 @@ def expected_lfm_request_api_res_top_keys() -> Dict[str, Set[str]]:
 def test_request_lfm_api(
     disabled_api_run_cache: RunCache,
     valid_app_config: AppConfig,
-    expected_lfm_request_api_res_top_keys: Dict[str, Set[str]],
+    expected_lfm_request_api_res_top_keys: dict[str, set[str]],
     method: str,
     should_fail: bool,
 ) -> None:

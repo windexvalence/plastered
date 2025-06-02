@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 from unittest.mock import MagicMock, call, patch
 from urllib.parse import quote_plus
 
@@ -9,11 +9,18 @@ from plastered.release_search.search_helpers import (
     SearchItem,
     SearchState,
     _require_mbid_resolution,
+    _required_search_kwargs,
 )
 from plastered.scraper.lfm_scraper import LFMRec
 from plastered.scraper.lfm_scraper import RecContext as rc
 from plastered.scraper.lfm_scraper import RecommendationType as rt
 from plastered.stats.stats import SkippedReason as sr
+from plastered.utils.constants import (
+    RED_PARAM_CATALOG_NUMBER,
+    RED_PARAM_RECORD_LABEL,
+    RED_PARAM_RELEASE_TYPE,
+    RED_PARAM_RELEASE_YEAR,
+)
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.red_utils import EncodingEnum as ee
 from plastered.utils.red_utils import FormatEnum as fe
@@ -199,12 +206,35 @@ def test_pre_search_filter(
             return_value=mock_rule_skip_library_items,
         ) as mock_add_skipped_snatch_row:
             search_state = SearchState(app_config=valid_app_config)
-            actual = search_state.pre_search_filter(si=si)
+            actual = search_state.pre_mbid_resolution_filter(si=si)
             assert actual == expected
             if expected:
                 mock_add_skipped_snatch_row.assert_not_called()
             else:
                 mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=expected_reason)
+
+
+@pytest.mark.parametrize(
+    "mock_require_mbid_resolution, mock_has_all_required_fields, expected, expected_add_row_call_cnt",
+    [(False, False, True, 0), (True, False, False, 1), (True, True, True, 0)],
+)
+def test_post_mbid_resolution_filter(
+    valid_app_config: AppConfig,
+    mock_require_mbid_resolution: bool,
+    mock_has_all_required_fields: bool,
+    expected: bool,
+    expected_add_row_call_cnt: int,
+) -> None:
+    test_si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
+    with (
+        patch.object(SearchItem, "search_kwargs_has_all_required_fields", return_value=mock_has_all_required_fields),
+        patch.object(SearchState, "_add_skipped_snatch_row", return_value=None) as mock_add_skipped_snatch_row,
+    ):
+        search_state = SearchState(app_config=valid_app_config)
+        search_state._require_mbid_resolution = mock_require_mbid_resolution
+        actual = search_state.post_mbid_resolution_filter(si=test_si)
+        assert actual == expected
+        assert len(mock_add_skipped_snatch_row.mock_calls) == expected_add_row_call_cnt
 
 
 @pytest.mark.parametrize(
@@ -285,7 +315,7 @@ def test_post_search_filter_no_red_match(valid_app_config: AppConfig) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
         search_state = SearchState(app_config=valid_app_config)
-        actual = search_state.post_search_filter(si=si)
+        actual = search_state.post_red_search_filter(si=si)
         assert actual == False
         mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=sr.NO_MATCH_FOUND)
 
@@ -301,7 +331,7 @@ def test_post_search_filter_above_max_size(
     )
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
         search_state = SearchState(app_config=valid_app_config)
-        actual = search_state.post_search_filter(si=si)
+        actual = search_state.post_red_search_filter(si=si)
         assert actual == False
         mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=sr.ABOVE_MAX_SIZE)
 
@@ -321,7 +351,7 @@ def test_post_search_filter_dupe_snatch(
         SearchState, "_post_search_rule_dupe_snatch", return_value=mock_rule_dupe_snatch_res
     ) as mock_rule_dupe_fn:
         search_state = SearchState(app_config=valid_app_config)
-        actual = search_state.post_search_filter(si=si)
+        actual = search_state.post_red_search_filter(si=si)
         assert actual == expected
         mock_rule_dupe_fn.assert_called_once_with(si=si)
 
@@ -421,6 +451,73 @@ def test_require_mbid_resolution(
     assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
+@pytest.mark.parametrize(
+    "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
+    [
+        (False, False, False, False, set()),
+        (False, False, False, True, {RED_PARAM_CATALOG_NUMBER}),
+        (False, False, True, False, {RED_PARAM_RECORD_LABEL}),
+        (False, True, False, False, {RED_PARAM_RELEASE_YEAR}),
+        (True, False, False, False, {RED_PARAM_RELEASE_TYPE}),
+        (True, False, False, True, {RED_PARAM_RELEASE_TYPE, RED_PARAM_CATALOG_NUMBER}),
+        (True, False, True, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RECORD_LABEL}),
+        (True, True, False, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR}),
+        (True, True, False, True, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_CATALOG_NUMBER}),
+        (True, True, True, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_RECORD_LABEL}),
+        (
+            True,
+            True,
+            True,
+            True,
+            {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_RECORD_LABEL, RED_PARAM_CATALOG_NUMBER},
+        ),
+    ],
+)
+def test_required_search_kwargs(
+    use_release_type: bool,
+    use_first_release_year: bool,
+    use_record_label: bool,
+    use_catalog_number: bool,
+    expected: set[str],
+) -> None:
+    actual = _required_search_kwargs(
+        use_release_type=use_release_type,
+        use_first_release_year=use_first_release_year,
+        use_record_label=use_record_label,
+        use_catalog_number=use_catalog_number,
+    )
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_search_kwargs, required_kwargs, expected",
+    [
+        ({}, set(), True),
+        ({RED_PARAM_RELEASE_TYPE: "track"}, set(), True),
+        ({}, {RED_PARAM_RELEASE_TYPE}, False),
+        ({RED_PARAM_RELEASE_TYPE: "track"}, {RED_PARAM_RELEASE_TYPE}, True),
+        ({RED_PARAM_RELEASE_TYPE: "track"}, {RED_PARAM_RECORD_LABEL}, False),
+        ({RED_PARAM_RELEASE_TYPE: "track"}, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RECORD_LABEL}, False),
+        (
+            {RED_PARAM_RELEASE_TYPE: "track", RED_PARAM_RECORD_LABEL: "LabelX"},
+            {RED_PARAM_RELEASE_TYPE, RED_PARAM_RECORD_LABEL},
+            True,
+        ),
+    ],
+)
+def test_search_kwargs_has_all_required_fields(
+    mock_search_kwargs: dict[str, Any],
+    required_kwargs: set[str],
+    expected: bool,
+) -> None:
+    test_si = SearchItem(
+        lfm_rec=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST),
+        search_kwargs=mock_search_kwargs,
+    )
+    actual = test_si.search_kwargs_has_all_required_fields(required_kwargs=required_kwargs)
+    assert actual == expected
+
+
 def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_config: AppConfig) -> None:
     mock_skipped_rows = [["fake"], ["also fake"]]
     mocked_failed_snatch_rows = [["a"], ["b c"], ["d"]]
@@ -463,3 +560,35 @@ def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, ex
             si.lfm_track_info = LFMTrackInfo("art", "track", "", "", mock_mbid)
     actual = si.get_matched_mbid()
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_rec_type, mock_lfmti, expected_get_human_readable_release_str_call_cnt, expected_result",
+    [
+        pytest.param(rt.ALBUM, None, 1, "Title", id="album rec"),
+        pytest.param(rt.TRACK, None, 0, "None", id="track-no-lfmti"),
+        pytest.param(
+            rt.TRACK,
+            LFMTrackInfo(artist="a", track_name="t", release_name="Title", lfm_url="fake", release_mbid="abc"),
+            0,
+            "Title",
+            id="track-with-lfmti",
+        ),
+    ],
+)
+def test_search_item_release_name(
+    mock_rec_type: rt,
+    mock_lfmti: LFMTrackInfo | None,
+    expected_get_human_readable_release_str_call_cnt: int,
+    expected_result: str,
+) -> None:
+    with patch.object(
+        LFMRec, "get_human_readable_release_str", return_value=expected_result
+    ) as mock_lfm_rec_get_human_readable_track_str_method:
+        si = SearchItem(lfm_rec=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti)
+        actual = si.release_name
+        assert actual == expected_result
+        assert (
+            len(mock_lfm_rec_get_human_readable_track_str_method.mock_calls)
+            == expected_get_human_readable_release_str_call_cnt
+        )

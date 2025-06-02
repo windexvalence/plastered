@@ -43,6 +43,9 @@ class SkippedReason(StrEnum):
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
     NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release entity."
     MIN_RATIO_LIMIT = "Snatch would drop ratio below configured 'min_allowed_ratio'."
+    UNRESOLVED_REQUIRED_SEARCH_FIELDS = (
+        "Could not resolve 1 or more of: `first_release_year` `record_label`, `catalog_number`."
+    )
 
 
 class SnatchFailureReason(StrEnum):

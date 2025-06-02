@@ -1,9 +1,15 @@
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import quote_plus
 
+from plastered.utils.constants import (
+    RED_PARAM_CATALOG_NUMBER,
+    RED_PARAM_RECORD_LABEL,
+    RED_PARAM_RELEASE_TYPE,
+    RED_PARAM_RELEASE_YEAR,
+)
 from plastered.utils.red_utils import RedReleaseType
 
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
@@ -22,12 +28,12 @@ class MBRelease:
     primary_type: str
     release_date: str
     release_group_mbid: str
-    label: Optional[str] = None
-    catalog_number: Optional[str] = None
-    first_release_year: Optional[int] = -1
+    label: str | None = None
+    catalog_number: str | None = None
+    first_release_year: int | None = -1
 
     @classmethod
-    def construct_from_api(cls, json_blob: Dict[str, Any]):
+    def construct_from_api(cls, json_blob: dict[str, Any]):
         label_json = None if not json_blob["label-info"] else json_blob["label-info"][0]
         release_group_json = json_blob["release-group"]
         first_release_year = -1
@@ -54,10 +60,10 @@ class MBRelease:
     def get_first_release_year(self) -> int:
         return self.first_release_year
 
-    def get_label(self) -> Optional[str]:
+    def get_label(self) -> str | None:
         return self.label
 
-    def get_catalog_number(self) -> Optional[str]:
+    def get_catalog_number(self) -> str | None:
         return self.catalog_number
 
     def get_musicbrainz_release_url(self) -> str:
@@ -70,16 +76,16 @@ class MBRelease:
         """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""
         return OrderedDict(
             [
-                ("releasetype", self.get_red_release_type().value),
+                (RED_PARAM_RELEASE_TYPE, self.get_red_release_type().value),
                 (
-                    "year",
+                    RED_PARAM_RELEASE_YEAR,
                     (
                         self.first_release_year
                         if (self.first_release_year is not None and self.first_release_year > 0)
                         else None
                     ),
                 ),
-                ("recordlabel", quote_plus(self.label) if self.label else None),
-                ("cataloguenumber", quote_plus(self.catalog_number) if self.catalog_number else None),
+                (RED_PARAM_RECORD_LABEL, quote_plus(self.label) if self.label else None),
+                (RED_PARAM_CATALOG_NUMBER, quote_plus(self.catalog_number) if self.catalog_number else None),
             ]
         )

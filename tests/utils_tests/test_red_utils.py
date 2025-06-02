@@ -253,7 +253,7 @@ def test_torrent_entry_get_red_format() -> None:
         media=MediaEnum.CD,
         cd_only_extras="haslog=100&hascue=1",
     )
-    actual_red_format = test_instance.get_red_format()
+    actual_red_format = test_instance.red_format
     assert (
         actual_red_format == expected_red_format
     ), f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
