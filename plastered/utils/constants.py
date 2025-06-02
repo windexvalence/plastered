@@ -58,9 +58,9 @@ RED_PARAM_RELEASE_YEAR: Final[str] = "year"
 RED_PARAM_RECORD_LABEL: Final[str] = "recordlabel"
 RED_PARAM_CATALOG_NUMBER: Final[str] = "cataloguenumber"
 
-OPTIONAL_RED_PARAMS: Final[set[str]] = {
+OPTIONAL_RED_PARAMS: Final[list[str]] = [
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_CATALOG_NUMBER,
-}
+]

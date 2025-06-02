@@ -240,8 +240,6 @@ class ReleaseSearcher:
         self._snatch_matches()
 
     def _snatch_matches(self) -> None:
-        # import pdb
-        # pdb.set_trace()
         if not self._enable_snatches:
             _LOGGER.warning(f"Not configured to snatch. Please update your config to enable.")
             return

@@ -11,6 +11,7 @@ from plastered.stats.stats import (
     print_and_save_all_searcher_stats,
 )
 from plastered.utils.constants import (
+    OPTIONAL_RED_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_RELEASE_TYPE,
@@ -46,6 +47,7 @@ def _required_search_kwargs(
     return required_kwargs
 
 
+# TODO (later): break out SearchItem definition into separate file
 @dataclass
 class SearchItem:
     """
@@ -181,20 +183,6 @@ class SearchState:
         )
         self._red_user_details = red_user_details
 
-    # TODO: implement this
-    def _get_browse_request_param_suffix(self, si: SearchItem) -> str:
-        """
-        Utility method for returning only the optional extra RED browse request params
-        which the user has specified to search with, if any. Any missing fields which
-        the user marked as required will force this to raise an exception and add the si to the
-        skipped snatch rows.
-
-        For example, if the user specified
-        `use_record_label = true`, while leaving the following as false:
-        `use_release_type`, `use_first_release_year`, `use_catalog_number`,
-        then this would only return '&recordlabel=<record-label-field-from-si>' if the field exists in si.
-        """
-
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
         """Utility method for creating the RED browse API params string"""
@@ -204,15 +192,11 @@ class SearchState:
         encoding = red_format.get_encoding()
         media = red_format.get_media()
         # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
-        params_prefix = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
-        browse_request_params = "&".join(
-            [params_prefix]
-            + [  # TODO: fix bug where if any of the search kwarg fields are required by user config, they are ALL added to the red request params.
-                f"{red_param_key}={red_param_val}"
-                for red_param_key, red_param_val in si.get_search_kwargs().items()
-                if red_param_val is not None
-            ]
-        )
+        browse_request_params = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
+        for red_param in OPTIONAL_RED_PARAMS:
+            if red_param in self._required_red_search_kwargs:
+                if red_param_val := si.get_search_kwargs().get(red_param):
+                    browse_request_params += f"&{red_param}={red_param_val}"
         return browse_request_params
 
     def post_resolve_track_filter(self, si: SearchItem) -> bool:

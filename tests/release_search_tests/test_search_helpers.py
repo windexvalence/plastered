@@ -22,6 +22,7 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_YEAR,
 )
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
+from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import EncodingEnum as ee
 from plastered.utils.red_utils import FormatEnum as fe
 from plastered.utils.red_utils import MediaEnum as me
@@ -57,44 +58,126 @@ def mock_torrent_entry() -> TorrentEntry:
 
 
 @pytest.mark.parametrize(
-    "rf, mock_search_kwargs, expected_browse_params_suffix",
+    "rf, mock_kwargs_user_settings, mock_search_kwargs, expected_browse_params",
     [
-        (RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB), {}, ""),
-        (RedFormat(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.WEB), {}, ""),
-        (RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.WEB), {}, ""),
-        (RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.CD), {}, ""),
-        (
+        pytest.param(
             RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
-            {"releasetype": RedReleaseType.ALBUM.value},
-            "releasetype=1",
+            {
+                "use_release_type": False,
+                "use_first_release_year": False,
+                "use_record_label": False,
+                "use_catalog_number": False,
+            },
+            {},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            id="disabled-all-empty-kwargs",
         ),
-        (RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB), {"year": 1969}, "year=1969"),
-        (
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
-            {"recordlabel": quote_plus("Fake Label")},
-            "recordlabel=Fake+Label",
+        pytest.param(
+            RedFormat(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.WEB),
+            {
+                "use_release_type": False,
+                "use_first_release_year": False,
+                "use_record_label": False,
+                "use_catalog_number": False,
+            },
+            {
+                RED_PARAM_RELEASE_TYPE: "foo",
+                RED_PARAM_RELEASE_YEAR: 1969,
+                RED_PARAM_RECORD_LABEL: "fake",
+                RED_PARAM_CATALOG_NUMBER: "bar",
+            },
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            id="disabled-all-full-kwargs",
         ),
-        (
+        pytest.param(
+            RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.WEB),
+            {
+                "use_release_type": True,
+                "use_first_release_year": True,
+                "use_record_label": True,
+                "use_catalog_number": True,
+            },
+            {},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            id="enabled-all-empty-kwargs",
+        ),
+        pytest.param(
+            RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.CD),
+            {
+                "use_release_type": False,
+                "use_first_release_year": True,
+                "use_record_label": False,
+                "use_catalog_number": False,
+            },
+            {RED_PARAM_RELEASE_YEAR: 1969},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=CD&group_results=1&order_by=seeders&order_way=desc&year=1969",
+            id="use-release-year-valid",
+        ),
+        pytest.param(
             RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
-            {"releasetype": RedReleaseType.ALBUM.value, "cataloguenumber": quote_plus("FL 69420")},
-            f"releasetype=1&cataloguenumber=FL+69420",
+            {
+                "use_release_type": True,
+                "use_first_release_year": False,
+                "use_record_label": False,
+                "use_catalog_number": False,
+            },
+            {RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1",
+            id="use-release-type-valid",
+        ),
+        pytest.param(
+            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
+            {
+                "use_release_type": False,
+                "use_first_release_year": False,
+                "use_record_label": True,
+                "use_catalog_number": False,
+            },
+            {RED_PARAM_RECORD_LABEL: "Fake+Label"},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&recordlabel=Fake+Label",
+            id="use-record-label-valid",
+        ),
+        pytest.param(
+            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
+            {
+                "use_release_type": False,
+                "use_first_release_year": False,
+                "use_record_label": False,
+                "use_catalog_number": True,
+            },
+            {RED_PARAM_CATALOG_NUMBER: "FL+69420"},
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&cataloguenumber=FL+69420",
+            id="use-catalog-num-valid",
+        ),
+        pytest.param(
+            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
+            {
+                "use_release_type": True,
+                "use_first_release_year": True,
+                "use_record_label": True,
+                "use_catalog_number": True,
+            },
+            {
+                RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value,
+                RED_PARAM_RELEASE_YEAR: 1969,
+                RED_PARAM_RECORD_LABEL: "Fake+Label",
+                RED_PARAM_CATALOG_NUMBER: "FL+69420",
+            },
+            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1&year=1969&recordlabel=Fake+Label&cataloguenumber=FL+69420",
+            id="use-all-kwargs-valid",
         ),
     ],
 )
 def test_create_browse_params(
     valid_app_config: AppConfig,
     rf: RedFormat,
+    mock_kwargs_user_settings: dict[str, bool],
     mock_search_kwargs: Dict[str, Any],
-    expected_browse_params_suffix: str,
+    expected_browse_params: str,
 ) -> None:
-    expected_browse_params = f"artistname=Some+Artist&groupname=Some+Bad+Album&format={rf.get_format()}&encoding={rf.get_encoding()}&media={rf.get_media()}&group_results=1&order_by=seeders&order_way=desc"
-    if expected_browse_params_suffix:
-        expected_browse_params += f"&{expected_browse_params_suffix}"
+    mock_final_cli_options = {**valid_app_config.get_all_options(), **mock_kwargs_user_settings}
+    valid_app_config._cli_options = mock_final_cli_options
     search_state = SearchState(app_config=valid_app_config)
-    search_state._use_release_type = True
-    search_state._use_first_release_year = True
-    search_state._use_record_label = True
-    search_state._use_catalog_number = True
     si = SearchItem(
         lfm_rec=LFMRec(
             lfm_artist_str="Some+Artist",
