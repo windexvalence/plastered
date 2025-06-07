@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -38,7 +38,7 @@ def test_lfmrec_str(lfm_rec: LFMRec, expected: str) -> None:
 @pytest.mark.parametrize(
     "is_track_rec, should_fail, expected_attr_val", [(False, True, None), (True, False, "Some+Album+IDK")]
 )
-def test_set_track_origin_release(is_track_rec: bool, should_fail: bool, expected_attr_val: Optional[str]) -> None:
+def test_set_track_origin_release(is_track_rec: bool, should_fail: bool, expected_attr_val: str | None) -> None:
     test_lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
         lfm_entity_str="Some+Entity",
@@ -62,7 +62,7 @@ def test_set_track_origin_release(is_track_rec: bool, should_fail: bool, expecte
 @pytest.mark.parametrize(
     "is_track_rec, should_fail, expected_attr_val", [(False, True, None), (True, False, "abc-69-420")]
 )
-def test_set_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected_attr_val: Optional[str]) -> None:
+def test_set_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected_attr_val: str | None) -> None:
     test_lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
         lfm_entity_str="Some+Entity",
@@ -133,7 +133,7 @@ def test_get_human_readable_release_str_album() -> None:
 
 
 @pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "Some Entity")])
-def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, expected: Optional[str]) -> None:
+def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, expected: str | None) -> None:
     test_lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
         lfm_entity_str="Some+Entity",
@@ -152,7 +152,7 @@ def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, exp
 
 @pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "Some Album")])
 def test_get_human_readable_track_origin_release_str(
-    is_track_rec: bool, should_fail: bool, expected: Optional[str]
+    is_track_rec: bool, should_fail: bool, expected: str | None
 ) -> None:
     test_lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
@@ -173,7 +173,7 @@ def test_get_human_readable_track_origin_release_str(
 
 
 @pytest.mark.parametrize("is_track_rec, should_fail, expected", [(False, True, None), (True, False, "abc-69-420")])
-def test_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected: Optional[str]) -> None:
+def test_track_origin_release_mbid(is_track_rec: bool, should_fail: bool, expected: str | None) -> None:
     test_lfm_rec = LFMRec(
         lfm_artist_str="Some+Artist",
         lfm_entity_str="Some+Entity",

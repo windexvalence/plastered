@@ -2,6 +2,7 @@ import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import quote_plus
 
 from plastered.config.config_parser import AppConfig
 from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
@@ -187,7 +188,7 @@ class SearchState:
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
         """Utility method for creating the RED browse API params string"""
         artist_name = si.lfm_rec.artist_str
-        album_name = si.lfm_rec.release_str
+        album_name = quote_plus(si.release_name)
         format = red_format.get_format()
         encoding = red_format.get_encoding()
         media = red_format.get_media()
@@ -205,7 +206,7 @@ class SearchState:
         Return False otherwise if the SearchItem should be skipped given the lack of resolved origin release.
         """
         if not si.lfm_track_info:
-            _LOGGER.info(f"Unable to find origin release for track rec: '{si.track_name}' by '{si.artist_name}'")
+            _LOGGER.warning(f"Unable to find origin release for track rec: '{si.track_name}' by '{si.artist_name}'")
             self._add_skipped_snatch_row(si=si, reason=SkippedReason.NO_SOURCE_RELEASE_FOUND)
             return False
         return True
@@ -229,7 +230,7 @@ class SearchState:
         the current user-specified app config settings.
         """
         artist = si.artist_name
-        release = si.lfm_rec.get_human_readable_entity_str()
+        release = si.release_name
         if self._pre_search_rule_skip_prior_snatch(si=si):
             _LOGGER.debug("'skip_prior_snatches' config field is set to True")
             _LOGGER.debug(f"'{release}' by '{artist}' due to prior snatch found in release group")
@@ -282,7 +283,7 @@ class SearchState:
         # No match found
         if not si.found_red_match():
             _LOGGER.info(
-                f"No valid RED match found for release: '{si.lfm_rec.get_human_readable_entity_str()}' by '{si.artist_name}'"
+                f"No valid RED match found for {si.lfm_rec.rec_type}: '{si.lfm_rec.get_human_readable_entity_str()}' by '{si.artist_name}'"
             )
             skip_reason = SkippedReason.ABOVE_MAX_SIZE if si.above_max_size_te_found else SkippedReason.NO_MATCH_FOUND
             self._add_skipped_snatch_row(si=si, reason=skip_reason)
@@ -341,11 +342,11 @@ class SearchState:
     def _add_skipped_snatch_row(self, si: SearchItem, reason: SkippedReason) -> None:
         self._skipped_snatch_summary_rows.append(
             [
-                si.lfm_rec.rec_type,
-                si.lfm_rec.rec_context,
-                si.artist_name,
-                si.release_name,
-                si.track_rec_name,
+                str(si.lfm_rec.rec_type),
+                str(si.lfm_rec.rec_context),
+                str(si.artist_name),
+                str(si.release_name),
+                str(si.track_rec_name),
                 str(si.torrent_entry.torrent_id) if si.torrent_entry else STATS_NONE,
                 reason.value,
             ]
@@ -366,8 +367,8 @@ class SearchState:
             [
                 str(lfm_rec.rec_type),
                 str(lfm_rec.rec_context),
-                str(te.artist_name),
-                str(te.release_name),
+                str(si.artist_name),
+                str(si.release_name),
                 str(STATS_TRACK_REC_NONE if not te.track_rec_name else te.track_rec_name),
                 str(te.torrent_id),
                 str(te.media),

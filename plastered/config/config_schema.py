@@ -1,5 +1,3 @@
-from typing import List
-
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
 
 # Top-level key constants
@@ -214,7 +212,7 @@ required_schema = {
 }
 
 
-def get_sub_keys_from_top_level_keys() -> List[str]:
+def get_sub_keys_from_top_level_keys() -> list[str]:
     """
     Utility function for config pretty-printing via the CLI.
     Returns a dict mapping the top-level config keys to their corresponding list of sub-keys.

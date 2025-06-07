@@ -1,6 +1,5 @@
 import datetime
 from time import time
-from typing import List
 from unittest.mock import call, patch
 
 import pytest
@@ -103,8 +102,8 @@ def test_precise_delay(sec_delay: int) -> None:
 def test_throttle(
     disabled_api_run_cache: RunCache,
     client_throttle_sec: int,
-    raw_now_timestamps: List[int],
-    expected_sleep_call_args: List[int],
+    raw_now_timestamps: list[int],
+    expected_sleep_call_args: list[int],
 ) -> None:
     api_base_client = ThrottledAPIBaseClient(
         base_api_url="https://google.com",

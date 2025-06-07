@@ -81,7 +81,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         This will only be called if the LFM API does not have a release name already associated with the track rec in question.
 
         If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
-        Otherwise returns a dict of the the form {"origin_release_mbid": Optional[str], "origin_release_name": Optional[str]}
+        Otherwise returns a dict of the the form {"origin_release_mbid": str | None, "origin_release_name": str | None}
         """
         LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
         search_query_str = self._get_track_search_query_str(

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Set
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 from urllib.parse import quote_plus
 
@@ -172,7 +172,7 @@ def test_create_browse_params(
     valid_app_config: AppConfig,
     rf: RedFormat,
     mock_kwargs_user_settings: dict[str, bool],
-    mock_search_kwargs: Dict[str, Any],
+    mock_search_kwargs: dict[str, Any],
     expected_browse_params: str,
 ) -> None:
     mock_final_cli_options = {**valid_app_config.get_all_options(), **mock_kwargs_user_settings}
@@ -201,7 +201,7 @@ def test_create_browse_params(
     ],
 )
 def test_post_resolve_track_filter(
-    valid_app_config: AppConfig, lfm_track_info: Optional[LFMTrackInfo], expected: bool
+    valid_app_config: AppConfig, lfm_track_info: LFMTrackInfo | None, expected: bool
 ) -> None:
     search_state = SearchState(app_config=valid_app_config)
     search_item = SearchItem(
@@ -275,7 +275,7 @@ def test_pre_search_filter(
     mock_rule_skip_prior_snatch: bool,
     mock_rule_skip_library_items: bool,
     expected: bool,
-    expected_reason: Optional[sr],
+    expected_reason: sr | None,
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rec_context))
     with patch.object(
@@ -332,7 +332,7 @@ def test_post_mbid_resolution_filter(
 def test_post_search_rule_skip_already_scheduled_snatch(
     valid_app_config: AppConfig,
     mock_tid: int,
-    mock_tids_to_snatch: Set[int],
+    mock_tids_to_snatch: set[int],
     expected: bool,
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
@@ -372,10 +372,10 @@ def test_post_search_rule_dupe_snatch(
     valid_app_config: AppConfig,
     mock_torrent_entry: TorrentEntry,
     no_snatch_user_details: RedUserDetails,
-    mock_tids_to_snatch: Set[int],
+    mock_tids_to_snatch: set[int],
     mock_pre_snatched: bool,
     expected: bool,
-    expected_reason: Optional[sr],
+    expected_reason: sr | None,
 ) -> None:
     with (
         patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row,

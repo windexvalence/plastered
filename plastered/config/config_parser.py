@@ -4,7 +4,7 @@ import sys
 import traceback
 from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import jsonschema
 import yaml
@@ -44,13 +44,13 @@ def load_init_config_template() -> str:
     return "".join(raw_init_conf_lines)
 
 
-def _get_cd_only_extras_string(cd_only_extras_conf_data: Dict[str, str]) -> str:
+def _get_cd_only_extras_string(cd_only_extras_conf_data: dict[str, str]) -> str:
     log_value = cd_only_extras_conf_data[LOG_KEY]
     cue_value = int(cd_only_extras_conf_data[CUE_KEY])
     return f"haslog={log_value}&hascue={cue_value}"
 
 
-def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]) -> List[RedFormat]:
+def _load_red_formats_from_config(format_prefs_config_data: list[dict[str, Any]]) -> list[RedFormat]:
     red_formats = []
     for pref in format_prefs_config_data:
         pref_dict = pref[PER_PREFERENCE_KEY]
@@ -77,13 +77,14 @@ def _load_red_formats_from_config(format_prefs_config_data: List[Dict[str, Any]]
     return red_formats
 
 
+# TODO (later): Change this to a pydantic model class
 class AppConfig:
     """
     Utility class for gathering and merging user-provided options from both the CLI and the configuration file.
     This class is the source of truth for the user's runtime configurations. Prioritizes CLI-based / env-var based options over the yaml config options.
     """
 
-    def __init__(self, config_filepath: str, cli_params: Dict[str, Any]):
+    def __init__(self, config_filepath: str, cli_params: dict[str, Any]):
         if not os.path.exists(config_filepath):
             raise AppConfigException(f"Provided config filepath does not exist: '{config_filepath}'")
         self._run_datestr = datetime.now().strftime(RUN_DATE_STR_FORMAT)
@@ -138,7 +139,7 @@ class AppConfig:
                     f"Provided '{CLI_SNATCH_DIRECTORY_KEY}' value '{output_dir}' must exist and must be a directory."
                 )
 
-    def get_all_options(self) -> Dict[str, Any]:
+    def get_all_options(self) -> dict[str, Any]:
         return self._cli_options
 
     def get_cli_option(self, option_key: str) -> Any:
@@ -147,7 +148,7 @@ class AppConfig:
     def get_root_summary_directory_path(self) -> str:
         return self._root_summary_directory_path
 
-    def get_output_summary_dir_path(self, date_str: Optional[str] = None) -> str:
+    def get_output_summary_dir_path(self, date_str: str | None = None) -> str:
         if not date_str:
             return os.path.join(self._root_summary_directory_path, self._run_datestr)
         return os.path.join(self._root_summary_directory_path, date_str)
@@ -173,5 +174,5 @@ class AppConfig:
         yaml.dump(dict(pp_dict), sys.stdout)
         self._pretty_print_format_preferences()
 
-    def get_red_preference_ordering(self) -> List[RedFormat]:
+    def get_red_preference_ordering(self) -> list[RedFormat]:
         return self._red_preference_ordering

@@ -1,8 +1,6 @@
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
+from typing import Any
 
 import pytest
-import requests
 
 from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
 from plastered.utils.red_utils import (
@@ -198,10 +196,10 @@ def test_eq(other: Any, expected: bool) -> None:
 )
 def test_torrent_entry_get_size(
     unit: str,
-    expected: Optional[float],
+    expected: float | None,
     should_fail: bool,
-    exception: Optional[Exception],
-    exception_msg: Optional[str],
+    exception: Exception | None,
+    exception_msg: str | None,
 ) -> None:
     mock_size_bytes = 3000000.0
     test_instance = TorrentEntry(
@@ -259,7 +257,7 @@ def test_torrent_entry_get_red_format() -> None:
     ), f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
 
 
-def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) -> None:
+def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:
     test_release_entry = ReleaseEntry(
         group_id=463161,
         media=MediaEnum.CD.value,

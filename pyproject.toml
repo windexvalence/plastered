@@ -10,7 +10,9 @@ line-length = 120
 # https://coverage.readthedocs.io/en/latest/config.html
 [tool.coverage.run]
 source = ["plastered"]
-omit = []
+omit = [
+    "plastered/utils/log_utils.py",
+]
 
 [tool.coverage.report]
 fail_under = 100
@@ -42,6 +44,7 @@ src_paths = ["plastered", "tests"]
 [tool.pylint.main]
 ignore-patterns = ["^\\.#"]
 py-version = "3.12"
+load-plugins = "pylint.extensions.typing"
 
 [tool.pylint.basic]
 no-docstring-rgx = "^_"
@@ -62,6 +65,7 @@ enable = """
     comparison-with-callable,
     comparison-with-itself,
     cyclic-import,
+    deprecated-typing-alias,
     duplicate-argument-name,
     duplicate-bases,
     duplicate-key,
@@ -112,7 +116,7 @@ enable = """
 ignored-argument-names = "_.*|^ignored_|^unused_"
 
 [tool.pytest.ini_options]
-addopts = "--cov=plastered"
+addopts = "--cov=plastered --no-cov-on-fail"
 markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",

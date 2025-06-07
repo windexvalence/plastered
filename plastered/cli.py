@@ -5,16 +5,9 @@ USAGE: See docs/user_guide.md
 """
 
 import logging
-import os
 from datetime import datetime
-from typing import Optional
 
 import click
-from rich.console import Console
-
-# https://stackoverflow.com/a/68878216
-from rich.logging import RichHandler
-from tqdm.contrib.logging import logging_redirect_tqdm
 
 from plastered.config.config_parser import AppConfig, load_init_config_template
 from plastered.config.config_schema import ENABLE_SNATCHING_KEY, REC_TYPES_TO_SCRAPE_KEY
@@ -37,30 +30,13 @@ from plastered.utils.exceptions import (
     RunCacheDisabledException,
     StatsRunPickerException,
 )
+from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
 from plastered.version import get_project_version
 
-_TERMINAL_COLS = int(os.getenv("COLUMNS", 120))
-
-# RichHandler(log_time_format="%m/%d/%Y %H:%M:%S")
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTSET",
-    format=FORMAT,
-    datefmt="[%m/%d/%Y %H:%M:%S]",
-    handlers=[
-        RichHandler(
-            console=Console(width=_TERMINAL_COLS),
-            log_time_format="%m/%d/%Y %H:%M:%S",
-            omit_repeated_times=False,
-            tracebacks_word_wrap=False,
-        )
-    ],
-)  # set level=20 or logging.INFO to turn off debug
+logging.basicConfig(level="NOTSET", format=FORMAT, datefmt=DATE_FORMAT, handlers=[create_rich_log_handler()])
 _LOGGER = logging.getLogger()
-# _LOGGER = logging.getLogger("rich")
 
 _APP_VERSION = get_project_version()
-
 _OPTION_ENVVAR_PREFIX = "PLASTERED"
 _GROUP_PARAMS_KEY = "group_params"
 _CLI_ALL_CACHE_TYPES = "@all"
@@ -92,18 +68,16 @@ _CLI_ALL_CACHE_TYPES = "@all"
 @click.pass_context
 def cli(
     ctx,
-    verbosity: Optional[str] = DEFAULT_VERBOSITY,
-    red_user_id: Optional[int] = None,
-    red_api_key: Optional[str] = None,
-    lfm_api_key: Optional[str] = None,
-    lfm_username: Optional[str] = None,
-    lfm_password: Optional[str] = None,
+    verbosity: str | None = DEFAULT_VERBOSITY,
+    red_user_id: int | None = None,
+    red_api_key: str | None = None,
+    lfm_api_key: str | None = None,
+    lfm_username: str | None = None,
+    lfm_password: str | None = None,
 ) -> None:
     _LOGGER.setLevel(verbosity.upper())
-    with logging_redirect_tqdm():
-        _LOGGER.debug(f"Detected terminal width: {_TERMINAL_COLS}")
-        ctx.obj = {}
-        ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
+    ctx.obj = {}
+    ctx.obj[_GROUP_PARAMS_KEY] = ctx.params
 
 
 @cli.command(
@@ -123,7 +97,7 @@ def cli(
     help="Indicate what type of LFM recs to scrape and snatch. Defaults to 'rec_types_to_scrape' config setting otherwise.",
 )
 @click.pass_context
-def scrape(ctx, config: str, no_snatch: Optional[bool] = False, rec_types: Optional[str] = None) -> None:
+def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | None = None) -> None:
     if no_snatch:  # pragma: no cover
         ctx.obj[_GROUP_PARAMS_KEY][ENABLE_SNATCHING_KEY] = False
     if rec_types:
@@ -205,11 +179,11 @@ def cache(
     ctx,
     config: str,
     target_cache: str,
-    info: Optional[bool] = False,
-    empty: Optional[bool] = False,
-    check: Optional[bool] = False,
-    list_keys: Optional[bool] = False,
-    read_value: Optional[str] = None,
+    info: bool | None = False,
+    empty: bool | None = False,
+    check: bool | None = False,
+    list_keys: bool | None = False,
+    read_value: str | None = None,
 ) -> None:
     app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
     target_cache_types = (

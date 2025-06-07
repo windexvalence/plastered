@@ -2,7 +2,7 @@ import logging
 import os
 from collections import namedtuple
 
-from tqdm import tqdm
+from rich.progress import Progress
 
 from plastered.config.config_parser import AppConfig
 from plastered.release_search.search_helpers import SearchItem, SearchState
@@ -14,6 +14,12 @@ from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
+from plastered.utils.log_utils import (
+    CONSOLE,
+    SPINNER,
+    NestedProgress,
+    red_browse_progress,
+)
 from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import RedUserDetails, ReleaseEntry
 
@@ -66,51 +72,60 @@ class ReleaseSearcher:
 
     # TODO (later): make this method call happen exclusively within the __enter__ method
     def _gather_red_user_details(self) -> None:
-        _LOGGER.info("Gathering red user details to help with search filtering and ratio calculations ...")
-        user_stats_json = self._red_client.request_api(action="community_stats", params=f"userid={self._red_user_id}")
-        snatched_torrent_count = int(user_stats_json["snatched"].replace(",", ""))
-        seeding_torrent_count = int(user_stats_json["seeding"].replace(",", ""))
-        snatched_user_torrents_json = self._red_client.request_api(
-            action="user_torrents",
-            params=f"id={self._red_user_id}&type=snatched&limit={snatched_torrent_count}&offset=0",
-        )["snatched"]
-        seeding_user_torrents_json = self._red_client.request_api(
-            action="user_torrents",
-            params=f"id={self._red_user_id}&type=seeding&limit={seeding_torrent_count}&offset=0",
-        )["seeding"]
-        user_profile_json = self._red_client.request_api(action="user", params=f"id={self._red_user_id}")
-        red_user_details = RedUserDetails(
-            user_id=self._red_user_id,
-            snatched_count=snatched_torrent_count,
-            snatched_torrents_list=snatched_user_torrents_json + seeding_user_torrents_json,
-            user_profile_json=user_profile_json,
-        )
+        with CONSOLE.status(
+            "Gathering RED user details to calculate ratio limits and to filter out prior snatches ...", spinner=SPINNER
+        ):
+            user_stats_json = self._red_client.request_api(
+                action="community_stats", params=f"userid={self._red_user_id}"
+            )
+            snatched_torrent_count = int(user_stats_json["snatched"].replace(",", ""))
+            seeding_torrent_count = int(user_stats_json["seeding"].replace(",", ""))
+            snatched_user_torrents_json = self._red_client.request_api(
+                action="user_torrents",
+                params=f"id={self._red_user_id}&type=snatched&limit={snatched_torrent_count}&offset=0",
+            )["snatched"]
+            seeding_user_torrents_json = self._red_client.request_api(
+                action="user_torrents",
+                params=f"id={self._red_user_id}&type=seeding&limit={seeding_torrent_count}&offset=0",
+            )["seeding"]
+            user_profile_json = self._red_client.request_api(action="user", params=f"id={self._red_user_id}")
+            red_user_details = RedUserDetails(
+                user_id=self._red_user_id,
+                snatched_count=snatched_torrent_count,
+                snatched_torrents_list=snatched_user_torrents_json + seeding_user_torrents_json,
+                user_profile_json=user_profile_json,
+            )
         self._red_snatch_client.set_initial_available_fl_tokens(
             initial_available_fl_tokens=red_user_details.get_initial_available_fl_tokens()
         )
         self._search_state.set_red_user_details(red_user_details=red_user_details)
 
-    def _search_red_release_by_preferences(self, si: SearchItem) -> _TorrentMatch:
+    def _search_red_release_by_preferences(
+        self, si: SearchItem, rich_progress: NestedProgress | None = None
+    ) -> _TorrentMatch:
         above_max_size_found = False
-        for pref in self._search_state.red_format_preferences:
-            browse_request_params = self._search_state.create_red_browse_params(red_format=pref, si=si)
-            try:
-                red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
-            except Exception:
-                _LOGGER.error(f"Uncaught exception during RED browse request: {browse_request_params}: ", exc_info=True)
-                continue
-            release_entries_browse_response = [
-                ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
-                for result_blob in red_browse_response["results"]
-            ]
+        with red_browse_progress(release_name=si.release_name, artist_name=si.artist_name, parent_prog=rich_progress):
+            for pref in self._search_state.red_format_preferences:
+                browse_request_params = self._search_state.create_red_browse_params(red_format=pref, si=si)
+                try:
+                    red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
+                except Exception:
+                    _LOGGER.error(
+                        f"Uncaught exception during RED browse request: {browse_request_params}: ", exc_info=True
+                    )
+                    continue
+                release_entries_browse_response = [
+                    ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
+                    for result_blob in red_browse_response["results"]
+                ]
 
-            # Find best entry from the RED browse response
-            for release_entry in release_entries_browse_response:
-                for torrent_entry in release_entry.get_torrent_entries():
-                    size_gb = torrent_entry.get_size(unit="GB")
-                    if size_gb <= self._search_state.max_size_gb:
-                        return _TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
-                    above_max_size_found = True
+                # Find best entry from the RED browse response
+                for release_entry in release_entries_browse_response:
+                    for torrent_entry in release_entry.get_torrent_entries():
+                        size_gb = torrent_entry.get_size(unit="GB")
+                        if size_gb <= self._search_state.max_size_gb:
+                            return _TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
+                        above_max_size_found = True
         # TODO: figure out how to move this logic into the search_state filters instead
         return _TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
 
@@ -167,7 +182,7 @@ class ReleaseSearcher:
             _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
         return si
 
-    def _search_for_release_te(self, si: SearchItem) -> SearchItem | None:
+    def _search_for_release_te(self, si: SearchItem, rich_progress: Progress | None = None) -> SearchItem | None:
         """
         Searches for the recommended release, and returns a tuple containing the permalink for the best RED match
         and the release mbid (if an mbid is found / the app is configured to request an mbid from LFM's API)
@@ -184,7 +199,7 @@ class ReleaseSearcher:
             if not self._search_state.post_mbid_resolution_filter(si=si):
                 return None
 
-        torrent_match = self._search_red_release_by_preferences(si=si)
+        torrent_match = self._search_red_release_by_preferences(si=si, rich_progress=rich_progress)
         si.set_torrent_match_fields(torrent_match=torrent_match)
         if not self._search_state.post_red_search_filter(si=si):
             return None
@@ -201,10 +216,12 @@ class ReleaseSearcher:
         rec_type = search_items[0].lfm_rec.rec_type
         if not all([si.lfm_rec.rec_type == rec_type for si in search_items]):
             raise ReleaseSearcherException("All recs must be of same rec_type.")
-        for si in tqdm(search_items, desc=f"Searching {rec_type} recs"):
-            augmented_si = self._search_for_release_te(si=si)
-            if augmented_si and augmented_si.found_red_match():
-                self._search_state.add_search_item_to_snatch(si=augmented_si)
+        # with Progress(*prog_args(), **prog_kwargs()) as progress:
+        with NestedProgress() as progress:
+            for si in progress.track(search_items, description=f"[magenta]Searching {rec_type} recs"):
+                augmented_si = self._search_for_release_te(si=si, rich_progress=progress)
+                if augmented_si and augmented_si.found_red_match():
+                    self._search_state.add_search_item_to_snatch(si=augmented_si)
 
     def _search_for_track_recs(self, search_items: list[SearchItem]) -> None:
         """
@@ -216,10 +233,12 @@ class ReleaseSearcher:
             _LOGGER.warning(f"Input search_items list is empty. Skipping search.")
             return
         resolved_track_search_items = []
-        for si in tqdm(search_items, desc="Resolving track recs"):
-            si_with_track_info = self._resolve_lfm_track_info(si=si)
-            if self._search_state.post_resolve_track_filter(si=si_with_track_info):
-                resolved_track_search_items.append(si_with_track_info)
+        # with Progress(*prog_args(), **prog_kwargs()) as progress:
+        with NestedProgress() as progress:
+            for si in progress.track(search_items, description="Resolving release details for track recs"):
+                si_with_track_info = self._resolve_lfm_track_info(si=si)
+                if self._search_state.post_resolve_track_filter(si=si_with_track_info):
+                    resolved_track_search_items.append(si_with_track_info)
         self._search(search_items=resolved_track_search_items)
 
     def search_for_recs(self, rec_type_to_recs_list: dict[RecommendationType, list[LFMRec]]) -> None:
@@ -245,8 +264,10 @@ class ReleaseSearcher:
             return
         if search_items_to_snatch := self._search_state.get_search_items_to_snatch():
             _LOGGER.debug(f"Beginning to snatch matched torrents to download directory '{self._snatch_directory}' ...")
-            for si_to_snatch in tqdm(search_items_to_snatch, desc="Snatching matched torrents"):
-                self._snatch_match(si_to_snatch=si_to_snatch)
+            # with Progress(*prog_args(), **prog_kwargs()) as progress:
+            with NestedProgress() as progress:
+                for si_to_snatch in progress.track(search_items_to_snatch, description="Snatching matched torrents"):
+                    self._snatch_match(si_to_snatch=si_to_snatch)
         else:
             _LOGGER.warning(f"No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
             return

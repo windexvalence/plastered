@@ -43,6 +43,12 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
         if self._use_fl_tokens and self._available_fl_tokens == 0:
             LOGGER.warning(f"Currently have zero RED FL tokens available. Ignoring 'use_fl_tokens' config setting.")
             self._use_fl_tokens = False
+        elif self._use_fl_tokens and self._available_fl_tokens > 0:
+            LOGGER.info(f"Configured to use FL tokens. Detected {self._available_fl_tokens} FL tokens available.")
+        else:
+            LOGGER.warning(
+                f"Will not use FL tokens. To enable FL token usage, set 'search.use_fl_tokens: true' in your config.yaml file."
+            )
 
     def snatch(self, tid: str, can_use_token: bool) -> bytes:
         """
@@ -67,6 +73,9 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             if not fl_snatch_failed:
                 self._tids_snatched_with_fl_tokens.add(tid)
                 self._available_fl_tokens -= 1
+                LOGGER.info(
+                    f"Used a FL token for tid: '{tid}'. Approximate remaining tokens: {self._available_fl_tokens}"
+                )
                 return response.content
             self._throttle()
         response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
@@ -74,5 +83,5 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             raise RedClientSnatchException(f"Non-200 status code in response: {response.status_code}.")
         return response.content
 
-    def tid_snatched_with_fl_token(self, tid: str) -> bool:
-        return tid in self._tids_snatched_with_fl_tokens
+    def tid_snatched_with_fl_token(self, tid: str | int) -> bool:
+        return str(tid) in self._tids_snatched_with_fl_tokens

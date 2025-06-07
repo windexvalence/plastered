@@ -4,7 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Tuple
+from typing import Any, Generator
 from unittest.mock import MagicMock
 
 import httpx
@@ -92,7 +92,7 @@ def pytest_collection_modifyitems(config, items):
         item.add_marker(pytest.mark.httpx_mock(assert_all_responses_were_requested=False))
 
 
-def load_mock_response_json(json_filepath: str) -> Dict[str, Any]:
+def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
     """Utility function to load and return the mock API json blob located at the specified json_filepath."""
     with open(json_filepath, "r") as f:
         json_data = json.load(f)
@@ -115,14 +115,14 @@ def minimal_valid_config_filepath() -> str:
 
 
 @pytest.fixture(scope="session")
-def valid_config_raw_data(valid_config_filepath: str) -> Dict[str, Any]:
+def valid_config_raw_data(valid_config_filepath: str) -> dict[str, Any]:
     with open(valid_config_filepath, "r") as f:
         raw_config_data = yaml.safe_load(f.read())
     return raw_config_data
 
 
 @pytest.fixture(scope="session")
-def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> Dict[str, Any]:
+def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> dict[str, Any]:
     with open(minimal_valid_config_filepath, "r") as f:
         raw_config_data = yaml.safe_load(f.read())
     return raw_config_data
@@ -146,7 +146,7 @@ def mock_output_summary_dir_path(mock_root_summary_dir_path: Path, mock_run_date
 
 
 @pytest.fixture(scope="session")
-def skipped_rows() -> List[List[str]]:
+def skipped_rows() -> list[list[str]]:
     return [
         ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
         [
@@ -181,7 +181,7 @@ def skipped_rows() -> List[List[str]]:
 
 
 @pytest.fixture(scope="session")
-def failed_snatch_rows() -> List[List[str]]:
+def failed_snatch_rows() -> list[list[str]]:
     return [
         ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", SnatchFailureReason.RED_API_REQUEST_ERROR.value],
         ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", SnatchFailureReason.FILE_ERROR.value],
@@ -190,7 +190,7 @@ def failed_snatch_rows() -> List[List[str]]:
 
 
 @pytest.fixture(scope="session")
-def snatch_summary_rows() -> List[List[str]]:
+def snatch_summary_rows() -> list[list[str]]:
     return [
         [
             "album",
@@ -221,10 +221,10 @@ def snatch_summary_rows() -> List[List[str]]:
 @pytest.fixture(scope="session")
 def mock_summary_tsvs(
     mock_output_summary_dir_path: Path,
-    failed_snatch_rows: List[List[str]],
-    skipped_rows: List[List[str]],
-    snatch_summary_rows: List[List[str]],
-) -> Dict[str, str]:
+    failed_snatch_rows: list[list[str]],
+    skipped_rows: list[list[str]],
+    snatch_summary_rows: list[list[str]],
+) -> dict[str, str]:
     type_to_headers = {
         "failed": ["RED_permalink", "Matched_MBID_(if_any)", "Failure_reason"],
         "snatched": [
@@ -249,7 +249,7 @@ def mock_summary_tsvs(
         ],
     }
 
-    def _write_dummy_tsv(dummy_path: str, header: List[str], dummy_rows: List[List[str]]) -> None:
+    def _write_dummy_tsv(dummy_path: str, header: list[str], dummy_rows: list[list[str]]) -> None:
         with open(dummy_path, "w") as f:
             w = csv.writer(f, delimiter="\t", lineterminator="\n")
             w.writerow(header)
@@ -269,52 +269,52 @@ def mock_summary_tsvs(
 
 
 @pytest.fixture(scope="session")
-def mock_action_to_red_json_responses() -> Dict[str, Dict[str, Any]]:
+def mock_action_to_red_json_responses() -> dict[str, dict[str, Any]]:
     return {
         "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
     }
 
 
 @pytest.fixture(scope="session")
-def mock_red_browse_non_empty_response() -> Dict[str, Any]:
+def mock_red_browse_non_empty_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_browse_empty_response() -> Dict[str, Any]:
+def mock_red_browse_empty_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_group_response() -> Dict[str, Any]:
+def mock_red_group_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_stats_response() -> Dict[str, Any]:
+def mock_red_user_stats_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_torrents_snatched_response() -> Dict[str, Any]:
+def mock_red_user_torrents_snatched_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_torrents_seeding_response() -> Dict[str, Any]:
+def mock_red_user_torrents_seeding_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_red_user_response() -> Dict[str, Any]:
+def mock_red_user_response() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_RED_MOCK_USER_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
 def mock_red_user_details(
-    mock_red_user_torrents_snatched_response: Dict[str, Any],
-    mock_red_user_torrents_seeding_response: Dict[str, Any],
-    mock_red_user_response: Dict[str, Any],
+    mock_red_user_torrents_snatched_response: dict[str, Any],
+    mock_red_user_torrents_seeding_response: dict[str, Any],
+    mock_red_user_response: dict[str, Any],
 ) -> RedUserDetails:
     return RedUserDetails(
         user_id=69,
@@ -337,42 +337,42 @@ def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> Re
 
 
 @pytest.fixture(scope="session")
-def mock_lfm_album_info_json() -> Dict[str, Any]:
+def mock_lfm_album_info_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_full_lfm_track_info_json() -> Dict[str, Any]:
+def mock_full_lfm_track_info_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_no_album_lfm_track_info_json() -> Dict[str, Any]:
+def mock_no_album_lfm_track_info_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_lfm_track_info_raise_client_exception() -> Dict[str, Any]:
+def mock_lfm_track_info_raise_client_exception() -> dict[str, Any]:
     return {"error": "should-raise-LFMClientException"}
 
 
 @pytest.fixture(scope="session")
-def mock_musicbrainz_release_json() -> Dict[str, Any]:
+def mock_musicbrainz_release_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_musicbrainz_track_search_arid_json() -> Dict[str, Any]:
+def mock_musicbrainz_track_search_arid_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_musicbrainz_track_search_artist_name_json() -> Dict[str, Any]:
+def mock_musicbrainz_track_search_artist_name_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
-def mock_musicbrainz_track_search_no_release_name_json() -> Dict[str, Any]:
+def mock_musicbrainz_track_search_no_release_name_json() -> dict[str, Any]:
     raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
     del raw_data["recordings"][0]["releases"][0]["title"]
     return raw_data
@@ -462,7 +462,7 @@ def mock_red_snatch_get_side_effect() -> bytes:
     return resp_mock
 
 
-# -def mock_lfm_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+# -def mock_lfm_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
 # -    """
 # -    Helper test function to pass as the value for any
 # -    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
@@ -482,7 +482,7 @@ def mock_red_snatch_get_side_effect() -> bytes:
 # -    return resp_mock
 
 
-# -def mock_red_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+# -def mock_red_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
 # -    """
 # -    Helper test function to pass as the value for any
 # -    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
@@ -511,7 +511,7 @@ def mock_red_snatch_get_side_effect() -> bytes:
 # -    return resp_mock
 
 
-def mock_mb_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
+def mock_mb_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
     """
     Helper test function to pass as the value for any
     patch('requests.Session.get', ...) mocks on a MusicBrainzAPIClient test case.
@@ -524,7 +524,7 @@ def mock_mb_session_get_side_effect(*args, **kwargs) -> Dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
-def expected_red_format_list() -> List[RedFormat]:
+def expected_red_format_list() -> list[RedFormat]:
     return [
         RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD),
         RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
@@ -584,13 +584,13 @@ def mock_musicbrainz_client_callback(request: httpx.Request) -> httpx.Response:
 
 @pytest.fixture(scope="session")
 def red_url_regex_to_mock_json(
-    mock_red_browse_non_empty_response: Dict[str, Any],
-    mock_red_group_response: Dict[str, Any],
-    mock_red_user_stats_response: Dict[str, Any],
-    mock_red_user_torrents_snatched_response: Dict[str, Any],
-    mock_red_user_torrents_seeding_response: Dict[str, Any],
-    mock_red_user_response: Dict[str, Any],
-) -> List[Tuple[str, Dict[str, Any]]]:
+    mock_red_browse_non_empty_response: dict[str, Any],
+    mock_red_group_response: dict[str, Any],
+    mock_red_user_stats_response: dict[str, Any],
+    mock_red_user_torrents_snatched_response: dict[str, Any],
+    mock_red_user_torrents_seeding_response: dict[str, Any],
+    mock_red_user_response: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
     """
     Utility fixture consumed by `global_httpx_mock` to map RED API url patterns to mock JSON response payloads
     """
@@ -615,8 +615,8 @@ def red_url_regex_to_mock_json(
 
 @pytest.fixture(scope="session")
 def lfm_url_regex_to_mock_json(
-    mock_lfm_album_info_json: Dict[str, Any], mock_full_lfm_track_info_json: Dict[str, Any]
-) -> List[Tuple[str, Dict[str, Any]]]:
+    mock_lfm_album_info_json: dict[str, Any], mock_full_lfm_track_info_json: dict[str, Any]
+) -> list[tuple[str, dict[str, Any]]]:
     """
     Utility fixture consumed by `global_httpx_mock` to map LFM API url patterns to mock JSON response payloads.
     """
@@ -628,10 +628,10 @@ def lfm_url_regex_to_mock_json(
 
 @pytest.fixture(scope="session")
 def mb_url_regex_to_mock_json(
-    mock_musicbrainz_release_json: Dict[str, Any],
-    mock_musicbrainz_track_search_arid_json: Dict[str, Any],
-    mock_musicbrainz_track_search_artist_name_json: Dict[str, Any],
-) -> List[Tuple[str, str]]:
+    mock_musicbrainz_release_json: dict[str, Any],
+    mock_musicbrainz_track_search_arid_json: dict[str, Any],
+    mock_musicbrainz_track_search_artist_name_json: dict[str, Any],
+) -> list[tuple[str, str]]:
     """
     Utility fixture consumed by `global_httpx_mock` to map MB API url patterns to mock JSON response payloads.
     """
@@ -652,9 +652,9 @@ def mb_url_regex_to_mock_json(
 def global_httpx_mock(
     request: pytest.FixtureRequest,
     httpx_mock: HTTPXMock,
-    red_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
-    lfm_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
-    mb_url_regex_to_mock_json: List[Tuple[str, Dict[str, Any]]],
+    red_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
+    lfm_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
+    mb_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
 ) -> Generator[HTTPXMock, Any, Any]:
     """
     Globally applied fixture to ensure no HTTP requests in the unit tests

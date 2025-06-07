@@ -5,7 +5,7 @@ git release tag and the semver id in pyproject.toml are in alignment and both va
 
 import os
 from tomllib import load as toml_load
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pytest
 
@@ -16,7 +16,7 @@ _GITHUB_RELEASE_TAG_ENV_VAR = "PLASTERED_RELEASE_TAG"
 
 
 @pytest.fixture(scope="session")
-def pyproject_toml_data() -> Dict[str, Any]:
+def pyproject_toml_data() -> dict[str, Any]:
     with open(_PYPROJECT_TOML_FILEPATH, "rb") as f:
         toml_data = toml_load(f)
     return toml_data
@@ -29,7 +29,7 @@ def github_release_tag() -> str:
 
 # TODO: add unit test to check that the `plastered --version` output is also in sync (maybe in the test_cli.py file ?)
 @pytest.mark.releasetest
-def test_version_id_and_git_tag_match(pyproject_toml_data: Dict[str, Any], github_release_tag: Optional[str]) -> None:
+def test_version_id_and_git_tag_match(pyproject_toml_data: dict[str, Any], github_release_tag: str | None) -> None:
     assert (
         github_release_tag is not None
     ), f"Expected a non-empty string value for '{_GITHUB_RELEASE_TAG_ENV_VAR}' environment variable, but got None."

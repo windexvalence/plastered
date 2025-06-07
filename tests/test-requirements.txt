@@ -1,9 +1,9 @@
 bandit==1.8.0
 black==24.10.0
 isort==5.13.2
-pylint==3.3.3
-pytest==8.3.4
-pytest-cov[toml]==6.0.0
+pylint==3.3.7
+pytest==8.4.0
+pytest-cov[toml]==6.1.1
 pytest-httpx==0.35.0
 coverage-badge==1.1.2
 # NOTE: changing the version of mkdocs-click will require a validation that it

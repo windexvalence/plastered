@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pytest
 
@@ -59,7 +59,7 @@ def test_eq(other: Any, expected: bool) -> None:
 
 
 def test_construct_from_api(
-    mock_musicbrainz_release_json: Dict[str, Any],
+    mock_musicbrainz_release_json: dict[str, Any],
     expected_mb_release: MBRelease,
 ) -> None:
     actual = MBRelease.construct_from_api(json_blob=mock_musicbrainz_release_json)
@@ -174,9 +174,9 @@ def test_release_year_non_match(
 )
 def test_get_release_searcher_kwargs(
     primary_type: str,
-    first_release_year: Optional[int],
-    label: Optional[str],
-    catalog_number: Optional[str],
+    first_release_year: int | None,
+    label: str | None,
+    catalog_number: str | None,
     expected: OrderedDict[str, Any],
 ) -> None:
     mbr = MBRelease(

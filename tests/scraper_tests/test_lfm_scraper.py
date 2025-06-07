@@ -1,5 +1,5 @@
 import re
-from typing import Any, List
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -42,7 +42,7 @@ def lfm_rec_scraper(valid_app_config: AppConfig) -> LFMRecsScraper:
 
 # TODO: add a similar expected_track_recs fixture
 @pytest.fixture(scope="session")
-def expected_album_recs() -> List[LFMRec]:
+def expected_album_recs() -> list[LFMRec]:
     return [
         LFMRec(
             lfm_artist_str="Dr.+Octagon",
@@ -168,7 +168,7 @@ def expected_album_recs() -> List[LFMRec]:
 
 
 @pytest.fixture(scope="session")
-def expected_track_recs(expected_album_recs: List[LFMRec]) -> List[LFMRec]:
+def expected_track_recs(expected_album_recs: list[LFMRec]) -> list[LFMRec]:
     return [
         LFMRec(
             lfm_artist_str="Liquid+Liquid",
@@ -526,8 +526,8 @@ def test_extract_recs_from_page_source(
     album_recs_page_one_html: str,
     track_recs_page_one_html: str,
     lfm_rec_scraper: LFMRecsScraper,
-    expected_album_recs: List[LFMRec],
-    expected_track_recs: List[LFMRec],
+    expected_album_recs: list[LFMRec],
+    expected_track_recs: list[LFMRec],
     rec_type: RecommendationType,
 ) -> None:
     if rec_type == RecommendationType.ALBUM:
@@ -623,8 +623,8 @@ def test_scrape_recs_list_cache_hit(lfm_rec_scraper: LFMRecsScraper) -> None:
 )
 def test_scrape_recs(
     lfm_rec_scraper: LFMRecsScraper,
-    mock_rec_types_to_scrape: List[RecommendationType],
-    expected_scrape_recs_list_calls: List[Any],
+    mock_rec_types_to_scrape: list[RecommendationType],
+    expected_scrape_recs_list_calls: list[Any],
 ) -> None:
     lfm_rec_scraper._rec_types_to_scrape = mock_rec_types_to_scrape
     with patch.object(LFMRecsScraper, "_scrape_recs_list") as mock_scrape_recs_list:

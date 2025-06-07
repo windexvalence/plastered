@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from plastered.utils.constants import BYTES_IN_GB, BYTES_IN_MB, STORAGE_UNIT_IDENTIFIERS
 
@@ -63,8 +63,8 @@ class RedUserDetails:
         self,
         user_id: int | str,
         snatched_count: int,
-        snatched_torrents_list: List[Dict[str, Any]],
-        user_profile_json: Dict[str, Any],
+        snatched_torrents_list: list[dict[str, Any]],
+        user_profile_json: dict[str, Any],
     ):
         self._user_id = int(user_id)
         self._snatched_count = snatched_count
@@ -83,7 +83,7 @@ class RedUserDetails:
         )
         self._snatched_tids = set()
         # mapping from tuple(red artist name, red release name) to PriorSnatch object.
-        self._snatched_torrents_dict: Dict[Tuple[str, str], PriorSnatch] = dict()
+        self._snatched_torrents_dict: dict[tuple[str, str], PriorSnatch] = dict()
         for json_entry in self._snatched_torrents:
             red_artist_name = json_entry["artistName"]
             red_release_name = json_entry["name"]
@@ -150,7 +150,7 @@ class RedFormat:
         format: FormatEnum,
         encoding: EncodingEnum,
         media: MediaEnum,
-        cd_only_extras: Optional[str] = "",
+        cd_only_extras: str | None = "",
     ):
         self._format = format
         self._encoding = encoding
@@ -160,7 +160,7 @@ class RedFormat:
     def __str__(self) -> str:
         return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"
 
-    def get_yaml_dict_for_pretty_print(self) -> Dict[str, Any]:
+    def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
         entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
         if self._cd_only_extras:
             log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self._cd_only_extras)[0]
@@ -189,7 +189,7 @@ class RedFormat:
     def get_media(self) -> str:
         return self._media.value
 
-    def get_cd_only_extras(self) -> Optional[str]:
+    def get_cd_only_extras(self) -> str | None:
         return self._cd_only_extras if self._cd_only_extras else None
 
 
@@ -275,7 +275,7 @@ class TorrentEntry:
         return True
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
+    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
         """
         Construct a TorrentEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
         NOTE: TorrentEntry instances constructed via this class method will have their reported, lossy_web, and lossy_master
@@ -296,7 +296,7 @@ class TorrentEntry:
             can_use_token=json_blob["canUseToken"],
         )
 
-    def get_size(self, unit: Optional[str] = "B") -> float:
+    def get_size(self, unit: str | None = "B") -> float:
         if unit not in STORAGE_UNIT_IDENTIFIERS:
             raise ValueError(
                 f"Unexpected unit_identifier provided: '{unit}'. Must be one of: {STORAGE_UNIT_IDENTIFIERS}"
@@ -329,7 +329,7 @@ class ReleaseEntry:
     torrent_entries: list[TorrentEntry] | None = field(default_factory=list)
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
+    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
         """
         Construct a ReleaseEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
         NOTE: Instances constructed via this method will have a NoneType `remaster_record_label` value as the `browse` endpoint responses don't surface
@@ -351,8 +351,8 @@ class ReleaseEntry:
             torrent_entries=torrent_entries,
         )
 
-    def get_red_formats(self) -> List[RedFormat]:
+    def get_red_formats(self) -> list[RedFormat]:
         return [torrent_entry.red_format for torrent_entry in self.torrent_entries]
 
-    def get_torrent_entries(self) -> List[TorrentEntry]:
+    def get_torrent_entries(self) -> list[TorrentEntry]:
         return self.torrent_entries
