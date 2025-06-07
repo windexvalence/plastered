@@ -9,5 +9,5 @@ pydantic==2.11.5
 PyYAML==6.0.2
 questionary==2.1.0
 rebrowser-playwright==1.49.1
-rich==13.9.4
+rich==14.0.0
 tenacity==9.1.2
