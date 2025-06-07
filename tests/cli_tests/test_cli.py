@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -9,7 +9,7 @@ from click.testing import CliRunner
 from plastered.cli import cli
 from plastered.config.config_parser import AppConfig
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import (
     LFMRec,
     LFMRecsScraper,
@@ -128,7 +128,7 @@ def test_cli_scrape_command(
     valid_config_filepath: str,
     valid_app_config: AppConfig,
     rec_types: str,
-    mock_scrape_result: Dict[RecommendationType, List[LFMRec]],
+    mock_scrape_result: dict[RecommendationType, list[LFMRec]],
 ) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as mock_enter:
         mock_enter.return_value = LFMRecsScraper(app_config=valid_app_config)
@@ -147,11 +147,6 @@ def test_cli_scrape_command(
                     mock_scrape_recs.assert_called_once()
                     mock_exit.assert_called_once()
                     mock_search_for_recs.assert_called_once_with(rec_type_to_recs_list=mock_scrape_recs.return_value)
-
-
-@pytest.mark.parametrize("", [])
-def test_cli_run_stats_command(valid_app_config: AppConfig) -> None:
-    pass  # TODO: figure out how to even test this.
 
 
 @pytest.mark.parametrize(
@@ -193,8 +188,8 @@ def test_cli_cache_command(
     empty_flag_present: bool,
     check_flag_present: bool,
     list_flag_present: bool,
-    read_value: Optional[str],
-    expected_run_cache_calls: List[Any],
+    read_value: str | None,
+    expected_run_cache_calls: list[Any],
 ) -> None:
     test_cmd = ["cache", "--config", valid_config_filepath, cache_arg]
     if info_flag_present:

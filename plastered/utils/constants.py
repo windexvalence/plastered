@@ -1,3 +1,5 @@
+from typing import Final
+
 RED_API_BASE_URL = "https://redacted.sh/ajax.php"
 LFM_API_BASE_URL = "https://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE_URL = "https://musicbrainz.org/ws/2/"
@@ -10,9 +12,12 @@ SCRAPER_CACHE_DIRNAME = "scraper_cache"
 CACHE_TYPE_API = "api"
 CACHE_TYPE_SCRAPER = "scraper"
 
-# TODO: permit addtocollage as action
-PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents"])
-NON_CACHED_RED_API_ENDPOINTS = set(["download", "community_stats", "user_torrents"])
+PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents", "user"])
+NON_CACHED_RED_API_ENDPOINTS = set(["community_stats", "user_torrents", "user"])
+
+PERMITTED_RED_SNATCH_API_ENDPOINTS = set(["download"])
+NON_CACHED_RED_SNATCH_API_ENDPOINTS = set(["download"])
+
 PERMITTED_LFM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
 PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release", "recording"])
 
@@ -40,5 +45,22 @@ LOGOUT_URL = "https://www.last.fm/logout"
 RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
 
 STORAGE_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
+BYTES_IN_GB: Final[float] = float(1e9)
+BYTES_IN_MB: Final[float] = float(1e6)
 
+# TODO: consolidate these
 STATS_TRACK_REC_NONE = "N/A"
+STATS_NONE = "N/A"
+
+# User-specified params to optionally append to the RED browse requests
+RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"
+RED_PARAM_RELEASE_YEAR: Final[str] = "year"
+RED_PARAM_RECORD_LABEL: Final[str] = "recordlabel"
+RED_PARAM_CATALOG_NUMBER: Final[str] = "cataloguenumber"
+
+OPTIONAL_RED_PARAMS: Final[list[str]] = [
+    RED_PARAM_RELEASE_TYPE,
+    RED_PARAM_RELEASE_YEAR,
+    RED_PARAM_RECORD_LABEL,
+    RED_PARAM_CATALOG_NUMBER,
+]

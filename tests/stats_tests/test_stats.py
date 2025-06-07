@@ -2,7 +2,7 @@ import csv
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable
 from unittest.mock import call, patch
 
 import pytest
@@ -53,7 +53,7 @@ def _noop_col_fn(x: Any) -> Any:
 )
 def test_get_rows_from_tsv(
     request: pytest.FixtureRequest,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
     table_type: str,
     expected_rows_fixture_name: str,
 ) -> None:
@@ -74,7 +74,7 @@ def test_get_rows_from_tsv(
         ({0: _noop_col_fn, 1: _noop_col_fn, 2: _noop_col_fn, 3: _noop_col_fn}),
     ],
 )
-def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_fn_mapping: Dict[int, Callable]) -> None:
+def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_fn_mapping: dict[int, Callable]) -> None:
     with pytest.raises(StatsTableException, match="Invalid cell_idxs_to_style_fns value"):
         bad_st = StatsTable(
             title="Should fail",
@@ -160,9 +160,9 @@ def test_run_cache_summary_table_constructor(tmp_path: pytest.FixtureRequest) ->
 )
 def test_print_and_save_all_searcher_stats(
     tmp_path: pytest.FixtureRequest,
-    skipped_rows: List[List[str]],
-    failed_snatch_rows: List[List[str]],
-    snatch_summary_rows: List[List[str]],
+    skipped_rows: list[list[str]],
+    failed_snatch_rows: list[list[str]],
+    snatch_summary_rows: list[list[str]],
     expected_tsv_filename: str,
     expected_tsv_row_cnt: int,
 ) -> None:
@@ -187,7 +187,7 @@ def test_print_and_save_all_searcher_stats(
 def test_init_prior_run_stats(
     valid_app_config: AppConfig,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
     mock_run_date_str: str,
 ) -> None:
     with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
@@ -204,7 +204,7 @@ def test_init_prior_run_stats(
 def test_bad_init_prior_run_stats(
     valid_app_config: AppConfig,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
 ) -> None:
     with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)

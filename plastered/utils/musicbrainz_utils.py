@@ -1,41 +1,39 @@
 import re
-from typing import Any, Dict, Optional
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import quote_plus
 
+from plastered.utils.constants import (
+    RED_PARAM_CATALOG_NUMBER,
+    RED_PARAM_RECORD_LABEL,
+    RED_PARAM_RELEASE_TYPE,
+    RED_PARAM_RELEASE_YEAR,
+)
 from plastered.utils.red_utils import RedReleaseType
 
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
 
 
+@dataclass
 class MBRelease:
     """
     Utility class wrapping the contents of a response from the Musicbrainz 'release' API endpoint.
     Optionally used by the ReleaseSearcher for fine-grained RED browsing / filtering.
     """
 
-    def __init__(
-        self,
-        mbid: str,
-        title: str,
-        artist: str,
-        primary_type: str,
-        release_date: str,
-        release_group_mbid: str,
-        label: Optional[str] = None,
-        catalog_number: Optional[str] = None,
-        first_release_year: Optional[int] = -1,
-    ):
-        self._mbid = mbid
-        self._title = title
-        self._artist = artist
-        self._primary_type = primary_type
-        self._first_release_year = first_release_year
-        self._release_date = release_date
-        self._label = label
-        self._catalog_number = catalog_number
-        self._release_group_mbid = release_group_mbid
+    mbid: str
+    title: str
+    artist: str
+    primary_type: str
+    release_date: str
+    release_group_mbid: str
+    label: str | None = None
+    catalog_number: str | None = None
+    first_release_year: int | None = -1
 
     @classmethod
-    def construct_from_api(cls, json_blob: Dict[str, Any]):
+    def construct_from_api(cls, json_blob: dict[str, Any]):
         label_json = None if not json_blob["label-info"] else json_blob["label-info"][0]
         release_group_json = json_blob["release-group"]
         first_release_year = -1
@@ -56,39 +54,38 @@ class MBRelease:
             catalog_number=None if not label_json else label_json["catalog-number"],
         )
 
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, MBRelease):
-            return False
-        self_attrs = vars(self)
-        other_attrs = vars(other)
-        for attr_name, attr_val in self_attrs.items():
-            if other_attrs[attr_name] != attr_val:
-                return False
-        return True
-
     def get_red_release_type(self) -> RedReleaseType:
-        return RedReleaseType[self._primary_type.upper()]
+        return RedReleaseType[self.primary_type.upper()]
 
     def get_first_release_year(self) -> int:
-        return self._first_release_year
+        return self.first_release_year
 
-    def get_label(self) -> Optional[str]:
-        return self._label
+    def get_label(self) -> str | None:
+        return self.label
 
-    def get_catalog_number(self) -> Optional[str]:
-        return self._catalog_number
+    def get_catalog_number(self) -> str | None:
+        return self.catalog_number
 
     def get_musicbrainz_release_url(self) -> str:
-        return f"https://musicbrainz.org/release/{self._mbid}"
+        return f"https://musicbrainz.org/release/{self.mbid}"
 
     def get_musicbrainz_release_group_url(self) -> str:
-        return f"https://musicbrainz.org/release-group/{self._release_group_mbid}"
+        return f"https://musicbrainz.org/release-group/{self.release_group_mbid}"
 
-    def get_release_searcher_kwargs(self) -> Dict[str, Any]:
-        """Helper method to return the search_kwargs used by the ReleaseSearcher."""
-        return {
-            "release_type": self.get_red_release_type(),
-            "first_release_year": self.get_first_release_year(),
-            "record_label": self.get_label(),
-            "catalog_number": self.get_catalog_number(),
-        }
+    def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
+        """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""
+        return OrderedDict(
+            [
+                (RED_PARAM_RELEASE_TYPE, self.get_red_release_type().value),
+                (
+                    RED_PARAM_RELEASE_YEAR,
+                    (
+                        self.first_release_year
+                        if (self.first_release_year is not None and self.first_release_year > 0)
+                        else None
+                    ),
+                ),
+                (RED_PARAM_RECORD_LABEL, quote_plus(self.label) if self.label else None),
+                (RED_PARAM_CATALOG_NUMBER, quote_plus(self.catalog_number) if self.catalog_number else None),
+            ]
+        )

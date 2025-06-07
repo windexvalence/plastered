@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -164,7 +164,7 @@ def test_run_cache_load_data_if_valid(
     enabled: bool,
     cache_key: Any,
     data_validator_fn: Callable,
-    mock_cache_entries: Dict[Any, Any],
+    mock_cache_entries: dict[Any, Any],
     expected: Any,
 ) -> None:
     mock_diskcache = MagicMock()
@@ -362,7 +362,7 @@ def test_print_summary_info(
 ) -> None:
     mock_diskcache = MagicMock()
 
-    def _stats_side_effect(*args, **kwargs) -> Optional[Tuple[int, int]]:
+    def _stats_side_effect(*args, **kwargs) -> tuple[int, int] | None:
         if len(args) > 0 or len(kwargs) > 0:
             return None
         return (69, 420)

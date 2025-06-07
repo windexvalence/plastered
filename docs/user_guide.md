@@ -22,17 +22,23 @@ Make sure you have completed the following before installing or using `plastered
 
 3. Initialize a config.yaml file in the directory you just created by running:
     ```shell
-    docker run --rm ghcr.io/windexvalence/plastered:latest init-conf > /your/host/path/to/plastered_dir/config.yaml
+    docker run \
+      --rm ghcr.io/windexvalence/plastered:latest init-conf > /your/host/path/to/plastered_dir/config.yaml
     ```
 
 4. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./configuration_reference.md) for additional details and information on non-required config settings.
 
 5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
   ```shell
-  alias plastered='docker run --rm --name=plastered -e PLASTERED_CONFIG=/config/config.yaml -e COLUMNS="$(tput cols)" -e LINES="$(tput lines)" -v /host/path/to/plastered_dir/:/config -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
+  alias plastered='docker run -it --rm --name=plastered \
+    -e PLASTERED_CONFIG=/config/config.yaml \
+    -e COLUMNS="$(tput cols)" \
+    -e LINES="$(tput lines)" \
+    -v /host/path/to/plastered_dir/:/config \
+    -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
   ```
 
-6. Verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
+6. Open a new terminal tab, and verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
   ```shell
   plastered --help
   ```
@@ -41,7 +47,7 @@ Make sure you have completed the following before installing or using `plastered
 
 You can either immediately try snatching your LFM recs with the current default config you just created, or you can explore the [configuration reference](./configuration_reference.md) and fine-tune your config before snatching your LFM recs.
 
-Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching.
+Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching. If you want to run the scraper without snatching anything from red, add the `--no-snatch` flag to the command below:
 
 ```shell
 plastered scrape

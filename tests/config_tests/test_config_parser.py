@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import call, mock_open, patch
 
 import pytest
@@ -67,14 +67,14 @@ def test_load_init_config_template() -> None:
     ],
 )
 def test_get_cd_only_extras_string(
-    expected_red_format_list: List[RedFormat], conf_dict: Dict[str, str], expected_result: str
+    expected_red_format_list: list[RedFormat], conf_dict: dict[str, str], expected_result: str
 ) -> None:
     actual = _get_cd_only_extras_string(cd_only_extras_conf_data=conf_dict)
     assert actual == expected_result, f"Expected '{expected_result}' but got '{actual}'"
 
 
 def test_load_red_formats_from_config(
-    expected_red_format_list: List[RedFormat], valid_config_raw_data: Dict[str, Any]
+    expected_red_format_list: list[RedFormat], valid_config_raw_data: dict[str, Any]
 ) -> None:
     result = _load_red_formats_from_config(format_prefs_config_data=valid_config_raw_data[FORMAT_PREFERENCES_KEY])
     print(f"type(result[0]): {type(result[0])}")
@@ -128,7 +128,7 @@ def test_load_red_formats_from_config(
     ],
 )
 def test_invalid_dupe_load_red_formats_from_config(
-    mock_format_prefs_config_data: List[Dict[str, Any]],
+    mock_format_prefs_config_data: list[dict[str, Any]],
     exception: Exception,
     exception_msg: str,
 ) -> None:
@@ -189,8 +189,8 @@ def test_invalid_dupe_load_red_formats_from_config(
 def test_app_config_constructor(
     valid_config_filepath: str,
     minimal_valid_config_filepath: str,
-    cli_params: Dict[str, Any],
-    expected_opts_vals: Dict[str, Any],
+    cli_params: dict[str, Any],
+    expected_opts_vals: dict[str, Any],
 ) -> None:
     # test the construction from the full valid config file
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=cli_params)
@@ -226,7 +226,7 @@ def test_app_config_constructor(
     ],
 )
 def test_invalid_app_config_constructor(
-    config_filepath: str, cli_params: Dict[str, Any], exception_type: Exception, exception_msg: str
+    config_filepath: str, cli_params: dict[str, Any], exception_type: Exception, exception_msg: str
 ) -> None:
     with pytest.raises(exception_type, match=exception_msg):
         app_config = AppConfig(config_filepath=config_filepath, cli_params=cli_params)
@@ -247,10 +247,10 @@ def test_invalid_app_config_constructor(
 )
 def test_validate_final_cli_options(
     valid_app_config: AppConfig,
-    final_cli_options_overrides: Dict[str, Any],
+    final_cli_options_overrides: dict[str, Any],
     should_fail: bool,
-    exception: Optional[Exception],
-    exception_msg: Optional[str],
+    exception: Exception | None,
+    exception_msg: str | None,
 ) -> None:
     mock_final_cli_options = {**valid_app_config.get_all_options(), **final_cli_options_overrides}
     valid_app_config._cli_options = mock_final_cli_options

@@ -1,5 +1,3 @@
-from typing import List
-
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
 
 # Top-level key constants
@@ -36,6 +34,7 @@ DEFAULTS_DICT = {
     # RED snatching defaults
     "skip_prior_snatches": True,
     "use_fl_tokens": False,
+    "min_allowed_ratio": -1.0,
 }
 FORMAT_PREFERENCES_KEY = "format_preferences"
 EXPECTED_TOP_LEVEL_CLI_KEYS = set(
@@ -72,7 +71,7 @@ required_schema = {
         CLI_RED_KEY: {
             "type": "object",
             "properties": {
-                "red_user_id": {"type": "integer"},
+                "red_user_id": {"type": ["string", "integer"]},
                 "red_api_key": {"type": "string"},
                 "red_api_retries": _RETRIES_SCHEMA,
                 "red_api_seconds_between_calls": {
@@ -155,6 +154,7 @@ required_schema = {
                     "maximum": 100.0,  # 100GB maximum
                 },
                 "use_fl_tokens": {"type": "boolean", "default": DEFAULTS_DICT["use_fl_tokens"]},
+                "min_allowed_ratio": {"type": "number", "default": DEFAULTS_DICT["min_allowed_ratio"]},
             },
             "required": ["snatch_directory", ENABLE_SNATCHING_KEY, "max_size_gb"],
         },
@@ -212,7 +212,7 @@ required_schema = {
 }
 
 
-def get_sub_keys_from_top_level_keys() -> List[str]:
+def get_sub_keys_from_top_level_keys() -> list[str]:
     """
     Utility function for config pretty-printing via the CLI.
     Returns a dict mapping the top-level config keys to their corresponding list of sub-keys.

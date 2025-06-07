@@ -1,8 +1,9 @@
 import re
+from dataclasses import dataclass, field
 from enum import Enum, StrEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
+from plastered.utils.constants import BYTES_IN_GB, BYTES_IN_MB, STORAGE_UNIT_IDENTIFIERS
 
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
@@ -37,18 +38,18 @@ class EncodingEnum(StrEnum):
     MP3_V0 = "V0+(VBR)"
 
 
+@dataclass
 class PriorSnatch:
     """
     Utility class representing a distinct snatched torrent for a given user.
     Used by the ReleaseSearcher to filter out any pre-snatched recommendations.
     """
 
-    def __init__(self, group_id: int, torrent_id: int, red_artist_name: str, red_release_name: str, size: int):
-        self._group_id = group_id
-        self._torrent_id = torrent_id
-        self._red_artist_name = red_artist_name
-        self._red_release_name = red_release_name
-        self._size = size
+    group_id: int
+    torrent_id: int
+    red_artist_name: str
+    red_release_name: str
+    size: int
 
 
 # User information (for more refined RED search filtering)
@@ -58,13 +59,31 @@ class RedUserDetails:
     Used by the ReleaseSearcher to determine the user's pre-snatched torrents, and filter out any pre-snatched recommendations.
     """
 
-    def __init__(self, user_id: int, snatched_count: int, snatched_torrents_list: List[Dict[str, Any]]):
-        self._user_id = user_id
+    def __init__(
+        self,
+        user_id: int | str,
+        snatched_count: int,
+        snatched_torrents_list: list[dict[str, Any]],
+        user_profile_json: dict[str, Any],
+    ):
+        self._user_id = int(user_id)
         self._snatched_count = snatched_count
         self._snatched_torrents = snatched_torrents_list
+        self._user_profile_json = user_profile_json
+        # giftTokens, meritTokens.
+        user_profile_stats = self._user_profile_json["stats"]
+        user_profile_personal = self._user_profile_json["personal"]
+        self._initial_uploaded_gb = float(user_profile_stats["uploaded"]) / BYTES_IN_GB
+        self._initial_downloaded_gb = float(user_profile_stats["downloaded"]) / BYTES_IN_GB
+        self._initial_buffer_gb = float(user_profile_stats["buffer"]) / BYTES_IN_GB
+        self._initial_ratio = float(user_profile_stats["ratio"])
+        self._required_ratio = float(user_profile_stats["requiredRatio"])
+        self._initial_available_fl_tokens = (user_profile_personal.get("giftTokens") or 0) + (
+            user_profile_personal.get("meritTokens")
+        )
         self._snatched_tids = set()
         # mapping from tuple(red artist name, red release name) to PriorSnatch object.
-        self._snatched_torrents_dict: Dict[Tuple[str, str], PriorSnatch] = dict()
+        self._snatched_torrents_dict: dict[tuple[str, str], PriorSnatch] = dict()
         for json_entry in self._snatched_torrents:
             red_artist_name = json_entry["artistName"]
             red_release_name = json_entry["name"]
@@ -95,13 +114,29 @@ class RedUserDetails:
         """
         return tid in self._snatched_tids
 
-    def get_user_id(self) -> int:
-        return self._user_id
+    def get_initial_available_fl_tokens(self) -> int:
+        """
+        Returns the initial number of FL tokens available at the start of a scrape run.
+        Passed to the RedApiClient instance for the client to maintain a relatively accurate accounting of FL tokens
+        if FL usage is enabled.
+        """
+        return self._initial_available_fl_tokens
 
-    def get_snatched_count(self) -> int:
-        return self._snatched_count
+    def calculate_max_download_allowed_gb(self, min_allowed_ratio: float) -> float:
+        """
+        Calculates the maximum total GB which can be snatched from RED during the current run.
+        Returns the lesser of the two values:
+            (a) the user's initial buffer at the start of the run,
+            (b) OR the additional DL (in GB) required to bring the user's ratio down to their configured 'min_allowed_ratio' config setting.
+        """
+        if min_allowed_ratio <= 0:
+            return self._initial_buffer_gb
+        # Solve for constraint init_U / (init_D + max_allowed_run_dl) >= min_allowed_ratio
+        ratio_max_allowed_run_dl = self._initial_uploaded_gb / min_allowed_ratio - self._initial_downloaded_gb
+        return max(min(ratio_max_allowed_run_dl, self._initial_buffer_gb), 0.0)
 
 
+# TODO (later): reformat this as a dataclass
 # Defines a singular search preference
 class RedFormat:
     """
@@ -115,7 +150,7 @@ class RedFormat:
         format: FormatEnum,
         encoding: EncodingEnum,
         media: MediaEnum,
-        cd_only_extras: Optional[str] = "",
+        cd_only_extras: str | None = "",
     ):
         self._format = format
         self._encoding = encoding
@@ -125,7 +160,7 @@ class RedFormat:
     def __str__(self) -> str:
         return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"
 
-    def get_yaml_dict_for_pretty_print(self) -> Dict[str, Any]:
+    def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
         entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
         if self._cd_only_extras:
             log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self._cd_only_extras)[0]
@@ -154,7 +189,7 @@ class RedFormat:
     def get_media(self) -> str:
         return self._media.value
 
-    def get_cd_only_extras(self) -> Optional[str]:
+    def get_cd_only_extras(self) -> str | None:
         return self._cd_only_extras if self._cd_only_extras else None
 
 
@@ -187,44 +222,33 @@ def _red_release_type_str_to_enum(release_type_str: str) -> RedReleaseType:
     return RedReleaseType[release_type_str.replace(" ", "_").upper()]
 
 
+@dataclass
 class TorrentEntry:
     """Utility class wrapping the details of a distinct torrent on RED."""
 
     # pylint: disable=redefined-builtin
-    def __init__(
-        self,
-        torrent_id: int,
-        media: str,
-        format: str,
-        encoding: str,
-        size: float,
-        scene: bool,
-        trumpable: bool,
-        has_snatched: bool,
-        has_log: bool,
-        log_score: float,
-        has_cue: bool,
-        can_use_token: bool,
-        reported: Optional[bool] = None,
-        lossy_web: Optional[bool] = None,
-        lossy_master: Optional[bool] = None,
-    ):
-        self.torrent_id = torrent_id
-        self.media = media
-        self.format = format
-        self.encoding = encoding
-        self.size = size
-        self.scene = scene
-        self.trumpable = trumpable
-        self.has_snatched = has_snatched
-        self.has_log = has_log
-        self.log_score = log_score
-        self.has_cue = has_cue
-        self.can_use_token = can_use_token
-        self.reported = reported
-        self.lossy_web = lossy_web
-        self.lossy_master = lossy_master
+    torrent_id: int
+    media: str
+    format: str
+    encoding: str
+    size: float
+    scene: bool
+    trumpable: bool
+    has_snatched: bool
+    has_log: bool
+    log_score: float
+    has_cue: bool
+    can_use_token: bool
+    reported: bool | None = None
+    lossy_web: bool | None = None
+    lossy_master: bool | None = None
+    matched_mbid: str | None = None
+    artist_name: str | None = None
+    release_name: str | None = None
+    track_rec_name: str | None = None
+    red_format: RedFormat | None = None
 
+    def __post_init__(self):
         cd_only_extras = ""
         if self.media == MediaEnum.CD.value:
             cd_only_extras_list = []
@@ -233,21 +257,13 @@ class TorrentEntry:
             cd_only_extras_list.append("hascue=1" if self.has_cue else "")
             cd_only_extras = "&".join(cd_only_extras_list)
         self.red_format = RedFormat(
-            format=FormatEnum(format),
-            encoding=EncodingEnum(encoding.replace(" ", "+")),
-            media=MediaEnum(media),
+            format=FormatEnum(self.format),
+            encoding=EncodingEnum(self.encoding.replace(" ", "+")),
+            media=MediaEnum(self.media),
             cd_only_extras=cd_only_extras,
         )
-        self._matched_mbid: Optional[str] = None
-        self._lfm_rec_type: Optional[str] = None
-        self._lfm_rec_context: Optional[str] = None
-        self._artist_name: Optional[str] = None
-        self._release_name: Optional[str] = None
-        self._track_rec_name: Optional[str] = None
 
-    def __str__(self) -> str:  # pragma: no cover
-        return str(vars(self))
-
+    # TODO: see if this can be removed
     def __eq__(self, other) -> bool:
         if not isinstance(other, TorrentEntry):
             return False
@@ -259,7 +275,7 @@ class TorrentEntry:
         return True
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
+    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
         """
         Construct a TorrentEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
         NOTE: TorrentEntry instances constructed via this class method will have their reported, lossy_web, and lossy_master
@@ -280,40 +296,7 @@ class TorrentEntry:
             can_use_token=json_blob["canUseToken"],
         )
 
-    def set_matched_mbid(self, matched_mbid: str) -> None:
-        self._matched_mbid = matched_mbid
-
-    def set_lfm_rec_fields(
-        self, rec_type: str, rec_context: str, artist_name: str, release_name: str, track_rec_name: Optional[str] = None
-    ) -> None:
-        self._lfm_rec_type = rec_type
-        self._lfm_rec_context = rec_context
-        self._artist_name = artist_name
-        self._release_name = release_name
-        self._track_rec_name = track_rec_name
-
-    def get_matched_mbid(self) -> Optional[str]:
-        return self._matched_mbid
-
-    def get_lfm_rec_type(self) -> Optional[str]:
-        return self._lfm_rec_type
-
-    def get_lfm_rec_context(self) -> Optional[str]:
-        return self._lfm_rec_context
-
-    def get_artist_name(self) -> Optional[str]:
-        return self._artist_name
-
-    def get_release_name(self) -> Optional[str]:
-        return self._release_name
-
-    def get_track_rec_name(self) -> Optional[str]:
-        return self._track_rec_name
-
-    def token_usable(self) -> bool:
-        return self.can_use_token
-
-    def get_size(self, unit: Optional[str] = "B") -> float:
+    def get_size(self, unit: str | None = "B") -> float:
         if unit not in STORAGE_UNIT_IDENTIFIERS:
             raise ValueError(
                 f"Unexpected unit_identifier provided: '{unit}'. Must be one of: {STORAGE_UNIT_IDENTIFIERS}"
@@ -321,46 +304,32 @@ class TorrentEntry:
         if unit == "B":
             return self.size
         if unit == "MB":
-            return float(self.size) / float(1e6)
-        return float(self.size) / float(1e9)
-
-    def get_red_format(self) -> RedFormat:
-        return self.red_format
+            return float(self.size) / BYTES_IN_MB
+        return float(self.size) / BYTES_IN_GB
 
     def get_permalink_url(self) -> str:
         return f"https://redacted.sh/torrents.php?torrentid={self.torrent_id}"
 
 
+@dataclass
 class ReleaseEntry:
     """
     Utility class wrapping the details of a given specific release within a RED release group,
     along with all the individual torrents associated with this specific release.
     """
 
-    def __init__(
-        self,
-        group_id: int,
-        media: str,
-        remastered: bool,
-        remaster_year: int,
-        remaster_title: str,
-        remaster_catalogue_number: str,
-        release_type: RedReleaseType,
-        remaster_record_label: Optional[str] = None,
-        torrent_entries: Optional[List[TorrentEntry]] = [],
-    ):
-        self.group_id = group_id
-        self.media = media
-        self.remastered = remastered
-        self.remaster_year = remaster_year
-        self.remaster_title = remaster_title
-        self.remaster_record_label = remaster_record_label
-        self.remaster_catalogue_number = remaster_catalogue_number
-        self.release_type = release_type
-        self.torrent_entries = torrent_entries
+    group_id: int
+    media: str
+    remastered: bool
+    remaster_year: int
+    remaster_title: str
+    remaster_catalogue_number: str
+    release_type: RedReleaseType
+    remaster_record_label: str | None = None
+    torrent_entries: list[TorrentEntry] | None = field(default_factory=list)
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: Dict[str, Any]):
+    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
         """
         Construct a ReleaseEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
         NOTE: Instances constructed via this method will have a NoneType `remaster_record_label` value as the `browse` endpoint responses don't surface
@@ -382,8 +351,8 @@ class ReleaseEntry:
             torrent_entries=torrent_entries,
         )
 
-    def get_red_formats(self) -> List[RedFormat]:
-        return [torrent_entry.get_red_format() for torrent_entry in self.torrent_entries]
+    def get_red_formats(self) -> list[RedFormat]:
+        return [torrent_entry.red_format for torrent_entry in self.torrent_entries]
 
-    def get_torrent_entries(self) -> List[TorrentEntry]:
+    def get_torrent_entries(self) -> list[TorrentEntry]:
         return self.torrent_entries

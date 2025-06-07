@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -exo pipefail
 
 if [[ -z "$CODE_FORMAT_CHECK" ]]; then
     CHECK=0
@@ -8,6 +8,8 @@ else
 fi
 
 export PYTHONPATH="${APP_DIR}/plastered/"
+# isort_config_filepath=$(isort . --show-config | jq -r -c '..|.source? | select( . != null and . != "defaults" and . != "black profile")')
+# isort_target_paths=$(isort . --show-config | jq -r -c '. | .src_paths?')
 if [[ -z "${GITHUB_ACTIONS}" ]]; then
     echo "Not running in a github actions environment"
     cd /project_src_mnt

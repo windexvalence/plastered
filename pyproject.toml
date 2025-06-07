@@ -6,12 +6,45 @@ requires-python = ">= 3.12"
 [tool.black]
 line-length = 120
 
+# Pytest coverage configuration
+# https://coverage.readthedocs.io/en/latest/config.html
+[tool.coverage.run]
+source = ["plastered"]
+omit = [
+    "plastered/utils/log_utils.py",
+]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_empty = true
+skip_covered = true
+# Regexes for lines to exclude from consideration
+exclude_also = [
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods, they aren't run:
+    "@(abc\\.)?abstractmethod",
+    ]
+
 [tool.isort]
 profile = "black"
+src_paths = ["plastered", "tests"]
 
 [tool.pylint.main]
 ignore-patterns = ["^\\.#"]
 py-version = "3.12"
+load-plugins = "pylint.extensions.typing"
 
 [tool.pylint.basic]
 no-docstring-rgx = "^_"
@@ -32,6 +65,7 @@ enable = """
     comparison-with-callable,
     comparison-with-itself,
     cyclic-import,
+    deprecated-typing-alias,
     duplicate-argument-name,
     duplicate-bases,
     duplicate-key,
@@ -82,7 +116,12 @@ enable = """
 ignored-argument-names = "_.*|^ignored_|^unused_"
 
 [tool.pytest.ini_options]
-addopts = "--cov-report term-missing --cov=plastered --cov-fail-under=100"
+addopts = "--cov=plastered --no-cov-on-fail"
+markers = [
+    "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
+    "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
+    "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+]
 
 [tool.bandit]
 exclude_dirs = [".github", "docs", "examples", "tests", "secrets"]

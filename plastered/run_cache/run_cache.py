@@ -1,15 +1,16 @@
 import json
 import logging
 from ast import literal_eval as make_tuple
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 from diskcache import Cache
 
 from plastered.config.config_parser import AppConfig
 from plastered.stats.stats import RunCacheSummaryTable
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.constants import BYTES_IN_MB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from plastered.utils.exceptions import RunCacheDisabledException
 
 LOGGER = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ def _tomorrow_midnight_datetime() -> datetime:
     return datetime.combine(now_dt.date() + timedelta(days=days_increment), datetime.min.time())
 
 
+# TODO (later) define __enter__ and __exit__ methods for cleaner shutdown, and invoke the ctx mgr from calling ReleaseSearcher / API ctx mgrs.
 class RunCache:
     """
     Wrapper class around a diskcache.Cache instance. Used by both
@@ -48,19 +50,18 @@ class RunCache:
         self._expiration_datetime = _tomorrow_midnight_datetime()
         self._cache_type = cache_type
         self._enabled = app_config.is_cache_enabled(cache_type=self._cache_type)
-        LOGGER.debug(f"This is a debug message")
-        LOGGER.info(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
+        LOGGER.debug(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_config.get_cache_directory_path(cache_type=self._cache_type)
-        LOGGER.info(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
-        self._cache: Optional[Cache] = None
+        LOGGER.debug(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
+        self._cache: Cache | None = None
         if self._enabled:
-            LOGGER.info(f"Enabling diskcache for {self._cache_type.value} ...")
+            LOGGER.debug(f"Enabling diskcache for {self._cache_type.value} ...")
             self._cache = Cache(self._cache_dir_path)
-            LOGGER.info(f"diskcache instantiated for {self._cache_type.value} ...")
+            LOGGER.debug(f"diskcache instantiated for {self._cache_type.value} ...")
             self._cache.stats(enable=True, reset=True)
             # TODO: make sure that this doesn't need to be called in each load call or more frequently than on construction
             num_expired = self._cache.expire()
-            LOGGER.info(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
+            LOGGER.debug(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
             LOGGER.info(
                 f"Any newly added {self._cache_type.value} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
             )
@@ -73,7 +74,7 @@ class RunCache:
     def print_summary_info(self) -> None:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        disk_usage_mb = self._cache.volume() / float(1e6)
+        disk_usage_mb = self._cache.volume() / BYTES_IN_MB
         hits, misses = self._cache.stats()
         hit_rate_str = "NA" if hits + misses == 0 else str(float(hits) / float(hits + misses))
         RunCacheSummaryTable(
@@ -155,7 +156,7 @@ class RunCache:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.set(cache_key, data, expire=self._seconds_to_expiry())
 
-    def cli_list_cache_keys(self) -> List[str]:
+    def cli_list_cache_keys(self) -> list[str]:
         """
         Convenience method exclusively for use by the cache CLI command.
         Prints the list of string representations of all currently available cache keys.

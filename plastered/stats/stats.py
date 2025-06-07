@@ -2,9 +2,9 @@ import csv
 import logging
 import os
 import re
+from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Callable, Dict, List, Optional
 
 from rich.console import Console
 from rich.table import Column, Table
@@ -22,7 +22,6 @@ _LOGGER = logging.getLogger(__name__)
 _FAILED = "failed"
 _SKIPPED = "skipped"
 _SNATCHED = "snatched"
-_VALID_SUMMARY_TABLE_TYPES = set([_FAILED, _SKIPPED, _SNATCHED])
 
 _FAILED_FILENAME = f"{_FAILED}.tsv"
 _SKIPPED_FILENAME = f"{_SKIPPED}.tsv"
@@ -31,6 +30,10 @@ _SNATCHED_FILENAME = f"{_SNATCHED}.tsv"
 
 def _stylize_track_rec_entry(track_rec: str) -> str:
     return "white" if track_rec == STATS_TRACK_REC_NONE else "dark_magenta"
+
+
+def _stylize_rec_type_entry(rec_type: str) -> str:
+    return "bright_magenta" if rec_type == "album" else "bright_cyan"
 
 
 class SkippedReason(StrEnum):
@@ -42,6 +45,10 @@ class SkippedReason(StrEnum):
     DUPE_OF_ANOTHER_REC = "Identical release as another rec which will be snatched."
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
     NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release entity."
+    MIN_RATIO_LIMIT = "Snatch would drop ratio below configured 'min_allowed_ratio'."
+    UNRESOLVED_REQUIRED_SEARCH_FIELDS = (
+        "Could not resolve 1 or more of: `first_release_year` `record_label`, `catalog_number`."
+    )
 
 
 class SnatchFailureReason(StrEnum):
@@ -52,7 +59,7 @@ class SnatchFailureReason(StrEnum):
     OTHER = "Exception - other"
 
 
-def _get_rows_from_tsv(tsv_path: str) -> List[List[str]]:
+def _get_rows_from_tsv(tsv_path: str) -> list[list[str]]:
     with open(tsv_path, "r") as f:
         tsv_reader = csv.DictReader(f, delimiter="\t", lineterminator="\n")
         tsv_rows = [list(row.values()) for row in tsv_reader]
@@ -69,11 +76,11 @@ class StatsTable:
     def __init__(
         self,
         title: str,
-        columns: List[Column],
-        tsv_path: Optional[str] = None,
-        read_only: Optional[bool] = False,
-        cell_idxs_to_style_fns: Optional[Dict[int, Callable]] = {},
-        caption: Optional[str] = None,
+        columns: list[Column],
+        tsv_path: str | None = None,
+        read_only: bool | None = False,
+        cell_idxs_to_style_fns: dict[int, Callable] | None = {},
+        caption: str | None = None,
     ):
         self._title = title
         self._columns = columns
@@ -99,9 +106,9 @@ class StatsTable:
             show_lines=True,
             expand=True,
         )
-        self._raw_rows: List[List[str]] = []
+        self._raw_rows: list[list[str]] = []
 
-    def add_row(self, row: List[str]) -> None:
+    def add_row(self, row: list[str]) -> None:
         stylized_row = [
             (
                 cell_data
@@ -113,7 +120,7 @@ class StatsTable:
         self._table.add_row(*stylized_row)
         self._raw_rows.append(row)
 
-    def add_rows(self, rows: List[List[str]]) -> None:
+    def add_rows(self, rows: list[list[str]]) -> None:
         for row in rows:
             if len(row) != self._num_cols:
                 raise StatsTableException(
@@ -163,10 +170,10 @@ class SkippedSummaryTable(StatsTable):
 
     def __init__(
         self,
-        rows: List[List[str]],
-        tsv_path: Optional[str] = None,
-        title: Optional[str] = "Unsnatched / Skipped LFM Recs",
-        read_only: Optional[bool] = False,
+        rows: list[list[str]],
+        tsv_path: str | None = None,
+        title: str | None = "Unsnatched / Skipped LFM Recs",
+        read_only: bool | None = False,
     ):
         super().__init__(
             title=title,
@@ -181,7 +188,11 @@ class SkippedSummaryTable(StatsTable):
             ],
             tsv_path=tsv_path,
             read_only=read_only,
-            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 6: self.stylize_skip_reason_entry},
+            cell_idxs_to_style_fns={
+                0: _stylize_rec_type_entry,
+                4: _stylize_track_rec_entry,
+                6: self.stylize_skip_reason_entry,
+            },
             caption="Summary of LFM Recs which were either not found on RED, or ignored based on the search config settings.",
         )
         self.add_rows(rows)
@@ -201,10 +212,10 @@ class FailedSnatchSummaryTable(StatsTable):
 
     def __init__(
         self,
-        rows: List[List[str]],
-        tsv_path: Optional[str] = None,
-        title: Optional[str] = "Failed Downloads",
-        read_only: Optional[bool] = False,
+        rows: list[list[str]],
+        tsv_path: str | None = None,
+        title: str | None = "Failed Downloads",
+        read_only: bool | None = False,
     ):
         super().__init__(
             title=title,
@@ -225,10 +236,10 @@ class SnatchSummaryTable(StatsTable):
 
     def __init__(
         self,
-        rows: List[List[str]],
-        tsv_path: Optional[str] = None,
-        title: Optional[str] = "Snatched LFM Recs",
-        read_only: Optional[bool] = False,
+        rows: list[list[str]],
+        tsv_path: str | None = None,
+        title: str | None = "Snatched LFM Recs",
+        read_only: bool | None = False,
     ):
         super().__init__(
             title=title,
@@ -245,7 +256,11 @@ class SnatchSummaryTable(StatsTable):
             ],
             tsv_path=tsv_path,
             read_only=read_only,
-            cell_idxs_to_style_fns={4: _stylize_track_rec_entry, 7: lambda fl: "green" if fl == "yes" else "white"},
+            cell_idxs_to_style_fns={
+                0: _stylize_rec_type_entry,
+                4: _stylize_track_rec_entry,
+                7: lambda fl: "green" if fl == "yes" else "white",
+            },
             caption="Summary of LFM Recs successfully found on RED and snatched.",
         )
         self.add_rows(rows)
@@ -284,7 +299,7 @@ class RunCacheSummaryTable(StatsTable):
         self.add_row([disk_usage_mb, hits, misses, hit_rate, directory_path])
 
 
-def _get_tsv_output_filepaths(output_summary_dir_path: str) -> Dict[str, str]:
+def _get_tsv_output_filepaths(output_summary_dir_path: str) -> dict[str, str]:
     return {
         _FAILED: os.path.join(output_summary_dir_path, _FAILED_FILENAME),
         _SKIPPED: os.path.join(output_summary_dir_path, _SKIPPED_FILENAME),
@@ -293,9 +308,9 @@ def _get_tsv_output_filepaths(output_summary_dir_path: str) -> Dict[str, str]:
 
 
 def print_and_save_all_searcher_stats(
-    skipped_rows: List[List[str]],
-    failed_snatch_rows: List[List[str]],
-    snatch_summary_rows: List[List[str]],
+    skipped_rows: list[list[str]],
+    failed_snatch_rows: list[list[str]],
+    snatch_summary_rows: list[list[str]],
     output_summary_dir_path: str,
 ) -> None:
     """Utility function for printing and saving all the stats at the end of an active scrape run."""

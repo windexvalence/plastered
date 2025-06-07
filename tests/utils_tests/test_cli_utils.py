@@ -1,7 +1,5 @@
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +18,7 @@ from tests.conftest import (
 def test_init_stats_run_picker(
     mock_root_summary_dir_path: Path,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
 ) -> None:
     srp = StatsRunPicker(
         summaries_directory_path=mock_root_summary_dir_path,
@@ -65,7 +63,7 @@ def test_init_stats_run_picker_no_runs(tmp_path: pytest.FixtureRequest) -> None:
 def test_stats_run_picker_is_valid_candidate_dt(
     mock_root_summary_dir_path: Path,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
     dt_attr_name: str,
     dt_arg: datetime,
     candidate_dt: datetime,
@@ -144,10 +142,10 @@ def test_stats_run_picker_is_valid_candidate_dt(
 def test_stats_run_picker_get_dt_choices(
     mock_root_summary_dir_path: Path,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
     dt_attr_name: str,
-    mock_possible_datetimes: List[datetime],
-    expected: List[str],
+    mock_possible_datetimes: list[datetime],
+    expected: list[str],
 ) -> None:
     with patch.object(StatsRunPicker, "_is_valid_candidate_dt") as mock_is_valid_candidate_dt:
         mock_is_valid_candidate_dt.return_value = True
@@ -174,7 +172,7 @@ def test_stats_run_picker_get_dt_choices(
 def test_prompt_date_component(
     mock_root_summary_dir_path: Path,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
+    mock_summary_tsvs: dict[str, str],
     dt_attr_name: str,
     mock_user_input: str,
     expected_candidate_dt: datetime,
@@ -231,9 +229,9 @@ def test_prompt_date_component(
 def test_get_run_date_from_user_prompts(
     mock_root_summary_dir_path: Path,
     mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: Dict[str, str],
-    mock_user_inputs: List[str],
-    mock_possible_datetimes: List[List[str]],
+    mock_summary_tsvs: dict[str, str],
+    mock_user_inputs: list[str],
+    mock_possible_datetimes: list[list[str]],
     expected: datetime,
     expected_prompt_cnt: int,
 ) -> None:

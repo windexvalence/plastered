@@ -1,8 +1,6 @@
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
+from typing import Any
 
 import pytest
-import requests
 
 from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
 from plastered.utils.red_utils import (
@@ -11,6 +9,7 @@ from plastered.utils.red_utils import (
     MediaEnum,
     RedFormat,
     RedReleaseType,
+    RedUserDetails,
     ReleaseEntry,
     TorrentEntry,
     _red_release_type_str_to_enum,
@@ -197,10 +196,10 @@ def test_eq(other: Any, expected: bool) -> None:
 )
 def test_torrent_entry_get_size(
     unit: str,
-    expected: Optional[float],
+    expected: float | None,
     should_fail: bool,
-    exception: Optional[Exception],
-    exception_msg: Optional[str],
+    exception: Exception | None,
+    exception_msg: str | None,
 ) -> None:
     mock_size_bytes = 3000000.0
     test_instance = TorrentEntry(
@@ -252,13 +251,13 @@ def test_torrent_entry_get_red_format() -> None:
         media=MediaEnum.CD,
         cd_only_extras="haslog=100&hascue=1",
     )
-    actual_red_format = test_instance.get_red_format()
+    actual_red_format = test_instance.red_format
     assert (
         actual_red_format == expected_red_format
     ), f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
 
 
-def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) -> None:
+def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:
     test_release_entry = ReleaseEntry(
         group_id=463161,
         media=MediaEnum.CD.value,
@@ -300,3 +299,95 @@ def test_release_entry_get_red_formats(mock_red_group_response: Dict[str, Any]) 
     assert (
         actual_red_format_list == expected_red_format_list
     ), f"Expected test_release_entry.get_red_formats() to return {expected_red_format_list}, but got {actual_red_format_list}"
+
+
+@pytest.mark.parametrize(
+    "mock_initial_buffer_gb, mock_initial_uploaded_gb, mock_initial_downloaded_gb, min_allowed_ratio, expected",
+    [
+        (0.0, 0.0, 0.0, 0.0, 0.0),
+        (0.5, 2.0, 1.0, 0.4, 0.5),  # ratio_max_allowed_run_dl := 4.0
+        (7.2, 2.0, 1.0, 0.4, 4.0),  # ratio_max_allowed_run_dl := 4.0
+        (2.0, 1.0, 1.0, 1.0, 0.0),  # ratio_max_allowed_run_dl := 0.0
+        (2.0, 0.2, 4.0, 1.0, 0.0),  # ratio_max_allowed_run_dl := -0.95
+    ],
+)
+def test_red_user_details_calculate_max_download_allowed_gb(
+    mock_red_user_details_fn_scoped: RedUserDetails,
+    mock_initial_buffer_gb: float,
+    mock_initial_uploaded_gb: float,
+    mock_initial_downloaded_gb: float,
+    min_allowed_ratio: float,
+    expected: float,
+) -> None:
+    mock_red_user_details_fn_scoped._initial_buffer_gb = mock_initial_buffer_gb
+    mock_red_user_details_fn_scoped._initial_uploaded_gb = mock_initial_uploaded_gb
+    mock_red_user_details_fn_scoped._initial_downloaded_gb = mock_initial_downloaded_gb
+    actual = mock_red_user_details_fn_scoped.calculate_max_download_allowed_gb(min_allowed_ratio=min_allowed_ratio)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_snatched_torrents_dict, mock_artist, mock_release, expected",
+    [
+        (dict(), "Fake Artist", "Their Release", False),
+        ({("some artist", "a release"): None}, "other artist", "different release", False),
+        ({("same artist", "a release"): None}, "same artist", "different release", False),
+        ({("other artist", "first release"): None}, "other artist", "second release", False),
+        ({("some artist", "a release"): None}, "some artist", "a release", True),
+        ({("some artist", "a release"): None}, "Some Artist", "A Release", True),
+        (
+            {("some artist", "a release"): None, ("another artist", "their release"): None},
+            "other artist",
+            "a release",
+            False,
+        ),
+        (
+            {("some artist", "a release"): None, ("another artist", "their release"): None},
+            "some artist",
+            "their release",
+            False,
+        ),
+        (
+            {("some artist", "a release"): None, ("another artist", "their release"): None},
+            "some artist",
+            "a release",
+            True,
+        ),
+        (
+            {("some artist", "a release"): None, ("another artist", "their release"): None},
+            "Some Artist",
+            "A Release",
+            True,
+        ),
+    ],
+)
+def test_red_user_details_has_snatched_release(
+    mock_red_user_details_fn_scoped: RedUserDetails,
+    mock_snatched_torrents_dict: dict[str, Any],
+    mock_artist: str,
+    mock_release: str,
+    expected: bool,
+) -> None:
+    mock_red_user_details_fn_scoped._snatched_torrents_dict = mock_snatched_torrents_dict
+    actual = mock_red_user_details_fn_scoped.has_snatched_release(artist=mock_artist, release=mock_release)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_snatched_tids, tid, expected",
+    [
+        ({}, 69, False),
+        ({69}, 69, True),
+        ({100, 69}, 69, True),
+        ({100, 200, 300}, 5, False),
+    ],
+)
+def test_red_user_details_has_snatched_tid(
+    mock_red_user_details_fn_scoped: RedUserDetails,
+    mock_snatched_tids: set[int],
+    tid: int,
+    expected: bool,
+) -> None:
+    mock_red_user_details_fn_scoped._snatched_tids = mock_snatched_tids
+    actual = mock_red_user_details_fn_scoped.has_snatched_tid(tid)
+    assert actual == expected

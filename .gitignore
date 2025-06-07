@@ -178,3 +178,7 @@ tests/resources/mock_api_responses/*.json
 tests/resources/adhoc_manual_test_configs/*.yaml
 tests/resources/adhoc_manual_test_configs/*.yml
 tests/resources/adhoc_manual_test_configs/*.json
+
+# vscode
+.vscode
+

@@ -3,6 +3,7 @@
 set -e
 # Adopted from here: https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#limits-for-secrets
 
+# To encrypt any file, do gpg --symmetric --cipher-algo AES256 <path-to-unencrypted-file.json>
 # --batch to prevent interactive command
 # --yes to assume "yes" for questions
 echo "Decrypting test HTML files ..."

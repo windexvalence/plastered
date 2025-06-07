@@ -1,33 +1,24 @@
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover
+    from plastered.release_search.search_helpers import SearchItem
 
 
+@dataclass
 class LFMAlbumInfo:
     """
     Utility class wrapping the results of the LFM API's album.getinfo endpoint.
     Used by the ReleaseSearcher when usage of the LFM API is required for resolving certain additional search fields.
     """
 
-    def __init__(self, artist: str, album_name: str, lfm_url: str, release_mbid: Optional[str]):
-        self._artist = artist
-        self._album_name = album_name
-        self._lfm_url = lfm_url
-        self._release_mbid = release_mbid
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, LFMAlbumInfo):
-            return False
-        return (
-            other.get_artist() == self._artist
-            and other.get_release_mbid() == self._release_mbid
-            and other.get_album_name() == self._album_name
-            and other.get_lfm_url() == self._lfm_url
-        )
-
-    def __str__(self) -> str:
-        return str(vars(self))
+    artist: str
+    album_name: str
+    lfm_url: str
+    release_mbid: str | None = None
 
     @classmethod
-    def construct_from_api_response(cls, json_blob: Dict[str, Any]):
+    def construct_from_api_response(cls, json_blob: dict[str, Any]):
         """Constructs an LFMAlbumInfo instance from the LFM API's album.getinfo endpoint JSON response."""
         return cls(
             artist=json_blob["artist"],
@@ -36,19 +27,12 @@ class LFMAlbumInfo:
             lfm_url=json_blob["url"],
         )
 
-    def get_artist(self) -> str:
-        return self._artist
-
-    def get_release_mbid(self) -> Optional[str]:
-        return self._release_mbid
-
-    def get_album_name(self) -> str:
-        return self._album_name
-
-    def get_lfm_url(self) -> str:
-        return self._lfm_url
+    def get_release_mbid(self) -> str | None:
+        return self.release_mbid
 
 
+# TODO (later): stop using this class and above class in favor of SearchItem
+@dataclass
 class LFMTrackInfo:
     """
     Utility class wrapping the results of the LFM API's track.getinfo endpoint.
@@ -57,29 +41,14 @@ class LFMTrackInfo:
     from musicbrainz is required by the user's config.
     """
 
-    def __init__(self, artist: str, track_name: str, release_name: str, lfm_url: str, release_mbid: Optional[str]):
-        self._artist = artist
-        self._track_name = track_name
-        self._release_name = release_name
-        self._lfm_url = lfm_url
-        self._release_mbid = release_mbid
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, LFMTrackInfo):
-            return False
-        return (
-            other.get_artist() == self._artist
-            and other.get_track_name() == self._track_name
-            and other.get_release_mbid() == self._release_mbid
-            and other.get_release_name() == self._release_name
-            and other.get_lfm_url() == self._lfm_url
-        )
-
-    def __str__(self) -> str:
-        return str(vars(self))
+    artist: str
+    track_name: str
+    release_name: str
+    lfm_url: str
+    release_mbid: str | None = None
 
     @classmethod
-    def construct_from_api_response(cls, json_blob: Dict[str, Any]):
+    def construct_from_api_response(cls, json_blob: dict[str, Any]):
         """Constructs an LFMTrackInfo instance from the LFM API's track.getinfo endpoint JSON response."""
         release_json = json_blob["album"]
         release_mbid = None if "mbid" not in release_json else release_json["mbid"]
@@ -91,17 +60,21 @@ class LFMTrackInfo:
             lfm_url=json_blob["url"],
         )
 
-    def get_artist(self) -> str:
-        return self._artist
+    @classmethod
+    def from_mb_origin_release_info(cls, si: "SearchItem", mb_origin_release_info_json: dict[str, Any] | None):
+        """
+        Constructs an LFMTrackInfo instance from the MB API's 'recording' endpoint response.
+        Returns `None` if `mb_origin_release_info_json` is `None`.
+        """
+        if not mb_origin_release_info_json:
+            return None
+        return LFMTrackInfo(
+            artist=si.artist_name,
+            track_name=si.track_name,
+            lfm_url=si.lfm_rec.lfm_entity_url,
+            release_mbid=mb_origin_release_info_json["origin_release_mbid"],
+            release_name=mb_origin_release_info_json["origin_release_name"],
+        )
 
-    def get_track_name(self) -> str:
-        return self._track_name
-
-    def get_release_mbid(self) -> Optional[str]:
-        return self._release_mbid
-
-    def get_release_name(self) -> str:
-        return self._release_name
-
-    def get_lfm_url(self) -> str:
-        return self._lfm_url
+    def get_release_mbid(self) -> str | None:
+        return self.release_mbid

@@ -1,6 +1,5 @@
 import os
 from textwrap import dedent
-from typing import List, Optional
 
 from mkdocs_click._extension import replace_command_docs
 from mkdocs_click._processing import replace_blocks
@@ -17,7 +16,7 @@ from plastered.version import get_project_version
 _TARGET_DOC_FILEPATH = os.getenv("TARGET_DOC_FILEPATH")
 
 
-def get_markdown_lines() -> List[str]:
+def get_markdown_lines() -> list[str]:
     mkdocks_click_md_text = dedent(
         """
         ::: mkdocs-click
@@ -47,7 +46,7 @@ def get_markdown_lines() -> List[str]:
     return processed_markdown_lines
 
 
-def main(is_github_action: Optional[bool] = False) -> None:
+def main(is_github_action: bool | None = False) -> None:
     markdown_lines = get_markdown_lines()
     print(f"writing to output filepath: {_TARGET_DOC_FILEPATH} ...")
     if is_github_action:
