@@ -1,7 +1,7 @@
 beautifulsoup4==4.12.3
 click==8.1.7
 diskcache==5.6.3
-jsonschema==4.23.0
+jsonschema==4.24.0
 requests==2.32.3
 httpx==0.28.1
 urllib3==2.2.3
