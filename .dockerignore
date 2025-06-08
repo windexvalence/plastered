@@ -7,7 +7,6 @@
 !docs
 !plastered
 !entrypoint.sh
-!requirements.txt 
 !tests
-!test-requirements.txt
 !pyproject.toml
+!uv.lock

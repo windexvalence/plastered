@@ -16,27 +16,23 @@ While this application along with all its tests / code analysis is fully contain
 you wish to have accurate imports and syntax highlighting in your code editor, you should configure a 
 dedicated virtual environment running Python version `3.12.8` on your host machine which you're running the code editor from.
 
-The **strongly** recommended approach for this is to use [pyenv](https://github.com/pyenv/pyenv) along with [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv). Both those links detail the installation and setup process for those tools.
+The **strongly** recommended approach for this is to [`uv`](https://docs.astral.sh/uv/). Installation instructions for uv [here](https://docs.astral.sh/uv/getting-started/installation/).
 
-Once those are installed, you can follow this one-time setup for creating a host virtualenv:
+Once `uv` is installed, you can follow this one-time setup for creating a host virtualenv. Make sure to run all commands from the root `plastered` repo directory:
 
-1. Install the correct Python version via pyenv:
+1. Install the correct Python version:
     ```shell
-    pyenv install 3.12.8
+    uv python install 3.12.8
     ```
-2. Create a dedicated virtualenv via pyenv-virtualenv:
+2. Create a dedicated virtualenv:
     ```shell
-    pyenv virtualenv 3.12.8 plastered
+    uv venv
     ```
-3. Activate the virtualenv you just created in step 2:
+3. Install the dependencies in the venv you just created in step 2:
     ```shell
-    pyenv activate plastered
+    uv sync --all-groups
     ```
-4. Install both the application and test pip requirements in your newly activated virtualenv:
-    ```shell
-    pip install -r requirements.txt && pip install -r tests/test-requirements.txt
-    ```
-5. Lastly, configure your code editor / IDE of choice to use the `plastered` virtualenv for this project.
+4. Lastly, configure your code editor / IDE of choice to use the uv-managed virtualenv located in the `.venv` directory at the root `plastered` project directory.
 
 ## Testing
 

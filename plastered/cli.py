@@ -1,5 +1,5 @@
 """
-Expected Python version: 3.13 (with requirements.txt installed)
+Expected Python version: 3.12.8
 
 USAGE: See docs/user_guide.md
 """
