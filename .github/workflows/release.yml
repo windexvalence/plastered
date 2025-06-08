@@ -3,6 +3,7 @@ run-name: Release ${{ github.ref }}
 env:
   IMAGE_REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  TEST_IMAGE_NAME: ${{ github.repository }}-test
 on:
   push:
     tags:
@@ -26,22 +27,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Build Image Without Push
+      - name: Build test image
         uses: docker/build-push-action@v6
         with:
-          tags: ${{ env.IMAGE_NAME }}:${{ github.run_number }}
+          tags: ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}
+          target: plastered-test
           build-args: |
             PLASTERED_RELEASE_TAG=${{ github.ref_name }}
-      - name: Code Format Check
+      - name: Code format check
         run: |
-          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }}
-      - name: Decrypt Test HTML Assets
+          docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}
+      - name: Decrypt test HTML assets
         run: ./build_scripts/gh_action_decrypt_test_html.sh
         env:
           TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
-      - name: Run Unit Tests
+      - name: Run unit tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.IMAGE_NAME }}:${{ github.run_number }} tests
+          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
       # - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
       #   run: echo "TODO implement in followup PR"
       - name: Docker metadata
@@ -54,20 +56,20 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
-      - name: Login to Container Registry
+      - name: Login to container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push Docker image
+      - name: Build and push app image
         id: push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           build-args: |
-            BUILD_ENV=release
             PLASTERED_RELEASE_TAG=${{ github.ref_name }}
+          target: plastered-app
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

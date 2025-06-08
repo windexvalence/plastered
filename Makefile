@@ -21,32 +21,33 @@ docker-clean:  ## Remove old local docker image and container artifacts
 clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 	find . -type d -name '__pycache__' -print | xargs rm -rf
 
-docker-build:  ## Build the plastered docker image locally
-	docker build -t wv/plastered:$$(date +%s) -t wv/plastered:latest .
+docker-build:  ## Build the plastered docker app and test images locally
+	docker build --target plastered-app -t wv/plastered:$$(date +%s) -t wv/plastered:latest .
+	docker build --target plastered-test -t wv/plastered-test:$$(date +%s) -t wv/plastered-test:latest .
 
 docker-build-no-test:  ## Build the plastered docker image locally without test-requirements installed
-	docker build --build-arg BUILD_ENV=non-test -t wv/plastered:non-test .
+	docker build --target plastered-app --build-arg BUILD_ENV=non-test -t wv/plastered:non-test .
 
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
-	docker run -it --rm --entrypoint /bin/bash wv/plastered:latest
+	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
 code-format-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
 	docker run -t --rm -e CODE_FORMAT_CHECK=1 \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint /app/build_scripts/code-format.sh wv/plastered:latest
+		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
 
 code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
 	docker run -it --rm \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint /app/build_scripts/code-format.sh wv/plastered:latest
+		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
 
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file
 	docker run -it --rm \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered:latest
+		--entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered-test:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
 	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) \
 		-v $(PROJECT_DIR_PATH)/docs:/docs \
-		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered:latest "$(TEST_TARGET)"
+		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"
