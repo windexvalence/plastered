@@ -21,9 +21,7 @@ def mb_track_response_raise_key_error() -> dict[str, Any]:
 
 @pytest.mark.parametrize("expected_mbid", ["d211379d-3203-47ed-a0c5-e564815bb45a"])
 def test_request_musicbrainz_api(
-    valid_app_config: AppConfig,
-    disabled_api_run_cache: RunCache,
-    expected_mbid: str,
+    valid_app_config: AppConfig, disabled_api_run_cache: RunCache, expected_mbid: str
 ) -> None:
     mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
@@ -31,11 +29,11 @@ def test_request_musicbrainz_api(
     result = mb_client.request_release_details(mbid=expected_mbid)
     mb_client._throttle.assert_called_once()
     assert isinstance(result, dict), f"Expected result from request_api to be a dict, but was: {type(result)}"
-    assert "id" in result.keys(), f"Missing expected top-level key in musicbrainz response: 'id'"
+    assert "id" in result.keys(), "Missing expected top-level key in musicbrainz response: 'id'"
     response_mbid = result["id"]
-    assert (
-        response_mbid == expected_mbid
-    ), f"Mismatch between actual response mbid ('{response_mbid}') and expected mbid ('{expected_mbid}')"
+    assert response_mbid == expected_mbid, (
+        f"Mismatch between actual response mbid ('{response_mbid}') and expected mbid ('{expected_mbid}')"
+    )
 
 
 @pytest.mark.parametrize(
@@ -58,9 +56,7 @@ def test_mb_get_track_search_query_str(
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     actual = mb_client._get_track_search_query_str(
-        human_readable_track_name=track_name,
-        artist_mbid=artist_mbid,
-        human_readable_artist_name=artist_name,
+        human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
     assert actual == expected, f"Expected '{expected}', but got '{actual}'"
 
@@ -138,9 +134,7 @@ def test_request_release_details_for_track(
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     actual = mb_client.request_release_details_for_track(
-        human_readable_track_name=track_name,
-        artist_mbid=artist_mbid,
-        human_readable_artist_name=artist_name,
+        human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
     assert actual == expected, f"Expected {expected}, but got {actual}"
 
@@ -172,26 +166,20 @@ def test_request_release_details_for_track_cache_hit(
 ) -> None:
     mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=enabled_api_run_cache)
     query_params = mb_client._get_track_search_query_str(
-        human_readable_track_name=track_name,
-        artist_mbid=artist_mbid,
-        human_readable_artist_name=artist_name,
+        human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     mb_client._write_cache_if_enabled(endpoint="recording", params=query_params, result_json=expected_cache_val)
     mb_client.request_release_details_for_track(
-        human_readable_track_name=track_name,
-        artist_mbid=artist_mbid,
-        human_readable_artist_name=artist_name,
+        human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
     mb_client._throttle.assert_not_called()
 
 
 @pytest.mark.override_global_httpx_mock
 def test_mb_client_cache_hit(
-    httpx_mock: HTTPXMock,
-    enabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
+    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_config: AppConfig
 ) -> None:
     params = "fake-mbid-123"
     mocked_json = {"musicbrainz-deeznuts": {"cache_hit": "hopefully"}}

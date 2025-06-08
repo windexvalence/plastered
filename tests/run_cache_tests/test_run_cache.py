@@ -1,17 +1,13 @@
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from plastered.config.config_parser import AppConfig
-from plastered.run_cache.run_cache import (
-    CacheType,
-    RunCache,
-    _tomorrow_midnight_datetime,
-)
-from plastered.utils.exceptions import RunCacheDisabledException, RunCacheException
-from tests.conftest import api_run_cache, scraper_run_cache, valid_app_config
+from plastered.run_cache.run_cache import CacheType, RunCache, _tomorrow_midnight_datetime
+from plastered.utils.exceptions import RunCacheDisabledException
 
 _DT_STR_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -60,18 +56,9 @@ def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expecte
 
 @pytest.mark.parametrize(
     "enabled, cache_type",
-    [
-        (False, CacheType.API),
-        (True, CacheType.API),
-        (False, CacheType.SCRAPER),
-        (True, CacheType.SCRAPER),
-    ],
+    [(False, CacheType.API), (True, CacheType.API), (False, CacheType.SCRAPER), (True, CacheType.SCRAPER)],
 )
-def test_run_cache_init(
-    valid_app_config: AppConfig,
-    enabled: bool,
-    cache_type: CacheType,
-) -> None:
+def test_run_cache_init(valid_app_config: AppConfig, enabled: bool, cache_type: CacheType) -> None:
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_is_cache_enabled:
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache:
             mock_app_conf_is_cache_enabled.return_value = enabled
@@ -81,9 +68,9 @@ def test_run_cache_init(
             else:
                 mock_diskcache.assert_not_called()
             actual_enabled_attr = run_cache.enabled
-            assert (
-                actual_enabled_attr == enabled
-            ), f"Expected run_cach.enabled to be {enabled}, but got {actual_enabled_attr}"
+            assert actual_enabled_attr == enabled, (
+                f"Expected run_cach.enabled to be {enabled}, but got {actual_enabled_attr}"
+            )
 
 
 @pytest.mark.parametrize(
@@ -229,16 +216,10 @@ def test_seconds_to_expiry(
 
 @pytest.mark.parametrize(
     "cache_type, test_key, test_data",
-    [
-        (CacheType.API, "my-fake-key", "my-fake-value"),
-        (CacheType.SCRAPER, "my-fake-key", "my-fake-value"),
-    ],
+    [(CacheType.API, "my-fake-key", "my-fake-value"), (CacheType.SCRAPER, "my-fake-key", "my-fake-value")],
 )
 def test_run_cache_write_data_valid(
-    valid_app_config: AppConfig,
-    cache_type: CacheType,
-    test_key: Any,
-    test_data: Any,
+    valid_app_config: AppConfig, cache_type: CacheType, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
@@ -258,16 +239,10 @@ def test_run_cache_write_data_valid(
 
 @pytest.mark.parametrize(
     "cache_type, test_key, test_data",
-    [
-        (CacheType.API, "my-fake-key", "my-fake-value"),
-        (CacheType.SCRAPER, "my-fake-key", "my-fake-value"),
-    ],
+    [(CacheType.API, "my-fake-key", "my-fake-value"), (CacheType.SCRAPER, "my-fake-key", "my-fake-value")],
 )
 def test_run_cache_write_data_invalid(
-    valid_app_config: AppConfig,
-    cache_type: CacheType,
-    test_key: Any,
-    test_data: Any,
+    valid_app_config: AppConfig, cache_type: CacheType, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
@@ -281,18 +256,9 @@ def test_run_cache_write_data_invalid(
 
 @pytest.mark.parametrize(
     "cache_type, run_cache_enabled",
-    [
-        (CacheType.API, False),
-        (CacheType.SCRAPER, False),
-        (CacheType.API, True),
-        (CacheType.SCRAPER, True),
-    ],
+    [(CacheType.API, False), (CacheType.SCRAPER, False), (CacheType.API, True), (CacheType.SCRAPER, True)],
 )
-def test_run_cache_clear(
-    valid_app_config: AppConfig,
-    cache_type: CacheType,
-    run_cache_enabled: bool,
-) -> None:
+def test_run_cache_clear(valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
         mock_app_conf_cache_enabled.return_value = run_cache_enabled
@@ -320,10 +286,7 @@ def test_run_cache_clear(
     ],
 )
 def test_run_cache_check(
-    valid_app_config: AppConfig,
-    cache_type: CacheType,
-    run_cache_enabled: bool,
-    should_fail: bool,
+    valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool, should_fail: bool
 ) -> None:
     mock_diskcache = MagicMock()
     expected_check_result_no_fail = ["fake warning"]
@@ -348,18 +311,9 @@ def test_run_cache_check(
 
 @pytest.mark.parametrize(
     "cache_type, run_cache_enabled",
-    [
-        (CacheType.API, False),
-        (CacheType.SCRAPER, False),
-        (CacheType.API, True),
-        (CacheType.SCRAPER, True),
-    ],
+    [(CacheType.API, False), (CacheType.SCRAPER, False), (CacheType.API, True), (CacheType.SCRAPER, True)],
 )
-def test_print_summary_info(
-    valid_app_config: AppConfig,
-    cache_type: CacheType,
-    run_cache_enabled: bool,
-) -> None:
+def test_print_summary_info(valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool) -> None:
     mock_diskcache = MagicMock()
 
     def _stats_side_effect(*args, **kwargs) -> tuple[int, int] | None:

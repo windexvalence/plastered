@@ -8,28 +8,14 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.config_parser import AppConfig
-from plastered.release_search.release_searcher import (
-    ReleaseSearcher,
-    SearchItem,
-    SearchState,
-    _TorrentMatch,
-)
-from plastered.release_search.search_helpers import (
-    SearchItem,
-    SearchState,
-    _require_mbid_resolution,
-)
+from plastered.release_search.release_searcher import ReleaseSearcher, SearchItem, SearchState, _TorrentMatch
+from plastered.release_search.search_helpers import SearchItem, SearchState
 from plastered.scraper.lfm_scraper import LFMRec
 from plastered.scraper.lfm_scraper import RecContext as rc
 from plastered.scraper.lfm_scraper import RecommendationType as rt
-from plastered.stats.stats import SkippedReason, SnatchFailureReason
-from plastered.utils.exceptions import (
-    RedClientSnatchException,
-    ReleaseSearcherException,
-)
+from plastered.utils.exceptions import RedClientSnatchException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
-from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.log_utils import NestedProgress
@@ -38,22 +24,8 @@ from plastered.utils.red_utils import EncodingEnum as ee
 from plastered.utils.red_utils import FormatEnum as fe
 from plastered.utils.red_utils import MediaEnum as me
 from plastered.utils.red_utils import RedFormat as rf
-from plastered.utils.red_utils import RedReleaseType, RedUserDetails
+from plastered.utils.red_utils import RedUserDetails
 from plastered.utils.red_utils import TorrentEntry as te
-from tests.conftest import (
-    mock_full_lfm_track_info_json,
-    mock_lfm_track_info_raise_client_exception,
-    mock_mb_session_get_side_effect,
-    mock_musicbrainz_track_search_arid_json,
-    mock_musicbrainz_track_search_artist_name_json,
-    mock_no_album_lfm_track_info_json,
-    mock_red_browse_non_empty_response,
-    mock_red_user_details,
-    mock_red_user_response,
-    mock_red_user_stats_response,
-    mock_red_user_torrents_snatched_response,
-    valid_app_config,
-)
 
 
 @pytest.fixture(scope="session")
@@ -209,10 +181,7 @@ def test_resolve_lfm_track_info(
 
 
 @pytest.mark.parametrize("lfm_api_response", [None, {"no-artist-key": "should-error"}])
-def test_resolve_lfm_track_info_bad_json(
-    valid_app_config: AppConfig,
-    lfm_api_response: dict[str, Any] | None,
-) -> None:
+def test_resolve_lfm_track_info_bad_json(valid_app_config: AppConfig, lfm_api_response: dict[str, Any] | None) -> None:
     rec = LFMRec("Fake+Artist", "Fake+Song", rt.TRACK, rc.IN_LIBRARY)
     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
         mock_lfm_request_api.return_value = lfm_api_response
@@ -235,21 +204,13 @@ def test_resolve_lfm_track_info_bad_json(
 @pytest.mark.parametrize(
     "test_si, mock_matched_mbid",
     [
-        pytest.param(
-            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.ALBUM, rc.IN_LIBRARY)),
-            None,
-            id="album-no-mbid",
-        ),
+        pytest.param(SearchItem(lfm_rec=LFMRec("artist", "ent", rt.ALBUM, rc.IN_LIBRARY)), None, id="album-no-mbid"),
         pytest.param(
             SearchItem(lfm_rec=LFMRec("artist", "ent", rt.ALBUM, rc.IN_LIBRARY)),
             "d211379d-3203-47ed-a0c5-e564815bb45a",
             id="album-has-mbid",
         ),
-        pytest.param(
-            SearchItem(lfm_rec=LFMRec("artist", "ent", rt.TRACK, rc.IN_LIBRARY)),
-            None,
-            id="track-no-mbid",
-        ),
+        pytest.param(SearchItem(lfm_rec=LFMRec("artist", "ent", rt.TRACK, rc.IN_LIBRARY)), None, id="track-no-mbid"),
         pytest.param(
             SearchItem(lfm_rec=LFMRec("artist", "ent", rt.TRACK, rc.IN_LIBRARY)),
             "d211379d-3203-47ed-a0c5-e564815bb45a",
@@ -286,9 +247,9 @@ def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_config:
     with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
         mock_precise_delay.return_value = None
         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
-            assert (
-                release_searcher._search_state._red_user_details is None
-            ), "Expected ReleaseSearcher's red user details to initially be None"
+            assert release_searcher._search_state._red_user_details is None, (
+                "Expected ReleaseSearcher's red user details to initially be None"
+            )
             release_searcher._gather_red_user_details()
             assert release_searcher._search_state._red_user_details is not None
             red_user_details_user_id = release_searcher._search_state._red_user_details._user_id
@@ -456,8 +417,7 @@ def test_search_red_release_by_preferences(
 
 
 def test_search_red_release_by_preferences_above_max_size_found(
-    request: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    request: pytest.FixtureRequest, valid_app_config: AppConfig
 ) -> None:
     mock_preference_ordering = [
         rf(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD),
@@ -484,7 +444,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
     expected = _TorrentMatch(torrent_entry=None, above_max_size_found=False)
 
     def _raise_excp(*args, **kwargs) -> None:
-        raise Exception(f"Fake exception")
+        raise Exception("Fake exception")
 
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
     with (
@@ -493,7 +453,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
     ):
         mock_logger.error.return_value = None
         release_searcher._search_state._red_format_preferences = [
-            rf(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD),
+            rf(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
         ]
         release_searcher._red_client.request_api = Mock(name="request_api", side_effect=_raise_excp)
         actual = release_searcher._search_red_release_by_preferences(si=test_si)
@@ -541,12 +501,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
 
 @pytest.mark.parametrize(
     "pre_mbid_resolution_filter_res, require_mbid_resolution, post_mbid_resolution_filter_res, post_red_search_filer_res",
-    [
-        (False, False, False, False),
-        (True, False, False, False),
-        (True, True, False, False),
-        (True, True, True, False),
-    ],
+    [(False, False, False, False), (True, False, False, False), (True, True, False, False), (True, True, True, False)],
 )
 def test_search_for_release_te_none(
     valid_app_config: AppConfig,
@@ -603,10 +558,7 @@ def test_search_for_release_te_none(
 
 @pytest.mark.parametrize("require_mbid_resolution", [False, True])
 def test_search_for_release_te(
-    valid_app_config: AppConfig,
-    mock_lfmai: LFMAlbumInfo,
-    mock_mbr: MBRelease,
-    require_mbid_resolution: bool,
+    valid_app_config: AppConfig, mock_lfmai: LFMAlbumInfo, mock_mbr: MBRelease, require_mbid_resolution: bool
 ) -> None:
     """Validates that the conditions where _search_for_release_te should return non-None do so."""
 
@@ -685,9 +637,7 @@ def test_search_for_track_recs_empty_input(valid_app_config: AppConfig) -> None:
     ],
 )
 def test_search_for_recs(
-    valid_app_config: AppConfig,
-    rec_type_to_recs_list: dict[rt, list[LFMRec]],
-    expected_search_call_cnt: int,
+    valid_app_config: AppConfig, rec_type_to_recs_list: dict[rt, list[LFMRec]], expected_search_call_cnt: int
 ) -> None:
     def _resolve_lfmti_side_effect(*args, **kwargs) -> SearchItem:
         input_si: SearchItem = kwargs["si"]
@@ -847,12 +797,7 @@ def test_snatch_matches(
 
 @pytest.mark.parametrize(
     "exception_type, mock_file_exists",
-    [
-        (RedClientSnatchException, False),
-        (RedClientSnatchException, True),
-        (OSError, False),
-        (OSError, True),
-    ],
+    [(RedClientSnatchException, False), (RedClientSnatchException, True), (OSError, False), (OSError, True)],
 )
 def test_snatch_exception_handling(
     tmp_path: pytest.FixtureRequest,
@@ -885,16 +830,12 @@ def test_snatch_exception_handling(
                 release_searcher._snatch_matches()
                 assert not os.path.exists(expected_out_filepath)
                 expected_failed_snatch_rows = [
-                    [
-                        mock_best_te.get_permalink_url(),
-                        mock_best_te.matched_mbid,
-                        exception_type.__name__,
-                    ],
+                    [mock_best_te.get_permalink_url(), mock_best_te.matched_mbid, exception_type.__name__]
                 ]
                 actual_failed_snatch_rows = release_searcher._search_state._failed_snatches_summary_rows
-                assert (
-                    actual_failed_snatch_rows == expected_failed_snatch_rows
-                ), f"expected {expected_failed_snatch_rows}, but got {actual_failed_snatch_rows}"
+                assert actual_failed_snatch_rows == expected_failed_snatch_rows, (
+                    f"expected {expected_failed_snatch_rows}, but got {actual_failed_snatch_rows}"
+                )
 
 
 def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_config: AppConfig) -> None:

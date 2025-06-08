@@ -37,13 +37,7 @@ DEFAULTS_DICT = {
     "min_allowed_ratio": -1.0,
 }
 FORMAT_PREFERENCES_KEY = "format_preferences"
-EXPECTED_TOP_LEVEL_CLI_KEYS = set(
-    [
-        CLI_RED_KEY,
-        CLI_LFM_KEY,
-        CLI_SNATCHES_KEY,
-    ]
-)
+EXPECTED_TOP_LEVEL_CLI_KEYS = set([CLI_RED_KEY, CLI_LFM_KEY, CLI_SNATCHES_KEY])
 OPTIONAL_TOP_LEVEL_CLI_KEYS = set([CLI_SEARCH_KEY])
 # Sub-key constants
 PER_PREFERENCE_KEY = "preference"
@@ -101,26 +95,13 @@ required_schema = {
                     "type": "array",
                     "minItems": 1,
                     "maxItems": 2,
-                    "items": {
-                        "type": "string",
-                        "enum": ["album", "track"],
-                    },
+                    "items": {"type": "string", "enum": ["album", "track"]},
                     "default": DEFAULTS_DICT[REC_TYPES_TO_SCRAPE_KEY],
                 },
-                "allow_library_items": {
-                    "type": "boolean",
-                    "default": DEFAULTS_DICT["allow_library_items"],
-                },
-                "enable_scraper_cache": {
-                    "type": "boolean",
-                    "default": DEFAULTS_DICT["enable_scraper_cache"],
-                },
+                "allow_library_items": {"type": "boolean", "default": DEFAULTS_DICT["allow_library_items"]},
+                "enable_scraper_cache": {"type": "boolean", "default": DEFAULTS_DICT["enable_scraper_cache"]},
             },
-            "required": [
-                "lfm_api_key",
-                "lfm_username",
-                "lfm_password",
-            ],
+            "required": ["lfm_api_key", "lfm_username", "lfm_password"],
         },
         CLI_MUSICBRAINZ_KEY: {
             "type": "object",
@@ -136,10 +117,7 @@ required_schema = {
                 "use_first_release_year": {"type": "boolean", "default": DEFAULTS_DICT["use_first_release_year"]},
                 "use_record_label": {"type": "boolean", "default": DEFAULTS_DICT["use_record_label"]},
                 "use_catalog_number": {"type": "boolean", "default": DEFAULTS_DICT["use_catalog_number"]},
-                "enable_api_cache": {
-                    "type": "boolean",
-                    "default": DEFAULTS_DICT["enable_api_cache"],
-                },
+                "enable_api_cache": {"type": "boolean", "default": DEFAULTS_DICT["enable_api_cache"]},
             },
         },
         CLI_SNATCHES_KEY: {
@@ -166,25 +144,16 @@ required_schema = {
                     PER_PREFERENCE_KEY: {
                         "type": "object",
                         "properties": {
-                            FORMAT_KEY: {
-                                "type": "string",
-                                "enum": [format_enum.value for format_enum in FormatEnum],
-                            },
+                            FORMAT_KEY: {"type": "string", "enum": [format_enum.value for format_enum in FormatEnum]},
                             ENCODING_KEY: {
                                 "type": "string",
                                 "enum": [encoding_enum.value for encoding_enum in EncodingEnum],
                             },
-                            MEDIA_KEY: {
-                                "type": "string",
-                                "enum": [media_enum.value for media_enum in MediaEnum],
-                            },
+                            MEDIA_KEY: {"type": "string", "enum": [media_enum.value for media_enum in MediaEnum]},
                             CD_ONLY_EXTRAS_KEY: {
                                 "type": "object",
                                 "properties": {
-                                    LOG_KEY: {
-                                        "type": "integer",
-                                        "enum": LOG_ENUMS,
-                                    },
+                                    LOG_KEY: {"type": "integer", "enum": LOG_ENUMS},
                                     CUE_KEY: {"type": "boolean"},
                                 },
                                 "required": [LOG_KEY, CUE_KEY],
@@ -194,16 +163,9 @@ required_schema = {
                             "properties": {MEDIA_KEY: {"const": MediaEnum.CD.value}},
                             "required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY],
                         },
-                        "then": {
-                            "required": [
-                                FORMAT_KEY,
-                                ENCODING_KEY,
-                                MEDIA_KEY,
-                                CD_ONLY_EXTRAS_KEY,
-                            ],
-                        },
+                        "then": {"required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY, CD_ONLY_EXTRAS_KEY]},
                         "else": {"required": [FORMAT_KEY, ENCODING_KEY, MEDIA_KEY]},
-                    },
+                    }
                 },
             },
             "minItems": 1,

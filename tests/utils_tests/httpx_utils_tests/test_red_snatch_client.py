@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from contextlib import nullcontext
-from typing import Callable
 from unittest.mock import Mock
 
 import pytest
@@ -13,12 +13,7 @@ from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 
 @pytest.mark.parametrize(
     "initial_use_fl_tokens, initial_tokens, expected_use_fl_tokens, expected_available_fl_tokens",
-    [
-        (False, 0, False, 0),
-        (False, 1, False, 1),
-        (True, 0, False, 0),
-        (True, 1, True, 1),
-    ],
+    [(False, 0, False, 0), (False, 1, False, 1), (True, 0, False, 0), (True, 1, True, 1)],
 )
 def test_set_initial_available_fl_tokens(
     disabled_api_run_cache: RunCache,
@@ -39,10 +34,7 @@ def test_set_initial_available_fl_tokens(
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("mock_response_code", [200, 404])
 def test_snatch_red_api_no_fl(
-    httpx_mock: HTTPXMock,
-    disabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
-    mock_response_code: int,
+    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_config: AppConfig, mock_response_code: int
 ) -> None:
     httpx_mock.add_response(status_code=mock_response_code)
     red_snatch_client = RedSnatchAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
@@ -88,9 +80,9 @@ def test_snatch_red_api_use_token(
     for i, expected_get_url in enumerate(expected_get_urls):
         assert str(actual_requests[i].url) == expected_get_url
     actual_throttle_calls = len(red_snatch_client._throttle.mock_calls)
-    assert (
-        actual_throttle_calls == expected_throttle_calls
-    ), f"Expected {expected_throttle_calls}, but found {actual_throttle_calls}"
+    assert actual_throttle_calls == expected_throttle_calls, (
+        f"Expected {expected_throttle_calls}, but found {actual_throttle_calls}"
+    )
 
 
 @pytest.mark.parametrize(

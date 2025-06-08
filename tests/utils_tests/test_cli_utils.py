@@ -7,23 +7,12 @@ import pytest
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import StatsRunPickerException
-from tests.conftest import (
-    mock_output_summary_dir_path,
-    mock_root_summary_dir_path,
-    mock_summary_tsvs,
-    valid_app_config,
-)
 
 
 def test_init_stats_run_picker(
-    mock_root_summary_dir_path: Path,
-    mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: dict[str, str],
+    mock_root_summary_dir_path: Path, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
 ) -> None:
-    srp = StatsRunPicker(
-        summaries_directory_path=mock_root_summary_dir_path,
-        date_str_format=RUN_DATE_STR_FORMAT,
-    )
+    srp = StatsRunPicker(summaries_directory_path=mock_root_summary_dir_path, date_str_format=RUN_DATE_STR_FORMAT)
     assert len(srp._possible_datetimes) > 0
     assert srp._candidate_dt.year == 1970
     assert srp._candidate_dt.month == 1
@@ -69,10 +58,7 @@ def test_stats_run_picker_is_valid_candidate_dt(
     candidate_dt: datetime,
     expected: bool,
 ) -> None:
-    srp = StatsRunPicker(
-        summaries_directory_path=mock_root_summary_dir_path,
-        date_str_format=RUN_DATE_STR_FORMAT,
-    )
+    srp = StatsRunPicker(summaries_directory_path=mock_root_summary_dir_path, date_str_format=RUN_DATE_STR_FORMAT)
     srp._candidate_dt = candidate_dt
     actual = srp._is_valid_candidate_dt(dt=dt_arg, dt_attr_name=dt_attr_name)
     assert actual == expected
@@ -149,10 +135,7 @@ def test_stats_run_picker_get_dt_choices(
 ) -> None:
     with patch.object(StatsRunPicker, "_is_valid_candidate_dt") as mock_is_valid_candidate_dt:
         mock_is_valid_candidate_dt.return_value = True
-        srp = StatsRunPicker(
-            summaries_directory_path=mock_root_summary_dir_path,
-            date_str_format=RUN_DATE_STR_FORMAT,
-        )
+        srp = StatsRunPicker(summaries_directory_path=mock_root_summary_dir_path, date_str_format=RUN_DATE_STR_FORMAT)
         srp._possible_datetimes = mock_possible_datetimes
         actual = srp._get_dt_choices(dt_attr_name=dt_attr_name)
         assert actual == expected
@@ -187,8 +170,7 @@ def test_prompt_date_component(
                 datetime(year=2025, month=2, day=15, hour=1, minute=11, second=25),
             ]
             srp = StatsRunPicker(
-                summaries_directory_path=mock_root_summary_dir_path,
-                date_str_format=RUN_DATE_STR_FORMAT,
+                summaries_directory_path=mock_root_summary_dir_path, date_str_format=RUN_DATE_STR_FORMAT
             )
             assert (
                 srp._candidate_dt.year == 1970
@@ -239,14 +221,11 @@ def test_get_run_date_from_user_prompts(
     mock_q_ask.ask.side_effect = mock_user_inputs
     with patch("questionary.select") as questionary_select_mock:
         questionary_select_mock.return_value = mock_q_ask
-        srp = StatsRunPicker(
-            summaries_directory_path=mock_root_summary_dir_path,
-            date_str_format=RUN_DATE_STR_FORMAT,
-        )
+        srp = StatsRunPicker(summaries_directory_path=mock_root_summary_dir_path, date_str_format=RUN_DATE_STR_FORMAT)
         srp._possible_datetimes = mock_possible_datetimes
         actual = srp.get_run_date_from_user_prompts()
         assert actual == expected
         actual_prompt_cnt = len(questionary_select_mock.call_args_list)
-        assert (
-            actual_prompt_cnt == expected_prompt_cnt
-        ), f"Expected {expected_prompt_cnt}, but found {actual_prompt_cnt}: {questionary_select_mock.mock_calls}"
+        assert actual_prompt_cnt == expected_prompt_cnt, (
+            f"Expected {expected_prompt_cnt}, but found {actual_prompt_cnt}: {questionary_select_mock.mock_calls}"
+        )

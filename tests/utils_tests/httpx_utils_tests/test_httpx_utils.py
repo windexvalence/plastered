@@ -6,15 +6,8 @@ import pytest
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import (
-    LFM_API_BASE_URL,
-    MUSICBRAINZ_API_BASE_URL,
-    RED_API_BASE_URL,
-)
-from plastered.utils.httpx_utils.base_client import (
-    ThrottledAPIBaseClient,
-    precise_delay,
-)
+from plastered.utils.constants import LFM_API_BASE_URL, MUSICBRAINZ_API_BASE_URL, RED_API_BASE_URL
+from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient, precise_delay
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
@@ -202,17 +195,17 @@ def test_init_throttled_api_client(
     test_instance = subclass(app_config=valid_app_config, run_cache=disabled_api_run_cache)
     assert issubclass(test_instance.__class__, ThrottledAPIBaseClient)
     actual_base_domain = test_instance._base_domain
-    assert (
-        actual_base_domain == expected_base_domain
-    ), f"Expected base domain to be '{expected_base_domain}', but got '{actual_base_domain}'"
+    assert actual_base_domain == expected_base_domain, (
+        f"Expected base domain to be '{expected_base_domain}', but got '{actual_base_domain}'"
+    )
     app_config_keys = _API_CLIENT_TO_APP_CONFIG_KEYS[test_instance.__class__.__name__]
     expected_max_retries = valid_app_config.get_cli_option(app_config_keys["retries"])
     expected_throttle_period = datetime.timedelta(seconds=valid_app_config.get_cli_option(app_config_keys["period"]))
     actual_max_retries = test_instance._max_api_call_retries
-    assert (
-        actual_max_retries == expected_max_retries
-    ), f"Expected max retries to be {expected_max_retries}, but got {actual_max_retries}"
+    assert actual_max_retries == expected_max_retries, (
+        f"Expected max retries to be {expected_max_retries}, but got {actual_max_retries}"
+    )
     actual_throttle_period = test_instance._throttle_period
-    assert (
-        actual_throttle_period == expected_throttle_period
-    ), f"Expected throttle period to be {expected_throttle_period}, but got {actual_throttle_period}"
+    assert actual_throttle_period == expected_throttle_period, (
+        f"Expected throttle period to be {expected_throttle_period}, but got {actual_throttle_period}"
+    )

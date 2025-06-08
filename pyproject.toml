@@ -3,8 +3,74 @@ name = "plastered"
 version = "0.2.0"
 requires-python = ">= 3.12"
 
-[tool.black]
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
 line-length = 120
+indent-width = 4
+
+
+# RUFF Linter
+[tool.ruff.lint]
+exclude = ["tests/**/*.py"]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+# This is to get the line length auto-formatting mostly handled https://stackoverflow.com/a/77796620
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.isort]
+# https://docs.astral.sh/ruff/settings/#lint_isort_split-on-trailing-comma
+split-on-trailing-comma = false
+
+[tool.ruff.lint.pycodestyle]
+# https://docs.astral.sh/ruff/rules/line-too-long/#why-is-this-bad
+ignore-overlong-task-comments = true
+
+# RUFF formatter
+[tool.ruff.format]
+# https://docs.astral.sh/ruff/settings/#format_skip-magic-trailing-comma
+skip-magic-trailing-comma = true
+# https://docs.astral.sh/ruff/settings/#format_docstring-code-format
+docstring-code-format = true
+
 
 # Pytest coverage configuration
 # https://coverage.readthedocs.io/en/latest/config.html
@@ -36,84 +102,6 @@ exclude_also = [
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
     ]
-
-[tool.isort]
-profile = "black"
-src_paths = ["plastered", "tests"]
-
-[tool.pylint.main]
-ignore-patterns = ["^\\.#"]
-py-version = "3.12"
-load-plugins = "pylint.extensions.typing"
-
-[tool.pylint.basic]
-no-docstring-rgx = "^_"
-
-# for a list the pylint messages and descriptions, see here since pylint docs are terrible: https://sprytnyk.github.io/pylint-errors/
-# TODO: enable protected-access
-[tool.pylint."MESSAGES CONTROL"]
-disable = ["all"]
-enable = """
-    abstract-class-instantiated,
-    abstract-method,
-    access-member-before-definition,
-    arguments-differ,
-    attribute-defined-outside-init,
-    bad-classmethod-argument,
-    bad-staticmethod-argument,
-    blacklisted-name,
-    comparison-with-callable,
-    comparison-with-itself,
-    cyclic-import,
-    deprecated-typing-alias,
-    duplicate-argument-name,
-    duplicate-bases,
-    duplicate-key,
-    eval-used,
-    exec-used,
-    expression-not-assigned,
-    function-redefined,
-    inherit-non-class,
-    init-is-generator,
-    invalid-name,
-    invalid-overridden-method,
-    literal-comparison,
-    method-hidden,
-    missing-class-docstring,
-    no-classmethod-decorator,
-    no-else-return,
-    no-method-argument,
-    no-self-argument,
-    no-staticmethod-decorator,
-    no-value-for-parameter,
-    nonexistent-operator,
-    non-parent-init-called,
-    not-in-loop,
-    not-async-context-manager,
-    pointless-statement,
-    property-with-parameters,
-    redeclared-assigned-name,
-    redefined-builtin,
-    redefined-outer-name,
-    return-in-init,
-    self-assigning-variable,
-    signature-differs,
-    super-init-not-called,
-    too-many-star-expressions,
-    unexpected-special-method-signature,
-    unidiomatic-typecheck,
-    unnecessary-lambda,
-    unnecessary-semicolon,
-    unreachable,
-    unused-argument,
-    unused-import,
-    unused-variable,
-    useless-object-inheritance,
-    yield-inside-async-function,
-"""
-
-[tool.pylint.variables]
-ignored-argument-names = "_.*|^ignored_|^unused_"
 
 [tool.pytest.ini_options]
 addopts = "--cov=plastered --no-cov-on-fail"

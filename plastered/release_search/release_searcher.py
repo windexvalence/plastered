@@ -14,12 +14,7 @@ from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
-from plastered.utils.log_utils import (
-    CONSOLE,
-    SPINNER,
-    NestedProgress,
-    red_browse_progress,
-)
+from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress, red_browse_progress
 from plastered.utils.musicbrainz_utils import MBRelease
 from plastered.utils.red_utils import RedUserDetails, ReleaseEntry
 
@@ -132,8 +127,7 @@ class ReleaseSearcher:
     def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo:
         return LFMAlbumInfo.construct_from_api_response(
             json_blob=self._lfm_client.request_api(
-                method="album.getinfo",
-                params=f"artist={si.lfm_rec.artist_str}&album={si.lfm_rec.entity_str}",
+                method="album.getinfo", params=f"artist={si.lfm_rec.artist_str}&album={si.lfm_rec.entity_str}"
             )
         )
 
@@ -147,8 +141,7 @@ class ReleaseSearcher:
         _LOGGER.debug(f"Resolving LFM track info for {str(si)} ({si.lfm_rec.lfm_entity_url}) ...")
         try:
             lfm_api_response = self._lfm_client.request_api(
-                method="track.getinfo",
-                params=f"artist={si.lfm_rec.artist_str}&track={si.lfm_rec.entity_str}",
+                method="track.getinfo", params=f"artist={si.lfm_rec.artist_str}&track={si.lfm_rec.entity_str}"
             )
             if lfm_api_response and "album" in lfm_api_response:
                 resolved_track_info = LFMTrackInfo.construct_from_api_response(json_blob=lfm_api_response)
@@ -211,7 +204,7 @@ class ReleaseSearcher:
         Updates the SearchState with the valid and/or skipped recs as it searches.
         """
         if not search_items:
-            _LOGGER.warning(f"Input search_items list is empty. Skipping search.")
+            _LOGGER.warning("Input search_items list is empty. Skipping search.")
             return
         rec_type = search_items[0].lfm_rec.rec_type
         if not all([si.lfm_rec.rec_type == rec_type for si in search_items]):
@@ -230,7 +223,7 @@ class ReleaseSearcher:
         the search criteria for the given SearchItem.
         """
         if not search_items:
-            _LOGGER.warning(f"Input search_items list is empty. Skipping search.")
+            _LOGGER.warning("Input search_items list is empty. Skipping search.")
             return
         resolved_track_search_items = []
         # with Progress(*prog_args(), **prog_kwargs()) as progress:
@@ -248,11 +241,11 @@ class ReleaseSearcher:
         self._gather_red_user_details()
         if RecommendationType.ALBUM in rec_type_to_recs_list:
             self._search(
-                search_items=[SearchItem(lfm_rec=rec) for rec in rec_type_to_recs_list[RecommendationType.ALBUM]],
+                search_items=[SearchItem(lfm_rec=rec) for rec in rec_type_to_recs_list[RecommendationType.ALBUM]]
             )
         if RecommendationType.TRACK in rec_type_to_recs_list:
             self._search_for_track_recs(
-                search_items=[SearchItem(lfm_rec=rec) for rec in rec_type_to_recs_list[RecommendationType.TRACK]],
+                search_items=[SearchItem(lfm_rec=rec) for rec in rec_type_to_recs_list[RecommendationType.TRACK]]
             )
         if self._run_cache.enabled:
             self._run_cache.close()
@@ -260,7 +253,7 @@ class ReleaseSearcher:
 
     def _snatch_matches(self) -> None:
         if not self._enable_snatches:
-            _LOGGER.warning(f"Not configured to snatch. Please update your config to enable.")
+            _LOGGER.warning("Not configured to snatch. Please update your config to enable.")
             return
         if search_items_to_snatch := self._search_state.get_search_items_to_snatch():
             _LOGGER.debug(f"Beginning to snatch matched torrents to download directory '{self._snatch_directory}' ...")
@@ -269,7 +262,7 @@ class ReleaseSearcher:
                 for si_to_snatch in progress.track(search_items_to_snatch, description="Snatching matched torrents"):
                     self._snatch_match(si_to_snatch=si_to_snatch)
         else:
-            _LOGGER.warning(f"No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
+            _LOGGER.warning("No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
             return
 
     def _snatch_match(self, si_to_snatch: SearchItem) -> None:

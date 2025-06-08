@@ -1,6 +1,6 @@
 import os
 from typing import Any
-from unittest.mock import call, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import pytest
 
@@ -11,25 +11,10 @@ from plastered.config.config_parser import (
     _load_red_formats_from_config,
     load_init_config_template,
 )
-from plastered.config.config_schema import (
-    CLI_SNATCH_DIRECTORY_KEY,
-    FORMAT_PREFERENCES_KEY,
-)
+from plastered.config.config_schema import CLI_SNATCH_DIRECTORY_KEY, FORMAT_PREFERENCES_KEY
 from plastered.utils.exceptions import AppConfigException
 from plastered.utils.red_utils import RedFormat
-from tests.conftest import (
-    INVALID_CONFIGS_DIR_PATH,
-    MOCK_RESOURCES_DIR_PATH,
-    ROOT_MODULE_ABS_PATH,
-    expected_red_format_list,
-    minimal_valid_app_config,
-    minimal_valid_config_filepath,
-    minimal_valid_config_raw_data,
-    mock_run_date_str,
-    valid_app_config,
-    valid_config_filepath,
-    valid_config_raw_data,
-)
+from tests.conftest import INVALID_CONFIGS_DIR_PATH, MOCK_RESOURCES_DIR_PATH, ROOT_MODULE_ABS_PATH
 
 _EXPECTED_FORMAT_PREFERENCE_LENGTH = 6
 
@@ -41,7 +26,7 @@ def test_load_init_config_template() -> None:
         "builtins.open", new_callable=mock_open, read_data="# top comment\nline1: # inline-comment\n\tline2\n"
     ) as mock_open_builtin:
         actual_result = load_init_config_template()
-        mock_open_builtin.assert_called_once_with(expected_filepath_arg, "r")
+        mock_open_builtin.assert_called_once_with(expected_filepath_arg)
         assert actual_result == expected_result, f"Expected result: '{expected_result}', but got '{actual_result}'"
 
 
@@ -80,15 +65,15 @@ def test_load_red_formats_from_config(
     print(f"type(result[0]): {type(result[0])}")
     print(f"result[0].__class__.__name__: {result[0].__class__.__name__}")
     assert isinstance(result, list), f"Expected result type to be list, but got '{type(result)}'"
-    assert (
-        len(result) == _EXPECTED_FORMAT_PREFERENCE_LENGTH
-    ), f"Expected RedFormat list to contain {_EXPECTED_FORMAT_PREFERENCE_LENGTH} elements, but found {len(result)}"
-    assert all([isinstance(elem, RedFormat) for elem in result]), f"Expected all elements to be of class 'RedFormat'"
+    assert len(result) == _EXPECTED_FORMAT_PREFERENCE_LENGTH, (
+        f"Expected RedFormat list to contain {_EXPECTED_FORMAT_PREFERENCE_LENGTH} elements, but found {len(result)}"
+    )
+    assert all([isinstance(elem, RedFormat) for elem in result]), "Expected all elements to be of class 'RedFormat'"
     for i, actual_format in enumerate(result):
         expected_format = expected_red_format_list[i]
-        assert (
-            actual_format == expected_format
-        ), f"Unexpected RedFormat mismatch on {i}'th element of RedFormats list: expected: {expected_format}, actual: {actual_format}"
+        assert actual_format == expected_format, (
+            f"Unexpected RedFormat mismatch on {i}'th element of RedFormats list: expected: {expected_format}, actual: {actual_format}"
+        )
 
 
 @pytest.mark.parametrize(
@@ -128,9 +113,7 @@ def test_load_red_formats_from_config(
     ],
 )
 def test_invalid_dupe_load_red_formats_from_config(
-    mock_format_prefs_config_data: list[dict[str, Any]],
-    exception: Exception,
-    exception_msg: str,
+    mock_format_prefs_config_data: list[dict[str, Any]], exception: Exception, exception_msg: str
 ) -> None:
     with pytest.raises(exception, match=exception_msg):
         _load_red_formats_from_config(format_prefs_config_data=mock_format_prefs_config_data)
@@ -196,16 +179,16 @@ def test_app_config_constructor(
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=cli_params)
     for opt_key, expected_value in expected_opts_vals.items():
         actual_value = app_config.get_cli_option(opt_key)
-        assert (
-            actual_value == expected_value
-        ), f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+        assert actual_value == expected_value, (
+            f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+        )
     # test the construction from the minimal valid config file
     app_config = AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=cli_params)
     for opt_key, expected_value in expected_opts_vals.items():
         actual_value = app_config.get_cli_option(opt_key)
-        assert (
-            actual_value == expected_value
-        ), f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+        assert actual_value == expected_value, (
+            f"Unexpected '{opt_key}' value: '{actual_value}'. Expected '{expected_value}'"
+        )
 
 
 @pytest.mark.parametrize(
@@ -269,26 +252,15 @@ def test_get_root_summary_directory_path(valid_config_filepath: str, valid_app_c
 
 @pytest.mark.parametrize("date_str_provided", [False, True])
 def test_get_output_summary_dir_path(
-    valid_config_filepath: str,
-    valid_app_config: AppConfig,
-    mock_run_date_str: str,
-    date_str_provided: bool,
+    valid_config_filepath: str, valid_app_config: AppConfig, mock_run_date_str: str, date_str_provided: bool
 ) -> None:
     valid_app_config._run_datestr = mock_run_date_str
     if not date_str_provided:
-        expected = os.path.join(
-            os.path.dirname(valid_config_filepath),
-            _SUMMARIES_DIRNAME,
-            mock_run_date_str,
-        )
+        expected = os.path.join(os.path.dirname(valid_config_filepath), _SUMMARIES_DIRNAME, mock_run_date_str)
         actual = valid_app_config.get_output_summary_dir_path()
     else:
         date_str_arg = "2024-01-01__00-10-45"
-        expected = os.path.join(
-            os.path.dirname(valid_config_filepath),
-            _SUMMARIES_DIRNAME,
-            date_str_arg,
-        )
+        expected = os.path.join(os.path.dirname(valid_config_filepath), _SUMMARIES_DIRNAME, date_str_arg)
         actual = valid_app_config.get_output_summary_dir_path(date_str=date_str_arg)
     assert actual == expected
 

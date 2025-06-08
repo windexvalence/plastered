@@ -41,13 +41,13 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
     def set_initial_available_fl_tokens(self, initial_available_fl_tokens: int) -> None:
         self._available_fl_tokens = initial_available_fl_tokens
         if self._use_fl_tokens and self._available_fl_tokens == 0:
-            LOGGER.warning(f"Currently have zero RED FL tokens available. Ignoring 'use_fl_tokens' config setting.")
+            LOGGER.warning("Currently have zero RED FL tokens available. Ignoring 'use_fl_tokens' config setting.")
             self._use_fl_tokens = False
         elif self._use_fl_tokens and self._available_fl_tokens > 0:
             LOGGER.info(f"Configured to use FL tokens. Detected {self._available_fl_tokens} FL tokens available.")
         else:
             LOGGER.warning(
-                f"Will not use FL tokens. To enable FL token usage, set 'search.use_fl_tokens: true' in your config.yaml file."
+                "Will not use FL tokens. To enable FL token usage, set 'search.use_fl_tokens: true' in your config.yaml file."
             )
 
     def snatch(self, tid: str, can_use_token: bool) -> bytes:

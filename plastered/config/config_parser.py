@@ -39,7 +39,7 @@ def load_init_config_template() -> str:
     Utility function to aid new users in initializing a minimal config.yaml skeleton via the CLI's init_config command.
     """
     init_conf_filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_conf.yaml")
-    with open(init_conf_filepath, "r") as f:
+    with open(init_conf_filepath) as f:
         raw_init_conf_lines = f.readlines()
     return "".join(raw_init_conf_lines)
 
@@ -95,14 +95,16 @@ class AppConfig:
         if not os.path.isdir(self._root_summary_directory_path):
             _LOGGER.info(f"{self._root_summary_directory_path} directory not found. Attempting to create ...")
             os.makedirs(self._root_summary_directory_path, 0o755)
-        self._cli_options = dict()
-        with open(self._config_filepath, "r") as f:
+        self._cli_options: dict[str, Any] = dict()
+        with open(self._config_filepath) as f:
             raw_config_data = yaml.safe_load(f.read())
         # run basic schema validation on data loaded from config file
         try:
             jsonschema.validate(instance=raw_config_data, schema=required_schema)
-        except jsonschema.exceptions.ValidationError:
-            raise AppConfigException(f"Provided yaml configuration's schema is invalid: {traceback.format_exc()}")
+        except jsonschema.exceptions.ValidationError as ex:
+            raise AppConfigException(
+                f"Provided yaml configuration's schema is invalid: {traceback.format_exc()}"
+            ) from ex
         for top_key in EXPECTED_TOP_LEVEL_CLI_KEYS:
             for option_key, option_value in raw_config_data[top_key].items():
                 self._cli_options[option_key] = option_value
@@ -112,11 +114,11 @@ class AppConfig:
                     self._cli_options[option_key] = option_value
         # Set defaults for any fields which allow defaults and are not present in the config file
         for field_name, default_val in DEFAULTS_DICT.items():
-            if field_name not in self._cli_options.keys():
+            if field_name not in self._cli_options:
                 self._cli_options[field_name] = default_val
         # Any CLI options provided explicitly take precedence over the values in the config or the default values.
         for cli_key, cli_val in cli_params.items():
-            if cli_val is not None and cli_key in self._cli_options.keys():
+            if cli_val is not None and cli_key in self._cli_options:
                 _LOGGER.warning(
                     f"CLI/Env '{cli_key}' option provided will override the value found in the provided config file ({config_filepath})."
                 )
@@ -132,7 +134,7 @@ class AppConfig:
         Various per-option validations which don't fall under the jsonschema validations or required fields validations go here.
         Raises an AppConfigException if any validation condition is not met.
         """
-        if CLI_SNATCH_DIRECTORY_KEY in self._cli_options.keys():
+        if CLI_SNATCH_DIRECTORY_KEY in self._cli_options:
             output_dir = self._cli_options[CLI_SNATCH_DIRECTORY_KEY]
             if not os.path.exists(output_dir) or not os.path.isdir(output_dir):
                 raise AppConfigException(

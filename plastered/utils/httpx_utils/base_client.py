@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from time import perf_counter_ns
-from typing import Any
+from typing import Any, Final
 
 import httpx
 from tenacity import Retrying, wait_exponential
@@ -9,7 +9,7 @@ from tenacity import Retrying, wait_exponential
 from plastered.run_cache.run_cache import RunCache
 
 LOGGER = logging.getLogger(__name__)
-_NANOSEC_TO_SEC = 1e9
+_NANOSEC_TO_SEC: Final[float] = 1e9
 
 
 # https://stackoverflow.com/a/74247651
@@ -62,15 +62,15 @@ class ThrottledAPIBaseClient:
         seconds_between_api_calls: int,
         valid_endpoints: set[str],
         run_cache: RunCache,
-        non_cached_endpoints: set[str] | None = {},
-        extra_client_transport_mount_entries: dict[str, httpx.BaseTransport] | None = {},
+        non_cached_endpoints: set[str] | None = None,
+        extra_client_transport_mount_entries: dict[str, httpx.BaseTransport] | None = None,
     ):
         self._max_api_call_retries = max_api_call_retries
         self._throttle_period = timedelta(seconds=seconds_between_api_calls)
         self._valid_endpoints = valid_endpoints
         self._run_cache = run_cache
-        self._non_cached_endpoints = non_cached_endpoints
-        self._extra_client_transport_mount_entries = extra_client_transport_mount_entries
+        self._non_cached_endpoints = non_cached_endpoints or {}
+        self._extra_client_transport_mount_entries = extra_client_transport_mount_entries or {}
 
         # initialize _time_of_last_call to midnight of the current day
         init_time = datetime.now()
@@ -136,6 +136,5 @@ class ThrottledAPIBaseClient:
             )
             return False
         return self._run_cache.write_data(
-            cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
-            data=result_json,
+            cache_key=self._construct_cache_key(endpoint=endpoint, params=params), data=result_json
         )

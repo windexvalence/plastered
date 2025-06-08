@@ -145,13 +145,7 @@ class RedFormat:
     """
 
     # pylint: disable=redefined-builtin
-    def __init__(
-        self,
-        format: FormatEnum,
-        encoding: EncodingEnum,
-        media: MediaEnum,
-        cd_only_extras: str | None = "",
-    ):
+    def __init__(self, format: FormatEnum, encoding: EncodingEnum, media: MediaEnum, cd_only_extras: str | None = ""):
         self._format = format
         self._encoding = encoding
         self._media = media
@@ -164,7 +158,7 @@ class RedFormat:
         entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
         if self._cd_only_extras:
             log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self._cd_only_extras)[0]
-            entries["cd_only_extras"] = {"log": int(log_str), "has_cue": True if int(cue_str) else False}
+            entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
         return {"preference": entries}
 
     def __hash__(self) -> int:
@@ -269,10 +263,7 @@ class TorrentEntry:
             return False
         self_attrs = vars(self)
         other_attrs = vars(other)
-        for attr_name, attr_val in self_attrs.items():
-            if other_attrs[attr_name] != attr_val:
-                return False
-        return True
+        return all([other_attrs[attr_name] == attr_val for attr_name, attr_val in self_attrs.items()])
 
     @classmethod
     def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):

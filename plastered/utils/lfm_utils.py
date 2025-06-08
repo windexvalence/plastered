@@ -51,7 +51,7 @@ class LFMTrackInfo:
     def construct_from_api_response(cls, json_blob: dict[str, Any]):
         """Constructs an LFMTrackInfo instance from the LFM API's track.getinfo endpoint JSON response."""
         release_json = json_blob["album"]
-        release_mbid = None if "mbid" not in release_json else release_json["mbid"]
+        release_mbid = release_json.get("mbid", None)
         return cls(
             artist=json_blob["artist"]["name"],
             track_name=json_blob["name"],
