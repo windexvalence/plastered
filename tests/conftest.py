@@ -104,6 +104,11 @@ def valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "config.yaml")
 
 
+@pytest.fixture(scope="function")
+def valid_config_filepath_function_scoped(valid_config_filepath: str) -> str:
+    return str(valid_config_filepath)
+
+
 @pytest.fixture(scope="session")
 def minimal_valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "minimal_config.yaml")

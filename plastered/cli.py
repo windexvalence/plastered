@@ -15,7 +15,7 @@ from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
 from plastered.stats.stats import PriorRunStats
-from plastered.utils.cli_utils import DEFAULT_VERBOSITY, StatsRunPicker, config_path_option, subcommand_flag
+from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, prompt_user_for_run_date, subcommand_flag
 from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
@@ -117,10 +117,10 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
     if not run_date:
         _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
         try:
-            run_date = StatsRunPicker(
+            run_date = prompt_user_for_run_date(
                 summaries_directory_path=app_config.get_root_summary_directory_path(),
                 date_str_format=RUN_DATE_STR_FORMAT,
-            ).get_run_date_from_user_prompts()
+            )
         except StatsRunPickerException:
             _LOGGER.error("No run prior run summaries available for inspection.")
             ctx.exit(2)

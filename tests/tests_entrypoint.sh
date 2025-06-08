@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+# TODO: if using pytest-xdist, figure out configuring command on optional pdb flag: https://pytest-xdist.readthedocs.io/en/stable/known-limitations.html#debugging
 if [ $# -eq 1 ]; then
     if [[ "$1" == "tests" ]]; then
         echo "No test target specified. Running all tests ..."
@@ -24,7 +25,7 @@ if [[ "${SLOW_TESTS}" == "1" ]] || [[ -n "${GITHUB_ACTIONS}" ]]; then
 fi
 
 export PYTHONPATH="${APP_DIR}/"
-pytest -s -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+pytest -n auto -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
 
 if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     echo "Not running in a github actions environment. Updating pytest-coverage markdown badge ..."
