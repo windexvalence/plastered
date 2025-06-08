@@ -7,4 +7,4 @@ ruff==0.11.13
 coverage-badge==1.1.2
 # NOTE: changing the version of mkdocs-click will require a validation that it
 # doesn't break the CLI_reference.md doc auto-generation, since that uses the library's internal API.
-mkdocs-click==0.8.1
+mkdocs-click==0.9.0
