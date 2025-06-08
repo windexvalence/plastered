@@ -15,7 +15,7 @@ Make sure you have completed the following before installing or using `plastered
     mkdir -p /your/host/path/to/plastered_dir
     ```
 
-2. Pull the latest official release of the plastered Docker image:
+2. Pull the [latest plastered Docker image release](https://github.com/windexvalence/plastered/pkgs/container/plastered?tag=latest):
   ```shell
   docker pull ghcr.io/windexvalence/plastered:latest
   ```
@@ -28,13 +28,13 @@ Make sure you have completed the following before installing or using `plastered
 
 4. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./configuration_reference.md) for additional details and information on non-required config settings.
 
-5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows:
+5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows. Make sure to replace the paths on the left for both `-v` flags with your host paths:
   ```shell
   alias plastered='docker run -it --rm --name=plastered \
     -e PLASTERED_CONFIG=/config/config.yaml \
     -e COLUMNS="$(tput cols)" \
     -e LINES="$(tput lines)" \
-    -v /host/path/to/plastered_dir/:/config \
+    -v /your/host/path/to/plastered_dir/:/config \
     -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
   ```
 

@@ -13,11 +13,11 @@ if [[ -z "${GITHUB_ACTIONS}" ]]; then
     cd /project_src_mnt
 fi
 if [[ "$CHECK" == "1" ]]; then
-    ruff check
-    ruff format --check
-    bandit -c ./pyproject.toml -r . --severity-level all -n 1
+    uv run ruff check
+    uv run ruff format --check
+    uv run bandit -c ./pyproject.toml -r . --severity-level all -n 1
 else
-    ruff check --fix
-    ruff format
-    bandit -c ./pyproject.toml -r . --severity-level all -n 1
+    uv run ruff check --fix
+    uv run ruff format
+    uv run bandit -c ./pyproject.toml -r . --severity-level all -n 1
 fi
