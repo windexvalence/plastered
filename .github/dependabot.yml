@@ -5,7 +5,28 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "pip"
+    directory: "/"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 2
+    groups:  # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/optimizing-pr-creation-version-updates
+      app-dependencies:
+        depedency-type: "app"
+        applies-to: version-updates
+        exclude-patterns:
+          - "bandit"
+          - "pytest*"
+          - "ruff"
+          - "coverage-badge"
+          - "mkdocs-click"
+      test-dependencies:
+        dependency-type: "test"
+        applies-to: version-updates
+        pattern:
+          - "bandit"
+          - "pytest*"
+          - "ruff"
+          - "coverage-badge"
+        exclude-patterns:
+          - "mkdocs-click"

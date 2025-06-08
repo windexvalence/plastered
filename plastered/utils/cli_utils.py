@@ -119,17 +119,12 @@ class StatsRunPicker:
         ]
         if len(candidate_run_dts) <= 10:
             final_date_str = questionary.select(
-                f"Choose the run date:",
+                "Choose the run date:",
                 choices=sorted([dt.strftime(format=self._date_str_format) for dt in candidate_run_dts]),
             ).ask()
             return datetime.strptime(final_date_str, self._date_str_format)
         input_minute = self._prompt_date_component(dt_attr_name="minute")
         input_second = self._prompt_date_component(dt_attr_name="second")
         return datetime(
-            year=input_year,
-            month=input_month,
-            day=input_day,
-            hour=input_hour,
-            minute=input_minute,
-            second=input_second,
+            year=input_year, month=input_month, day=input_day, hour=input_hour, minute=input_minute, second=input_second
         )

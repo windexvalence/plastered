@@ -71,7 +71,7 @@ def test_request_red_api(
         assert actual_throttle_call_cnt == expected_throttle_call_cnt
     if not should_fail:
         assert isinstance(result, dict), f"Expected result type to be a dict, but got: {type(result)}"
-        assert set(result.keys()) == expected_top_keys, f"Unexpected top-level JSON keys in response."
+        assert set(result.keys()) == expected_top_keys, "Unexpected top-level JSON keys in response."
 
 
 @pytest.mark.override_global_httpx_mock

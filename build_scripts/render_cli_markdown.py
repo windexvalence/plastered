@@ -24,10 +24,7 @@ def get_markdown_lines() -> list[str]:
         :command: cli
     """
     ).rstrip()
-    mkdocs_options = {
-        "module": "plastered.cli",
-        "command": "cli",
-    }
+    mkdocs_options = {"module": "plastered.cli", "command": "cli"}
     # adopted from mkdocs_click internals here:
     # https://github.com/mkdocs/mkdocs-click/blob/master/mkdocs_click/_extension.py#L55
     raw_markdown_lines = list(

@@ -6,7 +6,7 @@ import pytest
 from rebrowser_playwright.sync_api import PlaywrightContextManager
 
 from plastered.config.config_parser import AppConfig
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import (
     LFMRec,
     LFMRecsScraper,
@@ -26,12 +26,6 @@ from plastered.utils.constants import (
     RENDER_WAIT_SEC_MAX,
     RENDER_WAIT_SEC_MIN,
     TRACK_RECS_BASE_URL,
-)
-from tests.conftest import valid_app_config
-from tests.scraper_tests.conftest import (
-    album_recs_page_one_html,
-    login_page_html,
-    track_recs_page_one_html,
 )
 
 
@@ -294,15 +288,15 @@ def expected_track_recs(expected_album_recs: list[LFMRec]) -> list[LFMRec]:
 
 
 def test_sleep_random() -> None:
-    assert (
-        RENDER_WAIT_SEC_MIN > 0
-    ), f"Expected constant 'RENDER_WAIT_SEC_MIN' to be greater than 0, but found it set to {RENDER_WAIT_SEC_MIN}"
-    assert (
-        RENDER_WAIT_SEC_MIN < RENDER_WAIT_SEC_MAX
-    ), f"Expected constant 'RENDER_WAIT_SEC_MIN' to be less than constant 'RENDER_WAIT_SEC_MAX', but found {RENDER_WAIT_SEC_MIN} vs. {RENDER_WAIT_SEC_MAX}"
-    assert (
-        RENDER_WAIT_SEC_MAX < 10
-    ), f"Expected constant 'RENDER_WAIT_SEC_MAX' to be less than 10, but found it set to {RENDER_WAIT_SEC_MAX}"
+    assert RENDER_WAIT_SEC_MIN > 0, (
+        f"Expected constant 'RENDER_WAIT_SEC_MIN' to be greater than 0, but found it set to {RENDER_WAIT_SEC_MIN}"
+    )
+    assert RENDER_WAIT_SEC_MIN < RENDER_WAIT_SEC_MAX, (
+        f"Expected constant 'RENDER_WAIT_SEC_MIN' to be less than constant 'RENDER_WAIT_SEC_MAX', but found {RENDER_WAIT_SEC_MIN} vs. {RENDER_WAIT_SEC_MAX}"
+    )
+    assert RENDER_WAIT_SEC_MAX < 10, (
+        f"Expected constant 'RENDER_WAIT_SEC_MAX' to be less than 10, but found it set to {RENDER_WAIT_SEC_MAX}"
+    )
     with patch("plastered.scraper.lfm_scraper.randint") as mock_randint:
         mock_randint.return_value = 5
         with patch("plastered.scraper.lfm_scraper.sleep") as mock_sleep:
@@ -339,7 +333,7 @@ def test_sleep_random() -> None:
                     lfm_entity_str="Lying+%2F+A+Wooden+Box",
                     recommendation_type=RecommendationType.ALBUM,
                     rec_context=RecContext.IN_LIBRARY,
-                ),
+                )
             ],
             True,
         ),
@@ -362,10 +356,7 @@ def test_sleep_random() -> None:
         ),
     ],
 )
-def test_cached_album_recs_validator(
-    cached_data: Any,
-    expected: bool,
-) -> None:
+def test_cached_album_recs_validator(cached_data: Any, expected: bool) -> None:
     actual = cached_lfm_recs_validator(cached_data=cached_data)
     assert actual == expected, f"Expected {expected}, but got {actual}"
 
@@ -377,19 +368,19 @@ def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_config: AppConf
         exit_method_mock.assert_not_called()
     expected_username = valid_app_config.get_cli_option("lfm_username")
     actual_username = lfm_rec_scraper._lfm_username
-    assert (
-        actual_username == expected_username
-    ), f"Unexpected username in LFMRecsScraper instance: '{actual_username}'. Expected: '{expected_username}'"
+    assert actual_username == expected_username, (
+        f"Unexpected username in LFMRecsScraper instance: '{actual_username}'. Expected: '{expected_username}'"
+    )
     expected_password = valid_app_config.get_cli_option("lfm_password")
     actual_password = lfm_rec_scraper._lfm_password
-    assert (
-        actual_password == expected_password
-    ), f"Unexpected password in LFMRecsScraper instance: '{actual_password}'. Expected: '{expected_password}'"
+    assert actual_password == expected_password, (
+        f"Unexpected password in LFMRecsScraper instance: '{actual_password}'. Expected: '{expected_password}'"
+    )
     expected_is_logged_in = False
     actual_is_logged_in = lfm_rec_scraper._is_logged_in
-    assert (
-        actual_is_logged_in == expected_is_logged_in
-    ), f"Expected LFMRecsScraper instance's _is_logged_in field to be False up __init__ call, but was {actual_is_logged_in}"
+    assert actual_is_logged_in == expected_is_logged_in, (
+        f"Expected LFMRecsScraper instance's _is_logged_in field to be False up __init__ call, but was {actual_is_logged_in}"
+    )
 
 
 def test_scraper_enter_no_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
@@ -499,9 +490,9 @@ def test_user_login(lfm_rec_scraper: LFMRecsScraper) -> None:
                 call.locator().click(),
             ]
         )
-        assert (
-            lfm_rec_scraper._is_logged_in
-        ), f"Expected lfm_rec_scraper._is_logged_in to be True after calling _user_login()."
+        assert lfm_rec_scraper._is_logged_in, (
+            "Expected lfm_rec_scraper._is_logged_in to be True after calling _user_login()."
+        )
         mock_sleep_random.assert_called_once()
 
 
@@ -516,9 +507,9 @@ def test_user_logout(lfm_rec_scraper: LFMRecsScraper) -> None:
             call.get_by_role().locator().first.click(),
         ]
     )
-    assert (
-        not lfm_rec_scraper._is_logged_in
-    ), f"Expected lfm_rec_scraper._is_logged_in to be False after calling _user_logout()."
+    assert not lfm_rec_scraper._is_logged_in, (
+        "Expected lfm_rec_scraper._is_logged_in to be False after calling _user_logout()."
+    )
 
 
 @pytest.mark.parametrize("rec_type", [(RecommendationType.ALBUM), (RecommendationType.TRACK)])
@@ -536,20 +527,17 @@ def test_extract_recs_from_page_source(
     else:
         mock_page_source = track_recs_page_one_html
         expected_recs = expected_track_recs
-    actual_recs_list = lfm_rec_scraper._extract_recs_from_page_source(
-        page_source=mock_page_source,
-        rec_type=rec_type,
-    )
+    actual_recs_list = lfm_rec_scraper._extract_recs_from_page_source(page_source=mock_page_source, rec_type=rec_type)
     expected_length = len(expected_recs)
     actual_length = len(actual_recs_list)
-    assert (
-        actual_length == expected_length
-    ), f"Expected {expected_length} {rec_type.value} recs, but got {actual_length}."
+    assert actual_length == expected_length, (
+        f"Expected {expected_length} {rec_type.value} recs, but got {actual_length}."
+    )
     for i, actual_rec in enumerate(actual_recs_list):
         expected_rec = expected_recs[i]
-        assert (
-            actual_rec == expected_rec
-        ), f"Expected {i}'th {rec_type.value} rec to be '{str(expected_rec)}' but got '{str(actual_rec)}'"
+        assert actual_rec == expected_rec, (
+            f"Expected {i}'th {rec_type.value} rec to be '{str(expected_rec)}' but got '{str(actual_rec)}'"
+        )
 
 
 @pytest.mark.parametrize(
@@ -579,10 +567,7 @@ def test_navigate_to_page_and_get_page_source(
 
 @pytest.mark.parametrize(
     "rec_type, expected_rec_base_url",
-    [
-        (RecommendationType.ALBUM, ALBUM_RECS_BASE_URL),
-        (RecommendationType.TRACK, TRACK_RECS_BASE_URL),
-    ],
+    [(RecommendationType.ALBUM, ALBUM_RECS_BASE_URL), (RecommendationType.TRACK, TRACK_RECS_BASE_URL)],
 )
 def test_scrape_recs_list(
     lfm_rec_scraper: LFMRecsScraper, rec_type: RecommendationType, expected_rec_base_url: str

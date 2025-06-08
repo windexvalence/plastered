@@ -3,8 +3,9 @@ import csv
 import json
 import os
 import re
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import MagicMock
 
 import httpx
@@ -15,13 +16,7 @@ from pytest_httpx import HTTPXMock
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import (
-    EncodingEnum,
-    FormatEnum,
-    MediaEnum,
-    RedFormat,
-    RedUserDetails,
-)
+from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat, RedUserDetails
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
@@ -94,7 +89,7 @@ def pytest_collection_modifyitems(config, items):
 
 def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
     """Utility function to load and return the mock API json blob located at the specified json_filepath."""
-    with open(json_filepath, "r") as f:
+    with open(json_filepath) as f:
         json_data = json.load(f)
     return json_data
 
@@ -116,14 +111,14 @@ def minimal_valid_config_filepath() -> str:
 
 @pytest.fixture(scope="session")
 def valid_config_raw_data(valid_config_filepath: str) -> dict[str, Any]:
-    with open(valid_config_filepath, "r") as f:
+    with open(valid_config_filepath) as f:
         raw_config_data = yaml.safe_load(f.read())
     return raw_config_data
 
 
 @pytest.fixture(scope="session")
 def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> dict[str, Any]:
-    with open(minimal_valid_config_filepath, "r") as f:
+    with open(minimal_valid_config_filepath) as f:
         raw_config_data = yaml.safe_load(f.read())
     return raw_config_data
 
@@ -238,15 +233,7 @@ def mock_summary_tsvs(
             "FL_token_used",
             "Snatch_path",
         ],
-        "skipped": [
-            "Type",
-            "LFM_Rec_context",
-            "Artist",
-            "Release",
-            "Track_Rec",
-            "Matched_RED_TID",
-            "Skip_reason",
-        ],
+        "skipped": ["Type", "LFM_Rec_context", "Artist", "Release", "Track_Rec", "Matched_RED_TID", "Skip_reason"],
     }
 
     def _write_dummy_tsv(dummy_path: str, header: list[str], dummy_rows: list[list[str]]) -> None:
@@ -261,18 +248,12 @@ def mock_summary_tsvs(
     _write_dummy_tsv(failed_tsv_path, type_to_headers["failed"], failed_snatch_rows)
     _write_dummy_tsv(snatched_tsv_path, type_to_headers["snatched"], snatch_summary_rows)
     _write_dummy_tsv(skipped_tsv_path, type_to_headers["skipped"], skipped_rows)
-    return {
-        "failed": failed_tsv_path,
-        "snatched": snatched_tsv_path,
-        "skipped": skipped_tsv_path,
-    }
+    return {"failed": failed_tsv_path, "snatched": snatched_tsv_path, "skipped": skipped_tsv_path}
 
 
 @pytest.fixture(scope="session")
 def mock_action_to_red_json_responses() -> dict[str, dict[str, Any]]:
-    return {
-        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
-    }
+    return {"browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH)}
 
 
 @pytest.fixture(scope="session")
@@ -668,25 +649,16 @@ def global_httpx_mock(
         for red_regex_and_json in red_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = red_regex_and_json
             httpx_mock.add_response(
-                url=re.compile(request_url_pattern),
-                json=resp_mock_json,
-                is_optional=True,
-                is_reusable=True,
+                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
             )
         for lfm_regex_and_json in lfm_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = lfm_regex_and_json
             httpx_mock.add_response(
-                url=re.compile(request_url_pattern),
-                json=resp_mock_json,
-                is_optional=True,
-                is_reusable=True,
+                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
             )
         for mb_regex_and_json in mb_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = mb_regex_and_json
             httpx_mock.add_response(
-                url=re.compile(request_url_pattern),
-                json=resp_mock_json,
-                is_optional=True,
-                is_reusable=True,
+                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
             )
         yield httpx_mock

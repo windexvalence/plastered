@@ -221,21 +221,20 @@ class LFMRecsScraper:
     def __enter__(self):
         for rec_type in self._rec_types_to_scrape:
             self._loaded_from_run_cache[rec_type] = self._run_cache.load_data_if_valid(
-                cache_key=rec_type.value,
-                data_validator_fn=cached_lfm_recs_validator,
+                cache_key=rec_type.value, data_validator_fn=cached_lfm_recs_validator
             )
         if all([cached_recs is not None for _, cached_recs in self._loaded_from_run_cache.items()]):
-            _LOGGER.info(f"Scraper cache enabled and cache hit successful for all enabled rec types.")
-            _LOGGER.info(f"Skipping scraper browser initialization.")
+            _LOGGER.info("Scraper cache enabled and cache hit successful for all enabled rec types.")
+            _LOGGER.info("Skipping scraper browser initialization.")
             return self
         with CONSOLE.status("Initializing LFM scraper ...", spinner=SPINNER):
-            _LOGGER.info(f"Initializing LFM scraper ...")
+            _LOGGER.info("Initializing LFM scraper ...")
             self._playwright = sync_playwright().start()
-            _LOGGER.info(f"Initializing headless chromium browser ...")
+            _LOGGER.info("Initializing headless chromium browser ...")
             self._browser = self._playwright.chromium.launch(headless=True)
-            _LOGGER.info(f"Opening new page in headless chromium browser ...")
+            _LOGGER.info("Opening new page in headless chromium browser ...")
             self._page = self._browser.new_page(user_agent=PW_USER_AGENT)
-            _LOGGER.info(f"Attempting Last.fm user login ...")
+            _LOGGER.info("Attempting Last.fm user login ...")
             self._user_login()
         return self
 
@@ -253,23 +252,23 @@ class LFMRecsScraper:
             self._playwright.stop()
 
     def _user_login(self) -> None:
-        _LOGGER.debug(f"Attempting login ...")
-        _LOGGER.info(f"Accessing login url ...")
+        _LOGGER.debug("Attempting login ...")
+        _LOGGER.info("Accessing login url ...")
         self._page.goto(LOGIN_URL, wait_until="domcontentloaded")
-        _LOGGER.debug(f"Locating username form ...")
+        _LOGGER.debug("Locating username form ...")
         self._page.locator(LOGIN_USERNAME_FORM_LOCATOR).fill(self._lfm_username)
-        _LOGGER.debug(f"Locating password form ...")
+        _LOGGER.debug("Locating password form ...")
         self._page.locator(LOGIN_PASSWORD_FORM_LOCATOR).fill(self._lfm_password)
-        _LOGGER.debug(f"Locating login button ...")
+        _LOGGER.debug("Locating login button ...")
         self._page.locator(LOGIN_BUTTON_LOCATOR).click()
-        _LOGGER.info(f"Waiting for successful login ...")
-        _LOGGER.debug(f"Calling sleep_random ...")
+        _LOGGER.info("Waiting for successful login ...")
+        _LOGGER.debug("Calling sleep_random ...")
         _sleep_random()
         self._is_logged_in = True
         _LOGGER.debug(f"Current driver page URL: {self._page.url}")
 
     def _user_logout(self) -> None:
-        _LOGGER.debug(f"Logging out from last.fm account ...")
+        _LOGGER.debug("Logging out from last.fm account ...")
         self._page.goto(LOGOUT_URL, wait_until="domcontentloaded")
         self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).locator("visible=true").first.click()
         self._is_logged_in = False
@@ -335,7 +334,7 @@ class LFMRecsScraper:
                 recs_page_source = self._navigate_to_page_and_get_page_source(url=recs_page_url, rec_type=rec_type)
                 recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=rec_type))
         if self._run_cache.enabled:
-            _LOGGER.debug(f"Attempting cache write for scraper ...")
+            _LOGGER.debug("Attempting cache write for scraper ...")
             cache_write_success = self._run_cache.write_data(cache_key=rec_type.value, data=recs)
             _LOGGER.debug(f"Scraper cache write: {cache_write_success}")
         return recs

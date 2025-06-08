@@ -6,11 +6,7 @@ from urllib.parse import quote_plus
 
 from plastered.config.config_parser import AppConfig
 from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
-from plastered.stats.stats import (
-    SkippedReason,
-    SnatchFailureReason,
-    print_and_save_all_searcher_stats,
-)
+from plastered.stats.stats import SkippedReason, SnatchFailureReason, print_and_save_all_searcher_stats
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
@@ -180,7 +176,7 @@ class SearchState:
         Updates the relevant information related to the RedUserDetails instance provided.
         """
         self._max_download_allowed_gb = red_user_details.calculate_max_download_allowed_gb(
-            min_allowed_ratio=self._min_allowed_ratio,
+            min_allowed_ratio=self._min_allowed_ratio
         )
         self._red_user_details = red_user_details
 
@@ -195,7 +191,7 @@ class SearchState:
         # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
         browse_request_params = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
         for red_param in OPTIONAL_RED_PARAMS:
-            if red_param in self._required_red_search_kwargs:
+            if red_param in self._required_red_search_kwargs:  # noqa: SIM102
                 if red_param_val := si.get_search_kwargs().get(red_param):
                     browse_request_params += f"&{red_param}={red_param_val}"
         return browse_request_params
@@ -289,7 +285,7 @@ class SearchState:
             self._add_skipped_snatch_row(si=si, reason=skip_reason)
             return False
         # Check whether the match is tied to a release which is already pending snatching during this run
-        if self._post_search_rule_dupe_snatch(si=si):
+        if self._post_search_rule_dupe_snatch(si=si):  # noqa: SIM103
             return False
         return True
 

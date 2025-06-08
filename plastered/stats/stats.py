@@ -12,11 +12,7 @@ from rich.text import Text
 
 from plastered.config.config_parser import AppConfig
 from plastered.utils.constants import RUN_DATE_STR_FORMAT, STATS_TRACK_REC_NONE
-from plastered.utils.exceptions import (
-    PriorRunStatsException,
-    RedClientSnatchException,
-    StatsTableException,
-)
+from plastered.utils.exceptions import PriorRunStatsException, RedClientSnatchException, StatsTableException
 
 _LOGGER = logging.getLogger(__name__)
 _FAILED = "failed"
@@ -60,7 +56,7 @@ class SnatchFailureReason(StrEnum):
 
 
 def _get_rows_from_tsv(tsv_path: str) -> list[list[str]]:
-    with open(tsv_path, "r") as f:
+    with open(tsv_path) as f:
         tsv_reader = csv.DictReader(f, delimiter="\t", lineterminator="\n")
         tsv_rows = [list(row.values()) for row in tsv_reader]
     return tsv_rows
@@ -79,32 +75,22 @@ class StatsTable:
         columns: list[Column],
         tsv_path: str | None = None,
         read_only: bool | None = False,
-        cell_idxs_to_style_fns: dict[int, Callable] | None = {},
+        cell_idxs_to_style_fns: dict[int, Callable] | None = None,
         caption: str | None = None,
     ):
+        style_fns_map = cell_idxs_to_style_fns or {}
         self._title = title
         self._columns = columns
         self._tsv_path = tsv_path
         self._read_only = read_only
         self._num_cols = len(self._columns)
         self._per_row_cell_style_fns = {}
-        if len(cell_idxs_to_style_fns) > self._num_cols or any(
-            [idx < 0 or self._num_cols <= idx for idx in cell_idxs_to_style_fns.keys()]
-        ):
-            raise StatsTableException(
-                f"Invalid cell_idxs_to_style_fns value. Must not contain more entries than table has columns."
-            )
-        self._per_row_cell_style_fns = {
-            i: cell_idxs_to_style_fns[i] if i in cell_idxs_to_style_fns else None for i in range(self._num_cols)
-        }
+        if len(style_fns_map) > self._num_cols or any([idx < 0 or self._num_cols <= idx for idx in style_fns_map]):
+            raise StatsTableException("Invalid cell_idxs_to_style_fns. Length may not exceed table columns count.")
+        self._per_row_cell_style_fns = {i: style_fns_map.get(i, None) for i in range(self._num_cols)}
         self._caption = caption
         self._table = Table(
-            *columns,
-            title=self._title,
-            caption=self._caption,
-            title_style="bold white",
-            show_lines=True,
-            expand=True,
+            *columns, title=self._title, caption=self._caption, title_style="bold white", show_lines=True, expand=True
         )
         self._raw_rows: list[list[str]] = []
 
@@ -145,8 +131,7 @@ class StatsTable:
                 tsv_writer.writerows(self._raw_rows)
         except Exception:  # pragma: no cover
             _LOGGER.error(
-                f"Failed to write TSV file for {self.__class__.__name__} to filepath: {self._tsv_path}",
-                exc_info=True,
+                f"Failed to write TSV file for {self.__class__.__name__} to filepath: {self._tsv_path}", exc_info=True
             )
 
     def print_and_save(self) -> None:

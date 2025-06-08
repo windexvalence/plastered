@@ -15,21 +15,9 @@ from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
 from plastered.stats.stats import PriorRunStats
-from plastered.utils.cli_utils import (
-    DEFAULT_VERBOSITY,
-    StatsRunPicker,
-    config_path_option,
-    subcommand_flag,
-)
-from plastered.utils.constants import (
-    CACHE_TYPE_API,
-    CACHE_TYPE_SCRAPER,
-    RUN_DATE_STR_FORMAT,
-)
-from plastered.utils.exceptions import (
-    RunCacheDisabledException,
-    StatsRunPickerException,
-)
+from plastered.utils.cli_utils import DEFAULT_VERBOSITY, StatsRunPicker, config_path_option, subcommand_flag
+from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, RUN_DATE_STR_FORMAT
+from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
 from plastered.version import get_project_version
 
@@ -47,11 +35,7 @@ _CLI_ALL_CACHE_TYPES = "@all"
     context_settings={"auto_envvar_prefix": _OPTION_ENVVAR_PREFIX},
     help="plastered: Finds your LFM recs and snatches them from RED.",
 )
-@click.version_option(
-    version=_APP_VERSION,
-    package_name="plastered",
-    prog_name="plastered",
-)
+@click.version_option(version=_APP_VERSION, package_name="plastered", prog_name="plastered")
 @click.option(
     "-v",
     "--verbosity",
@@ -138,7 +122,7 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
                 date_str_format=RUN_DATE_STR_FORMAT,
             ).get_run_date_from_user_prompts()
         except StatsRunPickerException:
-            _LOGGER.error(f"No run prior run summaries available for inspection.")
+            _LOGGER.error("No run prior run summaries available for inspection.")
             ctx.exit(2)
     PriorRunStats(app_config=app_config, run_date=run_date).print_summary_tables()
 

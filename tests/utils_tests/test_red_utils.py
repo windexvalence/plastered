@@ -2,7 +2,6 @@ from typing import Any
 
 import pytest
 
-from plastered.utils.constants import STORAGE_UNIT_IDENTIFIERS
 from plastered.utils.red_utils import (
     EncodingEnum,
     FormatEnum,
@@ -13,12 +12,6 @@ from plastered.utils.red_utils import (
     ReleaseEntry,
     TorrentEntry,
     _red_release_type_str_to_enum,
-)
-from tests.conftest import (
-    expected_red_format_list,
-    mock_red_browse_empty_response,
-    mock_red_browse_non_empty_response,
-    mock_red_group_response,
 )
 
 
@@ -112,9 +105,9 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
 )
 def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras: str) -> None:
     actual_cd_only_extras = te.red_format._cd_only_extras
-    assert (
-        actual_cd_only_extras == expected_cd_only_extras
-    ), f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
+    assert actual_cd_only_extras == expected_cd_only_extras, (
+        f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -195,11 +188,7 @@ def test_eq(other: Any, expected: bool) -> None:
     ],
 )
 def test_torrent_entry_get_size(
-    unit: str,
-    expected: float | None,
-    should_fail: bool,
-    exception: Exception | None,
-    exception_msg: str | None,
+    unit: str, expected: float | None, should_fail: bool, exception: Exception | None, exception_msg: str | None
 ) -> None:
     mock_size_bytes = 3000000.0
     test_instance = TorrentEntry(
@@ -246,15 +235,12 @@ def test_torrent_entry_get_red_format() -> None:
         lossy_master=None,
     )
     expected_red_format = RedFormat(
-        format=FormatEnum.FLAC,
-        encoding=EncodingEnum.LOSSLESS,
-        media=MediaEnum.CD,
-        cd_only_extras="haslog=100&hascue=1",
+        format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD, cd_only_extras="haslog=100&hascue=1"
     )
     actual_red_format = test_instance.red_format
-    assert (
-        actual_red_format == expected_red_format
-    ), f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
+    assert actual_red_format == expected_red_format, (
+        f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
+    )
 
 
 def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:
@@ -296,9 +282,9 @@ def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) 
         )
     ]
     actual_red_format_list = test_release_entry.get_red_formats()
-    assert (
-        actual_red_format_list == expected_red_format_list
-    ), f"Expected test_release_entry.get_red_formats() to return {expected_red_format_list}, but got {actual_red_format_list}"
+    assert actual_red_format_list == expected_red_format_list, (
+        f"Expected test_release_entry.get_red_formats() to return {expected_red_format_list}, but got {actual_red_format_list}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -375,18 +361,10 @@ def test_red_user_details_has_snatched_release(
 
 @pytest.mark.parametrize(
     "mock_snatched_tids, tid, expected",
-    [
-        ({}, 69, False),
-        ({69}, 69, True),
-        ({100, 69}, 69, True),
-        ({100, 200, 300}, 5, False),
-    ],
+    [({}, 69, False), ({69}, 69, True), ({100, 69}, 69, True), ({100, 200, 300}, 5, False)],
 )
 def test_red_user_details_has_snatched_tid(
-    mock_red_user_details_fn_scoped: RedUserDetails,
-    mock_snatched_tids: set[int],
-    tid: int,
-    expected: bool,
+    mock_red_user_details_fn_scoped: RedUserDetails, mock_snatched_tids: set[int], tid: int, expected: bool
 ) -> None:
     mock_red_user_details_fn_scoped._snatched_tids = mock_snatched_tids
     actual = mock_red_user_details_fn_scoped.has_snatched_tid(tid)

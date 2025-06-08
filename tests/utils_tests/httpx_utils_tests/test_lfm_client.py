@@ -21,18 +21,7 @@ def expected_lfm_request_api_res_top_keys() -> dict[str, set[str]]:
             ["artist", "image", "listeners", "mbid", "name", "playcount", "tags", "tracks", "url", "wiki"]
         ),
         "track.getinfo": set(
-            [
-                "album",
-                "artist",
-                "duration",
-                "listeners",
-                "mbid",
-                "name",
-                "playcount",
-                "streamable",
-                "toptags",
-                "url",
-            ]
+            ["album", "artist", "duration", "listeners", "mbid", "name", "playcount", "streamable", "toptags", "url"]
         ),
     }
 
@@ -63,10 +52,7 @@ def test_request_lfm_api(
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
 def test_request_lfm_api_non_200_status(
-    httpx_mock: HTTPXMock,
-    disabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
-    method: str,
+    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_config: AppConfig, method: str
 ) -> None:
     httpx_mock.add_response(status_code=404)
     lfm_client = LFMAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
@@ -80,10 +66,7 @@ def test_request_lfm_api_non_200_status(
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
 def test_request_lfm_api_bad_json_response(
-    httpx_mock: HTTPXMock,
-    disabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
-    method: str,
+    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_config: AppConfig, method: str
 ) -> None:
     httpx_mock.add_response(
         status_code=200, json={"error": 123, "message": "LFM API handles errors like this sometimes"}
@@ -91,7 +74,7 @@ def test_request_lfm_api_bad_json_response(
     lfm_client = LFMAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
     lfm_client._throttle = Mock(name="_throttle")
     lfm_client._throttle.return_value = None
-    with pytest.raises(LFMClientException, match=f"LFM API error encounterd. LFM error code: '123'"):
+    with pytest.raises(LFMClientException, match="LFM API error encounterd. LFM error code: '123'"):
         lfm_client.request_api(method=method, params="fakekey=fakevalue")
 
 

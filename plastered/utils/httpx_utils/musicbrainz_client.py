@@ -3,10 +3,7 @@ from urllib.parse import quote
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import (
-    MUSICBRAINZ_API_BASE_URL,
-    PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
-)
+from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, PERMITTED_MUSICBRAINZ_API_ENDPOINTS
 from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
 
 

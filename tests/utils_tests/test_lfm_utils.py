@@ -7,7 +7,6 @@ from plastered.scraper.lfm_scraper import LFMRec
 from plastered.scraper.lfm_scraper import RecContext as rc
 from plastered.scraper.lfm_scraper import RecommendationType as rt
 from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
-from tests.conftest import mock_lfm_album_info_json
 
 
 def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -> None:
@@ -18,9 +17,9 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
         lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
     )
     actual_lfmai = LFMAlbumInfo.construct_from_api_response(json_blob=mock_lfm_album_info_json["album"])
-    assert (
-        actual_lfmai == expected_lfmai
-    ), f"Expected LFMAlbumInfo to be '{str(expected_lfmai)}', but got '{str(actual_lfmai)}'"
+    assert actual_lfmai == expected_lfmai, (
+        f"Expected LFMAlbumInfo to be '{str(expected_lfmai)}', but got '{str(actual_lfmai)}'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -74,9 +73,7 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
     ],
 )
 def test_lfmti_from_mb_origin_release_info(
-    si: SearchItem,
-    mb_origin_release_info_json: dict[str, Any],
-    expected_lfmti: LFMTrackInfo | None,
+    si: SearchItem, mb_origin_release_info_json: dict[str, Any], expected_lfmti: LFMTrackInfo | None
 ) -> None:
     actual = LFMTrackInfo.from_mb_origin_release_info(si=si, mb_origin_release_info_json=mb_origin_release_info_json)
     assert actual == expected_lfmti

@@ -1,5 +1,4 @@
 from typing import Any
-from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -113,9 +112,9 @@ def test_get_human_readable_artist_str(lfm_str: str, expected: str) -> None:
         rec_context=RecContext.SIMILAR_ARTIST,
     )
     actual = test_lfm_rec.get_human_readable_artist_str()
-    assert (
-        actual == expected
-    ), f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
+    assert actual == expected, (
+        f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
+    )
 
 
 @pytest.mark.parametrize("track_origin_release, expected", [(None, "None"), ("Title", "Title")])

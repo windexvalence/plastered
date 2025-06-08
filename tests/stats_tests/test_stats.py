@@ -1,9 +1,11 @@
 import csv
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
-from unittest.mock import call, patch
+import re
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 from rich.table import Column
@@ -11,32 +13,16 @@ from rich.table import Column
 from plastered.config.config_parser import AppConfig
 from plastered.stats.stats import (
     _FAILED,
-    _FAILED_FILENAME,
     _SKIPPED,
-    _SKIPPED_FILENAME,
     _SNATCHED,
-    _SNATCHED_FILENAME,
-    FailedSnatchSummaryTable,
     PriorRunStats,
     RunCacheSummaryTable,
-    SkippedReason,
-    SkippedSummaryTable,
-    SnatchFailureReason,
-    SnatchSummaryTable,
     StatsTable,
     _get_rows_from_tsv,
     print_and_save_all_searcher_stats,
 )
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import PriorRunStatsException, StatsTableException
-from tests.conftest import (
-    failed_snatch_rows,
-    mock_run_date_str,
-    mock_summary_tsvs,
-    skipped_rows,
-    snatch_summary_rows,
-    valid_app_config,
-)
 
 
 def _noop_col_fn(x: Any) -> Any:
@@ -45,17 +31,10 @@ def _noop_col_fn(x: Any) -> Any:
 
 @pytest.mark.parametrize(
     "table_type, expected_rows_fixture_name",
-    [
-        ("failed", "failed_snatch_rows"),
-        ("skipped", "snatch_summary_rows"),
-        ("snatched", "skipped_rows"),
-    ],
+    [("failed", "failed_snatch_rows"), ("skipped", "snatch_summary_rows"), ("snatched", "skipped_rows")],
 )
 def test_get_rows_from_tsv(
-    request: pytest.FixtureRequest,
-    mock_summary_tsvs: dict[str, str],
-    table_type: str,
-    expected_rows_fixture_name: str,
+    request: pytest.FixtureRequest, mock_summary_tsvs: dict[str, str], table_type: str, expected_rows_fixture_name: str
 ) -> None:
     tsv_filepath = mock_summary_tsvs[table_type]
     expected_rows = request.getfixturevalue(expected_rows_fixture_name)
@@ -68,14 +47,10 @@ def test_get_rows_from_tsv(
 
 
 @pytest.mark.parametrize(
-    "bad_fn_mapping",
-    [
-        ({-1: _noop_col_fn}),
-        ({0: _noop_col_fn, 1: _noop_col_fn, 2: _noop_col_fn, 3: _noop_col_fn}),
-    ],
+    "bad_fn_mapping", [({-1: _noop_col_fn}), ({0: _noop_col_fn, 1: _noop_col_fn, 2: _noop_col_fn, 3: _noop_col_fn})]
 )
 def test_invalid_stats_table_construction(tmp_path: pytest.FixtureRequest, bad_fn_mapping: dict[int, Callable]) -> None:
-    with pytest.raises(StatsTableException, match="Invalid cell_idxs_to_style_fns value"):
+    with pytest.raises(StatsTableException, match=re.escape("Invalid cell_idxs_to_style_fns. Length may not exceed")):
         bad_st = StatsTable(
             title="Should fail",
             columns=[Column(header="First Col"), Column(header="Second Col")],
@@ -123,10 +98,7 @@ def test_invalid_add_rows(tmp_path: pytest.FixtureRequest) -> None:
         ("1.00", "green"),
     ],
 )
-def test_run_cache_summary_table_stylize_cache_hit_rate_entry(
-    hit_rate_str: str,
-    expected: str,
-) -> None:
+def test_run_cache_summary_table_stylize_cache_hit_rate_entry(hit_rate_str: str, expected: str) -> None:
     actual = RunCacheSummaryTable.stylize_cache_hit_rate_entry(hit_rate_str=hit_rate_str)
     assert actual == expected, f"Expected '{expected}', but got '{actual}'"
 
@@ -151,12 +123,7 @@ def test_run_cache_summary_table_constructor(tmp_path: pytest.FixtureRequest) ->
 
 
 @pytest.mark.parametrize(
-    "expected_tsv_filename, expected_tsv_row_cnt",
-    [
-        ("skipped.tsv", 6),
-        ("failed.tsv", 4),
-        ("snatched.tsv", 4),
-    ],
+    "expected_tsv_filename, expected_tsv_row_cnt", [("skipped.tsv", 6), ("failed.tsv", 4), ("snatched.tsv", 4)]
 )
 def test_print_and_save_all_searcher_stats(
     tmp_path: pytest.FixtureRequest,
@@ -176,12 +143,12 @@ def test_print_and_save_all_searcher_stats(
     )
     assert os.path.exists(expected_tsv_filepath), f"Expected {expected_tsv_filepath} path to exist, but foes not."
     actual_row_cnt = 0
-    with open(expected_tsv_filepath, "r") as f:
+    with open(expected_tsv_filepath) as f:
         tsv_reader = csv.reader(f, delimiter="t")
         actual_row_cnt = len([row for row in tsv_reader])
-    assert (
-        actual_row_cnt == expected_tsv_row_cnt
-    ), f"Expected output tsv to have {expected_tsv_row_cnt} rows, but got {actual_row_cnt}"
+    assert actual_row_cnt == expected_tsv_row_cnt, (
+        f"Expected output tsv to have {expected_tsv_row_cnt} rows, but got {actual_row_cnt}"
+    )
 
 
 def test_init_prior_run_stats(
@@ -195,16 +162,13 @@ def test_init_prior_run_stats(
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = mock_summary_tsvs
             prs = PriorRunStats(
-                app_config=valid_app_config,
-                run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT),
+                app_config=valid_app_config, run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
             )
             prs.print_summary_tables()
 
 
 def test_bad_init_prior_run_stats(
-    valid_app_config: AppConfig,
-    mock_output_summary_dir_path: Path,
-    mock_summary_tsvs: dict[str, str],
+    valid_app_config: AppConfig, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
 ) -> None:
     with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
@@ -215,7 +179,4 @@ def test_bad_init_prior_run_stats(
                 _SNATCHED: os.path.join("not", "a", "real", "path"),
             }
             with pytest.raises(PriorRunStatsException, match="One or more summary tsvs for run date"):
-                prs = PriorRunStats(
-                    app_config=valid_app_config,
-                    run_date=datetime.now(),
-                )
+                prs = PriorRunStats(app_config=valid_app_config, run_date=datetime.now())

@@ -94,14 +94,10 @@ class NestedProgress(Progress):
 
     def get_renderables(self) -> Iterable[RenderableType]:
         for task in self.tasks:
-            if task.fields.get("progress_type") == ProgType.RED_BROWSE:
-                self.columns = (
-                    SpinnerColumn(),  # spinner_name=SPINNER),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(BAR_WIDTH),
-                    TimeElapsedColumn(),
-                )
-            elif task.fields.get("progress_type") == ProgType.RED_SNATCH:
+            if (
+                task.fields.get("progress_type") == ProgType.RED_BROWSE
+                or task.fields.get("progress_type") == ProgType.RED_SNATCH
+            ):
                 self.columns = (
                     SpinnerColumn(),  # spinner_name=SPINNER),
                     TextColumn("[progress.description]{task.description}"),

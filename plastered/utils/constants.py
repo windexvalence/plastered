@@ -1,56 +1,60 @@
 from typing import Final
 
-RED_API_BASE_URL = "https://redacted.sh/ajax.php"
-LFM_API_BASE_URL = "https://ws.audioscrobbler.com/2.0/"
-MUSICBRAINZ_API_BASE_URL = "https://musicbrainz.org/ws/2/"
+RED_API_BASE_URL: Final[str] = "https://redacted.sh/ajax.php"
+LFM_API_BASE_URL: Final[str] = "https://ws.audioscrobbler.com/2.0/"
+MUSICBRAINZ_API_BASE_URL: Final[str] = "https://musicbrainz.org/ws/2/"
 
-RED_JSON_RESPONSE_KEY = "response"
+RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
-CACHE_DIRNAME = "cache"
-API_CACHE_DIRNAME = "api_cache"
-SCRAPER_CACHE_DIRNAME = "scraper_cache"
-CACHE_TYPE_API = "api"
-CACHE_TYPE_SCRAPER = "scraper"
+CACHE_DIRNAME: Final[str] = "cache"
+API_CACHE_DIRNAME: Final[str] = "api_cache"
+SCRAPER_CACHE_DIRNAME: Final[str] = "scraper_cache"
+CACHE_TYPE_API: Final[str] = "api"
+CACHE_TYPE_SCRAPER: Final[str] = "scraper"
 
-PERMITTED_RED_API_ENDPOINTS = set(["browse", "torrentgroup", "community_stats", "user_torrents", "user"])
-NON_CACHED_RED_API_ENDPOINTS = set(["community_stats", "user_torrents", "user"])
+PERMITTED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(
+    ["browse", "torrentgroup", "community_stats", "user_torrents", "user"]
+)
+NON_CACHED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["community_stats", "user_torrents", "user"])
 
-PERMITTED_RED_SNATCH_API_ENDPOINTS = set(["download"])
-NON_CACHED_RED_SNATCH_API_ENDPOINTS = set(["download"])
+PERMITTED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
+NON_CACHED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
 
-PERMITTED_LFM_API_ENDPOINTS = set(["album.getinfo", "track.getinfo"])
-PERMITTED_MUSICBRAINZ_API_ENDPOINTS = set(["release", "recording"])
+PERMITTED_LFM_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["album.getinfo", "track.getinfo"])
+PERMITTED_MUSICBRAINZ_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["release", "recording"])
 
-RENDER_WAIT_SEC_MIN = 3
-RENDER_WAIT_SEC_MAX = 7
+RENDER_WAIT_SEC_MIN: Final[int] = 3
+RENDER_WAIT_SEC_MAX: Final[int] = 7
 
-PW_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.28 Mobile Safari/537.36"
+PW_USER_AGENT: Final[str] = (
+    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.28 Mobile Safari/537.36"
+)
 
-ALBUM_RECS_BASE_URL = "https://www.last.fm/music/+recommended/albums"
-ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR = ".music-recommended-albums-item-name"
-ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR = ".music-recommended-albums-item-name a.link-block-target"
-ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR = "p.music-recommended-albums-album-context"
+ALBUM_RECS_BASE_URL: Final[str] = "https://www.last.fm/music/+recommended/albums"
+ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR: Final[str] = ".music-recommended-albums-item-name"
+ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR: Final[str] = ".music-recommended-albums-item-name a.link-block-target"
+ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR: Final[str] = "p.music-recommended-albums-album-context"
 
-TRACK_RECS_BASE_URL = "https://www.last.fm/music/+recommended/tracks"
-TRACK_REC_LIST_ELEMENT_CSS_SELECTOR = ".recommended-tracks-item-name"
-TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR = ".recommended-tracks-item-name a.link-block-target"
-TRACK_REC_CONTEXT_CSS_SELECTOR = "p.recommended-tracks-item-aux-text.recommended-tracks-item-context"
+TRACK_RECS_BASE_URL: Final[str] = "https://www.last.fm/music/+recommended/tracks"
+TRACK_REC_LIST_ELEMENT_CSS_SELECTOR: Final[str] = ".recommended-tracks-item-name"
+TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR: Final[str] = ".recommended-tracks-item-name a.link-block-target"
+TRACK_REC_CONTEXT_CSS_SELECTOR: Final[str] = "p.recommended-tracks-item-aux-text.recommended-tracks-item-context"
 
-LOGIN_URL = "https://www.last.fm/login"
-LOGIN_USERNAME_FORM_LOCATOR = "[name='username_or_email']"
-LOGIN_PASSWORD_FORM_LOCATOR = "[name='password']"  # nosec B105
-LOGIN_BUTTON_LOCATOR = "[name='submit']"
-LOGOUT_URL = "https://www.last.fm/logout"
+LOGIN_URL: Final[str] = "https://www.last.fm/login"
+LOGIN_USERNAME_FORM_LOCATOR: Final[str] = "[name='username_or_email']"
+LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"  # nosec B105
+LOGIN_BUTTON_LOCATOR: Final[str] = "[name='submit']"
+LOGOUT_URL: Final[str] = "https://www.last.fm/logout"
 
 RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
 
-STORAGE_UNIT_IDENTIFIERS = ["B", "MB", "GB"]
-BYTES_IN_GB: Final[float] = float(1e9)
-BYTES_IN_MB: Final[float] = float(1e6)
+STORAGE_UNIT_IDENTIFIERS: Final[frozenset[str]] = frozenset(["B", "MB", "GB"])
+BYTES_IN_GB: Final[float] = 1e9
+BYTES_IN_MB: Final[float] = 1e6
 
 # TODO: consolidate these
-STATS_TRACK_REC_NONE = "N/A"
-STATS_NONE = "N/A"
+STATS_TRACK_REC_NONE: Final[str] = "N/A"
+STATS_NONE: Final[str] = "N/A"
 
 # User-specified params to optionally append to the RED browse requests
 RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"

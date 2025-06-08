@@ -10,25 +10,10 @@ from plastered.cli import cli
 from plastered.config.config_parser import AppConfig
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
-from plastered.scraper.lfm_scraper import (
-    LFMRec,
-    LFMRecsScraper,
-    RecContext,
-    RecommendationType,
-)
+from plastered.scraper.lfm_scraper import LFMRec, LFMRecsScraper, RecContext, RecommendationType
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
-from plastered.utils.exceptions import (
-    RunCacheDisabledException,
-    StatsRunPickerException,
-)
-from tests.conftest import (
-    api_run_cache,
-    mock_run_date_str,
-    scraper_run_cache,
-    valid_app_config,
-    valid_config_filepath,
-)
+from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +76,7 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
                     LFMRec(
                         "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
                     ),
-                ],
+                ]
             },
         ),
         (
@@ -102,7 +87,7 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
                     LFMRec(
                         "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
                     ),
-                ],
+                ]
             },
         ),
         (
@@ -140,9 +125,9 @@ def test_cli_scrape_command(
                     result = cli_runner.invoke(
                         cli, ["scrape", "--config", valid_config_filepath, "--rec-types", rec_types]
                     )
-                    assert (
-                        result.exit_code == 0
-                    ), f"Expected cli command 'scrape' to pass but errored: {result.exception}"
+                    assert result.exit_code == 0, (
+                        f"Expected cli command 'scrape' to pass but errored: {result.exception}"
+                    )
                     mock_enter.assert_called_once()
                     mock_scrape_recs.assert_called_once()
                     mock_exit.assert_called_once()
@@ -213,9 +198,9 @@ def test_cli_cache_command(
         mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, test_cmd)
-        assert (
-            result.exit_code == 0
-        ), f"Expected cli command '{' '.join(test_cmd)}' to pass but errored: {result.exception}"
+        assert result.exit_code == 0, (
+            f"Expected cli command '{' '.join(test_cmd)}' to pass but errored: {result.exception}"
+        )
         if cache_arg == "api":
             mock_api_run_cache_instance.assert_has_calls(expected_run_cache_calls)
         elif cache_arg == "scraper":
@@ -226,9 +211,7 @@ def test_cli_cache_command(
 
 
 def test_cli_cache_disabled_exception(
-    valid_config_filepath: str,
-    mock_api_run_cache_instance: MagicMock,
-    mock_scraper_run_cache_instance: MagicMock,
+    valid_config_filepath: str, mock_api_run_cache_instance: MagicMock, mock_scraper_run_cache_instance: MagicMock
 ) -> None:
     cli_runner = CliRunner()
     mock_api_run_cache_instance.check.side_effect = RunCacheDisabledException("")
@@ -256,11 +239,7 @@ def test_cli_init_conf_command() -> None:
 
 
 @pytest.mark.parametrize("run_date_provided", [False, True])
-def test_cli_inspect_stats_command(
-    valid_config_filepath: str,
-    mock_run_date_str: str,
-    run_date_provided: bool,
-) -> None:
+def test_cli_inspect_stats_command(valid_config_filepath: str, mock_run_date_str: str, run_date_provided: bool) -> None:
     test_cmd = ["inspect-stats", "--config", valid_config_filepath]
     if run_date_provided:
         test_cmd.append("--run-date")
@@ -278,10 +257,7 @@ def test_cli_inspect_stats_command(
             mock_prs_instance.print_summary_tables.assert_called_once()
 
 
-def test_cli_inspect_stats_command_exception(
-    valid_config_filepath: str,
-    mock_run_date_str: str,
-) -> None:
+def test_cli_inspect_stats_command_exception(valid_config_filepath: str, mock_run_date_str: str) -> None:
     test_cmd = ["inspect-stats", "--config", valid_config_filepath]
 
     def _prs_side_effect(*args, **kwargs) -> None:
