@@ -13,7 +13,7 @@ plastered [OPTIONS] COMMAND [ARGS]...
 
 ```text
   --version                       Show the version and exit.
-  -v, --verbosity [DEBUG|INFO|WARNING|ERROR]
+  -v, --verbosity [debug|info|warning|error]
                                   Sets the logging level.  [default: WARNING]
   --red-user-id INTEGER
   --red-api-key TEXT

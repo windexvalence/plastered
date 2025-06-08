@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
@@ -239,22 +240,31 @@ def test_cli_init_conf_command() -> None:
 
 
 @pytest.mark.parametrize("run_date_provided", [False, True])
-def test_cli_inspect_stats_command(valid_config_filepath: str, mock_run_date_str: str, run_date_provided: bool) -> None:
-    test_cmd = ["inspect-stats", "--config", valid_config_filepath]
+def test_cli_inspect_stats_command(
+    mock_output_summary_dir_path: Path, valid_config_filepath_function_scoped: str, run_date_provided: bool
+) -> None:
+    mocked_run_date_str = "2025-01-20__00-24-42"
+    test_cmd = ["inspect-stats", "--config", valid_config_filepath_function_scoped]
     if run_date_provided:
-        test_cmd.append("--run-date")
-        test_cmd.append(mock_run_date_str)
-    with patch.object(StatsRunPicker, "get_run_date_from_user_prompts") as mock_srp_get_run_date:
-        mock_srp_get_run_date.return_value = datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
-        with patch("plastered.cli.PriorRunStats") as mock_prior_run_stats_constructor:
-            mock_prs_instance = MagicMock()
-            mock_prior_run_stats_constructor.return_value = mock_prs_instance
-            mock_prs_instance.print_summary_tables.return_value = None
-            cli_runner = CliRunner()
-            result = cli_runner.invoke(cli, test_cmd)
-            assert result.exit_code == 0
-            mock_prior_run_stats_constructor.assert_called_once()
-            mock_prs_instance.print_summary_tables.assert_called_once()
+        test_cmd.extend(["--run-date", mocked_run_date_str])
+    with (
+        patch(
+            "plastered.cli.AppConfig.get_root_summary_directory_path", return_value=str(mock_output_summary_dir_path)
+        ) as mock_app_conf_get_root_summary_dir_path,
+        patch(
+            "plastered.cli.prompt_user_for_run_date",
+            return_value=datetime.strptime(mocked_run_date_str, RUN_DATE_STR_FORMAT),
+        ) as mock_srp_get_run_date,
+        patch("plastered.cli.PriorRunStats") as mock_prior_run_stats_constructor,
+    ):
+        mock_prs_instance = MagicMock()
+        mock_prior_run_stats_constructor.return_value = mock_prs_instance
+        mock_prs_instance.print_summary_tables.return_value = None
+        cli_runner = CliRunner()
+        result = cli_runner.invoke(cli, test_cmd)
+        assert result.exit_code == 0
+        mock_prior_run_stats_constructor.assert_called_once()
+        mock_prs_instance.print_summary_tables.assert_called_once()
 
 
 def test_cli_inspect_stats_command_exception(valid_config_filepath: str, mock_run_date_str: str) -> None:

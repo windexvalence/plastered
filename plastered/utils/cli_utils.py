@@ -128,3 +128,10 @@ class StatsRunPicker:
         return datetime(
             year=input_year, month=input_month, day=input_day, hour=input_hour, minute=input_minute, second=input_second
         )
+
+
+def prompt_user_for_run_date(summaries_directory_path: str, date_str_format: str) -> datetime:
+    """Creates a temporary StatsRunPicker instance and prompts the user for the run date."""
+    return StatsRunPicker(
+        summaries_directory_path=summaries_directory_path, date_str_format=date_str_format
+    ).get_run_date_from_user_prompts()
