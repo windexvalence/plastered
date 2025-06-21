@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "response": {
+    "seeding": [
+      {
+        "groupId": 1234,
+        "name": "Come to Daddy",
+        "torrentId": 69696969,
+        "torrentSize": "80223620",
+        "artistName": "Aphex Twin",
+        "artistId": 69
+      },
+      {
+        "groupId": 4321,
+        "name": "On the Run (Antconstantino Remix)",
+        "torrentId": 12345678,
+        "torrentSize": "68208089",
+        "artistName": "Kelela",
+        "artistId": 54321
+      },
+      {
+        "groupId": 666,
+        "name": "Life Is Something Special",
+        "torrentId": 66669,
+        "torrentSize": "54397496",
+        "artistName": "Peech Boys",
+        "artistId": 100000
+      }
+    ]
+  }
+}

@@ -36,8 +36,6 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
 
 ## Testing
 
-> Warning: Currently, there are some unit tests which will fail in a local environment as they depend on encrypted files which can only be decrypted by the GitHub actions script. The pending issue to resolve this may be found [here](https://github.com/windexvalence/plastered/issues/13). Since these encrypted files are massive JSON / HTML blobs, they require a lot of time to comb through their contents to ensure they are not leaking any sensitive data.
-
 1. To run code formatting checks, run: `make code-format-check`. 
     
     * If this command raises formatting errors, you will need to run the code auto-formatter by running: `make code-format`.

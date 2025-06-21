@@ -1,0 +1,139 @@
+{
+  "created": "2025-01-19T17:26:29.509Z",
+  "count": 2,
+  "offset": 0,
+  "recordings": [
+    {
+      "id": "c27c2a38-d880-4cc9-9071-868873de3261",
+      "score": 100,
+      "title": "1st rushup m,+3",
+      "length": 137000,
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "The Tuss",
+          "artist": {
+            "id": "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "name": "The Tuss",
+            "sort-name": "Tuss, The"
+          }
+        }
+      ],
+      "first-release-date": "2017-07-20",
+      "releases": [
+        {
+          "id": "3b08749b-b63e-46d3-b693-e0736faf046f",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "count": 1,
+          "title": "Rushup Edge",
+          "status": "Official",
+          "release-group": {
+            "id": "8af1251f-ce01-3baf-b960-93c00e7baf45",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Rushup Edge",
+            "primary-type": "Album"
+          },
+          "date": "2017-07-20",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2017-07-20",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "track-count": 13,
+          "media": [
+            {
+              "position": 1,
+              "format": "Digital Media",
+              "track": [
+                {
+                  "id": "6ee2efc6-3363-434f-9375-bdafa7d89044",
+                  "number": "8",
+                  "title": "1st rushup m,+3",
+                  "length": 137000
+                }
+              ],
+              "track-count": 13,
+              "track-offset": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "b814e4d3-905b-43cc-8aff-2cb57d763188",
+      "score": 67,
+      "title": "computerband 2000 m,+3",
+      "length": 142000,
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "The Tuss",
+          "artist": {
+            "id": "09292e4d-b7ad-476b-86d9-7806303ef8c3",
+            "name": "The Tuss",
+            "sort-name": "Tuss, The"
+          }
+        }
+      ],
+      "first-release-date": "2017-07-20",
+      "releases": [
+        {
+          "id": "3b08749b-b63e-46d3-b693-e0736faf046f",
+          "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+          "count": 1,
+          "title": "Rushup Edge",
+          "status": "Official",
+          "release-group": {
+            "id": "8af1251f-ce01-3baf-b960-93c00e7baf45",
+            "type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+            "title": "Rushup Edge",
+            "primary-type": "Album"
+          },
+          "date": "2017-07-20",
+          "country": "XW",
+          "release-events": [
+            {
+              "date": "2017-07-20",
+              "area": {
+                "id": "525d4e18-3d00-31b9-a58b-a146a916de8f",
+                "name": "[Worldwide]",
+                "sort-name": "[Worldwide]",
+                "iso-3166-1-codes": [
+                  "XW"
+                ]
+              }
+            }
+          ],
+          "track-count": 13,
+          "media": [
+            {
+              "position": 1,
+              "format": "Digital Media",
+              "track": [
+                {
+                  "id": "9ec34766-5364-4afc-9ca0-c18ed872289f",
+                  "number": "9",
+                  "title": "computerband 2000 m,+3",
+                  "length": 142000
+                }
+              ],
+              "track-count": 13,
+              "track-offset": 8
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

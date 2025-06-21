@@ -37,13 +37,9 @@ jobs:
       - name: Code format check
         run: |
           docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}
-      - name: Decrypt test HTML assets
-        run: ./build_scripts/gh_action_decrypt_test_html.sh
-        env:
-          TEST_HTML_PASSPHRASE: ${{ secrets.TEST_HTML_PASSPHRASE }}
       - name: Run unit tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 -v ./tests/resources:/app/tests/resources --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
+          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
       # - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
       #   run: echo "TODO implement in followup PR"
       - name: Docker metadata

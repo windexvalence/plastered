@@ -1,0 +1,67 @@
+{
+  "status": "success",
+  "response": {
+    "username": "fake-username",
+    "avatar": "",
+    "isFriend": true,
+    "profileText": "",
+    "bbProfileText": "",
+    "profileAlbum": {
+      "id": "69420",
+      "name": "Fake Album",
+      "review": ""
+    },
+    "stats": {
+      "joinedDate": "2020-03-03 03:03:03",
+      "lastAccess": "2025-01-01 01:01:01",
+      "uploaded": 1299332966950,
+      "downloaded": 734218768193,
+      "ratio": 1.77,
+      "buffer": 1264755027114,
+      "requiredRatio": 0.6
+    },
+    "ranks": {
+      "uploaded": 69,
+      "downloaded": 69,
+      "uploads": 69,
+      "requests": 69,
+      "bounty": 69,
+      "posts": 69,
+      "artists": 69,
+      "overall": 69
+    },
+    "personal": {
+      "class": "Elite TM",
+      "paranoia": 2,
+      "paranoiaText": "Low",
+      "donor": true,
+      "warned": false,
+      "enabled": true,
+      "passkey": "not-a-real-passkey",
+      "giftTokens": 75,
+      "meritTokens": 5
+    },
+    "community": {
+      "posts": 69,
+      "groupVotes": 69,
+      "torrentComments": 69,
+      "artistComments": 69,
+      "collageComments": 420,
+      "requestComments": 69,
+      "collagesStarted": 69,
+      "collagesContrib": 420,
+      "requestsFilled": 420,
+      "bountyEarned": 1000,
+      "requestsVoted": 520,
+      "bountySpent": 0,
+      "perfectFlacs": 5,
+      "uploaded": 420,
+      "groups": 666,
+      "seeding": 666,
+      "leeching": 1,
+      "snatched": 69420,
+      "invited": 0,
+      "artistsAdded": 69
+    }
+  }
+}
