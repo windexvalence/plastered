@@ -1,0 +1,40 @@
+<hmtl>
+<body>
+<form action="/login" class="content-form login-form" data-no-partial-refresh="" id="login" method="post">
+ <input name="csrfmiddlewaretoken" type="hidden" value="69420"/>
+ <input name="next" type="hidden" value="/user/_"/>
+ <div class="form-group form-group--username_or_email js-form-group">
+  <label class="control-label" for="id_username_or_email">
+   Username or Email
+  </label>
+  <div class="js-form-group-controls form-group-controls">
+   <input id="id_username_or_email" name="username_or_email" required="" type="text"/>
+  </div>
+ </div>
+ <div class="form-group form-group--password js-form-group">
+  <label class="control-label" for="id_password">
+   Password
+  </label>
+  <div class="js-form-group-controls form-group-controls">
+   <input id="id_password" name="password" required="" type="password"/>
+  </div>
+ </div>
+ <div class="form-group">
+  <div class="form-submit">
+   <button class="btn-primary" name="submit" type="submit">
+    Let me in!
+   </button>
+   <a href="/settings/lostpassword">
+    Forgot your username or password?
+   </a>
+  </div>
+ </div>
+ <p>
+  Don‘t have a profile?
+  <a href="/join?next=/user/_">
+   Sign up for FREE
+  </a>
+ </p>
+</form>
+</body>
+</hmtl>

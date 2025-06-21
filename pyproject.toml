@@ -148,6 +148,5 @@ exclude_dirs = [
     "docs",
     "examples",
     "tests",
-    "secrets",
     ".venv",
 ]
