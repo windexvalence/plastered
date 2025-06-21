@@ -243,7 +243,7 @@ def test_attempt_resolve_mb_release(
 
 def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_config: AppConfig) -> None:
     expected_red_user_id = valid_app_config.get_cli_option("red_user_id")
-    expected_snatch_count = 5216
+    expected_snatch_count = 216
     with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
         mock_precise_delay.return_value = None
         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:

@@ -1,0 +1,127 @@
+{
+  "packaging": null,
+  "release-events": [
+    {
+      "area": null,
+      "date": "2017-05-19"
+    }
+  ],
+  "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+  "country": null,
+  "date": "2017-05-19",
+  "disambiguation": "",
+  "cover-art-archive": {
+    "front": false,
+    "darkened": false,
+    "back": false,
+    "count": 0,
+    "artwork": false
+  },
+  "media": [
+    {
+      "title": "",
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "track-count": 5,
+      "format": "Vinyl",
+      "position": 1
+    },
+    {
+      "track-count": 5,
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "format": "Vinyl",
+      "position": 2,
+      "title": ""
+    },
+    {
+      "title": "",
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "track-count": 5,
+      "format": "Vinyl",
+      "position": 3
+    },
+    {
+      "title": "",
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "track-count": 5,
+      "format": "Vinyl",
+      "position": 4
+    },
+    {
+      "position": 5,
+      "track-count": 3,
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "format": "Vinyl",
+      "title": ""
+    },
+    {
+      "position": 6,
+      "track-count": 5,
+      "format-id": "10e17707-9751-3aaf-95b2-2432acd5374c",
+      "format": "Vinyl",
+      "title": ""
+    }
+  ],
+  "text-representation": {
+    "script": null,
+    "language": null
+  },
+  "title": "Dr. Octagonecologyst",
+  "status": "Official",
+  "barcode": null,
+  "packaging-id": null,
+  "artist-credit": [
+    {
+      "name": "Dr. Octagon",
+      "joinphrase": "",
+      "artist": {
+        "sort-name": "Octagon, Dr.",
+        "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df",
+        "type": "Person",
+        "name": "Dr. Octagon",
+        "id": "3eba5e02-780b-4acd-befb-d23a0c6708dd",
+        "disambiguation": ""
+      }
+    }
+  ],
+  "asin": null,
+  "id": "d211379d-3203-47ed-a0c5-e564815bb45a",
+  "release-group": {
+    "primary-type-id": "f529b476-6e62-324f-b0aa-1f3e33d313fc",
+    "disambiguation": "",
+    "artist-credit": [
+      {
+        "name": "Dr. Octagon",
+        "artist": {
+          "id": "3eba5e02-780b-4acd-befb-d23a0c6708dd",
+          "disambiguation": "",
+          "name": "Dr. Octagon",
+          "type": "Person",
+          "sort-name": "Octagon, Dr.",
+          "type-id": "b6e035f4-3ce9-331c-97df-83397230b0df"
+        },
+        "joinphrase": ""
+      }
+    ],
+    "first-release-date": "1996",
+    "id": "b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+    "secondary-type-ids": [],
+    "secondary-types": [],
+    "primary-type": "Album",
+    "title": "Dr. Octagonecologyst"
+  },
+  "label-info": [
+    {
+      "catalog-number": "58010",
+      "label": {
+        "name": "Get On Down",
+        "id": "700ae57b-cb63-41d2-a86c-1656db7f37cd",
+        "disambiguation": "",
+        "sort-name": "Get On Down",
+        "type-id": "88ee6ae7-f413-3490-a1d2-54f6a9f0838c",
+        "label-code": null,
+        "type": "Reissue Production"
+      }
+    }
+  ],
+  "quality": "normal"
+}

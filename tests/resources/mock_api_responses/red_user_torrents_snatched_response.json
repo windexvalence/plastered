@@ -1,0 +1,38 @@
+{
+  "status": "success",
+  "response": {
+    "snatched": [
+      {
+        "groupId": 1234567,
+        "name": "They Call Me Country",
+        "torrentId": 3928715,
+        "torrentSize": "185876417",
+        "artistName": "Sanford Clark",
+        "artistId": 12345
+      },
+      {
+        "groupId": 7654321,
+        "name": "Touch The Leather",
+        "torrentId": 3652123,
+        "torrentSize": "65777138",
+        "artistName": "Fat White Family",
+        "artistId": 54321
+      },
+      {
+        "groupId": 696969,
+        "name": "Dream Baby Dream",
+        "torrentId": 4055591,
+        "torrentSize": "80187483",
+        "artistName": "Suicide",
+        "artistId": 1234
+      },
+      {
+        "groupId": 420420,
+        "name": "Brown Munde",
+        "torrentId": 4587558,
+        "torrentSize": "47507685",
+        "artistName": "Various Artists"
+      }
+    ]
+  }
+}

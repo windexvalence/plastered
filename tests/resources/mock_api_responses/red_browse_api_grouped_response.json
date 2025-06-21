@@ -1,0 +1,252 @@
+{
+  "status": "success",
+  "response": {
+    "currentPage": 1,
+    "pages": 1,
+    "results": [
+      {
+        "groupId": 24523,
+        "groupName": "Much Against Everyone's Advice",
+        "artist": "Soulwax",
+        "cover": "https://ptpimg.me/abcde.jpg",
+        "tags": [
+          "rock",
+          "alternative.rock"
+        ],
+        "bookmarked": false,
+        "vanityHouse": false,
+        "groupYear": 1998,
+        "releaseType": "Album",
+        "groupTime": "1733680888",
+        "maxSize": 559261881,
+        "totalSnatched": 422,
+        "totalSeeders": 165,
+        "totalLeechers": 0,
+        "torrents": [
+          {
+            "torrentId": 4717421,
+            "editionId": 1,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 1998,
+            "remasterCatalogueNumber": "",
+            "remasterTitle": "",
+            "media": "WEB",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": false,
+            "logScore": 0,
+            "hasCue": false,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 14,
+            "time": "2024-02-08 20:10:09",
+            "size": 360174720,
+            "snatches": 3,
+            "seeders": 2,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": false
+          },
+          {
+            "torrentId": 1131958,
+            "editionId": 2,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 1998,
+            "remasterCatalogueNumber": "BIAS 360 CD - 450.0360.20 - 380 PS",
+            "remasterTitle": "",
+            "media": "CD",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": true,
+            "logScore": 100,
+            "hasCue": true,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 17,
+            "time": "2017-05-31 13:11:09",
+            "size": 357745845,
+            "snatches": 73,
+            "seeders": 33,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": false
+          },
+          {
+            "torrentId": 3028549,
+            "editionId": 3,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 1999,
+            "remasterCatalogueNumber": "BIAS 360 CDX",
+            "remasterTitle": "Limited Edition (Bonus CD)",
+            "media": "CD",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": true,
+            "logScore": 100,
+            "hasCue": true,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 30,
+            "time": "2020-11-07 09:17:28",
+            "size": 559261881,
+            "snatches": 35,
+            "seeders": 20,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": true
+          },
+          {
+            "torrentId": 37794,
+            "editionId": 4,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 2000,
+            "remasterCatalogueNumber": "PIASB 010CD",
+            "remasterTitle": "",
+            "media": "CD",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": false,
+            "logScore": 0,
+            "hasCue": true,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 14,
+            "time": "2016-11-27 04:29:42",
+            "size": 285272551,
+            "snatches": 19,
+            "seeders": 5,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": false
+          },
+          {
+            "torrentId": 1091427,
+            "editionId": 5,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 2000,
+            "remasterCatalogueNumber": "PIASB 010 CDX",
+            "remasterTitle": "UK Limited Edition w/ 7 track Bonus CD",
+            "media": "CD",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": true,
+            "logScore": 100,
+            "hasCue": true,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 24,
+            "time": "2017-05-08 20:43:52",
+            "size": 443932186,
+            "snatches": 43,
+            "seeders": 13,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": false
+          },
+          {
+            "torrentId": 5205856,
+            "editionId": 6,
+            "artists": [
+              {
+                "id": 24604,
+                "name": "Soulwax",
+                "aliasid": 24626
+              }
+            ],
+            "remastered": true,
+            "remasterYear": 2001,
+            "remasterCatalogueNumber": "AVCM-65065",
+            "remasterTitle": "Japanese Bonus Tracks",
+            "media": "CD",
+            "encoding": "Lossless",
+            "format": "FLAC",
+            "hasLog": true,
+            "logScore": 100,
+            "hasCue": true,
+            "scene": false,
+            "vanityHouse": false,
+            "fileCount": 19,
+            "time": "2024-12-08 18:01:28",
+            "size": 435708542,
+            "snatches": 249,
+            "seeders": 92,
+            "leechers": 0,
+            "leechStatus": 0,
+            "isFreeleech": false,
+            "isNeutralLeech": false,
+            "isFreeload": false,
+            "isPersonalFreeleech": false,
+            "canUseToken": false,
+            "trumpable": false,
+            "hasSnatched": false
+          }
+        ]
+      }
+    ]
+  }
+}

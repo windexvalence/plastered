@@ -1,0 +1,70 @@
+{
+  "track": {
+    "name": "No Awareness",
+    "mbid": "89f3ce2d-f83d-4a8e-9067-983bdbf691b3",
+    "url": "https://www.last.fm/music/Dr.+Octagon/_/No+Awareness",
+    "duration": "285000",
+    "streamable": {
+      "#text": "0",
+      "fulltrack": "0"
+    },
+    "listeners": "64209",
+    "playcount": "196060",
+    "artist": {
+      "name": "Dr. Octagon",
+      "mbid": "3eba5e02-780b-4acd-befb-d23a0c6708dd",
+      "url": "https://www.last.fm/music/Dr.+Octagon"
+    },
+    "album": {
+      "artist": "Dr. Octagon",
+      "title": "Dr. Octagonecologyst",
+      "mbid": "cddbf21f-9cd8-4665-a015-3cdc50cdcc72",
+      "url": "https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
+      "image": [
+        {
+          "#text": "https://lastfm.freetls.fastly.net/i/u/34s/c6c051353f074a20caec50237570aa0e.png",
+          "size": "small"
+        },
+        {
+          "#text": "https://lastfm.freetls.fastly.net/i/u/64s/c6c051353f074a20caec50237570aa0e.png",
+          "size": "medium"
+        },
+        {
+          "#text": "https://lastfm.freetls.fastly.net/i/u/174s/c6c051353f074a20caec50237570aa0e.png",
+          "size": "large"
+        },
+        {
+          "#text": "https://lastfm.freetls.fastly.net/i/u/300x300/c6c051353f074a20caec50237570aa0e.png",
+          "size": "extralarge"
+        }
+      ],
+      "@attr": {
+        "position": "5"
+      }
+    },
+    "toptags": {
+      "tag": [
+        {
+          "name": "Hip-Hop",
+          "url": "https://www.last.fm/tag/Hip-Hop"
+        },
+        {
+          "name": "underground hip hop",
+          "url": "https://www.last.fm/tag/underground+hip+hop"
+        },
+        {
+          "name": "rap",
+          "url": "https://www.last.fm/tag/rap"
+        },
+        {
+          "name": "downtempo",
+          "url": "https://www.last.fm/tag/downtempo"
+        },
+        {
+          "name": "hip hop",
+          "url": "https://www.last.fm/tag/hip+hop"
+        }
+      ]
+    }
+  }
+}

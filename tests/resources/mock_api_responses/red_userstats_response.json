@@ -1,0 +1,13 @@
+{
+  "status": "success",
+  "response": {
+    "leeching": 0,
+    "seeding": "397",
+    "snatched": "216",
+    "usnatched": false,
+    "downloaded": false,
+    "udownloaded": false,
+    "seedingperc": 100,
+    "seedingsize": "0.023 TB"
+  }
+}
