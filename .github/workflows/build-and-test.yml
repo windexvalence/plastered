@@ -21,6 +21,9 @@ jobs:
         with:
           tags: ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test
           target: plastered-test
+      - name: UV lockfile check
+        run: |
+          docker run -t --rm --entrypoint bash ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test -c 'uv lock --check'
       - name: Code Format Check
         run: |
           docker run -t --rm -e CODE_FORMAT_CHECK=1 -e GITHUB_ACTIONS=1 --entrypoint /app/build_scripts/code-format.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test
