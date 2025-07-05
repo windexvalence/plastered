@@ -7,7 +7,7 @@ WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/usr/local/
 COPY ./pyproject.toml uv.lock .
 ARG PLASTERED_RELEASE_TAG=""
-RUN uv sync --no-group test --no-cache
+RUN uv lock --check && uv sync --locked --no-group test --no-cache
 RUN uv run rebrowser_playwright install --with-deps chromium-headless-shell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -20,7 +20,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Test image stage defined below
 FROM plastered-app AS plastered-test
-RUN uv sync --all-groups --no-cache
+RUN uv sync --locked --all-groups --no-cache
 ENV SLOW_TESTS=0
 COPY ./build_scripts /app/build_scripts
 COPY ./docs /app/docs

@@ -120,7 +120,7 @@ class SearchItem:
         self.torrent_entry = torrent_match.torrent_entry
         self.above_max_size_te_found = torrent_match.above_max_size_found
 
-    def set_lfm_album_info(self, lfmai: LFMAlbumInfo) -> None:
+    def set_lfm_album_info(self, lfmai: LFMAlbumInfo | None) -> None:
         self.lfm_album_info = lfmai
 
     def set_lfm_track_info(self, lfmti: LFMTrackInfo | None) -> None:

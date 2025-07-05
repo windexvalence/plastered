@@ -41,7 +41,6 @@ class MBRelease:
             first_release_year_match = _RELEASE_YEAR_REGEX_PATTERN.match(release_group_json["first-release-date"])
             if first_release_year_match:
                 first_release_year = int(first_release_year_match.groups()[0])
-
         return cls(
             mbid=json_blob["id"],
             title=json_blob["title"],

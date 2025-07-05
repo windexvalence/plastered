@@ -4,6 +4,7 @@ from urllib.parse import quote
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, PERMITTED_MUSICBRAINZ_API_ENDPOINTS
+from plastered.utils.exceptions import MusicBrainzClientException
 from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
 
 
@@ -39,10 +40,13 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         inc_params = "inc=artist-credits+media+labels+release-groups"
-        json_data = self._session.get(
-            url=f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}/{mbid}?{inc_params}",
-            headers={"Accept": "application/json"},
-        ).json()
+        request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}/{mbid}?{inc_params}"
+        mb_response = self._session.get(url=request_url, headers={"Accept": "application/json"})
+        if mb_response.is_error:
+            raise MusicBrainzClientException(
+                f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"
+            )
+        json_data = mb_response.json()
         cache_write_success = self._write_cache_if_enabled(
             endpoint=self._release_endpoint, params=mbid, result_json=json_data
         )
@@ -95,10 +99,14 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         # Enforce request throttling
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
-        json_data = self._session.get(
-            url=f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json",
-            headers={"Accept": "application/json"},
-        ).json()
+        request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json"
+        mb_response = self._session.get(url=request_url, headers={"Accept": "application/json"})
+        if mb_response.is_error:
+            LOGGER.warning(
+                f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"
+            )
+            return None
+        json_data = mb_response.json()
         try:
             first_release_match_json = json_data["recordings"][0]["releases"][0]
         except (KeyError, IndexError):
