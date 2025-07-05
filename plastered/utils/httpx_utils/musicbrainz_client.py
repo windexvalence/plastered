@@ -100,12 +100,11 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json"
-        mb_response = self._session.get(
-            url=request_url,
-            headers={"Accept": "application/json"},
-        )
+        mb_response = self._session.get(url=request_url, headers={"Accept": "application/json"})
         if mb_response.is_error:
-            LOGGER.warning(f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}")
+            LOGGER.warning(
+                f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"
+            )
             return None
         json_data = mb_response.json()
         try:
