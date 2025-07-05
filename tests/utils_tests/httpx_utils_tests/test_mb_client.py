@@ -1,3 +1,4 @@
+import re
 from typing import Any
 from unittest.mock import Mock
 
@@ -6,6 +7,7 @@ from pytest_httpx import HTTPXMock
 
 from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import RunCache
+from plastered.utils.exceptions import MusicBrainzClientException
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 
 
@@ -175,6 +177,38 @@ def test_request_release_details_for_track_cache_hit(
         human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
     mb_client._throttle.assert_not_called()
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_error_handling(
+    httpx_mock: HTTPXMock, valid_app_config: AppConfig, disabled_api_run_cache: RunCache
+) -> None:
+    httpx_mock.add_response(status_code=404)
+    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client._throttle = Mock(name="_throttle")
+    mb_client._throttle.return_value = None
+    with pytest.raises(
+        MusicBrainzClientException, match=re.escape("Unexpected Musicbrainz API error encountered for URL ")
+    ):
+        mb_client.request_release_details(mbid="fake")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_for_track_error_handling(
+    httpx_mock: HTTPXMock, valid_app_config: AppConfig, disabled_api_run_cache: RunCache
+) -> None:
+    httpx_mock.add_response(status_code=404)
+    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client._throttle = Mock(name="_throttle")
+    mb_client._throttle.return_value = None
+    actual = mb_client.request_release_details_for_track(
+        human_readable_track_name="fake", artist_mbid="a", human_readable_artist_name="art"
+    )
+    assert actual is None
+
+
+def test_request_release_details_for_track_api_error() -> None:
+    pass  # TODO: implement
 
 
 @pytest.mark.override_global_httpx_mock

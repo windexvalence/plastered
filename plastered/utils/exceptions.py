@@ -28,6 +28,12 @@ class LFMClientException(Exception):
     pass
 
 
+class MusicBrainzClientException(Exception):
+    """Exception for failed request attempts to the Musicbrainz API."""
+
+    pass
+
+
 class RunCacheException(Exception):
     """Exception for invalid RunCache configurations or execution errors."""
 

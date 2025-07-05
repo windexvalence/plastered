@@ -8,7 +8,7 @@ from plastered.config.config_parser import AppConfig
 from plastered.release_search.search_helpers import SearchItem, SearchState
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRec, RecommendationType
-from plastered.utils.exceptions import LFMClientException, ReleaseSearcherException
+from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
@@ -124,12 +124,16 @@ class ReleaseSearcher:
         # TODO: figure out how to move this logic into the search_state filters instead
         return _TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
 
-    def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo:
-        return LFMAlbumInfo.construct_from_api_response(
-            json_blob=self._lfm_client.request_api(
+    def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo | None:
+        try:
+            lfm_api_response = self._lfm_client.request_api(
                 method="album.getinfo", params=f"artist={si.lfm_rec.artist_str}&album={si.lfm_rec.entity_str}"
             )
-        )
+            lfmai = LFMAlbumInfo.construct_from_api_response(json_blob=lfm_api_response)
+        except LFMClientException:  # pragma: no cover
+            _LOGGER.debug(f"LFMClientException encountered during LFM album info resolution for search item: {si}")
+            lfmai = None
+        return lfmai
 
     def _resolve_lfm_track_info(self, si: SearchItem) -> SearchItem:
         """
@@ -168,9 +172,11 @@ class ReleaseSearcher:
     def _attempt_resolve_mb_release(self, si: SearchItem) -> SearchItem:
         if mbid := si.get_matched_mbid():
             _LOGGER.debug(f"Searching musicbrainz for release-mbid: '{mbid}'")
-            si.set_mb_release(
-                MBRelease.construct_from_api(json_blob=self._musicbrainz_client.request_release_details(mbid=mbid))
-            )
+            try:
+                mb_response_json = self._musicbrainz_client.request_release_details(mbid=mbid)
+                si.set_mb_release(MBRelease.construct_from_api(json_blob=mb_response_json))
+            except (MusicBrainzClientException, KeyError):  # pragma: no cover
+                _LOGGER.error(f"Musicbrainz resolution error for search item '{si}'.", exc_info=True)
         else:
             _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
         return si
