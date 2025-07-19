@@ -16,9 +16,9 @@ Make sure you have completed the following before installing or using `plastered
     ```
 
 2. Pull the [latest plastered Docker image release](https://github.com/windexvalence/plastered/pkgs/container/plastered?tag=latest):
-  ```shell
-  docker pull ghcr.io/windexvalence/plastered:latest
-  ```
+    ```shell
+    docker pull ghcr.io/windexvalence/plastered:latest
+    ```
 
 3. Initialize a config.yaml file in the directory you just created by running:
     ```shell
