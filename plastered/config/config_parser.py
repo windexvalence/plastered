@@ -29,6 +29,7 @@ from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import AppConfigException
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat
 
+
 _LOGGER = logging.getLogger(__name__)
 _CACHE_DIRNAME = "cache"
 _SUMMARIES_DIRNAME = "summaries"
@@ -77,7 +78,6 @@ def _load_red_formats_from_config(format_prefs_config_data: list[dict[str, Any]]
     return red_formats
 
 
-# TODO (later): Change this to a pydantic model class
 class AppConfig:
     """
     Utility class for gathering and merging user-provided options from both the CLI and the configuration file.

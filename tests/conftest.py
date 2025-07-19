@@ -13,6 +13,7 @@ import pytest
 import yaml
 from pytest_httpx import HTTPXMock
 
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.musicbrainz_utils import MBRelease
@@ -416,6 +417,18 @@ def valid_app_config(valid_config_filepath: str, cache_root_dir_path: Path) -> A
     app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
     app_config._base_cache_directory_path = str(cache_root_dir_path)
     return app_config
+
+
+@pytest.fixture(scope="function")
+def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
+    """
+    Function-scoped valid `AppSettings` fixture, with cache root dir
+    overridden to use the session-scoped tmp cache root dir fixture
+    """
+    AppSettings.src_yaml_filepath = valid_config_filepath
+    app_settings = AppSettings(cli_overrides=dict())
+    app_settings._base_cache_directory_path = str(cache_root_dir_path)
+    return app_settings
 
 
 @pytest.fixture(scope="session")

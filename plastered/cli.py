@@ -9,6 +9,7 @@ from datetime import datetime
 
 import click
 
+from plastered.config.app_settings import get_app_settings
 from plastered.config.config_parser import AppConfig, load_init_config_template
 from plastered.config.config_schema import ENABLE_SNATCHING_KEY, REC_TYPES_TO_SCRAPE_KEY
 from plastered.release_search.release_searcher import ReleaseSearcher
@@ -88,7 +89,8 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
         ctx.obj[_GROUP_PARAMS_KEY][REC_TYPES_TO_SCRAPE_KEY] = (
             [rec_type.value for rec_type in RecommendationType] if rec_types == "@all" else [rec_types]
         )
-    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    # app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    app_config = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     with LFMRecsScraper(app_config=app_config) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()
     with ReleaseSearcher(app_config=app_config) as release_searcher:
@@ -112,7 +114,8 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
 )
 @click.pass_context
 def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
-    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    # app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    app_config = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
     if not run_date:
         _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
@@ -134,7 +137,8 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
 @config_path_option
 @click.pass_context
 def conf(ctx, config: str) -> None:
-    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    # app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    app_config = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     app_config.pretty_print_config()
 
 
@@ -169,7 +173,8 @@ def cache(
     list_keys: bool | None = False,
     read_value: str | None = None,
 ) -> None:
-    app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    # app_config = AppConfig(config_filepath=config, cli_params=ctx.obj[_GROUP_PARAMS_KEY])
+    app_config = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     target_cache_types = (
         [cache_type for cache_type in CacheType] if target_cache == _CLI_ALL_CACHE_TYPES else [CacheType(target_cache)]
     )

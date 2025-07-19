@@ -15,3 +15,13 @@ def test_get_app_settings_from_init_conf() -> None:
     actual = get_app_settings(src_yaml_filepath=_INIT_CONF_FILEPATH)
     assert isinstance(actual, AppSettings)
     
+
+
+def test_app_settings_get() -> None:
+    """Tests the `get` method for AppSettings works properly for valid lookups."""
+    actual = 
+
+
+def test_app_settings_get_error() -> None:
+    """Tests the `get` method for AppSettings properly handles errors for bad lookups."""
+    pass  # TODO: implement
