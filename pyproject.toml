@@ -22,7 +22,7 @@ test = [
     "bandit==1.8.0",
     "coverage-badge==1.1.2",
     "mkdocs-click==0.8.1",
-    "pytest==8.4.0",
+    "pytest==8.4.1",
     "pytest-cov[toml]==6.1.1",
     "pytest-httpx==0.35.0",
     "pytest-xdist==3.7.0",
