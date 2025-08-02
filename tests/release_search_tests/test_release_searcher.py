@@ -1,4 +1,6 @@
+from copy import deepcopy
 import os
+from pathlib import Path
 import re
 from copy import deepcopy
 from typing import Any
@@ -7,7 +9,7 @@ from unittest.mock import ANY, MagicMock, Mock, call, patch
 import pytest
 from pytest_httpx import HTTPXMock
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.release_search.release_searcher import ReleaseSearcher, SearchItem, SearchState, _TorrentMatch
 from plastered.release_search.search_helpers import SearchItem, SearchState
 from plastered.scraper.lfm_scraper import LFMRec
@@ -39,8 +41,8 @@ def mock_lfm_track_info() -> LFMTrackInfo:
 
 
 @pytest.fixture(scope="function")
-def initial_search_state(valid_app_config: AppConfig) -> SearchState:
-    return SearchState(app_config=valid_app_config)
+def initial_search_state(valid_app_settings: AppSettings) -> SearchState:
+    return SearchState(app_settings=valid_app_settings)
 
 
 @pytest.fixture(scope="session")
@@ -81,14 +83,14 @@ def mock_best_te() -> te:
 
 @pytest.mark.override_global_httpx_mock
 def test_resolve_lfm_album_info(
-    httpx_mock: HTTPXMock, mock_lfm_album_info_json: dict[str, Any], valid_app_config: AppConfig
+    httpx_mock: HTTPXMock, mock_lfm_album_info_json: dict[str, Any], valid_app_settings: AppSettings
 ) -> None:
     httpx_mock.add_response(
         url="https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=5678alsonotarealapikey&artist=Some+Artist&album=Their+Album&format=json",
         headers={"Accept": "application/json"},
         json=mock_lfm_album_info_json,
     )
-    with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+    with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         test_si = SearchItem(
             lfm_rec=LFMRec(
                 lfm_artist_str="Some+Artist",
@@ -152,7 +154,7 @@ def test_resolve_lfm_album_info(
 )
 def test_resolve_lfm_track_info(
     request: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     test_lfm_rec: SearchItem,
     mock_lfm_json_fixture: str,
     mb_resolved_origin_release_fields: dict[str, str | None] | None,
@@ -167,7 +169,7 @@ def test_resolve_lfm_track_info(
             MusicBrainzAPIClient, "request_release_details_for_track"
         ) as mock_request_release_details_for_track:
             mock_request_release_details_for_track.return_value = mb_resolved_origin_release_fields
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
                 actual = release_searcher._resolve_lfm_track_info(si=input_si)
                 mock_lfm_request_api.assert_called_once_with(
                     method="track.getinfo",
@@ -181,7 +183,9 @@ def test_resolve_lfm_track_info(
 
 
 @pytest.mark.parametrize("lfm_api_response", [None, {"no-artist-key": "should-error"}])
-def test_resolve_lfm_track_info_bad_json(valid_app_config: AppConfig, lfm_api_response: dict[str, Any] | None) -> None:
+def test_resolve_lfm_track_info_bad_json(
+    valid_app_settings: AppSettings, lfm_api_response: dict[str, Any] | None
+) -> None:
     rec = LFMRec("Fake+Artist", "Fake+Song", rt.TRACK, rc.IN_LIBRARY)
     with patch.object(LFMAPIClient, "request_api") as mock_lfm_request_api:
         mock_lfm_request_api.return_value = lfm_api_response
@@ -190,7 +194,7 @@ def test_resolve_lfm_track_info_bad_json(valid_app_config: AppConfig, lfm_api_re
                 "origin_release_mbid": "69430-08749b-b",
                 "origin_release_name": "Some Release",
             }
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
                 actual = release_searcher._resolve_lfm_track_info(si=SearchItem(lfm_rec=rec))
                 assert actual is not None
                 mock_mb_request_method.assert_called_once_with(
@@ -220,7 +224,7 @@ def test_resolve_lfm_track_info_bad_json(valid_app_config: AppConfig, lfm_api_re
 )
 def test_attempt_resolve_mb_release(
     httpx_mock: HTTPXMock,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_musicbrainz_release_json: dict[str, Any],
     expected_mb_release: MBRelease,
     test_si: SearchItem,
@@ -235,18 +239,18 @@ def test_attempt_resolve_mb_release(
         json=mock_musicbrainz_release_json,
     )
     with patch.object(SearchItem, "get_matched_mbid", return_value=mock_matched_mbid) as mock_get_matched_mbid_fn:
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             actual = release_searcher._attempt_resolve_mb_release(si=test_si)
             mock_get_matched_mbid_fn.assert_called_once()
             assert actual == expected
 
 
-def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_config: AppConfig) -> None:
-    expected_red_user_id = valid_app_config.get_cli_option("red_user_id")
+def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_settings: AppSettings) -> None:
+    expected_red_user_id = valid_app_settings.red.red_user_id
     expected_snatch_count = 216
     with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
         mock_precise_delay.return_value = None
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             assert release_searcher._search_state._red_user_details is None, (
                 "Expected ReleaseSearcher's red user details to initially be None"
             )
@@ -258,11 +262,11 @@ def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_config:
             assert actual_snatch_count == expected_snatch_count
 
 
-def test_search_empty_list(valid_app_config: AppConfig) -> None:
+def test_search_empty_list(valid_app_settings: AppSettings) -> None:
     with patch("plastered.release_search.release_searcher._LOGGER") as mock_logger:
         mock_logger.warning.return_value = None
         with patch.object(ReleaseSearcher, "_search_for_release_te") as mock_search_for_release_te_fn:
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
                 release_searcher._search(search_items=[])
                 mock_logger.warning.assert_called_once()
                 mock_search_for_release_te_fn.assert_not_called()
@@ -287,9 +291,9 @@ def test_search_empty_list(valid_app_config: AppConfig) -> None:
         ],
     ],
 )
-def test_search_should_raise(valid_app_config: AppConfig, search_items: list[SearchItem]) -> None:
+def test_search_should_raise(valid_app_settings: AppSettings, search_items: list[SearchItem]) -> None:
     with pytest.raises(ReleaseSearcherException, match=re.escape("All recs must be of same rec_type.")):
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search(search_items=search_items)
 
 
@@ -309,7 +313,7 @@ def test_search_should_raise(valid_app_config: AppConfig, search_items: list[Sea
         ],
     ],
 )
-def test_search(valid_app_config: AppConfig, mock_best_te: te, search_items: list[SearchItem]) -> None:
+def test_search(valid_app_settings: AppSettings, mock_best_te: te, search_items: list[SearchItem]) -> None:
     # Shorthand hack to just mock the last elem as being viable to add to pending snatch list
     search_items[-1].torrent_entry = mock_best_te
     expected_search_for_release_te_call_count = len(search_items)
@@ -332,7 +336,7 @@ def test_search(valid_app_config: AppConfig, mock_best_te: te, search_items: lis
         patch.object(NestedProgress, "__enter__", return_value=mock_nested_progress) as mock_nested_progress_enter_fn,
     ):
         mock_nested_progress.track.side_effect = _mock_nested_progress_track
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search(search_items=search_items)
             assert len(mock_search_for_release_te_fn.mock_calls) == expected_search_for_release_te_call_count
             mock_search_for_release_te_fn.assert_has_calls(expected_search_for_release_te_calls)
@@ -396,13 +400,13 @@ def test_search(valid_app_config: AppConfig, mock_best_te: te, search_items: lis
 )
 def test_search_red_release_by_preferences(
     request: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_response_fixture_names: list[str],
     mock_preference_ordering: list[rf],
     expected_torrent_entry: te | None,
 ) -> None:
     expected_torrent_match = _TorrentMatch(torrent_entry=expected_torrent_entry, above_max_size_found=False)
-    with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+    with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         release_searcher._search_state._red_format_preferences = mock_preference_ordering
         release_searcher._red_client.request_api = Mock(
             name="request_api",
@@ -417,7 +421,7 @@ def test_search_red_release_by_preferences(
 
 
 def test_search_red_release_by_preferences_above_max_size_found(
-    request: pytest.FixtureRequest, valid_app_config: AppConfig
+    request: pytest.FixtureRequest, valid_app_settings: AppSettings
 ) -> None:
     mock_preference_ordering = [
         rf(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD),
@@ -427,7 +431,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
     mock_response_fixture_names = ["mock_red_browse_empty_response", "mock_red_browse_non_empty_response"]
     expected_torrent_match = _TorrentMatch(torrent_entry=None, above_max_size_found=True)
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
-    with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+    with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         release_searcher._search_state._max_size_gb = 0.00001
         release_searcher._search_state._red_format_preferences = mock_preference_ordering
         release_searcher._red_client.request_api = Mock(
@@ -440,7 +444,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
         assert actual_torrent_match == expected_torrent_match
 
 
-def test_search_red_release_by_preferences_browse_exception_raised(valid_app_config: AppConfig) -> None:
+def test_search_red_release_by_preferences_browse_exception_raised(valid_app_settings: AppSettings) -> None:
     expected = _TorrentMatch(torrent_entry=None, above_max_size_found=False)
 
     def _raise_excp(*args, **kwargs) -> None:
@@ -449,7 +453,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
     with (
         patch("plastered.release_search.release_searcher._LOGGER") as mock_logger,
-        ReleaseSearcher(app_config=valid_app_config) as release_searcher,
+        ReleaseSearcher(app_settings=valid_app_settings) as release_searcher,
     ):
         mock_logger.error.return_value = None
         release_searcher._search_state._red_format_preferences = [
@@ -504,7 +508,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_con
     [(False, False, False, False), (True, False, False, False), (True, True, False, False), (True, True, True, False)],
 )
 def test_search_for_release_te_none(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_lfmai: LFMAlbumInfo,
     mock_mbr: MBRelease,
     pre_mbid_resolution_filter_res: bool,
@@ -541,7 +545,7 @@ def test_search_for_release_te_none(
             SearchState, "post_red_search_filter", return_value=post_red_search_filer_res
         ) as mock_ss_post_red_filter,
     ):
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
             si = SearchItem(LFMRec("a", "aa", rt.ALBUM, rc.SIMILAR_ARTIST))
             actual = release_searcher._search_for_release_te(si=si)
@@ -558,7 +562,7 @@ def test_search_for_release_te_none(
 
 @pytest.mark.parametrize("require_mbid_resolution", [False, True])
 def test_search_for_release_te(
-    valid_app_config: AppConfig, mock_lfmai: LFMAlbumInfo, mock_mbr: MBRelease, require_mbid_resolution: bool
+    valid_app_settings: AppSettings, mock_lfmai: LFMAlbumInfo, mock_mbr: MBRelease, require_mbid_resolution: bool
 ) -> None:
     """Validates that the conditions where _search_for_release_te should return non-None do so."""
 
@@ -580,7 +584,7 @@ def test_search_for_release_te(
             return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
         ) as mocked_torrent_match,
     ):
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
             si = SearchItem(LFMRec("", "", rt.ALBUM, rc.SIMILAR_ARTIST))
             actual = release_searcher._search_for_release_te(si=si)
@@ -595,7 +599,7 @@ def test_search_for_release_te(
     "mock_resolved_lfmti",
     [None, LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")],
 )
-def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolved_lfmti: LFMTrackInfo | None) -> None:
+def test_search_for_track_recs(valid_app_settings: AppSettings, mock_resolved_lfmti: LFMTrackInfo | None) -> None:
     test_si = SearchItem(lfm_rec=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST))
     mock_si_with_resolved_ti = deepcopy(test_si)
     mock_si_with_resolved_ti.lfm_track_info = mock_resolved_lfmti
@@ -603,7 +607,7 @@ def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolved_lfmti:
         with patch.object(ReleaseSearcher, "_resolve_lfm_track_info") as mock_resolve_lfm_track_info:
             mock_resolve_lfm_track_info.return_value = mock_si_with_resolved_ti
             mock_search_fn.return_value = None
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
                 release_searcher._search_for_track_recs(search_items=[test_si])
                 mock_resolve_lfm_track_info.assert_called_once_with(si=test_si)
                 if not mock_resolved_lfmti:
@@ -612,10 +616,10 @@ def test_search_for_track_recs(valid_app_config: AppConfig, mock_resolved_lfmti:
                     mock_search_fn.assert_called_once_with(search_items=[mock_si_with_resolved_ti])
 
 
-def test_search_for_track_recs_empty_input(valid_app_config: AppConfig) -> None:
+def test_search_for_track_recs_empty_input(valid_app_settings: AppSettings) -> None:
     with patch.object(ReleaseSearcher, "_search") as mock_search_fn:
         with patch.object(ReleaseSearcher, "_resolve_lfm_track_info") as mock_resolve_lfm_track_info_fn:
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
                 release_searcher._search_for_track_recs(search_items=[])
                 mock_resolve_lfm_track_info_fn.assert_not_called()
                 mock_search_fn.assert_not_called()
@@ -637,7 +641,7 @@ def test_search_for_track_recs_empty_input(valid_app_config: AppConfig) -> None:
     ],
 )
 def test_search_for_recs(
-    valid_app_config: AppConfig, rec_type_to_recs_list: dict[rt, list[LFMRec]], expected_search_call_cnt: int
+    valid_app_settings: AppSettings, rec_type_to_recs_list: dict[rt, list[LFMRec]], expected_search_call_cnt: int
 ) -> None:
     def _resolve_lfmti_side_effect(*args, **kwargs) -> SearchItem:
         input_si: SearchItem = kwargs["si"]
@@ -659,7 +663,7 @@ def test_search_for_recs(
         patch.object(ReleaseSearcher, "_search", return_value=None) as mock_search,
         patch.object(ReleaseSearcher, "_snatch_matches", return_value=None) as mock_snatch_matches,
     ):
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher.search_for_recs(rec_type_to_recs_list=rec_type_to_recs_list)
             mock_gather_red_user_details.assert_called_once()
             actual_search_call_cnt = len(mock_search.mock_calls)
@@ -755,30 +759,28 @@ def test_search_for_recs(
 )
 def test_snatch_matches(
     tmp_path: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    valid_config_raw_data: dict[str, Any],
+    valid_config_filepath: str,
     mock_red_user_details_fn_scoped: RedUserDetails,
     mock_enable_snatches: bool,
     mock_tes_to_snatch: list[te],
     expected_out_filenames: list[str],
     expected_request_params: list[str],
 ) -> None:
-    mocked_cli_options = {
-        **valid_app_config._cli_options,
-        **{"snatch_recs": mock_enable_snatches, "snatch_directory": tmp_path},
-    }
+    mocked_settings_data = deepcopy(valid_config_raw_data)
+    for raw_k, raw_v in {"snatch_recs": mock_enable_snatches, "snatch_directory": tmp_path}.items():
+        mocked_settings_data["red"]["snatches"][raw_k] = raw_v
+    mocked_settings_data["src_yaml_filepath"] = Path(valid_config_filepath)
     mock_search_items_to_snatch = [
         SearchItem(torrent_entry=te, lfm_rec=LFMRec("", "", rt.ALBUM, rc.IN_LIBRARY)) for te in mock_tes_to_snatch
     ]
 
-    def _get_opt_side_effect(*args, **kwargs) -> Any:
-        return mocked_cli_options[args[0]]
-
-    with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
-        mock_app_conf_get_cli_option.side_effect = _get_opt_side_effect
+    with patch("plastered.config.app_settings._get_settings_data", return_value=mocked_settings_data):
+        app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
         with patch.object(RedSnatchAPIClient, "snatch") as mock_red_client_snatch:
             mock_red_client_snatch.return_value = bytes("fakedata", encoding="utf-8")
             expected_output_filepaths = [os.path.join(tmp_path, filename) for filename in expected_out_filenames]
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=app_settings) as release_searcher:
                 release_searcher._search_state._search_items_to_snatch = mock_search_items_to_snatch
                 release_searcher._search_state.set_red_user_details(mock_red_user_details_fn_scoped)
                 release_searcher._snatch_matches()
@@ -801,25 +803,26 @@ def test_snatch_matches(
 )
 def test_snatch_exception_handling(
     tmp_path: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    valid_config_raw_data: dict[str, Any],
+    valid_config_filepath: str,
     mock_best_te: te,
     mock_red_user_details_fn_scoped: RedUserDetails,
     exception_type: Exception,
     mock_file_exists: bool,
 ) -> None:
-    print(f"exception_type.__name__: {exception_type.__name__}")
+    mocked_settings_data = deepcopy(valid_config_raw_data)
+    mocked_settings_data["red"]["snatches"]["snatch_directory"] = tmp_path
+    mocked_settings_data["src_yaml_filepath"] = Path(valid_config_filepath)
 
     def _red_client_raise_exception_side_effect(*args, **kwargs) -> None:
         raise exception_type("Expected testing exception")
 
-    with patch.object(AppConfig, "get_cli_option") as mock_app_conf_get_cli_option:
-        mock_app_conf_get_cli_option.side_effect = lambda x: (
-            tmp_path if x == "snatch_directory" else valid_app_config._cli_options[x]
-        )
+    with patch("plastered.config.app_settings._get_settings_data", return_value=mocked_settings_data):
+        app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
         with patch.object(RedSnatchAPIClient, "snatch") as mock_red_client_snatch:
             mock_red_client_snatch.side_effect = _red_client_raise_exception_side_effect
             expected_out_filepath = os.path.join(tmp_path, "69420.torrent")
-            with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+            with ReleaseSearcher(app_settings=app_settings) as release_searcher:
                 release_searcher._search_state._search_items_to_snatch = [
                     SearchItem(torrent_entry=mock_best_te, lfm_rec=LFMRec("", "", rt.ALBUM, rc.IN_LIBRARY))
                 ]
@@ -838,9 +841,9 @@ def test_snatch_exception_handling(
                 )
 
 
-def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_config: AppConfig) -> None:
+def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_settings: AppSettings) -> None:
     with patch.object(SearchState, "generate_summary_stats") as mock_search_state_gen_stats_fn:
-        with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
+        with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             mock_output_summary_dir_path = os.path.join(tmp_path, "1969-12-31__10-10-59")
             release_searcher._search_state._output_summary_dir_path = mock_output_summary_dir_path
             mock_search_state_gen_stats_fn.return_value = None

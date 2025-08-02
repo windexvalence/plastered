@@ -7,6 +7,7 @@ MUSICBRAINZ_API_BASE_URL: Final[str] = "https://musicbrainz.org/ws/2/"
 RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
 CACHE_DIRNAME: Final[str] = "cache"
+SUMMARIES_DIRNAME = "summaries"
 API_CACHE_DIRNAME: Final[str] = "api_cache"
 SCRAPER_CACHE_DIRNAME: Final[str] = "scraper_cache"
 CACHE_TYPE_API: Final[str] = "api"
@@ -42,7 +43,7 @@ TRACK_REC_CONTEXT_CSS_SELECTOR: Final[str] = "p.recommended-tracks-item-aux-text
 
 LOGIN_URL: Final[str] = "https://www.last.fm/login"
 LOGIN_USERNAME_FORM_LOCATOR: Final[str] = "[name='username_or_email']"
-LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"  # nosec B105
+LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"
 LOGIN_BUTTON_LOCATOR: Final[str] = "[name='submit']"
 LOGOUT_URL: Final[str] = "https://www.last.fm/logout"
 

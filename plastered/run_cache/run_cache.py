@@ -8,7 +8,7 @@ from typing import Any
 
 from diskcache import Cache
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.stats.stats import RunCacheSummaryTable
 from plastered.utils.constants import BYTES_IN_MB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 from plastered.utils.exceptions import RunCacheDisabledException
@@ -46,12 +46,12 @@ class RunCache:
     the LFMRecsScraper and the ReleaseSearcher by default for caching the data they pull from the web.
     """
 
-    def __init__(self, app_config: AppConfig, cache_type: CacheType):
+    def __init__(self, app_settings: AppSettings, cache_type: CacheType):
         self._expiration_datetime = _tomorrow_midnight_datetime()
         self._cache_type = cache_type
-        self._enabled = app_config.is_cache_enabled(cache_type=self._cache_type)
+        self._enabled = app_settings.is_cache_enabled(cache_type=self._cache_type)
         LOGGER.debug(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
-        self._cache_dir_path = app_config.get_cache_directory_path(cache_type=self._cache_type)
+        self._cache_dir_path = app_settings.get_cache_directory_path(cache_type=self._cache_type)
         LOGGER.debug(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
         self._cache: Cache | None = None
         if self._enabled:

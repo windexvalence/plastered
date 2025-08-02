@@ -1,6 +1,6 @@
 import httpx
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     NON_CACHED_RED_SNATCH_API_ENDPOINTS,
@@ -20,12 +20,12 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
     Also contains some specialized logic for intelligently estimating the FL tokens available.
     """
 
-    def __init__(self, app_config: AppConfig, run_cache: RunCache):
+    def __init__(self, app_settings: AppSettings, run_cache: RunCache):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
             # NOTE: the RedSnatchAPIClient doesn't use retries, so this is ignored
-            max_api_call_retries=app_config.get_cli_option("red_api_retries"),
-            seconds_between_api_calls=app_config.get_cli_option("red_api_seconds_between_calls"),
+            max_api_call_retries=app_settings.red.red_api_retries,
+            seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
             valid_endpoints=PERMITTED_RED_SNATCH_API_ENDPOINTS,
             run_cache=run_cache,
             non_cached_endpoints=NON_CACHED_RED_SNATCH_API_ENDPOINTS,
@@ -33,9 +33,9 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
         )
-        self._session.headers.update({"Authorization": app_config.get_cli_option("red_api_key")})
+        self._session.headers.update({"Authorization": app_settings.red.red_api_key})
         self._available_fl_tokens = 0
-        self._use_fl_tokens = app_config.get_cli_option("use_fl_tokens")
+        self._use_fl_tokens = app_settings.red.snatches.use_fl_tokens
         self._tids_snatched_with_fl_tokens: set[str] = set()
 
     def set_initial_available_fl_tokens(self, initial_available_fl_tokens: int) -> None:

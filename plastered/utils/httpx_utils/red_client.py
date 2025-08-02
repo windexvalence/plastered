@@ -1,6 +1,6 @@
 from typing import Any
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     NON_CACHED_RED_API_ENDPOINTS,
@@ -17,16 +17,16 @@ class RedAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_config: AppConfig, run_cache: RunCache):
+    def __init__(self, app_settings: AppSettings, run_cache: RunCache):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
-            max_api_call_retries=app_config.get_cli_option("red_api_retries"),
-            seconds_between_api_calls=app_config.get_cli_option("red_api_seconds_between_calls"),
+            max_api_call_retries=app_settings.red.red_api_retries,
+            seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
             valid_endpoints=PERMITTED_RED_API_ENDPOINTS,
             run_cache=run_cache,
             non_cached_endpoints=NON_CACHED_RED_API_ENDPOINTS,
         )
-        self._session.headers.update({"Authorization": app_config.get_cli_option("red_api_key")})
+        self._session.headers.update({"Authorization": app_settings.red.red_api_key})
 
     def request_api(self, action: str, params: str) -> dict[str, Any]:
         """

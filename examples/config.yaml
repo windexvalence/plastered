@@ -4,6 +4,46 @@ red:
   red_api_key: 1234notarealapikey
   red_api_retries: 3
   red_api_seconds_between_calls: 5
+  search:
+    use_release_type: true
+    use_first_release_year: true
+    use_record_label: false
+    use_catalog_number: false
+    enable_api_cache: true
+    use_fl_tokens: false
+  snatches:
+    snatch_directory: /app/tests/resources
+    snatch_recs: true
+    skip_prior_snatches: true
+    max_size_gb: 2.0
+  format_preferences:
+    - format: "FLAC"
+      encoding: "24bit+Lossless"
+      media: "SACD"
+    - format: "FLAC"
+      encoding: "24bit+Lossless"
+      media: "WEB"
+    - format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 100
+        has_cue: true
+    - format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 100
+        has_cue: false
+    - format: "FLAC"
+      encoding: "Lossless"
+      media: "CD"
+      cd_only_extras:
+        log: 0
+        has_cue: false
+    - format: "MP3"
+      encoding: "V0+(VBR)"
+      media: "ANY"
 lfm:
   lfm_api_key: 5678alsonotarealapikey
   lfm_username: fake-username
@@ -16,52 +56,3 @@ lfm:
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
-
-search:
-  use_release_type: true
-  use_first_release_year: true
-  use_record_label: false
-  use_catalog_number: false
-  enable_api_cache: true
-  use_fl_tokens: false
-
-snatches:
-  snatch_directory: /app/tests/resources
-  snatch_recs: true
-  skip_prior_snatches: true
-  max_size_gb: 2.0
-
-format_preferences:
-  - preference:
-      format: "FLAC"
-      encoding: "24bit+Lossless"
-      media: "SACD"
-  - preference:
-      format: "FLAC"
-      encoding: "24bit+Lossless"
-      media: "WEB"
-  - preference:
-      format: "FLAC"
-      encoding: "Lossless"
-      media: "CD"
-      cd_only_extras:
-        log: 100
-        has_cue: true
-  - preference:
-      format: "FLAC"
-      encoding: "Lossless"
-      media: "CD"
-      cd_only_extras:
-        log: 100
-        has_cue: false
-  - preference:
-      format: "FLAC"
-      encoding: "Lossless"
-      media: "CD"
-      cd_only_extras:
-        log: 0
-        has_cue: false
-  - preference:
-      format: "MP3"
-      encoding: "V0+(VBR)"
-      media: "ANY"

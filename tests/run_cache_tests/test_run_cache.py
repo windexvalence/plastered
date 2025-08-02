@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import CacheType, RunCache, _tomorrow_midnight_datetime
 from plastered.utils.exceptions import RunCacheDisabledException
 
@@ -58,11 +58,10 @@ def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expecte
     "enabled, cache_type",
     [(False, CacheType.API), (True, CacheType.API), (False, CacheType.SCRAPER), (True, CacheType.SCRAPER)],
 )
-def test_run_cache_init(valid_app_config: AppConfig, enabled: bool, cache_type: CacheType) -> None:
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_is_cache_enabled:
+def test_run_cache_init(valid_app_settings: AppSettings, enabled: bool, cache_type: CacheType) -> None:
+    with patch.object(AppSettings, "is_cache_enabled", return_value=enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache:
-            mock_app_conf_is_cache_enabled.return_value = enabled
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             if enabled:
                 mock_diskcache.assert_called_once()
             else:
@@ -146,7 +145,7 @@ def test_run_cache_init(valid_app_config: AppConfig, enabled: bool, cache_type: 
     ],
 )
 def test_run_cache_load_data_if_valid(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     cache_type: CacheType,
     enabled: bool,
     cache_key: Any,
@@ -155,14 +154,13 @@ def test_run_cache_load_data_if_valid(
     expected: Any,
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = enabled
+    with patch.object(AppSettings, "is_cache_enabled", return_value=enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
             mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             actual = run_cache.load_data_if_valid(cache_key=cache_key, data_validator_fn=data_validator_fn)
             assert actual == expected, f"Expected {expected}, but got {actual}"
 
@@ -191,15 +189,14 @@ def test_run_cache_load_data_if_valid(
     ],
 )
 def test_seconds_to_expiry(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     cache_type: CacheType,
     expire_datetime: datetime,
     fake_now_datetime: datetime,
     expected_seconds: int,
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = True
+    with patch.object(AppSettings, "is_cache_enabled", return_value=True):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
@@ -208,7 +205,7 @@ def test_seconds_to_expiry(
             with patch("plastered.run_cache.run_cache.datetime", wraps=datetime) as mock_datetime:
                 mock_datetime.now.return_value = fake_now_datetime
                 mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
-                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+                run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
                 run_cache._expiration_datetime = expire_datetime
                 actual = run_cache._seconds_to_expiry()
                 assert actual == expected_seconds, f"Expected {expected_seconds}, but got {actual}"
@@ -219,11 +216,10 @@ def test_seconds_to_expiry(
     [(CacheType.API, "my-fake-key", "my-fake-value"), (CacheType.SCRAPER, "my-fake-key", "my-fake-value")],
 )
 def test_run_cache_write_data_valid(
-    valid_app_config: AppConfig, cache_type: CacheType, test_key: Any, test_data: Any
+    valid_app_settings: AppSettings, cache_type: CacheType, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = True
+    with patch.object(AppSettings, "is_cache_enabled", return_value=True):
         with patch.object(RunCache, "_seconds_to_expiry") as mock_seconds_to_expiry:
             mock_seconds_to_expiry.return_value = 600
             with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
@@ -231,7 +227,7 @@ def test_run_cache_write_data_valid(
                 mock_diskcache.stats.return_value = None
                 mock_diskcache.expire.return_value = None
                 mock_diskcache.set.return_value = True
-                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+                run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
                 actual = run_cache.write_data(cache_key=test_key, data=test_data)
                 assert actual == True, f"Expected True, but got {actual}"
                 mock_diskcache.set.assert_called_once_with(test_key, test_data, expire=600)
@@ -242,14 +238,13 @@ def test_run_cache_write_data_valid(
     [(CacheType.API, "my-fake-key", "my-fake-value"), (CacheType.SCRAPER, "my-fake-key", "my-fake-value")],
 )
 def test_run_cache_write_data_invalid(
-    valid_app_config: AppConfig, cache_type: CacheType, test_key: Any, test_data: Any
+    valid_app_settings: AppSettings, cache_type: CacheType, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = False
+    with patch.object(AppSettings, "is_cache_enabled", return_value=False):
         with patch.object(RunCache, "_seconds_to_expiry") as mock_seconds_to_expiry:
             mock_seconds_to_expiry.return_value = 600
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                 actual = run_cache.write_data(cache_key=test_key, data=test_data)
 
@@ -258,16 +253,15 @@ def test_run_cache_write_data_invalid(
     "cache_type, run_cache_enabled",
     [(CacheType.API, False), (CacheType.SCRAPER, False), (CacheType.API, True), (CacheType.SCRAPER, True)],
 )
-def test_run_cache_clear(valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool) -> None:
+def test_run_cache_clear(valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+    with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
             mock_diskcache.clear.return_value = 10
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             if not run_cache_enabled:
                 with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                     actual = run_cache.clear()
@@ -286,19 +280,18 @@ def test_run_cache_clear(valid_app_config: AppConfig, cache_type: CacheType, run
     ],
 )
 def test_run_cache_check(
-    valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool, should_fail: bool
+    valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool, should_fail: bool
 ) -> None:
     mock_diskcache = MagicMock()
     expected_check_result_no_fail = ["fake warning"]
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+    with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.return_value = None
             mock_diskcache.expire.return_value = None
             mock_diskcache.check.return_value = expected_check_result_no_fail
             mock_diskcache.volume.return_value = 10000.0
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             if should_fail:
                 with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                     run_cache.check()
@@ -313,7 +306,7 @@ def test_run_cache_check(
     "cache_type, run_cache_enabled",
     [(CacheType.API, False), (CacheType.SCRAPER, False), (CacheType.API, True), (CacheType.SCRAPER, True)],
 )
-def test_print_summary_info(valid_app_config: AppConfig, cache_type: CacheType, run_cache_enabled: bool) -> None:
+def test_print_summary_info(valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool) -> None:
     mock_diskcache = MagicMock()
 
     def _stats_side_effect(*args, **kwargs) -> tuple[int, int] | None:
@@ -321,14 +314,13 @@ def test_print_summary_info(valid_app_config: AppConfig, cache_type: CacheType, 
             return None
         return (69, 420)
 
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+    with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
             mock_diskcache_constructor.return_value = mock_diskcache
             mock_diskcache.stats.side_effect = _stats_side_effect
             mock_diskcache.expire.return_value = None
             mock_diskcache.volume.return_value = 10000.0
-            run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
             if not run_cache_enabled:
                 with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
                     actual = run_cache.print_summary_info()
@@ -347,22 +339,21 @@ def test_print_summary_info(valid_app_config: AppConfig, cache_type: CacheType, 
     ],
 )
 def test_cli_list_cache_keys(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     cache_type: CacheType,
     run_cache_enabled: bool,
     mock_cache_entries,
     expected_print_call_cnt: int,
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = run_cache_enabled
+    with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
         with patch("builtins.print", return_value=None) as mock_print:
             with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
                 mock_diskcache_constructor.return_value = mock_diskcache
                 mock_diskcache.stats.return_value = None
                 mock_diskcache.expire.return_value = None
                 mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
-                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
+                run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
                 with patch("builtins.list", return_value=[k for k in mock_cache_entries.keys()]) as mock_list:
                     if not run_cache_enabled:
                         with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
@@ -389,7 +380,7 @@ def test_cli_list_cache_keys(
     ],
 )
 def test_cli_print_cached_value(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     cache_type: CacheType,
     run_cache_enabled: bool,
     key: str,
@@ -397,20 +388,21 @@ def test_cli_print_cached_value(
     expected_print_call_cnt: int,
 ) -> None:
     mock_diskcache = MagicMock()
-    with patch.object(AppConfig, "is_cache_enabled") as mock_app_conf_cache_enabled:
-        mock_app_conf_cache_enabled.return_value = run_cache_enabled
-        with patch("builtins.print", return_value=None) as mock_print:
-            with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
-                mock_diskcache_constructor.return_value = mock_diskcache
-                mock_diskcache.stats.return_value = None
-                mock_diskcache.expire.return_value = None
-                mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
-                run_cache = RunCache(app_config=valid_app_config, cache_type=cache_type)
-                with patch("builtins.list", return_value=[k for k in mock_cache_entries.keys()]) as mock_list:
-                    if not run_cache_enabled:
-                        with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
-                            run_cache.cli_print_cached_value(key=key)
-                    else:
-                        run_cache.cli_print_cached_value(key=key)
-                    actual_print_call_cnt = len(mock_print.mock_calls)
-                    assert actual_print_call_cnt == expected_print_call_cnt
+    with (
+        patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled),
+        patch("builtins.print", return_value=None) as mock_print,
+        patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor,
+    ):
+        mock_diskcache_constructor.return_value = mock_diskcache
+        mock_diskcache.stats.return_value = None
+        mock_diskcache.expire.return_value = None
+        mock_diskcache.get.side_effect = lambda k: mock_cache_entries.get(k)
+        run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
+        with patch("builtins.list", return_value=[k for k in mock_cache_entries.keys()]) as mock_list:
+            if not run_cache_enabled:
+                with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
+                    run_cache.cli_print_cached_value(key=key)
+            else:
+                run_cache.cli_print_cached_value(key=key)
+            actual_print_call_cnt = len(mock_print.mock_calls)
+            assert actual_print_call_cnt == expected_print_call_cnt

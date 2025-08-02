@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from rebrowser_playwright.sync_api import PlaywrightContextManager
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import (
     LFMRec,
@@ -30,8 +30,8 @@ from plastered.utils.constants import (
 
 
 @pytest.fixture(scope="function")
-def lfm_rec_scraper(valid_app_config: AppConfig) -> LFMRecsScraper:
-    return LFMRecsScraper(app_config=valid_app_config)
+def lfm_rec_scraper(valid_app_settings: AppSettings) -> LFMRecsScraper:
+    return LFMRecsScraper(app_settings=valid_app_settings)
 
 
 # TODO: add a similar expected_track_recs fixture
@@ -361,17 +361,17 @@ def test_cached_album_recs_validator(cached_data: Any, expected: bool) -> None:
     assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
-def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_config: AppConfig) -> None:
+def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_settings: AppSettings) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as enter_method_mock:
         enter_method_mock.assert_not_called()
     with patch.object(LFMRecsScraper, "__exit__") as exit_method_mock:
         exit_method_mock.assert_not_called()
-    expected_username = valid_app_config.get_cli_option("lfm_username")
+    expected_username = valid_app_settings.lfm.lfm_username
     actual_username = lfm_rec_scraper._lfm_username
     assert actual_username == expected_username, (
         f"Unexpected username in LFMRecsScraper instance: '{actual_username}'. Expected: '{expected_username}'"
     )
-    expected_password = valid_app_config.get_cli_option("lfm_password")
+    expected_password = valid_app_settings.lfm.lfm_password
     actual_password = lfm_rec_scraper._lfm_password
     assert actual_password == expected_password, (
         f"Unexpected password in LFMRecsScraper instance: '{actual_password}'. Expected: '{expected_password}'"
@@ -463,10 +463,10 @@ def test_scraper_exit_with_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
                     assert lfm_rec_scraper._page is None
 
 
-def test_context_manager(valid_app_config: AppConfig) -> None:
+def test_context_manager(valid_app_settings: AppSettings) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as enter_mock:
         with patch.object(LFMRecsScraper, "__exit__") as exit_mock:
-            with LFMRecsScraper(app_config=valid_app_config) as ctx_rec_mgr:
+            with LFMRecsScraper(app_settings=valid_app_settings) as ctx_rec_mgr:
                 enter_mock.assert_called_once()
                 exit_mock.assert_not_called()
             enter_mock.assert_called_once()

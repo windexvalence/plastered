@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from rich.table import Column
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.stats.stats import (
     _FAILED,
     _SKIPPED,
@@ -152,25 +152,25 @@ def test_print_and_save_all_searcher_stats(
 
 
 def test_init_prior_run_stats(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_output_summary_dir_path: Path,
     mock_summary_tsvs: dict[str, str],
     mock_run_date_str: str,
 ) -> None:
-    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+    with patch.object(AppSettings, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = mock_summary_tsvs
             prs = PriorRunStats(
-                app_config=valid_app_config, run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
+                app_settings=valid_app_settings, run_date=datetime.strptime(mock_run_date_str, RUN_DATE_STR_FORMAT)
             )
             prs.print_summary_tables()
 
 
 def test_bad_init_prior_run_stats(
-    valid_app_config: AppConfig, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
+    valid_app_settings: AppSettings, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
 ) -> None:
-    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+    with patch.object(AppSettings, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = {
@@ -179,4 +179,4 @@ def test_bad_init_prior_run_stats(
                 _SNATCHED: os.path.join("not", "a", "real", "path"),
             }
             with pytest.raises(PriorRunStatsException, match="One or more summary tsvs for run date"):
-                prs = PriorRunStats(app_config=valid_app_config, run_date=datetime.now())
+                prs = PriorRunStats(app_settings=valid_app_settings, run_date=datetime.now())

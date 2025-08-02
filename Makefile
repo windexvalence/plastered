@@ -31,12 +31,12 @@ docker-build-no-test:  ## Build the plastered docker image locally without test-
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
-code-format-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
+fmt-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
 	docker run -t --rm -e CODE_FORMAT_CHECK=1 \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
 		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
 
-code-format: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
+fmt: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
 	docker run -it --rm \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
 		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
