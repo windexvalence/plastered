@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 from pytest_httpx import HTTPXMock
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
@@ -17,7 +17,7 @@ from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 )
 def test_set_initial_available_fl_tokens(
     disabled_api_run_cache: RunCache,
-    valid_app_settings: AppConfig,
+    valid_app_settings: AppSettings,
     initial_use_fl_tokens: bool,
     initial_tokens: int,
     expected_use_fl_tokens: bool,
@@ -34,7 +34,7 @@ def test_set_initial_available_fl_tokens(
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("mock_response_code", [200, 404])
 def test_snatch_red_api_no_fl(
-    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_settings: AppConfig, mock_response_code: int
+    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_settings: AppSettings, mock_response_code: int
 ) -> None:
     httpx_mock.add_response(status_code=mock_response_code)
     red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
@@ -59,7 +59,7 @@ def test_snatch_red_api_no_fl(
 def test_snatch_red_api_use_token(
     httpx_mock: HTTPXMock,
     disabled_api_run_cache: RunCache,
-    valid_app_settings: AppConfig,
+    valid_app_settings: AppSettings,
     mock_response_codes: list[int],
     expected_get_params: list[Callable],
     raise_client_exc: bool,
@@ -97,7 +97,7 @@ def test_snatch_red_api_use_token(
 )
 def test_tid_snatched_with_fl_token(
     disabled_api_run_cache: RunCache,
-    valid_app_settings: AppConfig,
+    valid_app_settings: AppSettings,
     mock_snatched_tids: set[str],
     tid_arg: str,
     expected: bool,

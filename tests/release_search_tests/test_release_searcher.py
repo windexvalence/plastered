@@ -10,7 +10,6 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.config.config_parser import AppConfig
 from plastered.release_search.release_searcher import ReleaseSearcher, SearchItem, SearchState, _TorrentMatch
 from plastered.release_search.search_helpers import SearchItem, SearchState
 from plastered.scraper.lfm_scraper import LFMRec

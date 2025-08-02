@@ -4,7 +4,6 @@ from unittest.mock import patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.config.config_parser import AppConfig
 from plastered.run_cache.run_cache import CacheType, RunCache
 
 

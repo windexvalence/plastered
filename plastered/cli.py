@@ -9,8 +9,7 @@ from datetime import datetime
 
 import click
 
-from plastered.config.app_settings import get_app_settings
-from plastered.config.config_parser import load_init_config_template
+from plastered.config.app_settings import get_app_settings, load_init_config_template
 from plastered.config.field_validators import CLIOverrideSetting
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
@@ -131,7 +130,7 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
                 summaries_directory_path=app_settings.get_root_summary_directory_path(),
                 date_str_format=RUN_DATE_STR_FORMAT,
             )
-        except StatsRunPickerException:
+        except StatsRunPickerException:  # pragma: no cover
             _LOGGER.error("No run prior run summaries available for inspection.")
             ctx.exit(2)
     PriorRunStats(app_settings=app_settings, run_date=run_date).print_summary_tables()

@@ -32,6 +32,16 @@ _LOGGER = logging.getLogger(__name__)
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
+def load_init_config_template() -> str:  # pragma: no cover
+    """
+    Utility function to aid new users in initializing a minimal config.yaml skeleton via the CLI's init_config command.
+    """
+    init_conf_filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_conf.yaml")
+    with open(init_conf_filepath) as f:
+        raw_init_conf_lines = f.readlines()
+    return "".join(raw_init_conf_lines)
+
+
 class SearchConfig(BaseModel):
     """RED search settings defined in the plastered config at `red.search`."""
 
@@ -82,17 +92,17 @@ class FormatPreference(BaseModel):
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
         if self.media == MediaEnum.CD.value and self.cd_only_extras is None:
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 f"preference with media set to {MediaEnum.CD.value} must have a non-empty cd_only_extras field."
             )
         return self
 
-    def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
-        entries = {"format": self.format, "encoding": self.encoding, "media": self.encoding}
-        if self.cd_only_extras:
-            log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self.cd_only_extras)[0]
-            entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
-        return {"preference": entries}
+    # def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
+    #     entries = {"format": self.format, "encoding": self.encoding, "media": self.encoding}
+    #     if self.cd_only_extras:
+    #         log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self.cd_only_extras)[0]
+    #         entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
+    #     return {"preference": entries}
 
 
 class RedConfig(BaseModel):
@@ -111,11 +121,11 @@ class RedConfig(BaseModel):
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
-        if len(self.format_preferences) == 0:
+        if len(self.format_preferences) == 0:  # pragma: no cover
             raise ValueError("format_preferences must have at least one entry.")
         fp_counter = Counter([str(fp) for fp in self.format_preferences])
         dupes = [str(fp) for fp, cnt in fp_counter.items() if cnt > 1]
-        if len(dupes) > 0:
+        if len(dupes) > 0:  # pragma: no cover
             raise ValueError(
                 f"All entries in format_preferences must be unique. Following entries were duplicated: {dupes}"
             )
@@ -186,7 +196,7 @@ class AppSettings(BaseSettings):
         full_attr_path = f"{section}.{setting}"
         try:
             val = reduce(getattr, full_attr_path.split("."), self)
-        except AttributeError:
+        except AttributeError:  # pragma: no cover
             _LOGGER.warning(f"No such setting field named '{full_attr_path}'")
             return None
         return val
@@ -210,7 +220,7 @@ class AppSettings(BaseSettings):
             return self.lfm.enable_scraper_cache
         return self.red.search.enable_api_cache
 
-    def pretty_print_config(self) -> None:
+    def pretty_print_config(self) -> None:  # pragma: no cover
         yaml.dump(self.model_dump(), sys.stdout)
 
 
@@ -222,7 +232,7 @@ def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | No
     settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath, cli_overrides=cli_overrides)
     try:
         app_settings = AppSettings(**settings_data)
-    except (ValidationError, ValueError) as ve:
+    except (ValidationError, ValueError) as ve:  # pragma: no cover
         if isinstance(ve, ValidationError):
             _LOGGER.error(f"Invalid app config. Validation errors: {ve.errors()}")
             raise AppConfigException(

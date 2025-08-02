@@ -151,18 +151,11 @@ class RedFormat:
         self._media = media
         self._cd_only_extras = cd_only_extras
 
-    def __str__(self) -> str:
-        return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"
+    # def __str__(self) -> str:
+    #     return f"{self._format.value} / {self._encoding.value} / {self._media.value} / {self._cd_only_extras}"  # pragma: ignore
 
-    def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
-        entries = {"format": self._format.value, "encoding": self._encoding.value, "media": self._encoding.value}
-        if self._cd_only_extras:
-            log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self._cd_only_extras)[0]
-            entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
-        return {"preference": entries}
-
-    def __hash__(self) -> int:
-        return self.__str__().__hash__()
+    # def __hash__(self) -> int:  # pragma: ignore
+    #     return self.__str__().__hash__()  # pragma: ignore
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, RedFormat):

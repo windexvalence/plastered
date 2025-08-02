@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from rich.table import Column
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.stats.stats import (
     _FAILED,
     _SKIPPED,
@@ -152,12 +152,12 @@ def test_print_and_save_all_searcher_stats(
 
 
 def test_init_prior_run_stats(
-    valid_app_settings: AppConfig,
+    valid_app_settings: AppSettings,
     mock_output_summary_dir_path: Path,
     mock_summary_tsvs: dict[str, str],
     mock_run_date_str: str,
 ) -> None:
-    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+    with patch.object(AppSettings, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = mock_summary_tsvs
@@ -168,9 +168,9 @@ def test_init_prior_run_stats(
 
 
 def test_bad_init_prior_run_stats(
-    valid_app_settings: AppConfig, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
+    valid_app_settings: AppSettings, mock_output_summary_dir_path: Path, mock_summary_tsvs: dict[str, str]
 ) -> None:
-    with patch.object(AppConfig, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
+    with patch.object(AppSettings, "get_output_summary_dir_path") as mock_get_output_summary_dir_path:
         mock_get_output_summary_dir_path.return_value = str(mock_output_summary_dir_path)
         with patch("plastered.stats.stats._get_tsv_output_filepaths") as mock_get_tsv_output_filepaths:
             mock_get_tsv_output_filepaths.return_value = {

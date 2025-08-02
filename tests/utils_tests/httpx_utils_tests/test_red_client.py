@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 from pytest_httpx import HTTPXMock
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 
@@ -56,7 +56,7 @@ from plastered.utils.httpx_utils.red_client import RedAPIClient
 )
 def test_request_red_api(
     disabled_api_run_cache: RunCache,
-    valid_app_settings: AppConfig,
+    valid_app_settings: AppSettings,
     action: str,
     expected_top_keys: set[str] | None,
     should_fail: bool,
@@ -76,7 +76,7 @@ def test_request_red_api(
 
 @pytest.mark.override_global_httpx_mock
 def test_red_client_cache_hit(
-    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_settings: AppConfig
+    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_settings: AppSettings
 ) -> None:
     endpoint = "browse"
     params = "fake-cache-check=test&foo=bar"

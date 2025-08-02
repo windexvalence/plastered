@@ -66,7 +66,7 @@ def validate_raw_cli_overrides(value: dict[str, Any]) -> dict[str, Any]:
                 f"Invalid CLI override settings key: '{k}' is not a valid key. Available valid keys are: {valid_keys}"
             )
         if not v:
-            raise ValueError(f"Invalid CLI override settings value: {v}. Must be non-empty, non-NoneType.")
+            raise ValueError("CLI override settings value must be non-empty, non-NoneType.")
     return value
 
 
@@ -75,19 +75,19 @@ def validate_cd_extras_log_value(value: int) -> int:
     allowed_values = {-1, 0, 1, 100}
     if value in allowed_values:
         return value
-    raise ValueError(f"`cd_only_extras.log` values must be one of {allowed_values}. Got: {value}")
+    raise ValueError(f"cd_only_extras.log values must be one of {allowed_values}. Got: {value}")
 
 
 def validate_rec_types_to_scrape(value: list[str]) -> list[str]:
     """Validates the config value for `lfm.rec_types_to_scrape`."""
     val_len = len(value)
     if val_len == 0 or val_len > 2:
-        raise ValueError(f"`rec_types_to_scrape` must be a list containing 1 or 2 elements. Got {val_len} elements.")
+        raise ValueError(f"rec_types_to_scrape must be a list containing 1 or 2 elements. Got {val_len} elements.")
     allowed_values = {"album", "track"}
     for elem in value:
         if elem not in allowed_values:
             raise ValueError(
-                f"`rec_types_to_scrape` may only contain the following possible values: {allowed_values}. Got {value}."
+                f"rec_types_to_scrape may only contain the following possible values: {allowed_values}. Got {value}."
             )
     return value
 
