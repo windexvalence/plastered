@@ -43,7 +43,7 @@ TRACK_REC_CONTEXT_CSS_SELECTOR: Final[str] = "p.recommended-tracks-item-aux-text
 
 LOGIN_URL: Final[str] = "https://www.last.fm/login"
 LOGIN_USERNAME_FORM_LOCATOR: Final[str] = "[name='username_or_email']"
-LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"  # nosec B105
+LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"
 LOGIN_BUTTON_LOCATOR: Final[str] = "[name='submit']"
 LOGOUT_URL: Final[str] = "https://www.last.fm/logout"
 

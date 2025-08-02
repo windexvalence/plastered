@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote_plus
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
 from plastered.stats.stats import SkippedReason, SnatchFailureReason, print_and_save_all_searcher_stats
 from plastered.utils.constants import (
@@ -139,13 +139,13 @@ class SearchState:
     which handles the pre and post search filtering logic during a search run.
     """
 
-    def __init__(self, app_config: AppConfig):
-        self._skip_prior_snatches = app_config.get_cli_option("skip_prior_snatches")
-        self._allow_library_items = app_config.get_cli_option("allow_library_items")
-        self._use_release_type = app_config.get_cli_option("use_release_type")
-        self._use_first_release_year = app_config.get_cli_option("use_first_release_year")
-        self._use_record_label = app_config.get_cli_option("use_record_label")
-        self._use_catalog_number = app_config.get_cli_option("use_catalog_number")
+    def __init__(self, app_settings: AppSettings):
+        self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
+        self._allow_library_items = app_settings.lfm.allow_library_items
+        self._use_release_type = app_settings.red.search.use_release_type
+        self._use_first_release_year = app_settings.red.search.use_first_release_year
+        self._use_record_label = app_settings.red.search.use_record_label
+        self._use_catalog_number = app_settings.red.search.use_catalog_number
         self._require_mbid_resolution = _require_mbid_resolution(
             use_release_type=self._use_release_type,
             use_first_release_year=self._use_first_release_year,
@@ -158,10 +158,10 @@ class SearchState:
             use_record_label=self._use_record_label,
             use_catalog_number=self._use_catalog_number,
         )
-        self._red_format_preferences = app_config.get_red_preference_ordering()
-        self._max_size_gb = app_config.get_cli_option("max_size_gb")
-        self._min_allowed_ratio = app_config.get_cli_option("min_allowed_ratio")
-        self._output_summary_dir_path = app_config.get_output_summary_dir_path()
+        self._red_format_preferences = app_settings.get_red_format_preferences()
+        self._max_size_gb = app_settings.red.snatches.max_size_gb
+        self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
+        self._output_summary_dir_path = app_settings.get_output_summary_dir_path()
         self._max_download_allowed_gb = 0.0
         self._red_user_details: RedUserDetails | None = None
         self._run_download_total_gb = 0.0

@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Column, Table
 from rich.text import Text
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.utils.constants import RUN_DATE_STR_FORMAT, STATS_TRACK_REC_NONE
 from plastered.utils.exceptions import PriorRunStatsException, RedClientSnatchException, StatsTableException
 
@@ -311,11 +311,11 @@ def print_and_save_all_searcher_stats(
 class PriorRunStats:
     """Class for surfacing summary stats from a prior scrape run. Used by the run_stats CLI command."""
 
-    def __init__(self, app_config: AppConfig, run_date: datetime):
+    def __init__(self, app_settings: AppSettings, run_date: datetime):
         _LOGGER.info("Attempting to load prior run stats from summary tsv files ...")
         self._run_date = run_date
         self._run_date_str = run_date.strftime(RUN_DATE_STR_FORMAT)
-        self._output_summary_dir_path = app_config.get_output_summary_dir_path(date_str=self._run_date_str)
+        self._output_summary_dir_path = app_settings.get_output_summary_dir_path(date_str=self._run_date_str)
         filepaths = _get_tsv_output_filepaths(output_summary_dir_path=self._output_summary_dir_path)
         for table_type, filepath in filepaths.items():
             if not os.path.exists(filepath):

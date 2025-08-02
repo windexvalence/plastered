@@ -4,7 +4,7 @@ from unittest.mock import call, patch
 
 import pytest
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import LFM_API_BASE_URL, MUSICBRAINZ_API_BASE_URL, RED_API_BASE_URL
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient, precise_delay
@@ -12,15 +12,6 @@ from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
-
-_API_CLIENT_TO_APP_CONFIG_KEYS = {
-    "RedAPIClient": {"retries": "red_api_retries", "period": "red_api_seconds_between_calls", "key": "red_api_key"},
-    "LFMAPIClient": {"retries": "lfm_api_retries", "period": "lfm_api_seconds_between_calls", "key": "lfm_api_key"},
-    "MusicBrainzAPIClient": {
-        "retries": "musicbrainz_api_max_retries",
-        "period": "musicbrainz_api_seconds_between_calls",
-    },
-}
 
 
 @pytest.mark.slow
@@ -132,7 +123,7 @@ def test_throttle(
     ],
 )
 def test_throttled_api_client_write_cache_valid(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     enabled_api_run_cache: RunCache,
     subclass: ThrottledAPIBaseClient,
     endpoint: str,
@@ -140,7 +131,7 @@ def test_throttled_api_client_write_cache_valid(
 ) -> None:
     with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
         mock_run_cache_write_method.return_value = True
-        test_client = subclass(app_config=valid_app_config, run_cache=enabled_api_run_cache)
+        test_client = subclass(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
         actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
         expected_cache_key = (test_client._base_domain, endpoint, params)
         mock_run_cache_write_method.assert_called_once_with(cache_key=expected_cache_key, data={"fake": "value"})
@@ -159,7 +150,7 @@ def test_throttled_api_client_write_cache_valid(
     ],
 )
 def test_throttled_api_client_write_cache_not_valid(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     enabled_api_run_cache: RunCache,
     subclass: ThrottledAPIBaseClient,
     cache_enabled: bool,
@@ -170,7 +161,7 @@ def test_throttled_api_client_write_cache_not_valid(
         with patch.object(RunCache, "write_data") as mock_run_cache_enabled:
             mock_run_cache_write_method.return_value = None
             mock_run_cache_enabled.return_value = cache_enabled
-            test_client = subclass(app_config=valid_app_config, run_cache=enabled_api_run_cache)
+            test_client = subclass(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
             actual = test_client._write_cache_if_enabled(
                 endpoint=endpoint, params=params, result_json={"fake": "value"}
             )
@@ -188,19 +179,32 @@ def test_throttled_api_client_write_cache_not_valid(
 )
 def test_init_throttled_api_client(
     disabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     subclass: ThrottledAPIBaseClient,
     expected_base_domain: str,
 ) -> None:
-    test_instance = subclass(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    test_instance = subclass(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     assert issubclass(test_instance.__class__, ThrottledAPIBaseClient)
     actual_base_domain = test_instance._base_domain
     assert actual_base_domain == expected_base_domain, (
         f"Expected base domain to be '{expected_base_domain}', but got '{actual_base_domain}'"
     )
-    app_config_keys = _API_CLIENT_TO_APP_CONFIG_KEYS[test_instance.__class__.__name__]
-    expected_max_retries = valid_app_config.get_cli_option(app_config_keys["retries"])
-    expected_throttle_period = datetime.timedelta(seconds=valid_app_config.get_cli_option(app_config_keys["period"]))
+
+    if subclass == RedAPIClient or subclass == RedSnatchAPIClient:
+        expected_max_retries = valid_app_settings.red.red_api_retries
+        expected_throttle_period = valid_app_settings.red.red_api_seconds_between_calls
+    elif subclass == LFMAPIClient:
+        expected_max_retries = valid_app_settings.lfm.lfm_api_retries
+        expected_throttle_period = valid_app_settings.lfm.lfm_api_seconds_between_calls
+    elif subclass == MusicBrainzAPIClient:
+        expected_max_retries = valid_app_settings.musicbrainz.musicbrainz_api_max_retries
+        expected_throttle_period = valid_app_settings.musicbrainz.musicbrainz_api_seconds_between_calls
+    else:
+        raise ValueError(
+            f"Unexpected class type: {subclass.__name__}. Expected one of RedAPIClient, LFMAPIClient, MusicBrainzAPIClient"
+        )
+
+    expected_throttle_period = datetime.timedelta(seconds=expected_throttle_period)
     actual_max_retries = test_instance._max_api_call_retries
     assert actual_max_retries == expected_max_retries, (
         f"Expected max retries to be {expected_max_retries}, but got {actual_max_retries}"

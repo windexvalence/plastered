@@ -56,13 +56,13 @@ from plastered.utils.httpx_utils.red_client import RedAPIClient
 )
 def test_request_red_api(
     disabled_api_run_cache: RunCache,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppConfig,
     action: str,
     expected_top_keys: set[str] | None,
     should_fail: bool,
 ) -> None:
     expected_throttle_call_cnt = 0 if should_fail else 1
-    red_client = RedAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    red_client = RedAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     red_client._throttle = Mock(name="_throttle")
     red_client._throttle.return_value = None
     with pytest.raises(ValueError, match="Invalid endpoint*") if should_fail else nullcontext():
@@ -76,12 +76,12 @@ def test_request_red_api(
 
 @pytest.mark.override_global_httpx_mock
 def test_red_client_cache_hit(
-    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_config: AppConfig
+    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_settings: AppConfig
 ) -> None:
     endpoint = "browse"
     params = "fake-cache-check=test&foo=bar"
     mocked_json = {"response": {"cache_hit": "hopefully"}}
-    test_client = RedAPIClient(app_config=valid_app_config, run_cache=enabled_api_run_cache)
+    test_client = RedAPIClient(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
     expected_cache_key = (test_client._base_domain, endpoint, params)
     enabled_api_run_cache._cache.set(expected_cache_key, mocked_json, expire=3600)
     actual_result = test_client.request_api(endpoint, params)

@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from plastered.cli import cli
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRec, LFMRecsScraper, RecContext, RecommendationType
@@ -57,7 +57,7 @@ def test_cli_help_command(verbosity: str) -> None:
 
 @pytest.mark.parametrize("verbosity", ["DEBUG", "INFO", "WARNING", "ERROR"])
 def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: MagicMock, verbosity: bool) -> None:
-    with patch.object(AppConfig, "pretty_print_config") as mock_pretty_print_config:
+    with patch.object(AppSettings, "pretty_print_config") as mock_pretty_print_config:
         cli_runner = CliRunner()
         cmd = ["--verbosity", verbosity, "conf", "--config", valid_config_filepath]
         result = cli_runner.invoke(cli, cmd)
@@ -112,12 +112,12 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
 )
 def test_cli_scrape_command(
     valid_config_filepath: str,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     rec_types: str,
     mock_scrape_result: dict[RecommendationType, list[LFMRec]],
 ) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as mock_enter:
-        mock_enter.return_value = LFMRecsScraper(app_config=valid_app_config)
+        mock_enter.return_value = LFMRecsScraper(app_settings=valid_app_settings)
         with patch.object(LFMRecsScraper, "scrape_recs") as mock_scrape_recs:
             mock_scrape_recs.return_value = mock_scrape_result
             with patch.object(LFMRecsScraper, "__exit__") as mock_exit:
@@ -248,8 +248,8 @@ def test_cli_inspect_stats_command(
     if run_date_provided:
         test_cmd.extend(["--run-date", mocked_run_date_str])
     with (
-        patch(
-            "plastered.cli.AppConfig.get_root_summary_directory_path", return_value=str(mock_output_summary_dir_path)
+        patch.object(
+            AppSettings, "get_root_summary_directory_path", return_value=str(mock_output_summary_dir_path)
         ) as mock_app_conf_get_root_summary_dir_path,
         patch(
             "plastered.cli.prompt_user_for_run_date",

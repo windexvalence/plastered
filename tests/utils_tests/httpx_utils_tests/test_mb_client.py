@@ -23,9 +23,9 @@ def mb_track_response_raise_key_error() -> dict[str, Any]:
 
 @pytest.mark.parametrize("expected_mbid", ["d211379d-3203-47ed-a0c5-e564815bb45a"])
 def test_request_musicbrainz_api(
-    valid_app_config: AppConfig, disabled_api_run_cache: RunCache, expected_mbid: str
+    valid_app_settings: AppConfig, disabled_api_run_cache: RunCache, expected_mbid: str
 ) -> None:
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     result = mb_client.request_release_details(mbid=expected_mbid)
@@ -47,14 +47,14 @@ def test_request_musicbrainz_api(
     ],
 )
 def test_mb_get_track_search_query_str(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppConfig,
     disabled_api_run_cache: RunCache,
     track_name: str,
     artist_mbid: str | None,
     artist_name: str | None,
     expected: str | None,
 ) -> None:
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     actual = mb_client._get_track_search_query_str(
@@ -122,7 +122,7 @@ def test_mb_get_track_search_query_str(
 def test_request_release_details_for_track(
     httpx_mock: HTTPXMock,
     request: pytest.FixtureRequest,
-    valid_app_config: AppConfig,
+    valid_app_settings: AppConfig,
     disabled_api_run_cache: RunCache,
     mock_mb_json_response_fixture_name: str,
     track_name: str,
@@ -132,7 +132,7 @@ def test_request_release_details_for_track(
 ) -> None:
     mock_json_resp = request.getfixturevalue(mock_mb_json_response_fixture_name)
     httpx_mock.add_response(json=mock_json_resp)
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     actual = mb_client.request_release_details_for_track(
@@ -159,14 +159,14 @@ def test_request_release_details_for_track(
     ],
 )
 def test_request_release_details_for_track_cache_hit(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppConfig,
     enabled_api_run_cache: RunCache,
     track_name: str,
     artist_mbid: str | None,
     artist_name: str | None,
     expected_cache_val: dict[str, str | None] | None,
 ) -> None:
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=enabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
     query_params = mb_client._get_track_search_query_str(
         human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
     )
@@ -181,10 +181,10 @@ def test_request_release_details_for_track_cache_hit(
 
 @pytest.mark.override_global_httpx_mock
 def test_request_release_details_error_handling(
-    httpx_mock: HTTPXMock, valid_app_config: AppConfig, disabled_api_run_cache: RunCache
+    httpx_mock: HTTPXMock, valid_app_settings: AppConfig, disabled_api_run_cache: RunCache
 ) -> None:
     httpx_mock.add_response(status_code=404)
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     with pytest.raises(
@@ -195,10 +195,10 @@ def test_request_release_details_error_handling(
 
 @pytest.mark.override_global_httpx_mock
 def test_request_release_details_for_track_error_handling(
-    httpx_mock: HTTPXMock, valid_app_config: AppConfig, disabled_api_run_cache: RunCache
+    httpx_mock: HTTPXMock, valid_app_settings: AppConfig, disabled_api_run_cache: RunCache
 ) -> None:
     httpx_mock.add_response(status_code=404)
-    mb_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=disabled_api_run_cache)
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
     actual = mb_client.request_release_details_for_track(
@@ -213,11 +213,11 @@ def test_request_release_details_for_track_api_error() -> None:
 
 @pytest.mark.override_global_httpx_mock
 def test_mb_client_cache_hit(
-    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_config: AppConfig
+    httpx_mock: HTTPXMock, enabled_api_run_cache: RunCache, valid_app_settings: AppConfig
 ) -> None:
     params = "fake-mbid-123"
     mocked_json = {"musicbrainz-deeznuts": {"cache_hit": "hopefully"}}
-    test_client = MusicBrainzAPIClient(app_config=valid_app_config, run_cache=enabled_api_run_cache)
+    test_client = MusicBrainzAPIClient(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
     expected_cache_key = (test_client._base_domain, test_client._release_endpoint, params)
     enabled_api_run_cache._cache.set(expected_cache_key, mocked_json, expire=3600)
     actual_result = test_client.request_release_details(mbid=params)

@@ -3,7 +3,8 @@ Various field validator definitions for the Pydantic models representing
 the `plastered` application config. For more on Pydantic field validators, see the link below:
 https://docs.pydantic.dev/latest/concepts/validators/#field-validators
 """
-from enum import unique, IntEnum, StrEnum
+
+from enum import IntEnum, StrEnum, unique
 from typing import Annotated, Any
 
 from pydantic import AfterValidator
@@ -11,10 +12,10 @@ from pydantic import AfterValidator
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
 
 
-
 @unique
 class APIRetries(IntEnum):
     """Enum of API retries settings bounds"""
+
     DEFAULT = 3
     MIN = 1
     MAX = 10
@@ -23,6 +24,7 @@ class APIRetries(IntEnum):
 @unique
 class NonRedCallWait(IntEnum):
     """Enum of settings bounds for seconds to wait between API calls for non-RED APIs."""
+
     DEFAULT = 2
     MIN = 1
     MAX = 6
@@ -31,6 +33,7 @@ class NonRedCallWait(IntEnum):
 @unique
 class RedCallWait(IntEnum):
     """Enum of settings bounds for seconds to wait between RED API calls."""
+
     DEFAULT = 5
     MIN = 2
     MAX = 10
@@ -42,27 +45,28 @@ class CLIOverrideSetting(StrEnum):
     Enum of CLI param names which can override their equivalent AppSettings fields.
     Values should reference the settings class' full nested attr name.
     """
+
     # RED OVERRIDES
     RED_USER_ID = "red.red_user_id"
     RED_API_KEY = "red.red_api_key"
-    NO_SNATCH = "red.snatches.snatch_recs"
+    SNATCH_ENABLED = "red.snatches.snatch_recs"
     # LFM OVERRIDES
     LFM_API_KEY = "lfm.lfm_api_key"
     LFM_USERNAME = "lfm.lfm_username"
-    LFM_PASSWORD = "lfm.lfm_password"
+    LFM_PASSWORD = "lfm.lfm_password"  # nosec B105
     REC_TYPES = "lfm.rec_types_to_scrape"
 
 
 def validate_raw_cli_overrides(value: dict[str, Any]) -> dict[str, Any]:
     """Validates the CLI-provided settings overrides, if any."""
+    valid_keys = set([member.name for member in CLIOverrideSetting])
     for k, v in value.items():
-        valid_keys = set([member.name for member in CLIOverrideSetting])
         if k not in valid_keys:
             raise ValueError(
                 f"Invalid CLI override settings key: '{k}' is not a valid key. Available valid keys are: {valid_keys}"
             )
         if not v:
-            raise ValueError(f"Invalid CLI override settings value: {v}. Must be non-empty, non-NoneType.") 
+            raise ValueError(f"Invalid CLI override settings value: {v}. Must be non-empty, non-NoneType.")
     return value
 
 

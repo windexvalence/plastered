@@ -13,7 +13,7 @@ import pytest
 import yaml
 from pytest_httpx import HTTPXMock
 
-from plastered.config.app_settings import AppSettings
+from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.musicbrainz_utils import MBRelease
@@ -130,8 +130,8 @@ def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> dict[st
 
 
 @pytest.fixture(scope="session")
-def minimal_valid_app_config(minimal_valid_config_filepath: str) -> AppConfig:
-    return AppConfig(config_filepath=minimal_valid_config_filepath, cli_params=dict())
+def minimal_valid_app_settings(minimal_valid_config_filepath: str) -> AppSettings:
+    return get_app_settings(src_yaml_filepath=Path(minimal_valid_config_filepath))
 
 
 @pytest.fixture(scope="session")
@@ -409,14 +409,14 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
 
 
 @pytest.fixture(scope="function")
-def valid_app_config(valid_config_filepath: str, cache_root_dir_path: Path) -> AppConfig:
+def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
     """
     Function-scoped valid AppConfig fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-    app_config._base_cache_directory_path = str(cache_root_dir_path)
-    return app_config
+    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
+    # app_config._base_cache_directory_path = str(cache_root_dir_path)
+    return app_settings
 
 
 @pytest.fixture(scope="function")
@@ -425,16 +425,15 @@ def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) ->
     Function-scoped valid `AppSettings` fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    AppSettings.src_yaml_filepath = valid_config_filepath
-    app_settings = AppSettings(cli_overrides=dict())
+    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
 
 
 @pytest.fixture(scope="session")
 def api_run_cache(valid_config_filepath: str) -> RunCache:
-    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-    return RunCache(app_config=app_config, cache_type=CacheType.API)
+    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
+    return RunCache(app_settings=app_settings, cache_type=CacheType.API)
 
 
 @pytest.fixture(scope="function")
@@ -449,9 +448,9 @@ def enabled_api_run_cache(api_run_cache: RunCache) -> RunCache:
 
 
 @pytest.fixture(scope="session")
-def scraper_run_cache(valid_config_filepath: AppConfig) -> RunCache:
-    app_config = AppConfig(config_filepath=valid_config_filepath, cli_params=dict())
-    return RunCache(app_config=app_config, cache_type=CacheType.SCRAPER)
+def scraper_run_cache(valid_config_filepath: str) -> RunCache:
+    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
+    return RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
 
 
 def mock_red_snatch_get_side_effect() -> bytes:

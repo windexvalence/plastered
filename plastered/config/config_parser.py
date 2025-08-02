@@ -29,7 +29,6 @@ from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import AppConfigException
 from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat
 
-
 _LOGGER = logging.getLogger(__name__)
 _CACHE_DIRNAME = "cache"
 _SUMMARIES_DIRNAME = "summaries"

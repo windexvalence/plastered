@@ -1,9 +1,11 @@
+from copy import deepcopy
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.release_search.search_helpers import (
     SearchItem,
     SearchState,
@@ -162,28 +164,33 @@ def mock_torrent_entry() -> TorrentEntry:
     ],
 )
 def test_create_browse_params(
-    valid_app_config: AppConfig,
+    valid_config_raw_data: dict[str, Any],
+    valid_config_filepath: str,
     rf: RedFormat,
     mock_kwargs_user_settings: dict[str, bool],
     mock_search_kwargs: dict[str, Any],
     expected_browse_params: str,
 ) -> None:
-    mock_final_cli_options = {**valid_app_config.get_all_options(), **mock_kwargs_user_settings}
-    valid_app_config._cli_options = mock_final_cli_options
-    search_state = SearchState(app_config=valid_app_config)
-    si = SearchItem(
-        lfm_rec=LFMRec(
-            lfm_artist_str="Some+Artist",
-            lfm_entity_str="Some+Bad+Album",
-            recommendation_type=rt.ALBUM,
-            rec_context=rc.SIMILAR_ARTIST,
-        ),
-        search_kwargs=mock_search_kwargs,
-    )
-    actual_browse_params = search_state.create_red_browse_params(red_format=rf, si=si)
-    assert actual_browse_params == expected_browse_params, (
-        f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
-    )
+    mock_settings_data = deepcopy(valid_config_raw_data)
+    for raw_k, raw_v in mock_kwargs_user_settings.items():
+        mock_settings_data["red"]["search"][raw_k] = raw_v
+    mock_settings_data["src_yaml_filepath"] = Path(valid_config_filepath)
+    with patch("plastered.config.app_settings._get_settings_data", return_value=mock_settings_data):
+        app_settings = get_app_settings(src_yaml_filepath=valid_config_filepath)
+        search_state = SearchState(app_settings=app_settings)
+        si = SearchItem(
+            lfm_rec=LFMRec(
+                lfm_artist_str="Some+Artist",
+                lfm_entity_str="Some+Bad+Album",
+                recommendation_type=rt.ALBUM,
+                rec_context=rc.SIMILAR_ARTIST,
+            ),
+            search_kwargs=mock_search_kwargs,
+        )
+        actual_browse_params = search_state.create_red_browse_params(red_format=rf, si=si)
+        assert actual_browse_params == expected_browse_params, (
+            f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
+        )
 
 
 @pytest.mark.parametrize(
@@ -191,9 +198,9 @@ def test_create_browse_params(
     [(None, False), (LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420"), True)],
 )
 def test_post_resolve_track_filter(
-    valid_app_config: AppConfig, lfm_track_info: LFMTrackInfo | None, expected: bool
+    valid_app_settings: AppSettings, lfm_track_info: LFMTrackInfo | None, expected: bool
 ) -> None:
-    search_state = SearchState(app_config=valid_app_config)
+    search_state = SearchState(app_settings=valid_app_settings)
     search_item = SearchItem(
         lfm_rec=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST), lfm_track_info=lfm_track_info
     )
@@ -206,10 +213,10 @@ def test_post_resolve_track_filter(
     [(False, False, False), (False, True, False), (True, False, False), (True, True, True)],
 )
 def test_pre_search_rule_skip_prior_snatch(
-    valid_app_config: AppConfig, skip_prior_snatches: bool, mock_has_snatched_release: bool, expected: bool
+    valid_app_settings: AppSettings, skip_prior_snatches: bool, mock_has_snatched_release: bool, expected: bool
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
-    search_state = SearchState(app_config=valid_app_config)
+    search_state = SearchState(app_settings=valid_app_settings)
     search_state._red_user_details = MagicMock(
         name="_red_user_details.has_snatched_release", create=True, return_value=mock_has_snatched_release
     )
@@ -229,10 +236,10 @@ def test_pre_search_rule_skip_prior_snatch(
     ],
 )
 def test_pre_search_rule_skip_library_items(
-    valid_app_config: AppConfig, allow_library_items: bool, rec_context: rc, expected: bool
+    valid_app_settings: AppSettings, allow_library_items: bool, rec_context: rc, expected: bool
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rec_context))
-    search_state = SearchState(app_config=valid_app_config)
+    search_state = SearchState(app_settings=valid_app_settings)
     search_state._allow_library_items = allow_library_items
     actual = search_state._pre_search_rule_skip_library_items(si=si)
     assert actual == expected
@@ -248,7 +255,7 @@ def test_pre_search_rule_skip_library_items(
     ],
 )
 def test_pre_search_filter(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     rec_context: rc,
     mock_rule_skip_prior_snatch: bool,
     mock_rule_skip_library_items: bool,
@@ -260,7 +267,7 @@ def test_pre_search_filter(
         with patch.object(
             SearchState, "_add_skipped_snatch_row", return_value=mock_rule_skip_library_items
         ) as mock_add_skipped_snatch_row:
-            search_state = SearchState(app_config=valid_app_config)
+            search_state = SearchState(app_settings=valid_app_settings)
             actual = search_state.pre_mbid_resolution_filter(si=si)
             assert actual == expected
             if expected:
@@ -274,7 +281,7 @@ def test_pre_search_filter(
     [(False, False, True, 0), (True, False, False, 1), (True, True, True, 0)],
 )
 def test_post_mbid_resolution_filter(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_require_mbid_resolution: bool,
     mock_has_all_required_fields: bool,
     expected: bool,
@@ -285,7 +292,7 @@ def test_post_mbid_resolution_filter(
         patch.object(SearchItem, "search_kwargs_has_all_required_fields", return_value=mock_has_all_required_fields),
         patch.object(SearchState, "_add_skipped_snatch_row", return_value=None) as mock_add_skipped_snatch_row,
     ):
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         search_state._require_mbid_resolution = mock_require_mbid_resolution
         actual = search_state.post_mbid_resolution_filter(si=test_si)
         assert actual == expected
@@ -296,7 +303,7 @@ def test_post_mbid_resolution_filter(
     "mock_tid, mock_tids_to_snatch, expected", [(1, {}, False), (1, {2}, False), (1, {2, 3}, False), (2, {2, 3}, True)]
 )
 def test_post_search_rule_skip_already_scheduled_snatch(
-    valid_app_config: AppConfig, mock_tid: int, mock_tids_to_snatch: set[int], expected: bool
+    valid_app_settings: AppSettings, mock_tid: int, mock_tids_to_snatch: set[int], expected: bool
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
     te = TorrentEntry(
@@ -317,7 +324,7 @@ def test_post_search_rule_skip_already_scheduled_snatch(
         lossy_master=None,
     )
     si.torrent_entry = te
-    search_state = SearchState(app_config=valid_app_config)
+    search_state = SearchState(app_settings=valid_app_settings)
     search_state._tids_to_snatch = mock_tids_to_snatch
     actual = search_state._post_search_rule_skip_already_scheduled_snatch(si=si)
     assert actual == expected
@@ -328,7 +335,7 @@ def test_post_search_rule_skip_already_scheduled_snatch(
     [([], False, False, None), ([69], False, True, sr.DUPE_OF_ANOTHER_REC), ([], True, True, sr.ALREADY_SNATCHED)],
 )
 def test_post_search_rule_dupe_snatch(
-    valid_app_config: AppConfig,
+    valid_app_settings: AppSettings,
     mock_torrent_entry: TorrentEntry,
     no_snatch_user_details: RedUserDetails,
     mock_tids_to_snatch: set[int],
@@ -342,7 +349,7 @@ def test_post_search_rule_dupe_snatch(
     ):
         si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
         si.torrent_entry = mock_torrent_entry
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         search_state._tids_to_snatch = mock_tids_to_snatch
         search_state._red_user_details = no_snatch_user_details
         actual = search_state._post_search_rule_dupe_snatch(si=si)
@@ -353,23 +360,23 @@ def test_post_search_rule_dupe_snatch(
             mock_add_skipped_snatch_row.assert_not_called()
 
 
-def test_post_search_filter_no_red_match(valid_app_config: AppConfig) -> None:
+def test_post_search_filter_no_red_match(valid_app_settings: AppSettings) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         actual = search_state.post_red_search_filter(si=si)
         assert actual == False
         mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=sr.NO_MATCH_FOUND)
 
 
-def test_post_search_filter_above_max_size(valid_app_config: AppConfig, mock_torrent_entry: TorrentEntry) -> None:
+def test_post_search_filter_above_max_size(valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry) -> None:
     si = SearchItem(
         lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
         above_max_size_te_found=True,
         torrent_entry=mock_torrent_entry,
     )
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         actual = search_state.post_red_search_filter(si=si)
         assert actual == False
         mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=sr.ABOVE_MAX_SIZE)
@@ -377,7 +384,7 @@ def test_post_search_filter_above_max_size(valid_app_config: AppConfig, mock_tor
 
 @pytest.mark.parametrize("mock_rule_dupe_snatch_res, expected", [(False, True), (True, False)])
 def test_post_search_filter_dupe_snatch(
-    valid_app_config: AppConfig, mock_rule_dupe_snatch_res: bool, expected: bool
+    valid_app_settings: AppSettings, mock_rule_dupe_snatch_res: bool, expected: bool
 ) -> None:
     si = SearchItem(
         lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
@@ -387,7 +394,7 @@ def test_post_search_filter_dupe_snatch(
     with patch.object(
         SearchState, "_post_search_rule_dupe_snatch", return_value=mock_rule_dupe_snatch_res
     ) as mock_rule_dupe_fn:
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         actual = search_state.post_red_search_filter(si=si)
         assert actual == expected
         mock_rule_dupe_fn.assert_called_once_with(si=si)
@@ -395,7 +402,7 @@ def test_post_search_filter_dupe_snatch(
 
 @pytest.mark.parametrize("mock_exc_name", [None, "FakeException"])
 def test_add_snatch_final_status_row(
-    valid_app_config: AppConfig, mock_torrent_entry: TorrentEntry, mock_exc_name: str
+    valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry, mock_exc_name: str
 ) -> None:
     si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     si.torrent_entry = mock_torrent_entry
@@ -404,7 +411,7 @@ def test_add_snatch_final_status_row(
         patch.object(SearchState, "_add_snatch_success_row") as mock_add_snatch_success_row,
         patch.object(SearchState, "_update_run_dl_total") as mock_update_run_dl_total,
     ):
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         search_state.add_snatch_final_status_row(
             si=si, snatched_with_fl=True, snatch_path="/fake/path", exc_name=mock_exc_name
         )
@@ -418,13 +425,13 @@ def test_add_snatch_final_status_row(
             mock_update_run_dl_total.assert_called_once_with(te=si.torrent_entry)
 
 
-def test_add_search_item_to_snatch(valid_app_config: AppConfig, mock_torrent_entry: TorrentEntry) -> None:
+def test_add_search_item_to_snatch(valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry) -> None:
     si = SearchItem(
         lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
         above_max_size_te_found=False,
         torrent_entry=mock_torrent_entry,
     )
-    search_state = SearchState(app_config=valid_app_config)
+    search_state = SearchState(app_settings=valid_app_settings)
     assert len(search_state._search_items_to_snatch) == 0, (
         "Expect initial search state to have 0 items in to_snatch list"
     )
@@ -435,7 +442,7 @@ def test_add_search_item_to_snatch(valid_app_config: AppConfig, mock_torrent_ent
 
 
 def test_get_search_items_to_snatch_hit_size_limit(
-    valid_app_config: AppConfig, mock_torrent_entry: TorrentEntry
+    valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry
 ) -> None:
     mock_items_to_snatch = [
         SearchItem(
@@ -446,7 +453,7 @@ def test_get_search_items_to_snatch_hit_size_limit(
     ]
     expected = []
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row_fn:
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         search_state._max_download_allowed_gb = mock_torrent_entry.get_size("GB") / 2.0
         search_state._search_items_to_snatch = mock_items_to_snatch
         actual = search_state.get_search_items_to_snatch()
@@ -550,7 +557,7 @@ def test_search_kwargs_has_all_required_fields(
     assert actual == expected
 
 
-def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_config: AppConfig) -> None:
+def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_settings: AppSettings) -> None:
     mock_skipped_rows = [["fake"], ["also fake"]]
     mocked_failed_snatch_rows = [["a"], ["b c"], ["d"]]
     mocked_snatch_rows = [["snatch1"], ["snatch2", "snatch3"]]
@@ -558,7 +565,7 @@ def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_confi
     with patch(
         "plastered.release_search.search_helpers.print_and_save_all_searcher_stats"
     ) as mock_print_and_save_all_searcher_stats_fn:
-        search_state = SearchState(app_config=valid_app_config)
+        search_state = SearchState(app_settings=valid_app_settings)
         search_state._skipped_snatch_summary_rows = mock_skipped_rows
         search_state._failed_snatches_summary_rows = mocked_failed_snatch_rows
         search_state._snatch_summary_rows = mocked_snatch_rows

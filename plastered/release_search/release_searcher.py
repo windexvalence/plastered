@@ -4,7 +4,7 @@ from collections import namedtuple
 
 from rich.progress import Progress
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.release_search.search_helpers import SearchItem, SearchState
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.scraper.lfm_scraper import LFMRec, RecommendationType
@@ -32,24 +32,24 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_config: AppConfig):
-        self._run_cache = RunCache(app_config=app_config, cache_type=CacheType.API)
+    def __init__(self, app_settings: AppSettings):
+        self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
         self._red_client: RedAPIClient | None = None
         self._red_snatch_client: RedSnatchAPIClient | None = None
         self._lfm_client: LFMAPIClient | None = None
         self._musicbrainz_client: MusicBrainzAPIClient | None = None
-        self._red_user_id = app_config.get_cli_option("red_user_id")
-        self._search_state = SearchState(app_config=app_config)
-        self._enable_snatches = app_config.get_cli_option("snatch_recs")
-        self._snatch_directory = app_config.get_cli_option("snatch_directory")
-        self._app_config = app_config
+        self._red_user_id = app_settings.red.red_user_id
+        self._search_state = SearchState(app_settings=app_settings)
+        self._enable_snatches = app_settings.red.snatches.snatch_recs
+        self._snatch_directory = app_settings.red.snatches.snatch_directory
+        self._app_settings = app_settings
 
     def __enter__(self):
         _LOGGER.debug("Initializing API client sessions ...")
-        self._red_client = RedAPIClient(app_config=self._app_config, run_cache=self._run_cache)
-        self._red_snatch_client = RedSnatchAPIClient(app_config=self._app_config, run_cache=self._run_cache)
-        self._lfm_client = LFMAPIClient(app_config=self._app_config, run_cache=self._run_cache)
-        self._musicbrainz_client = MusicBrainzAPIClient(app_config=self._app_config, run_cache=self._run_cache)
+        self._red_client = RedAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
+        self._red_snatch_client = RedSnatchAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
+        self._lfm_client = LFMAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
+        self._musicbrainz_client = MusicBrainzAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

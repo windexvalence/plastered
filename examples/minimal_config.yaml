@@ -7,25 +7,24 @@
 red:
   red_user_id: 12345
   red_api_key: 1234notarealapikey
-lfm:
-  lfm_api_key: 5678alsonotarealapikey
-  lfm_username: fake-username
-  lfm_password: fake-password
-
-snatches:
+  snatches:
   # NOTE: the snatch_directory must point to a directory 
   # which is mounted by the container and exists on your host machine.
-  snatch_directory: /app/tests/resources
-  snatch_recs: true
-  max_size_gb: 2.0
-
-format_preferences:
-  - preference:
+    snatch_directory: /app/tests/resources
+    snatch_recs: true
+    max_size_gb: 2.0
+  format_preferences:
+    - preference:
       format: "FLAC"
       encoding: "Lossless"
       media: "CD"
       cd_only_extras:
         log: 100
         has_cue: true
+lfm:
+  lfm_api_key: 5678alsonotarealapikey
+  lfm_username: fake-username
+  lfm_password: fake-password
+
 # Feel free to add and/or modify this list of preferences however you want.
 # Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.

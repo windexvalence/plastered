@@ -1,7 +1,7 @@
 from typing import Any
 from urllib.parse import quote
 
-from plastered.config.config_parser import AppConfig
+from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, PERMITTED_MUSICBRAINZ_API_ENDPOINTS
 from plastered.utils.exceptions import MusicBrainzClientException
@@ -15,11 +15,11 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_config: AppConfig, run_cache: RunCache):
+    def __init__(self, app_settings: AppSettings, run_cache: RunCache):
         super().__init__(
             base_api_url=MUSICBRAINZ_API_BASE_URL,
-            max_api_call_retries=app_config.get_cli_option("musicbrainz_api_max_retries"),
-            seconds_between_api_calls=app_config.get_cli_option("musicbrainz_api_seconds_between_calls"),
+            max_api_call_retries=app_settings.musicbrainz.musicbrainz_api_max_retries,
+            seconds_between_api_calls=app_settings.musicbrainz.musicbrainz_api_seconds_between_calls,
             run_cache=run_cache,
             valid_endpoints=PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
         )
