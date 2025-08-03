@@ -24,6 +24,7 @@ test = [
     "coverage-badge==1.1.2",
     "ipython>=9.3.0",
     "mkdocs-click==0.8.1",
+    "mypy==1.17.1",
     "pytest==8.4.1",
     "pytest-cov[toml]==6.1.1",
     "pytest-httpx==0.35.0",
@@ -134,7 +135,9 @@ exclude_also = [
 
     # Don't complain about abstract methods, they aren't run:
     "@(abc\\.)?abstractmethod",
-    ]
+
+    "if TYPE_CHECKING:",
+]
 
 [tool.pytest.ini_options]
 addopts = "--cov=plastered --no-cov-on-fail"
@@ -142,6 +145,11 @@ markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
     "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+]
+
+[tool.mypy]
+exclude = [
+    "tests/",
 ]
 
 [tool.bandit]

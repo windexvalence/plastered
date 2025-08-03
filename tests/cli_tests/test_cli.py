@@ -9,9 +9,11 @@ from click.testing import CliRunner
 
 from plastered.cli import cli
 from plastered.config.app_settings import AppSettings
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext, RecommendationType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
-from plastered.scraper.lfm_scraper import LFMRec, LFMRecsScraper, RecContext, RecommendationType
+from plastered.scraper.lfm_scraper import LFMRecsScraper
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException

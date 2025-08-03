@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from pydantic import AfterValidator
 
-from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
 
 
 @unique

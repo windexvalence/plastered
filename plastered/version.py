@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
+from typing import Final
+
 from tomllib import load as toml_load
 
-_PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
-_PYPROJECT_TOML_FILEPATH = os.path.join(_PROJECT_ABS_PATH, "pyproject.toml")
+_PROJECT_ABS_PATH: Final[Path] = Path(os.path.abspath(os.getenv("APP_DIR", ".")))
+_PYPROJECT_TOML_FILEPATH: Final[Path] = _PROJECT_ABS_PATH / "pyproject.toml"
 
 
 def get_project_version() -> str:

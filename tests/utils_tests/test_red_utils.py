@@ -2,17 +2,9 @@ from typing import Any
 
 import pytest
 
-from plastered.utils.red_utils import (
-    EncodingEnum,
-    FormatEnum,
-    MediaEnum,
-    RedFormat,
-    RedReleaseType,
-    RedUserDetails,
-    ReleaseEntry,
-    TorrentEntry,
-    _red_release_type_str_to_enum,
-)
+from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry
+from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum, RedReleaseType
+from plastered.models.red_models import _red_release_type_str_to_enum
 
 
 @pytest.mark.parametrize(
@@ -104,7 +96,7 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
     ],
 )
 def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras: str) -> None:
-    actual_cd_only_extras = te.red_format._cd_only_extras
+    actual_cd_only_extras = te.red_format.cd_only_extras
     assert actual_cd_only_extras == expected_cd_only_extras, (
         f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
     )
@@ -305,9 +297,9 @@ def test_red_user_details_calculate_max_download_allowed_gb(
     min_allowed_ratio: float,
     expected: float,
 ) -> None:
-    mock_red_user_details_fn_scoped._initial_buffer_gb = mock_initial_buffer_gb
-    mock_red_user_details_fn_scoped._initial_uploaded_gb = mock_initial_uploaded_gb
-    mock_red_user_details_fn_scoped._initial_downloaded_gb = mock_initial_downloaded_gb
+    mock_red_user_details_fn_scoped._initial_stats.buffer = mock_initial_buffer_gb
+    mock_red_user_details_fn_scoped._initial_stats.uploaded = mock_initial_uploaded_gb
+    mock_red_user_details_fn_scoped._initial_stats.downloaded = mock_initial_downloaded_gb
     actual = mock_red_user_details_fn_scoped.calculate_max_download_allowed_gb(min_allowed_ratio=min_allowed_ratio)
     assert actual == expected
 

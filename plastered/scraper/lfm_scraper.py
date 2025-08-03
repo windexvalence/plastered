@@ -1,15 +1,15 @@
 import logging
 import re
-from enum import StrEnum
 from random import randint
 from time import sleep
 from typing import Any
-from urllib.parse import quote_plus, unquote_plus
 
 from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext, RecommendationType
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
@@ -29,35 +29,12 @@ from plastered.utils.constants import (
     TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
     TRACK_RECS_BASE_URL,
 )
-from plastered.utils.exceptions import LFMRecException
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress
 
 _LOGGER = logging.getLogger(__name__)
 
 _ARTIST_ALBUM_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/(.+)$")
 _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
-
-
-class RecommendationType(StrEnum):
-    """
-    Enum representing the type of LFM recommendation. Can be either "album", or "track" currently.
-    """
-
-    ALBUM = "album"
-    TRACK = "track"
-
-
-class RecContext(StrEnum):
-    """
-    Enum representing the recommendation's context, as stated by LFM's recommendation page.
-    Can be either "in-library", or "similar-artist".
-
-    "in-library" means that the recommendation is for a release from an artist which is already in your library, according to LFM.
-    "similar-artist" means that the recommendation is for a release from an artist which is similar to other artists you frequently listen to, according to LFM.
-    """
-
-    IN_LIBRARY = "in-library"
-    SIMILAR_ARTIST = "similar-artist"
 
 
 def _sleep_random() -> None:
@@ -70,125 +47,6 @@ def _sleep_random() -> None:
 
 
 # TODO (later): refactor this as a dataclass in a separate file
-class LFMRec:
-    """
-    Class representing a singular recommendation from LFM.
-    Corresponds to either a distinct LFM Album recommendation, or a distinct LFM Track recommendation.
-    """
-
-    def __init__(
-        self,
-        lfm_artist_str: str,
-        lfm_entity_str: str,
-        recommendation_type: str | RecommendationType,
-        rec_context: str | RecContext,
-    ):
-        self._lfm_artist_str = lfm_artist_str
-        self._lfm_entity_str = lfm_entity_str
-        self._recommendation_type = RecommendationType(recommendation_type)
-        self._rec_context = RecContext(rec_context)
-        self._track_origin_release: str | None = None
-        self._track_origin_release_mbid: str | None = None
-
-    def __str__(self) -> str:
-        return f"artist={self._lfm_artist_str}, {self._recommendation_type.value}={self._lfm_entity_str}, context={self._rec_context.value}"
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, LFMRec):
-            return False
-        return (
-            self.artist_str == other.artist_str
-            and self.entity_str == other.entity_str
-            and self.is_album_rec() == other.is_album_rec()
-            and self.rec_context.value == other.rec_context.value
-        )
-
-    def set_track_origin_release(self, track_origin_release: str) -> None:
-        """Set the release that the track rec originated from. Only used for RecommendationType.TRACK instances."""
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot set the track_origin_release on a LFMRec instance with a {self._recommendation_type.value} reccommendation type."
-            )
-        self._track_origin_release = quote_plus(track_origin_release)
-
-    def set_track_origin_release_mbid(self, track_origin_release_mbid: str) -> None:
-        """Set the MBID of the release which the track rec originated from. Only used for RecommendationType.TRACK instances."""
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot set the track_origin_release_mbid on a LFMRec instance with a {self._recommendation_type.value} reccommendation type."
-            )
-        self._track_origin_release_mbid = track_origin_release_mbid
-
-    def is_album_rec(self) -> bool:
-        return self._recommendation_type == RecommendationType.ALBUM
-
-    def is_track_rec(self) -> bool:
-        return self._recommendation_type == RecommendationType.TRACK
-
-    @property
-    def artist_str(self) -> str:
-        return self._lfm_artist_str
-
-    def get_human_readable_artist_str(self) -> str:
-        return unquote_plus(self._lfm_artist_str)
-
-    def get_human_readable_release_str(self) -> str:
-        if self.is_track_rec():
-            return "None" if not self._track_origin_release else unquote_plus(self._track_origin_release)
-        return unquote_plus(self._lfm_entity_str)
-
-    def get_human_readable_entity_str(self) -> str:
-        return unquote_plus(self._lfm_entity_str)
-
-    def get_human_readable_track_str(self) -> str:
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot get the track name from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."
-            )
-        return unquote_plus(self._lfm_entity_str)
-
-    def get_human_readable_track_origin_release_str(self) -> str | None:
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot get the track_origin_release from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."
-            )
-        return unquote_plus(self._track_origin_release)
-
-    @property
-    def entity_str(self) -> str:
-        return self._lfm_entity_str
-
-    @property
-    def release_str(self) -> str:
-        return (
-            self._lfm_entity_str
-            if self._recommendation_type == RecommendationType.ALBUM
-            else self._track_origin_release
-        )
-
-    @property
-    def rec_type(self) -> RecommendationType:
-        return self._recommendation_type
-
-    @property
-    def rec_context(self) -> RecContext:
-        return self._rec_context
-
-    @property
-    def lfm_entity_url(self) -> str:
-        if self._recommendation_type == RecommendationType.ALBUM:
-            return f"https://www.last.fm/music/{self._lfm_artist_str}/{self._lfm_entity_str}"
-        return f"https://www.last.fm/music/{self._lfm_artist_str}/_/{self._lfm_entity_str}"
-
-    @property
-    def track_origin_release_mbid(self) -> str | None:
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot get the track_origin_release_mbid from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."
-            )
-        return self._track_origin_release_mbid
-
-
 def cached_lfm_recs_validator(cached_data: Any) -> bool:
     """
     Passed to the RunCache.load_from_cache_if_valid method when attempting loads of cached LFM recs.

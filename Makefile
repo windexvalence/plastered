@@ -10,6 +10,10 @@ ifndef SLOW_TESTS
 override SLOW_TESTS = 0
 endif
 
+ifndef PDB
+override PDB = 0
+endif
+
 help:           ## Show this help.
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -41,6 +45,11 @@ fmt: docker-build  ## Runs code-auto-formatting, followed by lint checks, and th
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
 		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
 
+mypy: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
+	docker run -t --rm \
+		-v $(PROJECT_DIR_PATH):/project_src_mnt \
+		--entrypoint bash wv/plastered-test:latest -c 'mypy --config-file /project_src_mnt/pyproject.toml /project_src_mnt'
+
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file
 	docker run -it --rm \
@@ -48,6 +57,6 @@ render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown
 		--entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered-test:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) \
+	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
 		-v $(PROJECT_DIR_PATH)/docs:/docs \
 		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"

@@ -2,7 +2,8 @@ from typing import Any
 
 import pytest
 
-from plastered.scraper.lfm_scraper import LFMRec, RecContext, RecommendationType
+from plastered.models.types import RecContext, RecommendationType
+from plastered.models.lfm_models import LFMRec
 from plastered.utils.exceptions import LFMRecException
 
 

@@ -10,24 +10,26 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.release_search.release_searcher import ReleaseSearcher, SearchItem, SearchState, _TorrentMatch
-from plastered.release_search.search_helpers import SearchItem, SearchState
-from plastered.scraper.lfm_scraper import LFMRec
-from plastered.scraper.lfm_scraper import RecContext as rc
-from plastered.scraper.lfm_scraper import RecommendationType as rt
+from plastered.models.lfm_models import LFMAlbumInfo
+from plastered.models.search_item import SearchItem
+from plastered.release_search.release_searcher import ReleaseSearcher, SearchState, _TorrentMatch
+from plastered.release_search.search_helpers import SearchState
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext as rc
+from plastered.models.types import RecommendationType as rt
 from plastered.utils.exceptions import RedClientSnatchException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
-from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
+from plastered.models.lfm_models import LFMTrackInfo
 from plastered.utils.log_utils import NestedProgress
-from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import EncodingEnum as ee
-from plastered.utils.red_utils import FormatEnum as fe
-from plastered.utils.red_utils import MediaEnum as me
-from plastered.utils.red_utils import RedFormat as rf
-from plastered.utils.red_utils import RedUserDetails
-from plastered.utils.red_utils import TorrentEntry as te
+from plastered.models.musicbrainz_models import MBRelease
+from plastered.models.types import EncodingEnum as ee
+from plastered.models.types import FormatEnum as fe
+from plastered.models.types import MediaEnum as me
+from plastered.models.red_models import RedFormat as rf
+from plastered.models.red_models import RedUserDetails
+from plastered.models.red_models import TorrentEntry as te
 
 
 @pytest.fixture(scope="session")
@@ -256,9 +258,9 @@ def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_setting
             )
             release_searcher._gather_red_user_details()
             assert release_searcher._search_state._red_user_details is not None
-            red_user_details_user_id = release_searcher._search_state._red_user_details._user_id
+            red_user_details_user_id = release_searcher._search_state._red_user_details.user_id
             assert red_user_details_user_id == expected_red_user_id
-            actual_snatch_count = release_searcher._search_state._red_user_details._snatched_count
+            actual_snatch_count = release_searcher._search_state._red_user_details.snatched_count
             assert actual_snatch_count == expected_snatch_count
 
 

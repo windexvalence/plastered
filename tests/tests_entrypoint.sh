@@ -25,7 +25,11 @@ if [[ "${SLOW_TESTS}" == "1" ]] || [[ -n "${GITHUB_ACTIONS}" ]]; then
 fi
 
 export PYTHONPATH="${APP_DIR}/"
-pytest -n auto -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+if [[ -z "${PDB}" ]] || [[ "${PDB}" == "0" ]]; then
+    pytest -n auto -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+else
+    pytest -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+fi
 
 if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     echo "Not running in a github actions environment. Updating pytest-coverage markdown badge ..."

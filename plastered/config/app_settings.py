@@ -23,9 +23,9 @@ from plastered.config.field_validators import (
     validate_cd_extras_log_value,
     validate_rec_types_to_scrape,
 )
+from plastered.models.types import MediaEnum
 from plastered.utils.constants import CACHE_DIRNAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
-from plastered.utils.red_utils import MediaEnum
 
 _LOGGER = logging.getLogger(__name__)
 

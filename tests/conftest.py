@@ -11,13 +11,16 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 import yaml
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.models.red_models import RedFormat
+from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
-from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat, RedUserDetails
+from plastered.models.musicbrainz_models import MBRelease
+from plastered.models.red_models import RedUserDetails
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
@@ -314,10 +317,10 @@ def mock_red_user_details(
 def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> RedUserDetails:
     """Same contents as the session-scoped one above, but function-scoped to allow for per-test attribute overrides."""
     return RedUserDetails(
-        user_id=mock_red_user_details._user_id,
-        snatched_count=mock_red_user_details._snatched_count,
-        snatched_torrents_list=copy.deepcopy(mock_red_user_details._snatched_torrents),
-        user_profile_json=copy.deepcopy(mock_red_user_details._user_profile_json),
+        user_id=mock_red_user_details.user_id,
+        snatched_count=mock_red_user_details.snatched_count,
+        snatched_torrents_list=copy.deepcopy(mock_red_user_details.snatched_torrents_list),
+        user_profile_json=copy.deepcopy(mock_red_user_details.user_profile_json),
     )
 
 

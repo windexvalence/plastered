@@ -6,15 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.release_search.search_helpers import (
-    SearchItem,
-    SearchState,
-    _require_mbid_resolution,
-    _required_search_kwargs,
-)
-from plastered.scraper.lfm_scraper import LFMRec
-from plastered.scraper.lfm_scraper import RecContext as rc
-from plastered.scraper.lfm_scraper import RecommendationType as rt
+from plastered.models.lfm_models import LFMAlbumInfo
+from plastered.models.red_models import RedFormat, TorrentEntry
+from plastered.models.search_item import SearchItem
+from plastered.models.types import RedReleaseType
+from plastered.release_search.search_helpers import SearchState, _require_mbid_resolution, _required_search_kwargs
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext as rc
+from plastered.models.types import RecommendationType as rt
 from plastered.stats.stats import SkippedReason as sr
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
@@ -22,11 +21,11 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
 )
-from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
-from plastered.utils.red_utils import EncodingEnum as ee
-from plastered.utils.red_utils import FormatEnum as fe
-from plastered.utils.red_utils import MediaEnum as me
-from plastered.utils.red_utils import RedFormat, RedReleaseType, RedUserDetails, TorrentEntry
+from plastered.models.lfm_models import LFMTrackInfo
+from plastered.models.types import EncodingEnum as ee
+from plastered.models.types import FormatEnum as fe
+from plastered.models.types import MediaEnum as me
+from plastered.models.red_models import RedUserDetails
 
 # TODO: add remainder of SearchState test cases
 

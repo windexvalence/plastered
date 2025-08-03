@@ -10,7 +10,8 @@ from plastered.config.field_validators import (
     validate_raw_cli_overrides,
     validate_rec_types_to_scrape,
 )
-from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, MediaEnum
+from plastered.models.types import FormatEnum
 
 
 def test_validate_raw_cli_overrides() -> None:

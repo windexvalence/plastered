@@ -6,15 +6,10 @@ import pytest
 from rebrowser_playwright.sync_api import PlaywrightContextManager
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext, RecommendationType
 from plastered.run_cache.run_cache import RunCache
-from plastered.scraper.lfm_scraper import (
-    LFMRec,
-    LFMRecsScraper,
-    RecContext,
-    RecommendationType,
-    _sleep_random,
-    cached_lfm_recs_validator,
-)
+from plastered.scraper.lfm_scraper import LFMRecsScraper, _sleep_random, cached_lfm_recs_validator
 from plastered.utils.constants import (
     ALBUM_RECS_BASE_URL,
     LOGIN_BUTTON_LOCATOR,

@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import RedReleaseType
+from plastered.models.musicbrainz_models import MBRelease
+from plastered.models.types import RedReleaseType
 
 
 @pytest.mark.parametrize(

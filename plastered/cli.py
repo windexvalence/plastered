@@ -6,14 +6,16 @@ USAGE: See docs/user_guide.md
 
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import click
 
 from plastered.config.app_settings import get_app_settings, load_init_config_template
 from plastered.config.field_validators import CLIOverrideSetting
+from plastered.models.types import RecommendationType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.scraper.lfm_scraper import LFMRecsScraper, RecommendationType
+from plastered.scraper.lfm_scraper import LFMRecsScraper
 from plastered.stats.stats import PriorRunStats
 from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, prompt_user_for_run_date, subcommand_flag
 from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, RUN_DATE_STR_FORMAT
@@ -59,6 +61,7 @@ def cli(
     lfm_username: str | None = None,
     lfm_password: str | None = None,
 ) -> None:
+    verbosity = verbosity or DEFAULT_VERBOSITY
     _LOGGER.setLevel(verbosity.upper())
     ctx.params.pop("verbosity", None)
     ctx.obj = {}
@@ -97,7 +100,7 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
         ctx.obj[_GROUP_PARAMS_KEY][CLIOverrideSetting.REC_TYPES.name] = (
             [rt.value for rt in RecommendationType] if rec_types == "@all" else [rec_types]
         )
-    app_settings = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.pop(_GROUP_PARAMS_KEY, None))
+    app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.pop(_GROUP_PARAMS_KEY, None))
     with LFMRecsScraper(app_settings=app_settings) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()
     with ReleaseSearcher(app_settings=app_settings) as release_searcher:
@@ -121,7 +124,7 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
 )
 @click.pass_context
 def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
-    app_settings = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
+    app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
     if not run_date:
         _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
@@ -133,7 +136,7 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
         except StatsRunPickerException:  # pragma: no cover
             _LOGGER.error("No run prior run summaries available for inspection.")
             ctx.exit(2)
-    PriorRunStats(app_settings=app_settings, run_date=run_date).print_summary_tables()
+    PriorRunStats(app_settings=app_settings, run_date=run_date).print_summary_tables()  # type: ignore
 
 
 @cli.command(
@@ -143,7 +146,7 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
 @config_path_option
 @click.pass_context
 def conf(ctx, config: str) -> None:
-    app_settings = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
+    app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     app_settings.pretty_print_config()
 
 
@@ -178,7 +181,7 @@ def cache(
     list_keys: bool | None = False,
     read_value: str | None = None,
 ) -> None:
-    app_settings = get_app_settings(src_yaml_filepath=config, cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
+    app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
     target_cache_types = (
         [cache_type for cache_type in CacheType] if target_cache == _CLI_ALL_CACHE_TYPES else [CacheType(target_cache)]
     )

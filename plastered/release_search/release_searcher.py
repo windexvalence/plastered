@@ -5,18 +5,19 @@ from collections import namedtuple
 from rich.progress import Progress
 
 from plastered.config.app_settings import AppSettings
-from plastered.release_search.search_helpers import SearchItem, SearchState
+from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
+from plastered.models.musicbrainz_models import MBRelease
+from plastered.models.red_models import RedUserDetails, ReleaseEntry
+from plastered.models.search_item import SearchItem
+from plastered.models.types import RecommendationType
+from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.scraper.lfm_scraper import LFMRec, RecommendationType
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
-from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress, red_browse_progress
-from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import RedUserDetails, ReleaseEntry
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from plastered.utils.red_utils import RedUserDetails
+from plastered.models.red_models import RedUserDetails
 
 
 @pytest.fixture(scope="function")

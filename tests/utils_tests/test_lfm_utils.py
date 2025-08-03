@@ -2,11 +2,12 @@ from typing import Any
 
 import pytest
 
-from plastered.release_search.search_helpers import SearchItem
-from plastered.scraper.lfm_scraper import LFMRec
-from plastered.scraper.lfm_scraper import RecContext as rc
-from plastered.scraper.lfm_scraper import RecommendationType as rt
-from plastered.utils.lfm_utils import LFMAlbumInfo, LFMTrackInfo
+from plastered.models.lfm_models import LFMAlbumInfo
+from plastered.models.search_item import SearchItem
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext as rc
+from plastered.models.types import RecommendationType as rt
+from plastered.models.lfm_models import LFMTrackInfo
 
 
 def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -> None:
