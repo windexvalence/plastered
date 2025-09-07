@@ -30,7 +30,7 @@ class MBRelease:
     release_group_mbid: str
     label: str | None = None
     catalog_number: str | None = None
-    first_release_year: int | None = -1
+    first_release_year: int = -1
 
     @classmethod
     def construct_from_api(cls, json_blob: dict[str, Any]):

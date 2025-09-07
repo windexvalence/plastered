@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
+from pprint import pformat
 from typing import Any, Self
 
 import yaml
@@ -20,15 +21,15 @@ from plastered.config.field_validators import (
     ValidRedEncoding,
     ValidRedFormat,
     ValidRedMedia,
-    validate_cd_extras_log_value,
     validate_rec_types_to_scrape,
 )
+from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import MediaEnum
 from plastered.utils.constants import CACHE_DIRNAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
 
-_LOGGER = logging.getLogger(__name__)
 
+_LOGGER = logging.getLogger(__name__)
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
@@ -50,7 +51,6 @@ class SearchConfig(BaseModel):
     use_first_release_year: bool = Field(default=True)
     use_record_label: bool = Field(default=False)
     use_catalog_number: bool = Field(default=False)
-    enable_api_cache: bool = Field(default=True)
 
 
 class SnatchesConfig(BaseModel):
@@ -65,29 +65,9 @@ class SnatchesConfig(BaseModel):
     min_allowed_ratio: float = Field(default=-1.0)
 
 
-class CdOnlyExtras(BaseModel):
-    """RED settings defined for a `red.format_preferences.cd_only_extras` entry in the plasterd yaml config."""
-
-    log: int
-    has_cue: bool
-
-    # model_config = ConfigDict(validate_default=True)
+class FormatPreference(RedFormat):
+    """RED settings entry for a `red.format_preferences` entry in the plastered yaml config."""
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
-
-    @model_validator(mode="after")
-    def post_model_validator(self) -> "CdOnlyExtras":
-        validate_cd_extras_log_value(self.log)
-        return self
-
-
-class FormatPreference(BaseModel):
-    """RED settings entry for a `red.format_preferences` entry in the plasterd yaml config."""
-
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
-    format: ValidRedFormat
-    encoding: ValidRedEncoding
-    media: ValidRedMedia
-    cd_only_extras: CdOnlyExtras | None = None
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -97,12 +77,9 @@ class FormatPreference(BaseModel):
             )
         return self
 
-    # def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
-    #     entries = {"format": self.format, "encoding": self.encoding, "media": self.encoding}
-    #     if self.cd_only_extras:
-    #         log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self.cd_only_extras)[0]
-    #         entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
-    #     return {"preference": entries}
+
+def _default_red_search_config() -> SearchConfig:  # pragma: no cover
+    return SearchConfig()
 
 
 class RedConfig(BaseModel):
@@ -117,7 +94,7 @@ class RedConfig(BaseModel):
     )
     format_preferences: list[FormatPreference]
     snatches: SnatchesConfig
-    search: SearchConfig | None = None
+    search: SearchConfig = Field(default_factory=_default_red_search_config)
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -144,7 +121,6 @@ class LFMConfig(BaseModel):
     rec_types_to_scrape: list[str] = Field(default_factory=lambda: ["album", "track"])
     scraper_max_rec_pages_to_scrape: int = Field(ge=1, le=5, default=5)
     allow_library_items: bool = Field(default=False)
-    enable_scraper_cache: bool = Field(default=True)
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -165,6 +141,19 @@ class MusicBrainzConfig(BaseModel):
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
 
 
+class CacheConfig(BaseModel):
+    api_cache_enabled: bool = Field(default=True)
+    scraper_cache_enabled: bool = Field(default=True)
+
+
+def _default_music_brainz_config() -> MusicBrainzConfig:
+    return MusicBrainzConfig()
+
+
+def _default_cache_config() -> CacheConfig:
+    return CacheConfig()
+
+
 # TODO: change the config language to TOML
 # TODO: add auto-documentation for the config files using this: https://github.com/radeklat/settings-doc
 class AppSettings(BaseSettings):
@@ -174,7 +163,8 @@ class AppSettings(BaseSettings):
     src_yaml_filepath: Path
     red: RedConfig
     lfm: LFMConfig
-    musicbrainz: MusicBrainzConfig | None = None
+    musicbrainz: MusicBrainzConfig = Field(default_factory=_default_music_brainz_config)
+    cache: CacheConfig = Field(default_factory=_default_cache_config)
     # Private, post-init attributes below
     _run_datestr: str
     _config_directory_path: Path
@@ -202,7 +192,7 @@ class AppSettings(BaseSettings):
         return val
 
     def get_root_summary_directory_path(self) -> str:
-        return self._root_summary_directory_path
+        return os.fspath(self._root_summary_directory_path)
 
     def get_output_summary_dir_path(self, date_str: str | None = None) -> str:
         if not date_str:
@@ -215,10 +205,10 @@ class AppSettings(BaseSettings):
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
 
-    def is_cache_enabled(self, cache_type: str) -> None:
+    def is_cache_enabled(self, cache_type: str) -> bool:
         if cache_type == "scraper":
-            return self.lfm.enable_scraper_cache
-        return self.red.search.enable_api_cache
+            return self.cache.scraper_cache_enabled
+        return self.cache.api_cache_enabled
 
     def pretty_print_config(self) -> None:  # pragma: no cover
         yaml.dump(self.model_dump(), sys.stdout)
@@ -234,7 +224,7 @@ def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | No
         app_settings = AppSettings(**settings_data)
     except (ValidationError, ValueError) as ve:  # pragma: no cover
         if isinstance(ve, ValidationError):
-            _LOGGER.error(f"Invalid app config. Validation errors: {ve.errors()}")
+            _LOGGER.error(f"Invalid app config. Validation errors: {pformat(ve.errors())}")
             raise AppConfigException(
                 "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md"
             ) from ve
@@ -245,7 +235,7 @@ def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | No
     return app_settings
 
 
-def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any]) -> dict[str, Any]:
+def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     yaml_source = YamlConfigSettingsSource(AppSettings, yaml_file=src_yaml_filepath)
     yaml_data = yaml_source()
     yaml_data["src_yaml_filepath"] = src_yaml_filepath

@@ -93,15 +93,28 @@ def validate_rec_types_to_scrape(value: list[str]) -> list[str]:
 
 
 # Red Format Preferences config validators
-def _validate_red_pref_val(value: str, enum_class: FormatEnum | MediaEnum | EncodingEnum) -> str:
+def _validate_red_pref_val(value: str, enum_class: type[FormatEnum | MediaEnum | EncodingEnum]) -> str:
     """
     General base validator function for format_preferences.preference entries which must be in a
     specific enum's member values.
     """
-    field_name = enum_class.__name__.lower().removesuffix("enum")
-    allowed_values = set([member.value for member in enum_class])
+    try:
+        match enum_class.__qualname__:
+            case FormatEnum.__qualname__:
+                field_name = "format"
+            case MediaEnum.__qualname__:
+                field_name = "media"
+            case EncodingEnum.__qualname__:
+                field_name = "encoding"
+            case _:
+                raise ValueError(f"Unexpected enum_class type. Must be one of FormatEnum | MediaEnum | EncodingEnum")
+    except AttributeError as e:
+        raise ValueError(
+            f"enum_class must be a class type. Must be one of FormatEnum | MediaEnum | EncodingEnum. Got {type(enum_class)=}"
+        )
+    allowed_values = set([str(member) for member in enum_class])
     if value not in allowed_values:
-        raise ValueError(f"preference.{field_name} must be one of: {allowed_values}")
+        raise ValueError(f"Bad raw value. preference.{field_name} must be one of: {allowed_values}")
     return value
 
 

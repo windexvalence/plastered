@@ -22,11 +22,11 @@ class RedAPIClient(ThrottledAPIBaseClient):
             base_api_url=RED_API_BASE_URL,
             max_api_call_retries=app_settings.red.red_api_retries,
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
-            valid_endpoints=PERMITTED_RED_API_ENDPOINTS,
+            valid_endpoints=set(PERMITTED_RED_API_ENDPOINTS),
             run_cache=run_cache,
-            non_cached_endpoints=NON_CACHED_RED_API_ENDPOINTS,
+            non_cached_endpoints=set(NON_CACHED_RED_API_ENDPOINTS),
         )
-        self._session.headers.update({"Authorization": app_settings.red.red_api_key})
+        self._client.headers.update({"Authorization": app_settings.red.red_api_key})
 
     def request_api(self, action: str, params: str) -> dict[str, Any]:
         """
@@ -43,7 +43,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         url = f"{RED_API_BASE_URL}?action={action}&{params}"
-        json_data = self._session.get(url=url).json()
+        json_data = self._client.get(url=url).json()
         if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
             raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]

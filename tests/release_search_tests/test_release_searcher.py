@@ -408,6 +408,7 @@ def test_search_red_release_by_preferences(
     expected_torrent_entry: te | None,
 ) -> None:
     expected_torrent_match = _TorrentMatch(torrent_entry=expected_torrent_entry, above_max_size_found=False)
+    mock_progress = MagicMock(spec=NestedProgress)
     with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         release_searcher._search_state._red_format_preferences = mock_preference_ordering
         release_searcher._red_client.request_api = Mock(
@@ -417,7 +418,8 @@ def test_search_red_release_by_preferences(
             ],
         )
         actual_torrent_match = release_searcher._search_red_release_by_preferences(
-            si=SearchItem(lfm_rec=LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
+            si=SearchItem(lfm_rec=LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY)),
+            rich_progress=mock_progress,
         )
         assert actual_torrent_match == expected_torrent_match
 
@@ -433,6 +435,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
     mock_response_fixture_names = ["mock_red_browse_empty_response", "mock_red_browse_non_empty_response"]
     expected_torrent_match = _TorrentMatch(torrent_entry=None, above_max_size_found=True)
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
+    mock_progress = MagicMock(spec=NestedProgress)
     with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         release_searcher._search_state._max_size_gb = 0.00001
         release_searcher._search_state._red_format_preferences = mock_preference_ordering
@@ -442,7 +445,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
                 request.getfixturevalue(fixture_name)["response"] for fixture_name in mock_response_fixture_names
             ],
         )
-        actual_torrent_match = release_searcher._search_red_release_by_preferences(si=test_si)
+        actual_torrent_match = release_searcher._search_red_release_by_preferences(si=test_si, rich_progress=mock_progress)
         assert actual_torrent_match == expected_torrent_match
 
 
@@ -453,6 +456,7 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_set
         raise Exception("Fake exception")
 
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", rt.ALBUM, rc.IN_LIBRARY))
+    mock_progress = MagicMock(spec=NestedProgress)
     with (
         patch("plastered.release_search.release_searcher._LOGGER") as mock_logger,
         ReleaseSearcher(app_settings=valid_app_settings) as release_searcher,
@@ -462,47 +466,9 @@ def test_search_red_release_by_preferences_browse_exception_raised(valid_app_set
             rf(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
         ]
         release_searcher._red_client.request_api = Mock(name="request_api", side_effect=_raise_excp)
-        actual = release_searcher._search_red_release_by_preferences(si=test_si)
+        actual = release_searcher._search_red_release_by_preferences(si=test_si, rich_progress=mock_progress)
         assert actual == expected
         mock_logger.error.assert_called_once()
-
-
-# Rewrite the dogshit test below
-
-# @pytest.mark.parametrize(
-#     "pre_mbid_search_filter_res, require_mbid_resolution, post_red_search_filer_res",
-#     [
-#         (False, False, False),
-#         (True, False, False),
-#         (True, True, False),
-#         (True, False, False),
-#     ],
-# )
-# def test_search_for_release_te_none(
-#     valid_app_config: AppConfig,
-#     mock_lfmai: LFMAlbumInfo,
-#     mock_mbr: MBRelease,
-#     pre_mbid_search_filter_res: bool,
-#     require_mbid_resolution: bool,
-#     post_red_search_filer_res: bool,
-# ) -> None:
-#     """Validates that the conditions where _search_for_release_te should return None do so."""
-#     si = SearchItem(LFMRec("", "", rt.ALBUM, rc.SIMILAR_ARTIST))
-#     with (
-#         patch.object(SearchState, "pre_mbid_resolution_filter", return_value=pre_mbid_search_filter_res) as mock_ss_pre_filter,
-#         patch.object(SearchState, "post_red_search_filter", return_value=post_red_search_filer_res) as mock_ss_post_filter,
-#         patch.object(ReleaseSearcher, "_resolve_lfm_album_info", return_value=mock_lfmai) as mock_resolve_lfmai,
-#         patch.object(ReleaseSearcher, "_attempt_resolve_mb_release", return_value=si) as mock_resolve_mbr,
-#         patch.object(
-#             ReleaseSearcher,
-#             "_search_red_release_by_preferences",
-#             return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
-#         ) as mocked_torrent_match,
-#     ):
-#         with ReleaseSearcher(app_config=valid_app_config) as release_searcher:
-#             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
-#             actual = release_searcher._search_for_release_te(si=si)
-#     assert actual is None
 
 
 @pytest.mark.parametrize(
@@ -527,6 +493,7 @@ def test_search_for_release_te_none(
         _si.set_mb_release(mock_mbr)
         return _si
 
+    mock_progress = MagicMock(spec=NestedProgress)
     with (
         patch.object(
             SearchState, "pre_mbid_resolution_filter", return_value=pre_mbid_resolution_filter_res
@@ -550,7 +517,7 @@ def test_search_for_release_te_none(
         with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
             si = SearchItem(LFMRec("a", "aa", rt.ALBUM, rc.SIMILAR_ARTIST))
-            actual = release_searcher._search_for_release_te(si=si)
+            actual = release_searcher._search_for_release_te(si=si, rich_progress=mock_progress)
             assert actual is None
             mock_ss_pre_mbid_filter.assert_called_once()
             if expect_resolve_calls:
@@ -573,6 +540,8 @@ def test_search_for_release_te(
         _si.set_mb_release(mock_mbr)
         return _si
 
+    # TODO: consolidate mock_progress instances as fixture
+    mock_progress = MagicMock(spec=NestedProgress)
     with (
         patch.object(SearchState, "pre_mbid_resolution_filter", return_value=True) as mock_ss_pre_filter,
         patch.object(SearchState, "post_red_search_filter", return_value=True) as mock_ss_post_filter,
@@ -589,7 +558,7 @@ def test_search_for_release_te(
         with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
             release_searcher._search_state._require_mbid_resolution = require_mbid_resolution
             si = SearchItem(LFMRec("", "", rt.ALBUM, rc.SIMILAR_ARTIST))
-            actual = release_searcher._search_for_release_te(si=si)
+            actual = release_searcher._search_for_release_te(si=si, rich_progress=mock_progress)
             mock_ss_pre_filter.assert_called_once()
             mock_ss_post_filter.assert_called_once()
     assert actual is not None
@@ -835,7 +804,7 @@ def test_snatch_exception_handling(
                 release_searcher._snatch_matches()
                 assert not os.path.exists(expected_out_filepath)
                 expected_failed_snatch_rows = [
-                    [mock_best_te.get_permalink_url(), mock_best_te.matched_mbid, exception_type.__name__]
+                    [mock_best_te.get_permalink_url(), "", exception_type.__name__]
                 ]
                 actual_failed_snatch_rows = release_searcher._search_state._failed_snatches_summary_rows
                 assert actual_failed_snatch_rows == expected_failed_snatch_rows, (

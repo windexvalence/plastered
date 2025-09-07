@@ -7,13 +7,19 @@
 red:
   red_user_id: 1 # replace with your RED user ID here (found on your RED profile URL: redacted.sh/user.php?id=USER_ID), wrapped in single quotes
   red_api_key: 'replace-me' # paste your RED API key here with "Torrents" and "Users" permissions granted, wrapped in single quotes
+  search:
+    use_release_type: true
+    use_first_release_year: true
+    use_record_label: false
+    use_catalog_number: false
+    use_fl_tokens: false
   snatches:
     # NOTE: the snatch_directory must point to the content directory 
     # mounted on your container.
     snatch_directory: /downloads
     snatch_recs: true
     max_size_gb: 2.0
-  # Feel free to add and/or modify this list of preferences however you want.
+  # You should modify this list of preferences to match the formats / encodings / media preferences that best suite your needs.
   # Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.
   format_preferences: 
     - format: "FLAC"
@@ -26,4 +32,3 @@ lfm:
   lfm_api_key: 'replace-me' # paste your LFM API key here (see their doc page [here](https://www.last.fm/api), wrapped in single quotes
   lfm_username: 'replace-me' # paste your LFM username here, wrapped in single quotes
   lfm_password: 'replace-me' # paste your LFM password here, wrapped in single quotes
-

@@ -1,7 +1,7 @@
 import logging
 from urllib.parse import quote_plus
 
-from plastered.config.app_settings import AppSettings
+from plastered.config.app_settings import AppSettings, FormatPreference
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RecContext
@@ -15,6 +15,7 @@ from plastered.utils.constants import (
     STATS_NONE,
     STATS_TRACK_REC_NONE,
 )
+from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemException, SearchStateException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +118,10 @@ class SearchState:
 
     def _pre_search_rule_skip_prior_snatch(self, si: SearchItem) -> bool:
         """Return `True` if si has already been snatched, return `False` otherwise."""
+        if not self._red_user_details:
+            msg = "Red User Details not initialized."
+            _LOGGER.error(msg)
+            raise SearchStateException(msg)
         return self._skip_prior_snatches and self._red_user_details.has_snatched_release(
             artist=si.artist_name, release=si.lfm_rec.get_human_readable_entity_str()
         )
@@ -161,16 +166,14 @@ class SearchState:
             return False
         return True
 
-    def _post_search_rule_skip_already_scheduled_snatch(self, si: SearchItem) -> bool:
-        """
-        Return `True` if si corresponds to an already to-be-snatched entry and should be skipped. `False` otherwise.
-        """
-        return si.torrent_entry.torrent_id in self._tids_to_snatch
-
     def _post_search_rule_dupe_snatch(self, si: SearchItem) -> bool:
         """
         Return `True` if si corresponds to an already to-be-snatched entry or to a past snatch.
         """
+        if not self._red_user_details:
+            raise SearchStateException("Red user details not initialized")
+        if not si.torrent_entry:
+            raise SearchItemException("SearchItem instance has not torrent_entry.")
         if si.torrent_entry.torrent_id in self._tids_to_snatch:
             self._add_skipped_snatch_row(si=si, reason=SkippedReason.DUPE_OF_ANOTHER_REC)
             return True
@@ -198,7 +201,7 @@ class SearchState:
         return True
 
     def add_snatch_final_status_row(
-        self, si: SearchItem, snatched_with_fl: bool, snatch_path: str | None, exc_name: str | None
+        self, si: SearchItem, snatched_with_fl: bool, snatch_path: str, exc_name: str | None
     ) -> None:
         """
         Called for any torrent once it has either been successfully snatched, or a failure during the snatch attempt took place.
@@ -206,13 +209,18 @@ class SearchState:
         if exc_name:
             self._add_failed_snatch_row(si=si, exc_name=exc_name)
             return
+        if not si.torrent_entry:  # pragma: no cover
+            raise MissingTorrentEntryException("SearchItem missing torrent entry")
         self._add_snatch_success_row(si=si, snatch_path=snatch_path, snatched_with_fl=snatched_with_fl)
-        self._update_run_dl_total(te=si.torrent_entry)
-
+        if te := si.torrent_entry:
+            self._update_run_dl_total(te=te)
+    
     def _update_run_dl_total(self, te: TorrentEntry) -> None:
         self._run_download_total_gb += te.get_size(unit="GB")
 
     def add_search_item_to_snatch(self, si: SearchItem) -> None:
+        if not si.torrent_entry:  # pragma: no cover
+            raise MissingTorrentEntryException("SearchItem missing torrent entry")
         self._search_items_to_snatch.append(si)
         self._tids_to_snatch.add(si.torrent_entry.torrent_id)
 
@@ -227,11 +235,13 @@ class SearchState:
         Only returns a list which has a total size of <= self._max_download_allowed_gb. Any remaining torrents are added to the skipped summary list.
         """
         search_elems_by_size = sorted(
-            self._search_items_to_snatch, key=lambda si: si.torrent_entry.get_size(unit="MB"), reverse=True
+            self._search_items_to_snatch, key=lambda si: si.torrent_entry.get_size(unit="MB"), reverse=True  # type: ignore
         )
         will_snatch: list[SearchItem] = []
         cumulative_dl_size_gb = 0.0
         for si in search_elems_by_size:
+            if not si.torrent_entry:  # pragma: no cover
+                raise MissingTorrentEntryException(f"Missing torrent_entry")
             cur_te_size_gb = si.torrent_entry.get_size("GB")
             if cumulative_dl_size_gb + cur_te_size_gb <= self._max_download_allowed_gb:
                 will_snatch.append(si)
@@ -260,12 +270,15 @@ class SearchState:
         snatch_failure_reason = SnatchFailureReason.OTHER
         if exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR:
             snatch_failure_reason = SnatchFailureReason(exc_name)
+        matched_mbid = "" if si.get_matched_mbid() is None else si.get_matched_mbid()
         self._failed_snatches_summary_rows.append(
-            [si.torrent_entry.get_permalink_url(), si.get_matched_mbid(), snatch_failure_reason.value]
+            [si.torrent_entry.get_permalink_url() if si.torrent_entry else "", matched_mbid, snatch_failure_reason.value]
         )
 
     def _add_snatch_success_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:
         lfm_rec = si.lfm_rec
+        if not si.torrent_entry:  # pragma: no cover
+            raise MissingTorrentEntryException("Missing expected torrent_entry field.")
         te = si.torrent_entry
         self._snatch_summary_rows.append(
             [
@@ -273,7 +286,7 @@ class SearchState:
                 str(lfm_rec.rec_context),
                 str(si.artist_name),
                 str(si.release_name),
-                str(STATS_TRACK_REC_NONE if not te.track_rec_name else te.track_rec_name),
+                str(STATS_TRACK_REC_NONE if te.track_rec_name is None else te.track_rec_name),
                 str(te.torrent_id),
                 str(te.media),
                 str("yes" if snatched_with_fl else "no"),
@@ -290,7 +303,7 @@ class SearchState:
         )
 
     @property
-    def red_format_preferences(self) -> list[RedFormat]:
+    def red_format_preferences(self) -> list[FormatPreference]:
         return self._red_format_preferences
 
     @property

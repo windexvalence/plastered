@@ -29,6 +29,7 @@ from plastered.utils.constants import (
     TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
     TRACK_RECS_BASE_URL,
 )
+from plastered.utils.exceptions import ScraperException
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ class LFMRecsScraper:
         self._lfm_password = app_settings.lfm.lfm_password
         self._rec_types_to_scrape = [RecommendationType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
-        self._loaded_from_run_cache: dict[RecommendationType, list[LFMRec]] | None = {
+        self._loaded_from_run_cache: dict[RecommendationType, list[LFMRec] | None] = {
             rec_type: None for rec_type in RecommendationType
         }
         self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
@@ -90,6 +91,10 @@ class LFMRecsScraper:
             self._browser = self._playwright.chromium.launch(headless=True)
             _LOGGER.info("Opening new page in headless chromium browser ...")
             self._page = self._browser.new_page(user_agent=PW_USER_AGENT)
+            if self._page is None:  # pragma: no cover
+                msg = "Unable to open a new page in playwright browser. Exiting."
+                _LOGGER.error(msg)
+                raise ScraperException(msg)
             _LOGGER.info("Attempting Last.fm user login ...")
             self._user_login()
         return self
@@ -108,6 +113,8 @@ class LFMRecsScraper:
             self._playwright.stop()
 
     def _user_login(self) -> None:
+        if not self._page:  # pragma: no cover
+            raise ScraperException("Page is not initialized")
         _LOGGER.debug("Attempting login ...")
         _LOGGER.info("Accessing login url ...")
         self._page.goto(LOGIN_URL, wait_until="domcontentloaded")
@@ -124,12 +131,16 @@ class LFMRecsScraper:
         _LOGGER.debug(f"Current driver page URL: {self._page.url}")
 
     def _user_logout(self) -> None:
+        if not self._page:  # pragma: no cover
+            raise ScraperException("Page is not initialized")
         _LOGGER.debug("Logging out from last.fm account ...")
         self._page.goto(LOGOUT_URL, wait_until="domcontentloaded")
         self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).locator("visible=true").first.click()
         self._is_logged_in = False
 
     def _navigate_to_page_and_get_page_source(self, url: str, rec_type: RecommendationType) -> str:
+        if not self._page:  # pragma: no cover
+            raise ScraperException("Page is not initialized")
         _LOGGER.info(f"Rendering {url} page source ...")
         self._page.goto(url, wait_until="domcontentloaded")
         wait_css_selector = (
@@ -157,7 +168,9 @@ class LFMRecsScraper:
         entity_rec_contexts = [elem.text.strip() for elem in soup.select(entity_rec_context_class_name)]
         page_recs: list[LFMRec] = []
         for i, href_value in enumerate(rec_hrefs):
-            regex_match = re.match(recommendation_regex_pattern, href_value)
+            regex_match = re.match(recommendation_regex_pattern, href_value)  # type: ignore
+            if not regex_match:  # pragma: no cover
+                continue
             artist, entity = regex_match.groups()
             entity_rec_context = (
                 RecContext.IN_LIBRARY
@@ -177,8 +190,8 @@ class LFMRecsScraper:
         return page_recs
 
     def _scrape_recs_list(self, rec_type: RecommendationType) -> list[LFMRec]:
-        if self._loaded_from_run_cache[rec_type]:
-            return self._loaded_from_run_cache[rec_type]
+        if cached_list := self._loaded_from_run_cache.get(rec_type):
+            return cached_list
         _LOGGER.info(f"Scraping '{rec_type.value}' recommendations from LFM ...")
         recs: list[LFMRec] = []
         recs_base_url = ALBUM_RECS_BASE_URL if rec_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL

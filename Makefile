@@ -45,10 +45,11 @@ fmt: docker-build  ## Runs code-auto-formatting, followed by lint checks, and th
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
 		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
 
-mypy: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
-	docker run -t --rm \
-		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint bash wv/plastered-test:latest -c 'mypy --config-file /project_src_mnt/pyproject.toml /project_src_mnt'
+mypy:  ## Runs mypy type checking
+	uv run mypy --config-file pyproject.toml .
+
+test:  ## Runs unit tests locally (non-containerized)
+	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run pytest -n auto -vv $(TEST_TARGET)
 
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file

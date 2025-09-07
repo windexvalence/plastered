@@ -26,14 +26,14 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             # NOTE: the RedSnatchAPIClient doesn't use retries, so this is ignored
             max_api_call_retries=app_settings.red.red_api_retries,
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
-            valid_endpoints=PERMITTED_RED_SNATCH_API_ENDPOINTS,
+            valid_endpoints=set(PERMITTED_RED_SNATCH_API_ENDPOINTS),
             run_cache=run_cache,
-            non_cached_endpoints=NON_CACHED_RED_SNATCH_API_ENDPOINTS,
+            non_cached_endpoints=set(NON_CACHED_RED_SNATCH_API_ENDPOINTS),
             # This class overrides the internal default super class routing, to make sure
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
         )
-        self._session.headers.update({"Authorization": app_settings.red.red_api_key})
+        self._client.headers.update({"Authorization": app_settings.red.red_api_key})
         self._available_fl_tokens = 0
         self._use_fl_tokens = app_settings.red.snatches.use_fl_tokens
         self._tids_snatched_with_fl_tokens: set[str] = set()
@@ -65,7 +65,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             fl_snatch_failed = False
             fl_params = f"{params}&usetoken=1"
             try:
-                response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{fl_params}")
+                response = self._client.get(url=f"{RED_API_BASE_URL}?action=download&{fl_params}")
                 if response.is_error:
                     fl_snatch_failed = True
             except Exception:  # pragma: no cover
@@ -78,7 +78,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
                 )
                 return response.content
             self._throttle()
-        response = self._session.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
+        response = self._client.get(url=f"{RED_API_BASE_URL}?action=download&{params}")
         if response.is_error:
             raise RedClientSnatchException(f"Non-200 status code in response: {response.status_code}.")
         return response.content

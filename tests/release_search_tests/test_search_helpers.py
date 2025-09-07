@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+import re
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +27,7 @@ from plastered.models.types import EncodingEnum as ee
 from plastered.models.types import FormatEnum as fe
 from plastered.models.types import MediaEnum as me
 from plastered.models.red_models import RedUserDetails
+from plastered.utils.exceptions import SearchItemException, SearchStateException
 
 # TODO: add remainder of SearchState test cases
 
@@ -225,6 +227,14 @@ def test_pre_search_rule_skip_prior_snatch(
     assert actual == expected
 
 
+def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_app_settings: AppSettings) -> None:
+    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_user_details = None
+    with pytest.raises(SearchStateException, match=re.escape("Red User Details not initialized")):
+        _ = search_state._pre_search_rule_skip_prior_snatch(si=si)
+
+
 @pytest.mark.parametrize(
     "allow_library_items, rec_context, expected",
     [
@@ -299,37 +309,6 @@ def test_post_mbid_resolution_filter(
 
 
 @pytest.mark.parametrize(
-    "mock_tid, mock_tids_to_snatch, expected", [(1, {}, False), (1, {2}, False), (1, {2, 3}, False), (2, {2, 3}, True)]
-)
-def test_post_search_rule_skip_already_scheduled_snatch(
-    valid_app_settings: AppSettings, mock_tid: int, mock_tids_to_snatch: set[int], expected: bool
-) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
-    te = TorrentEntry(
-        torrent_id=mock_tid,
-        media="WEB",
-        format="FLAC",
-        encoding="24bit Lossless",
-        size=69420,
-        scene=False,
-        trumpable=False,
-        has_snatched=False,
-        has_log=False,
-        log_score=0,
-        has_cue=False,
-        can_use_token=False,
-        reported=None,
-        lossy_web=None,
-        lossy_master=None,
-    )
-    si.torrent_entry = te
-    search_state = SearchState(app_settings=valid_app_settings)
-    search_state._tids_to_snatch = mock_tids_to_snatch
-    actual = search_state._post_search_rule_skip_already_scheduled_snatch(si=si)
-    assert actual == expected
-
-
-@pytest.mark.parametrize(
     "mock_tids_to_snatch, mock_pre_snatched, expected, expected_reason",
     [([], False, False, None), ([69], False, True, sr.DUPE_OF_ANOTHER_REC), ([], True, True, sr.ALREADY_SNATCHED)],
 )
@@ -357,6 +336,24 @@ def test_post_search_rule_dupe_snatch(
             mock_add_skipped_snatch_row.assert_called_once_with(si=si, reason=expected_reason)
         else:
             mock_add_skipped_snatch_row.assert_not_called()
+
+
+def test_post_search_rule_dupe_snatch_user_details_not_initialized(valid_app_settings: AppSettings) -> None:
+    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_user_details = None
+    with pytest.raises(SearchStateException, match=re.escape("Red user details not initialized")):
+        _ = search_state._post_search_rule_dupe_snatch(si=si)
+
+
+def test_post_search_rule_dupe_snatch_no_torrent_entry(
+    valid_app_settings: AppSettings, no_snatch_user_details: RedUserDetails
+) -> None:
+    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST), torrent_entry=None)
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_user_details = no_snatch_user_details
+    with pytest.raises(SearchItemException, match=re.escape("SearchItem instance has not torrent_entry")):
+        _ = search_state._post_search_rule_dupe_snatch(si=si)
 
 
 def test_post_search_filter_no_red_match(valid_app_settings: AppSettings) -> None:

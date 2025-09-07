@@ -1,4 +1,4 @@
-from enum import Enum, StrEnum
+from enum import IntEnum, StrEnum
 from typing import Annotated
 
 from pydantic import BeforeValidator
@@ -6,7 +6,7 @@ from pydantic import BeforeValidator
 from plastered.utils.constants import BYTES_IN_GB
 
 
-class RedReleaseType(Enum):
+class RedReleaseType(IntEnum):
     """These enum values are reflective of RED's releaseType API search values."""
 
     ALBUM = 1
@@ -59,22 +59,16 @@ class FormatEnum(StrEnum):
 
 
 def coerce_to_float_value(raw_value: str | int) -> float:
-    if isinstance(raw_value, str) and len(raw_value) == 0:
-        raise ValueError("Invalid bytes value cannot be an empty string.")
-    elif isinstance(raw_value, str):
+    if isinstance(raw_value, str):
         raw_value = int(raw_value)
     return float(raw_value)
 
 
 def coerce_to_gb_value(bytes_value: str | int) -> float:
-    if isinstance(bytes_value, str) and len(bytes_value) == 0:
-        raise ValueError("Invalid bytes value cannot be an empty string.")
-    elif isinstance(bytes_value, str):
+    if isinstance(bytes_value, str):
         bytes_value = int(bytes_value)
-    if not isinstance(bytes_value, int):
-        raise ValueError("Invalid bytes value must be coercible to an integer.")
     if bytes_value < 0:
-        raise ValueError("Invalid bytes value cannot be negative.")
+        raise ValueError("Invalid bytes value. Cannot be negative.")
     return float(bytes_value) / BYTES_IN_GB
 
 

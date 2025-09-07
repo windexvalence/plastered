@@ -2,9 +2,13 @@ from typing import Any
 
 import pytest
 
-from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry
+from plastered.models.red_models import CdOnlyExtras, PriorSnatch, RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry
 from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum, RedReleaseType
 from plastered.models.red_models import _red_release_type_str_to_enum
+
+
+# def test_red_format_before_validators() -> None:
+
 
 
 @pytest.mark.parametrize(
@@ -96,7 +100,7 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
     ],
 )
 def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras: str) -> None:
-    actual_cd_only_extras = te.red_format.cd_only_extras
+    actual_cd_only_extras = te.red_format.get_cd_only_extras_str()
     assert actual_cd_only_extras == expected_cd_only_extras, (
         f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
     )
@@ -227,7 +231,7 @@ def test_torrent_entry_get_red_format() -> None:
         lossy_master=None,
     )
     expected_red_format = RedFormat(
-        format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD, cd_only_extras="haslog=100&hascue=1"
+        format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD, cd_only_extras=CdOnlyExtras(log=100, has_cue=True)
     )
     actual_red_format = test_instance.red_format
     assert actual_red_format == expected_red_format, (
@@ -270,7 +274,7 @@ def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) 
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=100&hascue=1",
+            cd_only_extras=CdOnlyExtras(log=100, has_cue=True),
         )
     ]
     actual_red_format_list = test_release_entry.get_red_formats()
@@ -301,6 +305,43 @@ def test_red_user_details_calculate_max_download_allowed_gb(
     mock_red_user_details_fn_scoped._initial_stats.uploaded = mock_initial_uploaded_gb
     mock_red_user_details_fn_scoped._initial_stats.downloaded = mock_initial_downloaded_gb
     actual = mock_red_user_details_fn_scoped.calculate_max_download_allowed_gb(min_allowed_ratio=min_allowed_ratio)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_snatched_torrents_list, expected", [
+        ([], dict()),
+        (
+            [{"artistName": "fake", "name": "faker", "torrentId": 69, "groupId": 420, "torrentSize": 69420}],
+            {
+                ("fake", "faker"): PriorSnatch(
+                    group_id=420, torrent_id=69, red_artist_name="fake", red_release_name="faker", size=69420
+                ),
+            },
+        ),
+        (
+            [
+                {"artistName": "fake", "name": "faker", "torrentId": 69, "groupId": 420, "torrentSize": 69420},
+                {"artistName": "fakest", "name": "fakerrr", "torrentId": 69, "groupId": 420, "torrentSize": 69420},
+            ],
+            {
+                ("fake", "faker"): PriorSnatch(
+                    group_id=420, torrent_id=69, red_artist_name="fake", red_release_name="faker", size=69420
+                ),
+                ("fakest", "fakerrr"): PriorSnatch(
+                    group_id=420, torrent_id=69, red_artist_name="fakest", red_release_name="fakerrr", size=69420
+                ),
+            },
+        ),
+    ]
+)
+def test_red_user_details_snatched_torrents_dict(
+    mock_red_user_details_fn_scoped: RedUserDetails,
+    mock_snatched_torrents_list: list[dict[str, Any]],
+    expected: dict[tuple[str, str], PriorSnatch],
+) -> None:
+    mock_red_user_details_fn_scoped.snatched_torrents_list = mock_snatched_torrents_list
+    actual = mock_red_user_details_fn_scoped._snatched_torrents_dict
     assert actual == expected
 
 
@@ -348,6 +389,21 @@ def test_red_user_details_has_snatched_release(
 ) -> None:
     mock_red_user_details_fn_scoped._snatched_torrents_dict = mock_snatched_torrents_dict
     actual = mock_red_user_details_fn_scoped.has_snatched_release(artist=mock_artist, release=mock_release)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "mock_snatched_torrents_list, expected", [
+        ([], set()), ([{"torrentId": 69}], {69}), ([{"torrentId": 69}, {"torrentId": 420}], {69, 420})
+    ]
+)
+def test_red_user_details_snatched_tids(
+    mock_red_user_details_fn_scoped: RedUserDetails,
+    mock_snatched_torrents_list: list[dict[str, Any]],
+    expected: set[int],
+) -> None:
+    mock_red_user_details_fn_scoped.snatched_torrents_list = mock_snatched_torrents_list
+    actual = mock_red_user_details_fn_scoped._snatched_tids
     assert actual == expected
 
 

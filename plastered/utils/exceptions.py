@@ -4,6 +4,12 @@ class AppConfigException(Exception):
     pass
 
 
+class ScraperException(Exception):
+    """Exception for scraper errors."""
+
+    pass
+
+
 class LFMRecException(Exception):
     """Exception for invalid LFMRec instance configuration / execution errors."""
 
@@ -12,6 +18,23 @@ class LFMRecException(Exception):
 
 class ReleaseSearcherException(Exception):
     """Exception for invalid ReleaseSearcher configurations or execution errors."""
+
+    pass
+
+
+class SearchStateException(Exception):
+    """Exception for bad or malformed SearchState instances."""
+
+    pass
+
+class SearchItemException(Exception):
+    """Exception for malformed or bad SearchItem instances."""
+
+    pass
+
+
+class MissingTorrentEntryException(SearchItemException):
+    """Exception for SearchItem instances which do not have a torrent entry set when they should."""
 
     pass
 

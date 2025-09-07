@@ -1,5 +1,7 @@
 # Configuration Reference
 
+<!-- TODO: automated the generation of this doc from the Pydantic models so it is kept in sync automatically -->
+
 This doc covers the entire list of available configuration options for `plastered`.
 
 > NOTE: You may check the full settings of your app (including default values) by running the following command:

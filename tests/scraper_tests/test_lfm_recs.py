@@ -55,7 +55,7 @@ def test_set_track_origin_release(is_track_rec: bool, should_fail: bool, expecte
         assert test_lfm_rec._track_origin_release is None
     else:
         test_lfm_rec.set_track_origin_release(track_origin_release=fake_release)
-        actual_attr_val = test_lfm_rec.release_str
+        actual_attr_val = test_lfm_rec._track_origin_release
         assert actual_attr_val == expected_attr_val, f"Expected '{expected_attr_val}', but got '{actual_attr_val}'"
 
 

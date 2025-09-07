@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.models.red_models import RedFormat
+from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
@@ -531,19 +531,19 @@ def expected_red_format_list() -> list[RedFormat]:
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=100&hascue=1",
+            cd_only_extras=CdOnlyExtras(log=100, has_cue=True),
         ),
         RedFormat(
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=100&hascue=0",
+            cd_only_extras=CdOnlyExtras(log=100, has_cue=False),
         ),
         RedFormat(
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=0&hascue=0",
+            cd_only_extras=CdOnlyExtras(log=0, has_cue=False),
         ),
         RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.ANY),
     ]

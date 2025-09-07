@@ -30,6 +30,7 @@ test = [
     "pytest-httpx==0.35.0",
     "pytest-xdist==3.7.0",
     "ruff==0.11.13",
+    "types-pyyaml>=6.0.12.20250516",
 ]
 
 # UV
@@ -146,11 +147,20 @@ markers = [
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
     "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
 ]
+filterwarnings = [
+    "error:pytest.PytestWarning.*",
+]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 exclude = [
     "tests/",
+    "build_scripts/",
 ]
+
+[[tool.mypy.overrides]]
+module = ["diskcache.*"]
+ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = [

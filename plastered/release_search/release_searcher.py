@@ -35,22 +35,16 @@ class ReleaseSearcher:
 
     def __init__(self, app_settings: AppSettings):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
-        self._red_client: RedAPIClient | None = None
-        self._red_snatch_client: RedSnatchAPIClient | None = None
-        self._lfm_client: LFMAPIClient | None = None
-        self._musicbrainz_client: MusicBrainzAPIClient | None = None
+        self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_user_id = app_settings.red.red_user_id
         self._search_state = SearchState(app_settings=app_settings)
         self._enable_snatches = app_settings.red.snatches.snatch_recs
         self._snatch_directory = app_settings.red.snatches.snatch_directory
-        self._app_settings = app_settings
 
     def __enter__(self):
-        _LOGGER.debug("Initializing API client sessions ...")
-        self._red_client = RedAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
-        self._red_snatch_client = RedSnatchAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
-        self._lfm_client = LFMAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
-        self._musicbrainz_client = MusicBrainzAPIClient(app_settings=self._app_settings, run_cache=self._run_cache)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -58,16 +52,20 @@ class ReleaseSearcher:
             _LOGGER.error("ReleaseSearcher encountered an uncaught exception", exc_info=True)
         self._run_cache.close()
         if self._red_client:
-            self._red_client.close_session()
+            self._red_client.close_client()
         if self._red_snatch_client:
-            self._red_snatch_client.close_session()
+            self._red_snatch_client.close_client()
         if self._lfm_client:
-            self._lfm_client.close_session()
+            self._lfm_client.close_client()
         if self._musicbrainz_client:
-            self._musicbrainz_client.close_session()
+            self._musicbrainz_client.close_client()
 
     # TODO (later): make this method call happen exclusively within the __enter__ method
     def _gather_red_user_details(self) -> None:
+        if self._red_client is None:  # pragma: no cover
+            raise ReleaseSearcherException("red client is not initialized.")
+        if self._red_snatch_client is None:  # pragma: no cover
+            raise ReleaseSearcherException("red snatch client is not initialized.")
         with CONSOLE.status(
             "Gathering RED user details to calculate ratio limits and to filter out prior snatches ...", spinner=SPINNER
         ):
@@ -96,9 +94,7 @@ class ReleaseSearcher:
         )
         self._search_state.set_red_user_details(red_user_details=red_user_details)
 
-    def _search_red_release_by_preferences(
-        self, si: SearchItem, rich_progress: NestedProgress | None = None
-    ) -> _TorrentMatch:
+    def _search_red_release_by_preferences(self, si: SearchItem, rich_progress: NestedProgress) -> _TorrentMatch:
         above_max_size_found = False
         with red_browse_progress(release_name=si.release_name, artist_name=si.artist_name, parent_prog=rich_progress):
             for pref in self._search_state.red_format_preferences:
@@ -182,7 +178,7 @@ class ReleaseSearcher:
             _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
         return si
 
-    def _search_for_release_te(self, si: SearchItem, rich_progress: Progress | None = None) -> SearchItem | None:
+    def _search_for_release_te(self, si: SearchItem, rich_progress: NestedProgress) -> SearchItem | None:
         """
         Searches for the recommended release, and returns a tuple containing the permalink for the best RED match
         and the release mbid (if an mbid is found / the app is configured to request an mbid from LFM's API)
@@ -274,6 +270,9 @@ class ReleaseSearcher:
 
     def _snatch_match(self, si_to_snatch: SearchItem) -> None:
         te_to_snatch = si_to_snatch.torrent_entry
+        if not te_to_snatch:  # pragma: no cover
+            _LOGGER.error(f"SearchItem marked for snatching unexpected missing torrent entry: ")
+            return
         permalink = te_to_snatch.get_permalink_url()
         out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")
         exc_name = None

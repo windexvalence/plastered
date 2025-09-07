@@ -160,8 +160,8 @@ class LFMRec:
             )
         return unquote_plus(self._lfm_entity_str)
 
-    def get_human_readable_track_origin_release_str(self) -> str | None:
-        if not self.is_track_rec():
+    def get_human_readable_track_origin_release_str(self) -> str:
+        if not self.is_track_rec() or self._track_origin_release is None:
             raise LFMRecException(
                 f"Cannot get the track_origin_release from an LFMRec instance with a {self._recommendation_type.value} reccommendation type."
             )
@@ -170,14 +170,6 @@ class LFMRec:
     @property
     def entity_str(self) -> str:
         return self._lfm_entity_str
-
-    @property
-    def release_str(self) -> str:
-        return (
-            self._lfm_entity_str
-            if self._recommendation_type == RecommendationType.ALBUM
-            else self._track_origin_release
-        )
 
     @property
     def rec_type(self) -> RecommendationType:

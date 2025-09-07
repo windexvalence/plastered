@@ -27,7 +27,7 @@ class SearchItem:
     mb_release: MBRelease | None = None
     skip_reason: SkippedReason | None = None
     snatch_failure_reason: SnatchFailureReason | None = None
-    search_kwargs: OrderedDict[str, Any] | None = field(default_factory=OrderedDict)
+    search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
 
     def __post_init__(self):
         """
@@ -52,8 +52,6 @@ class SearchItem:
         return self.lfm_rec.get_human_readable_track_str()
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
-        if not self.search_kwargs:
-            return {}
         return self.search_kwargs
 
     def search_kwargs_has_all_required_fields(self, required_kwargs: set[str]) -> bool:
