@@ -445,7 +445,9 @@ def test_search_red_release_by_preferences_above_max_size_found(
                 request.getfixturevalue(fixture_name)["response"] for fixture_name in mock_response_fixture_names
             ],
         )
-        actual_torrent_match = release_searcher._search_red_release_by_preferences(si=test_si, rich_progress=mock_progress)
+        actual_torrent_match = release_searcher._search_red_release_by_preferences(
+            si=test_si, rich_progress=mock_progress
+        )
         assert actual_torrent_match == expected_torrent_match
 
 
@@ -803,9 +805,7 @@ def test_snatch_exception_handling(
                         tf.write(bytes("fakedata", encoding="utf-8"))
                 release_searcher._snatch_matches()
                 assert not os.path.exists(expected_out_filepath)
-                expected_failed_snatch_rows = [
-                    [mock_best_te.get_permalink_url(), "", exception_type.__name__]
-                ]
+                expected_failed_snatch_rows = [[mock_best_te.get_permalink_url(), "", exception_type.__name__]]
                 actual_failed_snatch_rows = release_searcher._search_state._failed_snatches_summary_rows
                 assert actual_failed_snatch_rows == expected_failed_snatch_rows, (
                     f"expected {expected_failed_snatch_rows}, but got {actual_failed_snatch_rows}"

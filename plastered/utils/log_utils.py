@@ -110,9 +110,7 @@ class NestedProgress(Progress):
 
 
 @contextmanager
-def red_browse_progress(
-    release_name: str, artist_name: str, parent_prog: NestedProgress | None
-) -> Iterator[TaskID]:
+def red_browse_progress(release_name: str, artist_name: str, parent_prog: NestedProgress | None) -> Iterator[TaskID]:
     try:
         child_task_id = None
         if parent_prog is not None:

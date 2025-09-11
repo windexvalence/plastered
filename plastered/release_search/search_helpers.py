@@ -214,7 +214,7 @@ class SearchState:
         self._add_snatch_success_row(si=si, snatch_path=snatch_path, snatched_with_fl=snatched_with_fl)
         if te := si.torrent_entry:
             self._update_run_dl_total(te=te)
-    
+
     def _update_run_dl_total(self, te: TorrentEntry) -> None:
         self._run_download_total_gb += te.get_size(unit="GB")
 
@@ -235,13 +235,15 @@ class SearchState:
         Only returns a list which has a total size of <= self._max_download_allowed_gb. Any remaining torrents are added to the skipped summary list.
         """
         search_elems_by_size = sorted(
-            self._search_items_to_snatch, key=lambda si: si.torrent_entry.get_size(unit="MB"), reverse=True  # type: ignore
+            self._search_items_to_snatch,
+            key=lambda si: si.torrent_entry.get_size(unit="MB"),  # type: ignore [union-attr]
+            reverse=True,  # type: ignore
         )
         will_snatch: list[SearchItem] = []
         cumulative_dl_size_gb = 0.0
         for si in search_elems_by_size:
             if not si.torrent_entry:  # pragma: no cover
-                raise MissingTorrentEntryException(f"Missing torrent_entry")
+                raise MissingTorrentEntryException("Missing torrent_entry")
             cur_te_size_gb = si.torrent_entry.get_size("GB")
             if cumulative_dl_size_gb + cur_te_size_gb <= self._max_download_allowed_gb:
                 will_snatch.append(si)
@@ -272,7 +274,11 @@ class SearchState:
             snatch_failure_reason = SnatchFailureReason(exc_name)
         matched_mbid = "" if si.get_matched_mbid() is None else si.get_matched_mbid()
         self._failed_snatches_summary_rows.append(
-            [si.torrent_entry.get_permalink_url() if si.torrent_entry else "", matched_mbid, snatch_failure_reason.value]
+            [
+                si.torrent_entry.get_permalink_url() if si.torrent_entry else "",
+                matched_mbid,  # type: ignore [list-item]
+                snatch_failure_reason.value,
+            ]
         )
 
     def _add_snatch_success_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:

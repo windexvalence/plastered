@@ -65,7 +65,7 @@ def test_validate_rec_types_to_scrape_raises(bad_value: list[str], exc_msg: str)
     "enum_class, valid_value",
     list(product([EncodingEnum], [m.value for m in EncodingEnum]))
     + list(product([FormatEnum], [m.value for m in FormatEnum]))
-    + list(product([MediaEnum], [m.value for m in MediaEnum]))
+    + list(product([MediaEnum], [m.value for m in MediaEnum])),
 )
 def test_validate_red_pref_val_valid(enum_class: EncodingEnum | FormatEnum | MediaEnum, valid_value: str) -> None:
     actual = _validate_red_pref_val(value=valid_value, enum_class=enum_class)
@@ -74,9 +74,8 @@ def test_validate_red_pref_val_valid(enum_class: EncodingEnum | FormatEnum | Med
 
 
 @pytest.mark.parametrize(
-    "bad_input_type, expected_msg", [
-        (StrEnum(value="", names=()), "Unexpected enum_class type"), ("primitive", "enum_class must be a class type")
-    ]
+    "bad_input_type, expected_msg",
+    [(StrEnum(value="", names=()), "Unexpected enum_class type"), ("primitive", "enum_class must be a class type")],
 )
 def test_validate_red_pref_val_bad_type_raises(bad_input_type: Any, expected_msg: str) -> None:
     with pytest.raises(ValueError, match=re.escape(expected_msg)):

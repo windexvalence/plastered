@@ -86,7 +86,7 @@ class StatsTable:
         self._num_cols = len(self._columns)
         if len(style_fns_map) > self._num_cols or any([idx < 0 or self._num_cols <= idx for idx in style_fns_map]):
             raise StatsTableException("Invalid cell_idxs_to_style_fns. Length may not exceed table columns count.")
-        self._per_row_cell_style_fns: dict[int, Callable] = {i: style_fns_map.get(i, None) for i in range(self._num_cols)}  # type: ignore
+        self._per_row_cell_style_fns: dict[int, Callable] = {i: style_fns_map.get(i) for i in range(self._num_cols)}  # type: ignore
         self._caption = caption
         self._table = Table(
             *columns, title=self._title, caption=self._caption, title_style="bold white", show_lines=True, expand=True

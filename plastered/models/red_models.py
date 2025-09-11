@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator, model_validator
 
 from plastered.config.field_validators import validate_cd_extras_log_value
 from plastered.models.types import (
@@ -29,7 +29,7 @@ class CdOnlyExtras(BaseModel):
     def post_model_validator(self) -> "CdOnlyExtras":
         validate_cd_extras_log_value(self.log)
         return self
-    
+
     @property
     def red_api_string(self) -> str:
         """Returns the stringified cd_only_extras, formatted for RED's API."""
@@ -46,12 +46,12 @@ class RedFormat(BaseModel):
     @classmethod
     def _coerce_format_str_to_enum(cls, raw_value: str) -> FormatEnum:
         return FormatEnum(raw_value) if isinstance(raw_value, str) else raw_value
-    
+
     @field_validator("encoding", mode="before")
     @classmethod
     def _coerce_encoding_str_to_enum(cls, raw_value: str) -> EncodingEnum:
         return EncodingEnum(raw_value) if isinstance(raw_value, str) else raw_value
-    
+
     @field_validator("media", mode="before")
     @classmethod
     def _coerce_media_str_to_enum(cls, raw_value: str) -> MediaEnum:
@@ -66,14 +66,19 @@ class RedFormat(BaseModel):
     def get_media(self) -> str:
         return self.media.value
 
-    def get_cd_only_extras_str(self) -> CdOnlyExtras | None:
+    def get_cd_only_extras_str(self) -> str | None:
         """Returns the stringified cd_only_extras, formatted for RED's API. Empty string if has no extras."""
         return "" if self.cd_only_extras is None else self.cd_only_extras.red_api_string
-    
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, RedFormat):
             return False
-        return other.format == self.format and other.encoding == self.encoding and other.media == self.media and other.cd_only_extras == self.cd_only_extras
+        return (
+            other.format == self.format
+            and other.encoding == self.encoding
+            and other.media == self.media
+            and other.cd_only_extras == self.cd_only_extras
+        )
 
 
 # Media
@@ -120,9 +125,7 @@ class TorrentEntry:
     def __post_init__(self):
         cd_only_extras = None
         if self.media == MediaEnum.CD.value:
-            cd_only_extras = CdOnlyExtras(
-                log=self.log_score if self.has_log else -1, has_cue=self.has_cue
-            )
+            cd_only_extras = CdOnlyExtras(log=self.log_score if self.has_log else -1, has_cue=self.has_cue)
         self.red_format = RedFormat(
             format=FormatEnum(self.format),
             encoding=EncodingEnum(self.encoding.replace(" ", "+")),
@@ -223,7 +226,9 @@ class ReleaseEntry:
         )
 
     def get_red_formats(self) -> list[RedFormat]:
-        return [torrent_entry.red_format for torrent_entry in self.torrent_entries if torrent_entry.red_format is not None]
+        return [
+            torrent_entry.red_format for torrent_entry in self.torrent_entries if torrent_entry.red_format is not None
+        ]
 
     def get_torrent_entries(self) -> list[TorrentEntry]:
         return self.torrent_entries
@@ -244,6 +249,7 @@ class RedUserDetails(BaseModel):
     Utility class representing a distinct RED user.
     Used by the ReleaseSearcher to determine the user's pre-snatched torrents, and filter out any pre-snatched recommendations.
     """
+
     model_config = ConfigDict(extra="ignore")
     user_id: int
     snatched_count: int
@@ -259,7 +265,7 @@ class RedUserDetails(BaseModel):
             ),
             **self.user_profile_json["stats"],
         )
-    
+
     @cached_property
     def _snatched_torrents_dict(self) -> dict[tuple[str, str], PriorSnatch]:
         snatched_dict: dict[tuple[str, str], PriorSnatch] = dict()
@@ -276,7 +282,7 @@ class RedUserDetails(BaseModel):
             snatched_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
             # self._snatched_torrents_dict[(red_artist_name.lower(), red_release_name.lower())] = prior_snatch
         return snatched_dict
-    
+
     @cached_property
     def _snatched_tids(self) -> set[int]:
         return set([int(json_entry["torrentId"]) for json_entry in self.snatched_torrents_list])

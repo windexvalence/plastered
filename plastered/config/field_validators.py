@@ -107,11 +107,11 @@ def _validate_red_pref_val(value: str, enum_class: type[FormatEnum | MediaEnum |
             case EncodingEnum.__qualname__:
                 field_name = "encoding"
             case _:
-                raise ValueError(f"Unexpected enum_class type. Must be one of FormatEnum | MediaEnum | EncodingEnum")
+                raise ValueError("Unexpected enum_class type. Must be one of FormatEnum | MediaEnum | EncodingEnum")
     except AttributeError as e:
         raise ValueError(
             f"enum_class must be a class type. Must be one of FormatEnum | MediaEnum | EncodingEnum. Got {type(enum_class)=}"
-        )
+        ) from e
     allowed_values = set([str(member) for member in enum_class])
     if value not in allowed_values:
         raise ValueError(f"Bad raw value. preference.{field_name} must be one of: {allowed_values}")

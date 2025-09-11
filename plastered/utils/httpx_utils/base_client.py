@@ -86,7 +86,8 @@ class ThrottledAPIBaseClient:
                 self._base_domain: HTTPXRetryTransport(
                     max_retries=self._max_api_call_retries, min_wait_seconds=self._throttle_period.seconds
                 )
-            } | self._extra_client_transport_mount_entries,  # type: ignore
+            }
+            | self._extra_client_transport_mount_entries,  # type: ignore
             follow_redirects=True,
         )
 

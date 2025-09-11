@@ -10,6 +10,7 @@ from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.constants import STATS_TRACK_REC_NONE
 
 
+# TODO [later]: Define a separate `MatchedSearchItem` class for matched entries in RED where the te values are guaranteed non-None.
 @dataclass
 class SearchItem:
     """

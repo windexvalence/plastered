@@ -18,16 +18,12 @@ from plastered.config.field_validators import (
     CLIOverrideSetting,
     NonRedCallWait,
     RedCallWait,
-    ValidRedEncoding,
-    ValidRedFormat,
-    ValidRedMedia,
     validate_rec_types_to_scrape,
 )
-from plastered.models.red_models import CdOnlyExtras, RedFormat
+from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
 from plastered.utils.constants import CACHE_DIRNAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
-
 
 _LOGGER = logging.getLogger(__name__)
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
@@ -67,6 +63,7 @@ class SnatchesConfig(BaseModel):
 
 class FormatPreference(RedFormat):
     """RED settings entry for a `red.format_preferences` entry in the plastered yaml config."""
+
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
 
     @model_validator(mode="after")

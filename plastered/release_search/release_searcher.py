@@ -2,8 +2,6 @@ import logging
 import os
 from collections import namedtuple
 
-from rich.progress import Progress
-
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.musicbrainz_models import MBRelease
@@ -271,7 +269,7 @@ class ReleaseSearcher:
     def _snatch_match(self, si_to_snatch: SearchItem) -> None:
         te_to_snatch = si_to_snatch.torrent_entry
         if not te_to_snatch:  # pragma: no cover
-            _LOGGER.error(f"SearchItem marked for snatching unexpected missing torrent entry: ")
+            _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
             return
         permalink = te_to_snatch.get_permalink_url()
         out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")

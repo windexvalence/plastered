@@ -27,6 +27,7 @@ class SearchStateException(Exception):
 
     pass
 
+
 class SearchItemException(Exception):
     """Exception for malformed or bad SearchItem instances."""
 

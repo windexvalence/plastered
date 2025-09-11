@@ -10,7 +10,6 @@ from plastered.models.red_models import _red_release_type_str_to_enum
 # def test_red_format_before_validators() -> None:
 
 
-
 @pytest.mark.parametrize(
     "other, expected",
     [
@@ -55,7 +54,7 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
 
 
 @pytest.mark.parametrize(
-    "te, expected_cd_only_extras",
+    "te, expected_cd_only_extras_str",
     [
         (
             TorrentEntry(
@@ -99,10 +98,10 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
         ),
     ],
 )
-def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras: str) -> None:
-    actual_cd_only_extras = te.red_format.get_cd_only_extras_str()
-    assert actual_cd_only_extras == expected_cd_only_extras, (
-        f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
+def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras_str: str) -> None:
+    actual_cd_only_extras_str = te.red_format.get_cd_only_extras_str()
+    assert actual_cd_only_extras_str == expected_cd_only_extras_str, (
+        f"Expected cd_only_extras to be '{expected_cd_only_extras_str}', but got '{actual_cd_only_extras_str}'"
     )
 
 
@@ -231,7 +230,10 @@ def test_torrent_entry_get_red_format() -> None:
         lossy_master=None,
     )
     expected_red_format = RedFormat(
-        format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD, cd_only_extras=CdOnlyExtras(log=100, has_cue=True)
+        format=FormatEnum.FLAC,
+        encoding=EncodingEnum.LOSSLESS,
+        media=MediaEnum.CD,
+        cd_only_extras=CdOnlyExtras(log=100, has_cue=True),
     )
     actual_red_format = test_instance.red_format
     assert actual_red_format == expected_red_format, (
@@ -309,14 +311,15 @@ def test_red_user_details_calculate_max_download_allowed_gb(
 
 
 @pytest.mark.parametrize(
-    "mock_snatched_torrents_list, expected", [
+    "mock_snatched_torrents_list, expected",
+    [
         ([], dict()),
         (
             [{"artistName": "fake", "name": "faker", "torrentId": 69, "groupId": 420, "torrentSize": 69420}],
             {
                 ("fake", "faker"): PriorSnatch(
                     group_id=420, torrent_id=69, red_artist_name="fake", red_release_name="faker", size=69420
-                ),
+                )
             },
         ),
         (
@@ -333,7 +336,7 @@ def test_red_user_details_calculate_max_download_allowed_gb(
                 ),
             },
         ),
-    ]
+    ],
 )
 def test_red_user_details_snatched_torrents_dict(
     mock_red_user_details_fn_scoped: RedUserDetails,
@@ -393,9 +396,8 @@ def test_red_user_details_has_snatched_release(
 
 
 @pytest.mark.parametrize(
-    "mock_snatched_torrents_list, expected", [
-        ([], set()), ([{"torrentId": 69}], {69}), ([{"torrentId": 69}, {"torrentId": 420}], {69, 420})
-    ]
+    "mock_snatched_torrents_list, expected",
+    [([], set()), ([{"torrentId": 69}], {69}), ([{"torrentId": 69}, {"torrentId": 420}], {69, 420})],
 )
 def test_red_user_details_snatched_tids(
     mock_red_user_details_fn_scoped: RedUserDetails,
