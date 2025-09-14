@@ -18,6 +18,7 @@ from plastered.utils.constants import BYTES_IN_GB, BYTES_IN_MB, STORAGE_UNIT_IDE
 
 class CdOnlyExtras(BaseModel):
     """RED settings defined for a `red.format_preferences.cd_only_extras` entry in the plasterd yaml config."""
+
     model_config = ConfigDict(title="cd_only_extras")
     log: int
     has_cue: bool

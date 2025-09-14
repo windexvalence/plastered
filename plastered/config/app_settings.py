@@ -83,12 +83,7 @@ def _default_red_search_config() -> SearchConfig:  # pragma: no cover
 class RedConfig(BaseModel):
     """App settings defined under the plastered yaml config's top-level `red` key."""
 
-    model_config = ConfigDict(
-        frozen=True,
-        validate_default=True,
-        extra="ignore",
-        title="red",
-    )
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="red")
     red_user_id: int = Field(gt=0)
     red_api_key: str = Field(min_length=1)
     red_api_retries: int = Field(ge=APIRetries.MIN.value, le=APIRetries.MAX.value, default=APIRetries.DEFAULT.value)

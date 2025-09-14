@@ -44,6 +44,7 @@ def test_config_reference_docs_fresh() -> None:
         f"Missing auto-generated CLI doc at {_CONFIG_DOC_FILEPATH}. Please run `make render-config-doc` and commit the changes."
     )
     import sys
+
     sys.path.append(_RENDER_CONFIG_DOC_SCRIPT_FILEPATH)
     from build_scripts.render_config_markdown import get_md_lines
 
