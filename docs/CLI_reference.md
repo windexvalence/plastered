@@ -25,7 +25,7 @@ plastered [OPTIONS] COMMAND [ARGS]...
 
 ## cache
 
-Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
+Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md
 
 **Usage:**
 

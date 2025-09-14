@@ -151,7 +151,7 @@ def conf(ctx, config: str) -> None:
 
 
 @cli.command(
-    help="Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md",
+    help="Helper command to inspect or empty the local run cache(s). See this docs page for more info on the run cache: https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md",
     short_help="Helper command to inspect or empty the local run cache(s).",
 )
 @config_path_option

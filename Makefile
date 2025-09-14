@@ -35,6 +35,9 @@ docker-build-no-test:  ## Build the plastered docker image locally without test-
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
+docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
+	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
+
 fmt-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
 	docker run -t --rm -e CODE_FORMAT_CHECK=1 \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
@@ -56,6 +59,11 @@ render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown
 	docker run -it --rm \
 		-v $(PROJECT_DIR_PATH):/project_src_mnt \
 		--entrypoint /app/build_scripts/render-cli-docs.sh wv/plastered-test:latest
+
+render-config-doc: docker-build  ## Autogenerates the config model fields as a markdown file.
+	docker run -it --rm \
+		-v $(PROJECT_DIR_PATH):/project_src_mnt \
+		--entrypoint /app/build_scripts/render-config-markdown.sh wv/plastered-test:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
 	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \

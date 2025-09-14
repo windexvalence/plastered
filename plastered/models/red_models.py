@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
 from plastered.config.field_validators import validate_cd_extras_log_value
 from plastered.models.types import (
@@ -18,7 +18,7 @@ from plastered.utils.constants import BYTES_IN_GB, BYTES_IN_MB, STORAGE_UNIT_IDE
 
 class CdOnlyExtras(BaseModel):
     """RED settings defined for a `red.format_preferences.cd_only_extras` entry in the plasterd yaml config."""
-
+    model_config = ConfigDict(title="cd_only_extras")
     log: int
     has_cue: bool
 
@@ -36,10 +36,24 @@ class CdOnlyExtras(BaseModel):
         return f"haslog={self.log}&hascue={int(self.has_cue)}"
 
 
+def _red_format_field_title_generator(field_name: str, field_info: Any) -> str:  # pragma: no cover
+    """
+    Title generator for the JSONSchema titles for fields of `RedFormat`.
+    https://docs.pydantic.dev/latest/concepts/json_schema/#using-field_title_generator
+    """
+    if field_name.endswith("Enum"):
+        return field_name.removesuffix("Enum").lower()
+    elif field_name == "CdOnlyExtras":
+        return "cd_only_extras"
+    return field_name
+
+
 class RedFormat(BaseModel):
-    format: FormatEnum
-    encoding: EncodingEnum
-    media: MediaEnum
+    model_config = ConfigDict(field_title_generator=_red_format_field_title_generator)
+    format: FormatEnum = Field(title="format")
+    encoding: EncodingEnum = Field(title="encoding")
+    media: MediaEnum = Field(title="media")
+    # TODO: figure out how to override this field's title in JSON schema
     cd_only_extras: CdOnlyExtras | None = None
 
     @field_validator("format", mode="before")

@@ -2,7 +2,7 @@
 # and with all non-required fields omitted.
 #
 # For full configuration reference details, see the following link:
-# https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
+# https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md
 ---
 red:
   red_user_id: 12345
@@ -27,4 +27,4 @@ lfm:
   lfm_password: fake-password
 
 # Feel free to add and/or modify this list of preferences however you want.
-# Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.
+# Refer to https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md for more details.

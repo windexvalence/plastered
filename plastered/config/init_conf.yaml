@@ -2,7 +2,7 @@
 # and with all non-required fields omitted.
 #
 # For full configuration reference details, see the following link:
-# https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md
+# https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md
 ---
 red:
   red_user_id: 1 # replace with your RED user ID here (found on your RED profile URL: redacted.sh/user.php?id=USER_ID), wrapped in single quotes
@@ -20,7 +20,7 @@ red:
     snatch_recs: true
     max_size_gb: 2.0
   # You should modify this list of preferences to match the formats / encodings / media preferences that best suite your needs.
-  # Refer to https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md for more details.
+  # Refer to https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md for more details.
   format_preferences: 
     - format: "FLAC"
       encoding: "Lossless"

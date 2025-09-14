@@ -11,6 +11,7 @@ from typing import Any, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
 from plastered.config.field_validators import (
@@ -42,7 +43,7 @@ def load_init_config_template() -> str:  # pragma: no cover
 class SearchConfig(BaseModel):
     """RED search settings defined in the plastered config at `red.search`."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="search")
     use_release_type: bool = Field(default=True)
     use_first_release_year: bool = Field(default=True)
     use_record_label: bool = Field(default=False)
@@ -52,7 +53,7 @@ class SearchConfig(BaseModel):
 class SnatchesConfig(BaseModel):
     """RED snatch settings defined in the plastered config at `red.snatches`."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="snatches")
     snatch_directory: Path
     snatch_recs: bool
     max_size_gb: float = Field(ge=0.02, le=100.0)
@@ -64,7 +65,7 @@ class SnatchesConfig(BaseModel):
 class FormatPreference(RedFormat):
     """RED settings entry for a `red.format_preferences` entry in the plastered yaml config."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="format_preference")
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -82,7 +83,12 @@ def _default_red_search_config() -> SearchConfig:  # pragma: no cover
 class RedConfig(BaseModel):
     """App settings defined under the plastered yaml config's top-level `red` key."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(
+        frozen=True,
+        validate_default=True,
+        extra="ignore",
+        title="red",
+    )
     red_user_id: int = Field(gt=0)
     red_api_key: str = Field(min_length=1)
     red_api_retries: int = Field(ge=APIRetries.MIN.value, le=APIRetries.MAX.value, default=APIRetries.DEFAULT.value)
@@ -90,8 +96,8 @@ class RedConfig(BaseModel):
         ge=RedCallWait.MIN.value, le=RedCallWait.MAX.value, default=RedCallWait.DEFAULT.value
     )
     format_preferences: list[FormatPreference]
-    snatches: SnatchesConfig
-    search: SearchConfig = Field(default_factory=_default_red_search_config)
+    snatches: SnatchesConfig = Field(title="snatches")
+    search: SearchConfig = Field(title="search", default_factory=_default_red_search_config)
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -107,7 +113,7 @@ class RedConfig(BaseModel):
 
 
 class LFMConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="lfm")
     lfm_api_key: str = Field(min_length=1)
     lfm_username: str = Field(min_length=1)
     lfm_password: str = Field(min_length=1)
@@ -135,10 +141,11 @@ class MusicBrainzConfig(BaseModel):
     )
 
     # model_config = ConfigDict(validate_default=True)
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="musicbrainz")
 
 
 class CacheConfig(BaseModel):
+    model_config = ConfigDict(title="cache")
     api_cache_enabled: bool = Field(default=True)
     scraper_cache_enabled: bool = Field(default=True)
 
@@ -156,12 +163,12 @@ def _default_cache_config() -> CacheConfig:
 class AppSettings(BaseSettings):
     """Pydantic settings class encapsulating the `plastered` application yaml config."""
 
-    model_config = SettingsConfigDict(frozen=True, extra="ignore")
-    src_yaml_filepath: Path
-    red: RedConfig
-    lfm: LFMConfig
-    musicbrainz: MusicBrainzConfig = Field(default_factory=_default_music_brainz_config)
-    cache: CacheConfig = Field(default_factory=_default_cache_config)
+    model_config = SettingsConfigDict(frozen=True, extra="ignore", title="config")
+    src_yaml_filepath: SkipJsonSchema[Path]
+    red: RedConfig = Field(title="red")
+    lfm: LFMConfig = Field(title="lfm")
+    musicbrainz: MusicBrainzConfig = Field(title="musicbrainz", default_factory=_default_music_brainz_config)
+    cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
     # Private, post-init attributes below
     _run_datestr: str
     _config_directory_path: Path
@@ -223,11 +230,11 @@ def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | No
         if isinstance(ve, ValidationError):
             _LOGGER.error(f"Invalid app config. Validation errors: {pformat(ve.errors())}")
             raise AppConfigException(
-                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md"
+                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
             ) from ve
         _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
         raise AppConfigException(
-            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md"
+            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
         ) from ve
     return app_settings
 
