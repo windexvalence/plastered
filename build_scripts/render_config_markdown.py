@@ -19,7 +19,7 @@ def main() -> None:
     md_lines = get_md_lines()
     _LOGGER.info("Writing AppSettings markdown to file ...")
     with open(_MARKDOWN_PATH, "w") as f:
-        f.writelines(+md_lines)
+        f.writelines(md_lines)
 
 
 def get_md_lines() -> list[str]:
