@@ -3,9 +3,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
+from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import TorrentEntry
-from plastered.models.types import RecommendationType
+from plastered.models.types import EntityType
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.utils.constants import STATS_TRACK_REC_NONE
 
@@ -19,8 +20,9 @@ class SearchItem:
     and/or update during the search and filtering resolution of a given rec.
     """
 
-    lfm_rec: LFMRec
+    initial_info: LFMRec | ManualSearch
     release_name: str = field(init=False)
+    is_manual: bool = False
     above_max_size_te_found: bool | None = False
     torrent_entry: TorrentEntry | None = None
     lfm_album_info: LFMAlbumInfo | None = None
@@ -37,20 +39,20 @@ class SearchItem:
         LFMTi resolution (see `ReleaseSearcher._resolve__resolve_lfm_track_info` and `SearchItem.set_lfm_track_info`).
         For more on dataclasses and __post_init__ method, see this SO answer: https://stackoverflow.com/a/76187691
         """
-        if self.lfm_rec.rec_type == RecommendationType.ALBUM.value:
-            self.release_name = self.lfm_rec.get_human_readable_release_str()
+        if self.initial_info.entity_type == EntityType.ALBUM.value:
+            self.release_name = self.initial_info.get_human_readable_release_str()
         else:
             self.release_name = "None" if not self.lfm_track_info else self.lfm_track_info.release_name
 
     @property
     def artist_name(self) -> str:
         """Returns the human-readable artist name."""
-        return self.lfm_rec.get_human_readable_artist_str()
+        return self.initial_info.get_human_readable_artist_str()
 
     @property
     def track_name(self) -> str:
         """Returns the human-readable track name."""
-        return self.lfm_rec.get_human_readable_track_str()
+        return self.initial_info.get_human_readable_track_str()
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
         return self.search_kwargs
@@ -68,12 +70,12 @@ class SearchItem:
     def track_rec_name(self) -> str | None:
         return (
             STATS_TRACK_REC_NONE
-            if self.lfm_rec.rec_type == RecommendationType.ALBUM.value
-            else self.lfm_rec.get_human_readable_track_str()
+            if self.initial_info.entity_type == EntityType.ALBUM.value
+            else self.initial_info.get_human_readable_track_str()
         )
 
     def get_matched_mbid(self) -> str | None:
-        if self.lfm_rec.rec_type == RecommendationType.ALBUM:
+        if self.initial_info.entity_type == EntityType.ALBUM:
             return None if not self.lfm_album_info else self.lfm_album_info.get_release_mbid()
         return None if not self.lfm_track_info else self.lfm_track_info.get_release_mbid()
 

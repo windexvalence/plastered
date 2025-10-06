@@ -7,19 +7,19 @@ USAGE: See docs/user_guide.md
 import logging
 from datetime import datetime
 from pathlib import Path
+from pprint import pprint
+from typing import Final
 
 import click
 
+from plastered.actions import cache_action, scrape_action, show_config_action
 from plastered.config.app_settings import get_app_settings, load_init_config_template
 from plastered.config.field_validators import CLIOverrideSetting
-from plastered.models.types import RecommendationType
-from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.scraper.lfm_scraper import LFMRecsScraper
+from plastered.models.types import ALL_ENTITY_TYPES
 from plastered.stats.stats import PriorRunStats
 from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, prompt_user_for_run_date, subcommand_flag
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, RUN_DATE_STR_FORMAT
-from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException
+from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES, RUN_DATE_STR_FORMAT
+from plastered.utils.exceptions import StatsRunPickerException
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
 from plastered.version import get_project_version
 
@@ -27,9 +27,8 @@ logging.basicConfig(level="NOTSET", format=FORMAT, datefmt=DATE_FORMAT, handlers
 _LOGGER = logging.getLogger()
 
 _APP_VERSION = get_project_version()
-_OPTION_ENVVAR_PREFIX = "PLASTERED"
-_GROUP_PARAMS_KEY = "group_params"
-_CLI_ALL_CACHE_TYPES = "@all"
+_OPTION_ENVVAR_PREFIX: Final[str] = "PLASTERED"
+_GROUP_PARAMS_KEY: Final[str] = "group_params"
 
 
 # pylint: disable=unused-argument,too-many-arguments,no-value-for-parameter
@@ -98,14 +97,10 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
         ctx.obj[_GROUP_PARAMS_KEY][CLIOverrideSetting.SNATCH_ENABLED.name] = False
     if rec_types:
         ctx.obj[_GROUP_PARAMS_KEY][CLIOverrideSetting.REC_TYPES.name] = (
-            [rt.value for rt in RecommendationType] if rec_types == "@all" else [rec_types]
+            list(ALL_ENTITY_TYPES) if rec_types == "@all" else [rec_types]
         )
     app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.pop(_GROUP_PARAMS_KEY, None))
-    with LFMRecsScraper(app_settings=app_settings) as scraper:
-        rec_types_to_recs_list = scraper.scrape_recs()
-    with ReleaseSearcher(app_settings=app_settings) as release_searcher:
-        release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
-        release_searcher.generate_summary_stats()
+    scrape_action(app_settings=app_settings)
 
 
 @cli.command(
@@ -147,7 +142,7 @@ def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
 @click.pass_context
 def conf(ctx, config: str) -> None:
     app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
-    app_settings.pretty_print_config()
+    pprint(show_config_action(app_settings=app_settings))
 
 
 @cli.command(
@@ -168,7 +163,7 @@ def conf(ctx, config: str) -> None:
     help="Retrieves the string representation of the value for the specified cache key.",
 )
 @click.argument(
-    "target_cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, _CLI_ALL_CACHE_TYPES])
+    "target_cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES])
 )
 @click.pass_context
 def cache(
@@ -182,28 +177,15 @@ def cache(
     read_value: str | None = None,
 ) -> None:
     app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
-    target_cache_types = (
-        [cache_type for cache_type in CacheType] if target_cache == _CLI_ALL_CACHE_TYPES else [CacheType(target_cache)]
+    cache_action(
+        app_settings=app_settings,
+        target_cache=target_cache,
+        info=info,
+        empty=empty,
+        check=check,
+        list_keys=list_keys,
+        read_value=read_value,
     )
-    for target_cache_type in target_cache_types:
-        target_run_cache = RunCache(app_settings=app_settings, cache_type=target_cache_type)
-        try:
-            if info:
-                target_run_cache.print_summary_info()
-            if empty:
-                target_run_cache.clear()
-            if check:
-                target_run_cache.check()
-            if list_keys:
-                target_run_cache.cli_list_cache_keys()
-            if read_value:
-                target_run_cache.cli_print_cached_value(key=read_value)
-        except RunCacheDisabledException:
-            _LOGGER.error(
-                f"{target_cache_type} cache is not enabled. To enable it, set enable_{target_cache_type}_cache to true in config.yaml."
-            )
-            ctx.exit(2)
-        target_run_cache.close()
 
 
 @cli.command(

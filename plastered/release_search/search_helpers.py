@@ -44,7 +44,7 @@ def _required_search_kwargs(
 # TODO (later): break out SearchItem definition into separate file
 class SearchState:
     """
-    Helper class which maintains the variable internal state of the searchingm process, and
+    Helper class which maintains the variable internal state of the searching process, and
     which handles the pre and post search filtering logic during a search run.
     """
 
@@ -79,6 +79,7 @@ class SearchState:
         self._failed_snatches_summary_rows: list[list[str]] = []
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
+        self._manual_search_item_to_snatch: SearchItem | None = None
 
     def set_red_user_details(self, red_user_details: RedUserDetails) -> None:
         """
@@ -92,7 +93,7 @@ class SearchState:
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
         """Utility method for creating the RED browse API params string"""
-        artist_name = si.lfm_rec.artist_str
+        artist_name = si.initial_info.artist_str
         album_name = quote_plus(si.release_name)
         format = red_format.get_format()
         encoding = red_format.get_encoding()
@@ -123,14 +124,14 @@ class SearchState:
             _LOGGER.error(msg)
             raise SearchStateException(msg)
         return self._skip_prior_snatches and self._red_user_details.has_snatched_release(
-            artist=si.artist_name, release=si.lfm_rec.get_human_readable_entity_str()
+            artist=si.artist_name, release=si.initial_info.get_human_readable_entity_str()
         )
 
     def _pre_search_rule_skip_library_items(self, si: SearchItem) -> bool:
         """
         Return `True` if si has an `IN_LIBRARY` context and self._allow_library items is `False`, return `False` otherwise.
         """
-        return not self._allow_library_items and si.lfm_rec.rec_context == RecContext.IN_LIBRARY
+        return not self._allow_library_items and si.initial_info.rec_context == RecContext.IN_LIBRARY
 
     def pre_mbid_resolution_filter(self, si: SearchItem) -> bool:
         """
@@ -174,7 +175,8 @@ class SearchState:
             raise SearchStateException("Red user details not initialized")
         if not si.torrent_entry:
             raise SearchItemException("SearchItem instance has not torrent_entry.")
-        if si.torrent_entry.torrent_id in self._tids_to_snatch:
+        # Ignore this condition for manual searches since those are not done in batch
+        if (not si.is_manual) and si.torrent_entry.torrent_id in self._tids_to_snatch:
             self._add_skipped_snatch_row(si=si, reason=SkippedReason.DUPE_OF_ANOTHER_REC)
             return True
         if self._red_user_details.has_snatched_tid(tid=si.torrent_entry.torrent_id):
@@ -190,7 +192,7 @@ class SearchState:
         # No match found
         if not si.found_red_match():
             _LOGGER.info(
-                f"No valid RED match found for {si.lfm_rec.rec_type}: '{si.lfm_rec.get_human_readable_entity_str()}' by '{si.artist_name}'"
+                f"No valid RED match found for {si.initial_info.entity_type}: '{si.initial_info.get_human_readable_entity_str()}' by '{si.artist_name}'"
             )
             skip_reason = SkippedReason.ABOVE_MAX_SIZE if si.above_max_size_te_found else SkippedReason.NO_MATCH_FOUND
             self._add_skipped_snatch_row(si=si, reason=skip_reason)
@@ -221,19 +223,25 @@ class SearchState:
     def add_search_item_to_snatch(self, si: SearchItem) -> None:
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("SearchItem missing torrent entry")
-        self._search_items_to_snatch.append(si)
-        self._tids_to_snatch.add(si.torrent_entry.torrent_id)
+        if si.is_manual:
+            self._manual_search_item_to_snatch = si
+        else:
+            self._search_items_to_snatch.append(si)
+            self._tids_to_snatch.add(si.torrent_entry.torrent_id)
 
     def requires_mbid_resolution(self) -> bool:  # pragma: no cover
         return self._require_mbid_resolution
 
-    def get_search_items_to_snatch(self) -> list[SearchItem]:
+    def get_search_items_to_snatch(self, manual_run: bool = False) -> list[SearchItem]:
         """
         Called by the ReleaseSearcher, returns the list of SearchItems which should be snatched following the full searching and filtering of recs.
         The returned list is sorted from largest to smallest torrent, in order to optimize FL token usage (if enabled and tokens are available).
 
         Only returns a list which has a total size of <= self._max_download_allowed_gb. Any remaining torrents are added to the skipped summary list.
         """
+        if manual_run:
+            assert self._manual_search_item_to_snatch is not None
+            return [self._manual_search_item_to_snatch]
         search_elems_by_size = sorted(
             self._search_items_to_snatch,
             key=lambda si: si.torrent_entry.get_size(unit="MB"),  # type: ignore [union-attr]
@@ -258,8 +266,8 @@ class SearchState:
     def _add_skipped_snatch_row(self, si: SearchItem, reason: SkippedReason) -> None:
         self._skipped_snatch_summary_rows.append(
             [
-                str(si.lfm_rec.rec_type),
-                str(si.lfm_rec.rec_context),
+                str(si.initial_info.entity_type),
+                str(si.initial_info.rec_context),
                 str(si.artist_name),
                 str(si.release_name),
                 str(si.track_rec_name),
@@ -282,13 +290,13 @@ class SearchState:
         )
 
     def _add_snatch_success_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:
-        lfm_rec = si.lfm_rec
+        lfm_rec = si.initial_info
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("Missing expected torrent_entry field.")
         te = si.torrent_entry
         self._snatch_summary_rows.append(
             [
-                str(lfm_rec.rec_type),
+                str(lfm_rec.entity_type),
                 str(lfm_rec.rec_context),
                 str(si.artist_name),
                 str(si.release_name),

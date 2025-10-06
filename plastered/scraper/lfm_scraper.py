@@ -9,7 +9,7 @@ from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_pl
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
-from plastered.models.types import RecContext, RecommendationType
+from plastered.models.types import RecContext, EntityType
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
@@ -64,10 +64,10 @@ class LFMRecsScraper:
         self._max_rec_pages_to_scrape = app_settings.lfm.scraper_max_rec_pages_to_scrape
         self._lfm_username = app_settings.lfm.lfm_username
         self._lfm_password = app_settings.lfm.lfm_password
-        self._rec_types_to_scrape = [RecommendationType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
+        self._rec_types_to_scrape = [EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
-        self._loaded_from_run_cache: dict[RecommendationType, list[LFMRec] | None] = {
-            rec_type: None for rec_type in RecommendationType
+        self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {
+            rec_type: None for rec_type in EntityType
         }
         self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
         self._is_logged_in = False
@@ -138,14 +138,14 @@ class LFMRecsScraper:
         self._page.get_by_role("button", name=re.compile("logout", re.IGNORECASE)).locator("visible=true").first.click()
         self._is_logged_in = False
 
-    def _navigate_to_page_and_get_page_source(self, url: str, rec_type: RecommendationType) -> str:
+    def _navigate_to_page_and_get_page_source(self, url: str, rec_type: EntityType) -> str:
         if not self._page:  # pragma: no cover
             raise ScraperException("Page is not initialized")
         _LOGGER.info(f"Rendering {url} page source ...")
         self._page.goto(url, wait_until="domcontentloaded")
         wait_css_selector = (
             ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
-            if rec_type == RecommendationType.ALBUM
+            if rec_type == EntityType.ALBUM
             else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
         )
         recs_page_locator = self._page.locator(wait_css_selector)  # pylint: disable=unused-variable
@@ -153,9 +153,9 @@ class LFMRecsScraper:
         _sleep_random()
         return self._page.content()
 
-    def _extract_recs_from_page_source(self, page_source: str, rec_type: RecommendationType) -> list[LFMRec]:
+    def _extract_recs_from_page_source(self, page_source: str, rec_type: EntityType) -> list[LFMRec]:
         soup = BeautifulSoup(page_source, "html.parser")
-        if rec_type == RecommendationType.ALBUM:
+        if rec_type == EntityType.ALBUM:
             rec_class_name = ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR
             entity_rec_context_class_name = ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR
             recommendation_regex_pattern = _ARTIST_ALBUM_REGEX_PATTERN
@@ -189,12 +189,12 @@ class LFMRecsScraper:
             )
         return page_recs
 
-    def _scrape_recs_list(self, rec_type: RecommendationType) -> list[LFMRec]:
+    def _scrape_recs_list(self, rec_type: EntityType) -> list[LFMRec]:
         if cached_list := self._loaded_from_run_cache.get(rec_type):
             return cached_list
         _LOGGER.info(f"Scraping '{rec_type.value}' recommendations from LFM ...")
         recs: list[LFMRec] = []
-        recs_base_url = ALBUM_RECS_BASE_URL if rec_type == RecommendationType.ALBUM else TRACK_RECS_BASE_URL
+        recs_base_url = ALBUM_RECS_BASE_URL if rec_type == EntityType.ALBUM else TRACK_RECS_BASE_URL
         with NestedProgress() as progress:
             for page_number in progress.track(
                 range(1, self._max_rec_pages_to_scrape + 1), description=f"scraping {rec_type.value} recs pages"
@@ -208,5 +208,5 @@ class LFMRecsScraper:
             _LOGGER.debug(f"Scraper cache write: {cache_write_success}")
         return recs
 
-    def scrape_recs(self) -> dict[RecommendationType, list[LFMRec]]:
+    def scrape_recs(self) -> dict[EntityType, list[LFMRec]]:
         return {rec_type: self._scrape_recs_list(rec_type=rec_type) for rec_type in self._rec_types_to_scrape}

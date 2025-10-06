@@ -6,7 +6,7 @@ from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.search_item import SearchItem
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext as rc
-from plastered.models.types import RecommendationType as rt
+from plastered.models.types import EntityType as rt
 from plastered.models.lfm_models import LFMTrackInfo
 
 
@@ -27,16 +27,16 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
     "si, mb_origin_release_info_json, expected_lfmti",
     [
         pytest.param(
-            SearchItem(lfm_rec=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
             None,
             None,
             id="Nonetype-MB-JSON",
         ),
         pytest.param(
-            SearchItem(lfm_rec=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)), {}, None, id="Empty-MB-JSON"
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)), {}, None, id="Empty-MB-JSON"
         ),
         pytest.param(
-            SearchItem(lfm_rec=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
             {"origin_release_mbid": "abc", "origin_release_name": "Some Album"},
             LFMTrackInfo(
                 artist="Artist",
@@ -48,7 +48,7 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
             id="Full-MB-JSON",
         ),
         pytest.param(
-            SearchItem(lfm_rec=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
             {"origin_release_mbid": "", "origin_release_name": "Some Album"},
             LFMTrackInfo(
                 artist="Artist",
@@ -60,7 +60,7 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
             id="Empty-mbid-MB-JSON",
         ),
         pytest.param(
-            SearchItem(lfm_rec=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
             {"origin_release_mbid": "abc", "origin_release_name": ""},
             LFMTrackInfo(
                 artist="Artist",

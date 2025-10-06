@@ -23,7 +23,7 @@ from plastered.config.field_validators import (
 )
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
-from plastered.utils.constants import CACHE_DIRNAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
+from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
@@ -169,6 +169,7 @@ class AppSettings(BaseSettings):
     _config_directory_path: Path
     _base_cache_directory_path: Path
     _root_summary_directory_path: Path
+    _db_filepath: Path
 
     def model_post_init(self, context: Any) -> None:
         """
@@ -179,6 +180,7 @@ class AppSettings(BaseSettings):
         self._config_directory_path = Path(os.path.dirname(os.path.abspath(self.src_yaml_filepath)))
         self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
         self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
+        self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
     def get(self, section: str, setting: str) -> Any:
         """Return the value for the specified config option, if it exists. Return `None` otherwise."""
@@ -192,6 +194,9 @@ class AppSettings(BaseSettings):
 
     def get_root_summary_directory_path(self) -> str:
         return os.fspath(self._root_summary_directory_path)
+
+    def get_db_filepath(self) -> str:
+        return os.fspath(self._db_filepath)
 
     def get_output_summary_dir_path(self, date_str: str | None = None) -> str:
         if not date_str:
@@ -213,11 +218,13 @@ class AppSettings(BaseSettings):
         yaml.dump(self.model_dump(), sys.stdout)
 
 
-def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
+def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
     """
     Returns the read-only `plastered` application settings configured by the yaml config plus any settings provided
     as options to the CLI. CLI options take precedence over the associated YAML settings.
     """
+    if not src_yaml_filepath:
+        src_yaml_filepath = Path(os.environ["PLASTERED_CONFIG"])
     settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath, cli_overrides=cli_overrides)
     try:
         app_settings = AppSettings(**settings_data)

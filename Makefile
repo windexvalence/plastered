@@ -35,6 +35,9 @@ docker-build-no-test:  ## Build the plastered docker image locally without test-
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
+docker-server:  docker-build  ## Execs a local container running the server on localhost port 8000
+	docker run --rm --name plastered-api -p 8000:80 -v $(PROJECT_DIR_PATH)/examples:/config -e PLASTERED_CONFIG=/config/config.yaml -e PYTHONPATH=/app --entrypoint /bin/bash wv/plastered-test:latest -c 'uvicorn plastered.api.server:fastapi_app --host 0.0.0.0 --port 80'
+
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
 

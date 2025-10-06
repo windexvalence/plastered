@@ -2,11 +2,12 @@ import copy
 import csv
 import json
 import os
+os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 import re
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -409,15 +410,17 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     return scraper_cache_path
 
 
-@pytest.fixture(scope="function")
-def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
-    """
-    Function-scoped valid AppConfig fixture, with cache root dir
-    overridden to use the session-scoped tmp cache root dir fixture
-    """
-    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    # app_config._base_cache_directory_path = str(cache_root_dir_path)
-    return app_settings
+# @pytest.fixture(scope="function")
+# def valid_app_settings(valid_config_filepath: str, valid_config_envvar, cache_root_dir_path: Path) -> AppSettings:
+#     """
+#     Function-scoped valid AppConfig fixture, with cache root dir
+#     overridden to use the session-scoped tmp cache root dir fixture
+#     """
+#     valid_path = Path(valid_config_filepath)
+#     with patch("plastered.config.app_settings.get_config_path", return_value=valid_path):
+#         app_settings = get_app_settings(src_yaml_filepath=valid_path)
+#         # app_config._base_cache_directory_path = str(cache_root_dir_path)
+#         yield app_settings
 
 
 @pytest.fixture(scope="function")

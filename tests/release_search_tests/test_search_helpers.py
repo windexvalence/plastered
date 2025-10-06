@@ -14,7 +14,7 @@ from plastered.models.types import RedReleaseType
 from plastered.release_search.search_helpers import SearchState, _require_mbid_resolution, _required_search_kwargs
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext as rc
-from plastered.models.types import RecommendationType as rt
+from plastered.models.types import EntityType as rt
 from plastered.stats.stats import SkippedReason as sr
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
@@ -180,7 +180,7 @@ def test_create_browse_params(
         app_settings = get_app_settings(src_yaml_filepath=valid_config_filepath)
         search_state = SearchState(app_settings=app_settings)
         si = SearchItem(
-            lfm_rec=LFMRec(
+            initial_info=LFMRec(
                 lfm_artist_str="Some+Artist",
                 lfm_entity_str="Some+Bad+Album",
                 recommendation_type=rt.ALBUM,
@@ -203,7 +203,7 @@ def test_post_resolve_track_filter(
 ) -> None:
     search_state = SearchState(app_settings=valid_app_settings)
     search_item = SearchItem(
-        lfm_rec=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST), lfm_track_info=lfm_track_info
+        initial_info=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST), lfm_track_info=lfm_track_info
     )
     actual = search_state.post_resolve_track_filter(si=search_item)
     assert actual == expected
@@ -216,7 +216,7 @@ def test_post_resolve_track_filter(
 def test_pre_search_rule_skip_prior_snatch(
     valid_app_settings: AppSettings, skip_prior_snatches: bool, mock_has_snatched_release: bool, expected: bool
 ) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     search_state = SearchState(app_settings=valid_app_settings)
     search_state._red_user_details = MagicMock(
         name="_red_user_details.has_snatched_release", create=True, return_value=mock_has_snatched_release
@@ -228,7 +228,7 @@ def test_pre_search_rule_skip_prior_snatch(
 
 
 def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_app_settings: AppSettings) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     search_state = SearchState(app_settings=valid_app_settings)
     search_state._red_user_details = None
     with pytest.raises(SearchStateException, match=re.escape("Red User Details not initialized")):
@@ -247,7 +247,7 @@ def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_ap
 def test_pre_search_rule_skip_library_items(
     valid_app_settings: AppSettings, allow_library_items: bool, rec_context: rc, expected: bool
 ) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rec_context))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rec_context))
     search_state = SearchState(app_settings=valid_app_settings)
     search_state._allow_library_items = allow_library_items
     actual = search_state._pre_search_rule_skip_library_items(si=si)
@@ -271,7 +271,7 @@ def test_pre_search_filter(
     expected: bool,
     expected_reason: sr | None,
 ) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rec_context))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rec_context))
     with patch.object(SearchState, "_pre_search_rule_skip_prior_snatch", return_value=mock_rule_skip_prior_snatch):
         with patch.object(
             SearchState, "_add_skipped_snatch_row", return_value=mock_rule_skip_library_items
@@ -296,7 +296,7 @@ def test_post_mbid_resolution_filter(
     expected: bool,
     expected_add_row_call_cnt: int,
 ) -> None:
-    test_si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
+    test_si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))
     with (
         patch.object(SearchItem, "search_kwargs_has_all_required_fields", return_value=mock_has_all_required_fields),
         patch.object(SearchState, "_add_skipped_snatch_row", return_value=None) as mock_add_skipped_snatch_row,
@@ -325,7 +325,7 @@ def test_post_search_rule_dupe_snatch(
         patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row,
         patch.object(RedUserDetails, "has_snatched_tid", return_value=mock_pre_snatched),
     ):
-        si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+        si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
         si.torrent_entry = mock_torrent_entry
         search_state = SearchState(app_settings=valid_app_settings)
         search_state._tids_to_snatch = mock_tids_to_snatch
@@ -339,7 +339,7 @@ def test_post_search_rule_dupe_snatch(
 
 
 def test_post_search_rule_dupe_snatch_user_details_not_initialized(valid_app_settings: AppSettings) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     search_state = SearchState(app_settings=valid_app_settings)
     search_state._red_user_details = None
     with pytest.raises(SearchStateException, match=re.escape("Red user details not initialized")):
@@ -349,7 +349,7 @@ def test_post_search_rule_dupe_snatch_user_details_not_initialized(valid_app_set
 def test_post_search_rule_dupe_snatch_no_torrent_entry(
     valid_app_settings: AppSettings, no_snatch_user_details: RedUserDetails
 ) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST), torrent_entry=None)
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST), torrent_entry=None)
     search_state = SearchState(app_settings=valid_app_settings)
     search_state._red_user_details = no_snatch_user_details
     with pytest.raises(SearchItemException, match=re.escape("SearchItem instance has not torrent_entry")):
@@ -357,7 +357,7 @@ def test_post_search_rule_dupe_snatch_no_torrent_entry(
 
 
 def test_post_search_filter_no_red_match(valid_app_settings: AppSettings) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row:
         search_state = SearchState(app_settings=valid_app_settings)
         actual = search_state.post_red_search_filter(si=si)
@@ -367,7 +367,7 @@ def test_post_search_filter_no_red_match(valid_app_settings: AppSettings) -> Non
 
 def test_post_search_filter_above_max_size(valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry) -> None:
     si = SearchItem(
-        lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
+        initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
         above_max_size_te_found=True,
         torrent_entry=mock_torrent_entry,
     )
@@ -383,7 +383,7 @@ def test_post_search_filter_dupe_snatch(
     valid_app_settings: AppSettings, mock_rule_dupe_snatch_res: bool, expected: bool
 ) -> None:
     si = SearchItem(
-        lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
+        initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
         above_max_size_te_found=False,
         torrent_entry=mock_torrent_entry,
     )
@@ -400,7 +400,7 @@ def test_post_search_filter_dupe_snatch(
 def test_add_snatch_final_status_row(
     valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry, mock_exc_name: str
 ) -> None:
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     si.torrent_entry = mock_torrent_entry
     with (
         patch.object(SearchState, "_add_failed_snatch_row") as mock_add_failed_snatch_row,
@@ -423,7 +423,7 @@ def test_add_snatch_final_status_row(
 
 def test_add_search_item_to_snatch(valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry) -> None:
     si = SearchItem(
-        lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
+        initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
         above_max_size_te_found=False,
         torrent_entry=mock_torrent_entry,
     )
@@ -442,7 +442,7 @@ def test_get_search_items_to_snatch_hit_size_limit(
 ) -> None:
     mock_items_to_snatch = [
         SearchItem(
-            lfm_rec=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
+            initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
             above_max_size_te_found=False,
             torrent_entry=mock_torrent_entry,
         )
@@ -547,7 +547,7 @@ def test_search_kwargs_has_all_required_fields(
     mock_search_kwargs: dict[str, Any], required_kwargs: set[str], expected: bool
 ) -> None:
     test_si = SearchItem(
-        lfm_rec=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST), search_kwargs=mock_search_kwargs
+        initial_info=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST), search_kwargs=mock_search_kwargs
     )
     actual = test_si.search_kwargs_has_all_required_fields(required_kwargs=required_kwargs)
     assert actual == expected
@@ -582,7 +582,7 @@ def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_setti
 )
 def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, expected: str | None) -> None:
     mock_mbid = "mock-mbid"
-    si = SearchItem(lfm_rec=LFMRec("a", "e", rec_type, rc.SIMILAR_ARTIST))
+    si = SearchItem(initial_info=LFMRec("a", "e", rec_type, rc.SIMILAR_ARTIST))
     if info_field_present:
         if rec_type == rt.ALBUM:
             si.lfm_album_info = LFMAlbumInfo("art", "album", "", mock_mbid)
@@ -615,7 +615,7 @@ def test_search_item_release_name(
     with patch.object(
         LFMRec, "get_human_readable_release_str", return_value=expected_result
     ) as mock_lfm_rec_get_human_readable_track_str_method:
-        si = SearchItem(lfm_rec=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti)
+        si = SearchItem(initial_info=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti)
         actual = si.release_name
         assert actual == expected_result
         assert (

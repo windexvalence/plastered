@@ -1,5 +1,5 @@
 from enum import IntEnum, StrEnum
-from typing import Annotated
+from typing import Annotated, Final
 
 from pydantic import BeforeValidator
 
@@ -75,13 +75,14 @@ def coerce_to_gb_value(bytes_value: str | int) -> float:
 GigaBytesValue = Annotated[float, BeforeValidator(coerce_to_gb_value)]
 
 
-class RecommendationType(StrEnum):
-    """
-    Enum representing the type of LFM recommendation. Can be either "album", or "track" currently.
-    """
+class EntityType(StrEnum):
+    """Enum representing the type of entity the search relates to (album or track)."""
 
     ALBUM = "album"
     TRACK = "track"
+
+
+ALL_ENTITY_TYPES: Final[tuple[str]] = (et.value for et in EntityType)
 
 
 class RecContext(StrEnum):
@@ -95,3 +96,4 @@ class RecContext(StrEnum):
 
     IN_LIBRARY = "in-library"
     SIMILAR_ARTIST = "similar-artist"
+    NOT_SET = "not-set"  # For manual runs only, where the concept of a "rec" isn't relevant
