@@ -73,9 +73,7 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
             {
                 EntityType.ALBUM: [
                     LFMRec("Fake+Artist", "Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST
-                    ),
+                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
                 ]
             },
         ),
@@ -84,9 +82,7 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
             {
                 EntityType.TRACK: [
                     LFMRec("Even+More+Fake+Artist", "Faker+Track", EntityType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY
-                    ),
+                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY),
                 ]
             },
         ),
@@ -95,15 +91,11 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
             {
                 EntityType.ALBUM: [
                     LFMRec("Fake+Artist", "Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST
-                    ),
+                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
                 ],
                 EntityType.TRACK: [
                     LFMRec("Even+More+Fake+Artist", "Faker+Track", EntityType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY
-                    ),
+                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY),
                 ],
             },
         ),
@@ -153,14 +145,7 @@ def test_cli_scrape_command(
         ("api", False, False, False, True, None),
         ("scraper", False, False, False, True, None),
         ("api", False, False, False, False, "false-key"),
-        (
-            "scraper",
-            False,
-            False,
-            False,
-            False,
-            "false-key",
-        ),
+        ("scraper", False, False, False, False, "false-key"),
     ],
 )
 def test_cli_cache_command(
@@ -183,7 +168,7 @@ def test_cli_cache_command(
         test_cmd.append("--list-keys")
     if read_value:
         test_cmd.extend(["--read-value", read_value])
-    
+
     with patch("plastered.cli.cache_action", return_value=None) as mock_cache_action_fn:
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, test_cmd)

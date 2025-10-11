@@ -82,7 +82,7 @@ class EntityType(StrEnum):
     TRACK = "track"
 
 
-ALL_ENTITY_TYPES: Final[tuple[str]] = (et.value for et in EntityType)
+ALL_ENTITY_TYPES: Final[tuple[str, ...]] = tuple([et.value for et in EntityType])
 
 
 class RecContext(StrEnum):

@@ -8,6 +8,7 @@ import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.models.lfm_models import LFMAlbumInfo
+from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
@@ -457,6 +458,24 @@ def test_get_search_items_to_snatch_hit_size_limit(
         mock_add_skipped_snatch_row_fn.assert_called_once_with(si=mock_items_to_snatch[0], reason=sr.MIN_RATIO_LIMIT)
 
 
+def test_get_search_items_to_snatch_manual_run(valid_app_settings: AppSettings) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    mock_si = SearchItem(initial_info=ManualSearch(entity_type=rt.ALBUM, artist="fake", entity="faker"))
+    search_state._manual_search_item_to_snatch = mock_si
+    actual = search_state.get_search_items_to_snatch(manual_run=True)
+    assert isinstance(actual, list)
+    assert len(actual) == 1
+    assert actual[0] is mock_si
+
+
+def test_get_search_items_to_snatch_manual_run_none(valid_app_settings: AppSettings) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._manual_search_item_to_snatch = None
+    actual = search_state.get_search_items_to_snatch(manual_run=True)
+    assert isinstance(actual, list)
+    assert len(actual) == 0
+
+
 @pytest.mark.parametrize(
     "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
     [
@@ -615,7 +634,9 @@ def test_search_item_release_name(
     with patch.object(
         LFMRec, "get_human_readable_release_str", return_value=expected_result
     ) as mock_lfm_rec_get_human_readable_track_str_method:
-        si = SearchItem(initial_info=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti)
+        si = SearchItem(
+            initial_info=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti
+        )
         actual = si.release_name
         assert actual == expected_result
         assert (

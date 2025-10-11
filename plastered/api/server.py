@@ -1,30 +1,30 @@
-from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
 import logging
 import os
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Final
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 import uvicorn
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
-from plastered.actions import scrape_action, show_config_action, cache_action
+from plastered.actions import scrape_action, show_config_action
 from plastered.actions.api_actions import manual_search_action, run_history_action
 from plastered.config.app_settings import get_app_settings
 from plastered.config.field_validators import CLIOverrideSetting
-from plastered.db.db_models import SearchRun, RunState
+from plastered.db.db_models import SearchRun
 from plastered.db.db_utils import db_startup, get_session
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
-
 _LOGGER = logging.getLogger(__name__)
+_HOST_ENVVAR: Final[str] = "PLASTERED_HOST"
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
-_VALID_REC_TYPES: Final[tuple[str]] = ("album", "track", "all")
-_TEMPLATES_DIRPATH: Final[Path] = Path(os.path.join(os.getenv("APP_DIR"), "plastered", "api", "templates"))
+_VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
+_TEMPLATES_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api", "templates"))
 templates = Jinja2Templates(directory=_TEMPLATES_DIRPATH)
 
 
@@ -42,6 +42,7 @@ async def _app_lifespan(app: FastAPI):
     yield
     # Shutdown events: Clean up stuff
     _STATE.clear()
+
 
 # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -61,12 +62,9 @@ def show_config_endpoint() -> JSONResponse:
     return JSONResponse(content=show_config_action(app_settings=_STATE["app_settings"]))
 
 
-
 @fastapi_app.get("/search_form")
 def search_form_endpoint(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "manual_search.html.template", {"request": request}
-    )
+    return templates.TemplateResponse("manual_search.html.template", {"request": request})
 
 
 @fastapi_app.post("/submit_album_search_form")
@@ -104,12 +102,15 @@ def scrape_endpoint(snatch: bool = False, rec_type: str = "all") -> RedirectResp
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     target_entities = [et.value for et in EntityType] if rec_type == "all" else [rec_type]
     app_settings = get_app_settings(
-        _STATE["config_filepath"], cli_overrides={
+        _STATE["config_filepath"],
+        cli_overrides={
             CLIOverrideSetting.SNATCH_ENABLED.name: snatch,
             CLIOverrideSetting.REC_TYPES.name: target_entities,
-        }
+        },
     )
     scrape_action(app_settings=app_settings)
+    # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # /run_history?since_timestamp=<unix timestamp int>
@@ -117,7 +118,7 @@ def scrape_endpoint(snatch: bool = False, rec_type: str = "all") -> RedirectResp
 def run_history_endpoint(session: SessionDep, since_timestamp: int | None = None) -> list[SearchRun]:
     if not since_timestamp:  # pragma: no cover
         # Default to the past 6 months if since is not provided
-        since_timestamp = int((datetime.now(tz=timezone.utc) - timedelta(days=180)).timestamp())
+        since_timestamp = int((datetime.now(tz=UTC) - timedelta(days=180)).timestamp())
     return run_history_action(since_timestamp=since_timestamp, session=session)
 
 
@@ -129,4 +130,7 @@ def inspect_run_endpoint(run_id: str) -> JSONResponse:
 
 
 if __name__ == "__main__":
-    uvicorn.run("plastered.api.server:fastapi_app", host="0.0.0.0", port=80, reload=True)
+    if not (configured_host := os.getenv(_HOST_ENVVAR)):
+        _LOGGER.warning(f"Missing {_HOST_ENVVAR} envvar. Defaulting to 0.0.0.0")
+        configured_host = "0.0.0.0"  # nosec B104
+    uvicorn.run("plastered.api.server:fastapi_app", host=configured_host, port=80, reload=True)

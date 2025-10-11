@@ -9,7 +9,7 @@ from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_pl
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
-from plastered.models.types import RecContext, EntityType
+from plastered.models.types import EntityType, RecContext
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
@@ -66,9 +66,7 @@ class LFMRecsScraper:
         self._lfm_password = app_settings.lfm.lfm_password
         self._rec_types_to_scrape = [EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
-        self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {
-            rec_type: None for rec_type in EntityType
-        }
+        self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}
         self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
         self._is_logged_in = False
         self._playwright: Playwright | None = None
@@ -144,9 +142,7 @@ class LFMRecsScraper:
         _LOGGER.info(f"Rendering {url} page source ...")
         self._page.goto(url, wait_until="domcontentloaded")
         wait_css_selector = (
-            ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR
-            if rec_type == EntityType.ALBUM
-            else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
+            ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR if rec_type == EntityType.ALBUM else TRACK_REC_LIST_ELEMENT_CSS_SELECTOR
         )
         recs_page_locator = self._page.locator(wait_css_selector)  # pylint: disable=unused-variable
         recs_page_locator.first.wait_for()

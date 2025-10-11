@@ -176,7 +176,7 @@ def test_resolve_lfm_track_info(
                 actual = release_searcher._resolve_lfm_track_info(si=input_si)
                 mock_lfm_request_api.assert_called_once_with(
                     method="track.getinfo",
-                    params=f"artist={input_si.initial_info.artist_str}&track={input_si.initial_info.entity_str}",
+                    params=f"artist={input_si.initial_info.encoded_artist_str}&track={input_si.initial_info.encoded_entity_str}",
                 )
                 if "album" in mock_lfm_response:
                     mock_request_release_details_for_track.assert_not_called()
@@ -211,13 +211,17 @@ def test_resolve_lfm_track_info_bad_json(
 @pytest.mark.parametrize(
     "test_si, mock_matched_mbid",
     [
-        pytest.param(SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)), None, id="album-no-mbid"),
+        pytest.param(
+            SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)), None, id="album-no-mbid"
+        ),
         pytest.param(
             SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)),
             "d211379d-3203-47ed-a0c5-e564815bb45a",
             id="album-has-mbid",
         ),
-        pytest.param(SearchItem(initial_info=LFMRec("artist", "ent", et.TRACK, rc.IN_LIBRARY)), None, id="track-no-mbid"),
+        pytest.param(
+            SearchItem(initial_info=LFMRec("artist", "ent", et.TRACK, rc.IN_LIBRARY)), None, id="track-no-mbid"
+        ),
         pytest.param(
             SearchItem(initial_info=LFMRec("artist", "ent", et.TRACK, rc.IN_LIBRARY)),
             "d211379d-3203-47ed-a0c5-e564815bb45a",
@@ -824,9 +828,7 @@ def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_setti
 
 
 @pytest.mark.parametrize(
-    "entity_type, expected_search_calls, expected_track_search_calls", [
-        (et.ALBUM, 1, 0), (et.TRACK, 0, 1)
-    ]
+    "entity_type, expected_search_calls, expected_track_search_calls", [(et.ALBUM, 1, 0), (et.TRACK, 0, 1)]
 )
 def test_manual_search(
     valid_app_settings: AppSettings, entity_type: et, expected_search_calls, expected_track_search_calls
@@ -836,7 +838,7 @@ def test_manual_search(
         patch.object(ReleaseSearcher, "_search") as mock_search,
         patch.object(ReleaseSearcher, "_search_for_track_recs") as mock_track_search,
         patch.object(ReleaseSearcher, "_snatch_matches") as mock_snatch_matches,
-        ReleaseSearcher(app_settings=valid_app_settings) as release_searcher
+        ReleaseSearcher(app_settings=valid_app_settings) as release_searcher,
     ):
         release_searcher._run_cache = MagicMock(spec=RunCache)
         release_searcher.manual_search(manual_query=manual_query)

@@ -110,8 +110,8 @@ class LFMRec:
         if not isinstance(other, LFMRec):
             return False
         return (
-            self.artist_str == other.artist_str
-            and self.entity_str == other.entity_str
+            self.encoded_artist_str == other.encoded_artist_str
+            and self.encoded_entity_str == other.encoded_entity_str
             and self.is_album_rec() == other.is_album_rec()
             and self.rec_context.value == other.rec_context.value
         )
@@ -139,7 +139,7 @@ class LFMRec:
         return self._entity_type == EntityType.TRACK
 
     @property
-    def artist_str(self) -> str:
+    def encoded_artist_str(self) -> str:
         return self._lfm_artist_str
 
     def get_human_readable_artist_str(self) -> str:
@@ -168,7 +168,7 @@ class LFMRec:
         return unquote_plus(self._track_origin_release)
 
     @property
-    def entity_str(self) -> str:
+    def encoded_entity_str(self) -> str:
         return self._lfm_entity_str
 
     @property

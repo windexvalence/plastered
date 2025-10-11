@@ -41,21 +41,17 @@ docker-server:  docker-build  ## Execs a local container running the server on l
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
 
-fmt-check: docker-build  ## Runs code-auto-formatting checks, lint checks, and security checks
-	docker run -t --rm -e CODE_FORMAT_CHECK=1 \
-		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
+fmt-check:  ## Runs code-auto-formatting checks, lint checks, and security checks
+	CODE_FORMAT_CHECK=1 PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run ./build_scripts/code-format.sh
 
-fmt: docker-build  ## Runs code-auto-formatting, followed by lint checks, and then security checks
-	docker run -it --rm \
-		-v $(PROJECT_DIR_PATH):/project_src_mnt \
-		--entrypoint /app/build_scripts/code-format.sh wv/plastered-test:latest
+fmt:  ## Runs code-auto-formatting, followed by lint checks, and then security checks
+	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run ./build_scripts/code-format.sh
 
 mypy:  ## Runs mypy type checking
 	uv run mypy --config-file pyproject.toml .
 
 test:  ## Runs unit tests locally (non-containerized)
-	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run pytest -n auto -vv $(TEST_TARGET)
+	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) PDB=$(PDB) uv run ./tests/tests_entrypoint.sh $(TEST_TARGET)
 
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file

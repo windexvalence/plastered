@@ -537,10 +537,7 @@ def test_extract_recs_from_page_source(
 
 @pytest.mark.parametrize(
     "rec_type, expected_css_selector",
-    [
-        (EntityType.ALBUM, ".music-recommended-albums-item-name"),
-        (EntityType.TRACK, ".recommended-tracks-item-name"),
-    ],
+    [(EntityType.ALBUM, ".music-recommended-albums-item-name"), (EntityType.TRACK, ".recommended-tracks-item-name")],
 )
 def test_navigate_to_page_and_get_page_source(
     lfm_rec_scraper: LFMRecsScraper, rec_type: EntityType, expected_css_selector: str
@@ -564,9 +561,7 @@ def test_navigate_to_page_and_get_page_source(
     "rec_type, expected_rec_base_url",
     [(EntityType.ALBUM, ALBUM_RECS_BASE_URL), (EntityType.TRACK, TRACK_RECS_BASE_URL)],
 )
-def test_scrape_recs_list(
-    lfm_rec_scraper: LFMRecsScraper, rec_type: EntityType, expected_rec_base_url: str
-) -> None:
+def test_scrape_recs_list(lfm_rec_scraper: LFMRecsScraper, rec_type: EntityType, expected_rec_base_url: str) -> None:
     with patch.object(LFMRecsScraper, "_navigate_to_page_and_get_page_source") as mock_navigate_to_page:
         mock_navigate_to_page.return_value = ""
         with patch.object(LFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
@@ -595,10 +590,7 @@ def test_scrape_recs_list_cache_hit(lfm_rec_scraper: LFMRecsScraper) -> None:
     [
         ([EntityType.ALBUM], [call(rec_type=EntityType.ALBUM)]),
         ([EntityType.TRACK], [call(rec_type=EntityType.TRACK)]),
-        (
-            [EntityType.ALBUM, EntityType.TRACK],
-            [call(rec_type=EntityType.ALBUM), call(rec_type=EntityType.TRACK)],
-        ),
+        ([EntityType.ALBUM, EntityType.TRACK], [call(rec_type=EntityType.ALBUM), call(rec_type=EntityType.TRACK)]),
     ],
 )
 def test_scrape_recs(

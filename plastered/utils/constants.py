@@ -1,5 +1,3 @@
-import os
-from pathlib import Path
 from typing import Final
 
 RED_API_BASE_URL: Final[str] = "https://redacted.sh/ajax.php"

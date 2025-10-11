@@ -2,6 +2,7 @@ import copy
 import csv
 import json
 import os
+
 os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 import re
 from collections.abc import Generator

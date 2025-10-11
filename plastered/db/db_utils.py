@@ -1,19 +1,18 @@
 import logging
-from pathlib import Path
-from typing import Final, Generator, TYPE_CHECKING
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Final
 
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Session, create_engine
 
-from plastered.config.app_settings import get_app_settings, AppSettings
+from plastered.config.app_settings import get_app_settings
 from plastered.db.db_models import SearchRun
-
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
 
 _LOGGER = logging.getLogger(__name__)
-_DB_FILEPATH: Final[Path] = get_app_settings().get_db_filepath()
+_DB_FILEPATH: Final[str] = get_app_settings().get_db_filepath()
 _SQLITE_URL: Final[str] = f"sqlite:///{_DB_FILEPATH}"
 _ENGINE: Final["Engine"] = create_engine(_SQLITE_URL, connect_args={"check_same_thread": False})
 

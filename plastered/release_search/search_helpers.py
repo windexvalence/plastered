@@ -93,7 +93,7 @@ class SearchState:
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
         """Utility method for creating the RED browse API params string"""
-        artist_name = si.initial_info.artist_str
+        artist_name = si.initial_info.encoded_artist_str
         album_name = quote_plus(si.release_name)
         format = red_format.get_format()
         encoding = red_format.get_encoding()
@@ -224,7 +224,7 @@ class SearchState:
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("SearchItem missing torrent entry")
         if si.is_manual:
-            self._manual_search_item_to_snatch = si
+            self._manual_search_item_to_snatch = si  # pragma: no cover
         else:
             self._search_items_to_snatch.append(si)
             self._tids_to_snatch.add(si.torrent_entry.torrent_id)
@@ -239,9 +239,10 @@ class SearchState:
 
         Only returns a list which has a total size of <= self._max_download_allowed_gb. Any remaining torrents are added to the skipped summary list.
         """
-        if manual_run:
-            assert self._manual_search_item_to_snatch is not None
+        if manual_run and self._manual_search_item_to_snatch is not None:
             return [self._manual_search_item_to_snatch]
+        elif manual_run:
+            return []
         search_elems_by_size = sorted(
             self._search_items_to_snatch,
             key=lambda si: si.torrent_entry.get_size(unit="MB"),  # type: ignore [union-attr]

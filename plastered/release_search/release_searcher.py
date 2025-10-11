@@ -1,7 +1,6 @@
 import logging
 import os
 from collections import namedtuple
-from urllib.parse import quote_plus
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
@@ -125,7 +124,8 @@ class ReleaseSearcher:
     def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo | None:
         try:
             lfm_api_response = self._lfm_client.request_api(
-                method="album.getinfo", params=f"artist={si.initial_info.artist_str}&album={si.initial_info.entity_str}"
+                method="album.getinfo",
+                params=f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}",
             )
             lfmai = LFMAlbumInfo.construct_from_api_response(json_blob=lfm_api_response)
         except LFMClientException:  # pragma: no cover
@@ -143,7 +143,8 @@ class ReleaseSearcher:
         _LOGGER.debug(f"Resolving LFM track info for {str(si)} ({si.initial_info.lfm_entity_url}) ...")
         try:
             lfm_api_response = self._lfm_client.request_api(
-                method="track.getinfo", params=f"artist={si.initial_info.artist_str}&track={si.initial_info.entity_str}"
+                method="track.getinfo",
+                params=f"artist={si.initial_info.encoded_artist_str}&track={si.initial_info.encoded_entity_str}",
             )
             if lfm_api_response and "album" in lfm_api_response:
                 resolved_track_info = LFMTrackInfo.construct_from_api_response(json_blob=lfm_api_response)
@@ -244,9 +245,7 @@ class ReleaseSearcher:
         """
         self._gather_red_user_details()
         if EntityType.ALBUM in rec_type_to_recs_list:
-            self._search(
-                search_items=[SearchItem(initial_info=rec) for rec in rec_type_to_recs_list[EntityType.ALBUM]]
-            )
+            self._search(search_items=[SearchItem(initial_info=rec) for rec in rec_type_to_recs_list[EntityType.ALBUM]])
         if EntityType.TRACK in rec_type_to_recs_list:
             self._search_for_track_recs(
                 search_items=[SearchItem(initial_info=rec) for rec in rec_type_to_recs_list[EntityType.TRACK]]
@@ -254,7 +253,7 @@ class ReleaseSearcher:
         if self._run_cache.enabled:
             self._run_cache.close()
         self._snatch_matches()
-    
+
     def manual_search(self, manual_query: ManualSearch) -> None:
         """Public method that the manual search endpoint should invoke. Not used by the scraper."""
         # TODO: use different class for manual searches than lfmrec
@@ -266,9 +265,11 @@ class ReleaseSearcher:
             self._search_for_track_recs(search_items=search_items)
         if self._run_cache.enabled:
             self._run_cache.close()
-        self._snatch_matches(manual_run=True)  # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
-    
-    def get_snatched_manual_search_item(self) -> SearchItem | None:
+        self._snatch_matches(
+            manual_run=True
+        )  # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
+
+    def get_snatched_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
         return self._snatched_manual_search_item
 
     def _snatch_matches(self, manual_run: bool = False) -> None:
@@ -301,7 +302,7 @@ class ReleaseSearcher:
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
             if manual_run:
-                self._snatched_manual_search_item = si_to_snatch
+                self._snatched_manual_search_item = si_to_snatch  # pragma: no cover
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
             if os.path.exists(out_filepath):

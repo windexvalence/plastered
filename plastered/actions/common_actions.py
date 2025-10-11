@@ -10,7 +10,6 @@ from plastered.scraper.lfm_scraper import LFMRecsScraper
 from plastered.utils.constants import API_ALL_CACHE_TYPES, CLI_ALL_CACHE_TYPES
 from plastered.utils.exceptions import RunCacheDisabledException
 
-
 _LOGGER = logging.getLogger(__name__)
 
 

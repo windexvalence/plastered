@@ -33,7 +33,10 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
             id="Nonetype-MB-JSON",
         ),
         pytest.param(
-            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)), {}, None, id="Empty-MB-JSON"
+            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
+            {},
+            None,
+            id="Empty-MB-JSON",
         ),
         pytest.param(
             SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK, rc.SIMILAR_ARTIST)),
