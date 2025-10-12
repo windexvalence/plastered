@@ -145,12 +145,24 @@ class CacheConfig(BaseModel):
     scraper_cache_enabled: bool = Field(default=True)
 
 
+class ServerConfig(BaseModel):
+    """Config section for the plastered API server."""
+
+    model_config = ConfigDict(title="server")
+    host: str = Field(default="0.0.0.0")  # nosec: B104
+    port: int = Field(default=80)
+
+
 def _default_music_brainz_config() -> MusicBrainzConfig:
     return MusicBrainzConfig()
 
 
 def _default_cache_config() -> CacheConfig:
     return CacheConfig()
+
+
+def _default_server_config() -> ServerConfig:
+    return ServerConfig()
 
 
 # TODO: change the config language to TOML
@@ -164,6 +176,7 @@ class AppSettings(BaseSettings):
     lfm: LFMConfig = Field(title="lfm")
     musicbrainz: MusicBrainzConfig = Field(title="musicbrainz", default_factory=_default_music_brainz_config)
     cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
+    server: ServerConfig = Field(title="server", default_factory=_default_server_config)
     # Private, post-init attributes below
     _run_datestr: str
     _config_directory_path: Path

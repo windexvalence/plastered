@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from plastered.actions import scrape_action, show_config_action
-from plastered.actions.api_actions import manual_search_action, run_history_action
+from plastered.actions.api_actions import inspect_run_action, manual_search_action, run_history_action
 from plastered.config.app_settings import get_app_settings
 from plastered.config.field_validators import CLIOverrideSetting
 from plastered.db.db_models import SearchRun
@@ -21,13 +21,10 @@ from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
 _LOGGER = logging.getLogger(__name__)
-_HOST_ENVVAR: Final[str] = "PLASTERED_HOST"
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
 _VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
 _TEMPLATES_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api", "templates"))
 templates = Jinja2Templates(directory=_TEMPLATES_DIRPATH)
-
-
 _STATE: dict[str, Any] = {}
 
 
@@ -46,7 +43,6 @@ async def _app_lifespan(app: FastAPI):
 
 # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
 SessionDep = Annotated[Session, Depends(get_session)]
-
 fastapi_app = FastAPI(lifespan=_app_lifespan)
 
 
@@ -122,15 +118,16 @@ def run_history_endpoint(session: SessionDep, since_timestamp: int | None = None
     return run_history_action(since_timestamp=since_timestamp, session=session)
 
 
-# /inspect_run?run_id=<str>
+# /inspect_run?run_id=<int>
 @fastapi_app.get("/inspect_run")
-def inspect_run_endpoint(run_id: str) -> JSONResponse:
-    _LOGGER.warning("Not yet implemented")
-    raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail="Not yet implemented")  # TODO: implement
+def inspect_run_endpoint(session: SessionDep, run_id: int) -> JSONResponse:
+    if matched_record := inspect_run_action(run_id=run_id, session=session):
+        return JSONResponse(content=matched_record.model_dump(), status_code=status.HTTP_200_OK)
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No records matching run_id={run_id} found.")
 
 
 if __name__ == "__main__":
-    if not (configured_host := os.getenv(_HOST_ENVVAR)):
-        _LOGGER.warning(f"Missing {_HOST_ENVVAR} envvar. Defaulting to 0.0.0.0")
-        configured_host = "0.0.0.0"  # nosec B104
-    uvicorn.run("plastered.api.server:fastapi_app", host=configured_host, port=80, reload=True)
+    app_settings = get_app_settings()
+    uvicorn.run(
+        "plastered.api.server:fastapi_app", host=app_settings.server.host, port=app_settings.server.port, reload=True
+    )

@@ -2,13 +2,13 @@ from pathlib import Path
 from typing import Generator
 from unittest.mock import patch, ANY
 
-from fastapi import HTTPException, status
-from fastapi.responses import JSONResponse, Response
 from fastapi.testclient import TestClient
 import pytest
 
 from plastered.api.server import fastapi_app, show_config_endpoint
 from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.db.db_models import RunState, SearchRun
+from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
 
@@ -96,6 +96,26 @@ def test_run_history_endpoint(client: TestClient) -> None:
         mock_run_history_action.assert_called_once_with(since_timestamp=mock_since, session=ANY)
 
 
-def test_inspect_run_endpoint(client: TestClient) -> None:
-    resp = client.get("/inspect_run?run_id=foo")
-    assert resp.status_code == 418
+@pytest.mark.parametrize("mock_record_found", [False, True])
+def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> None:
+    mock_id = 69
+    mock_record = (
+        SearchRun(
+            id=mock_id,
+            submit_timestamp=1759680000,
+            is_manual=True,
+            entity_type=EntityType.ALBUM,
+            artist="Fake Artist",
+            entity="Fake Name",
+            state=RunState.ACTIVE,
+        )
+        if mock_record_found
+        else None
+    )
+    with patch("plastered.api.server.inspect_run_action", return_value=mock_record) as mock_inspect_fn:
+        resp = client.get(f"/inspect_run?run_id={mock_id}")
+        if mock_record_found:
+            assert resp.status_code == 200
+            assert resp.json() == mock_record.model_dump()
+        else:
+            assert resp.status_code == 404

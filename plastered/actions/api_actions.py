@@ -24,6 +24,14 @@ def run_history_action(since_timestamp: int, session: Session) -> list[SearchRun
     return list(manual_runs)
 
 
+def inspect_run_action(run_id: int, session: Session) -> SearchRun | None:
+    """Returns the SearchRun record associated with the provided `run_id`, otherwise return `None`."""
+    result_rows = list(session.exec(select(SearchRun).where(SearchRun.id == run_id)).all())
+    if result_rows:
+        return result_rows[0]
+    return None
+
+
 async def manual_search_action(
     session: Session, app_settings: AppSettings, search_run: SearchRun, mbid: str | None = None
 ) -> dict[str, Any]:

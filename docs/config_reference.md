@@ -46,6 +46,9 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | cache | `object` |  | object |  |  |  |  |
 | cache.api_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | cache.scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
+| server | `object` |  | object |  |  | Config section for the plastered API server. |  |
+| server.host | `string` |  | string |  | `"0.0.0.0"` |  |  |
+| server.port | `integer` |  | integer |  | `80` |  |  |
 
 
 ---
@@ -181,6 +184,17 @@ RED search settings defined in the plastered config at `red.search`.
 | use_first_release_year | `boolean` |  | boolean |  | `true` |  |  |
 | use_record_label | `boolean` |  | boolean |  | `false` |  |  |
 | use_catalog_number | `boolean` |  | boolean |  | `false` |  |  |
+
+## ServerConfig
+
+Config section for the plastered API server.
+
+#### Type: `object`
+
+| Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
+| -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
+| host | `string` |  | string |  | `"0.0.0.0"` |  |  |
+| port | `integer` |  | integer |  | `80` |  |  |
 
 ## SnatchesConfig
 
