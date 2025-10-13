@@ -7,6 +7,7 @@
 !docs
 !plastered
 !entrypoint.sh
+!server_entrypoint.sh
 !tests
 !pyproject.toml
 !uv.lock

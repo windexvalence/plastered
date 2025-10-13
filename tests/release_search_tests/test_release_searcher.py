@@ -13,7 +13,7 @@ from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.search_item import SearchItem
-from plastered.release_search.release_searcher import ReleaseSearcher, SearchState, _TorrentMatch
+from plastered.release_search.release_searcher import ReleaseSearcher, SearchState
 from plastered.release_search.search_helpers import SearchState
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import EntityType as et, RecContext as rc
@@ -29,7 +29,7 @@ from plastered.models.types import EncodingEnum as ee
 from plastered.models.types import FormatEnum as fe
 from plastered.models.types import MediaEnum as me
 from plastered.models.red_models import RedFormat as rf
-from plastered.models.red_models import RedUserDetails
+from plastered.models.red_models import RedUserDetails, TorrentMatch
 from plastered.models.red_models import TorrentEntry as te
 
 
@@ -412,7 +412,7 @@ def test_search_red_release_by_preferences(
     mock_preference_ordering: list[rf],
     expected_torrent_entry: te | None,
 ) -> None:
-    expected_torrent_match = _TorrentMatch(torrent_entry=expected_torrent_entry, above_max_size_found=False)
+    expected_torrent_match = TorrentMatch(torrent_entry=expected_torrent_entry, above_max_size_found=False)
     mock_progress = MagicMock(spec=NestedProgress)
     with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
         release_searcher._search_state._red_format_preferences = mock_preference_ordering
@@ -438,7 +438,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
     ]
     # Test case 3: empty browse results for first pref, and non-empty browse results for 2nd preference
     mock_response_fixture_names = ["mock_red_browse_empty_response", "mock_red_browse_non_empty_response"]
-    expected_torrent_match = _TorrentMatch(torrent_entry=None, above_max_size_found=True)
+    expected_torrent_match = TorrentMatch(torrent_entry=None, above_max_size_found=True)
     test_si = SearchItem(LFMRec("Fake+Artist", "Fake+Release", et.ALBUM, rc.IN_LIBRARY))
     mock_progress = MagicMock(spec=NestedProgress)
     with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
@@ -457,7 +457,7 @@ def test_search_red_release_by_preferences_above_max_size_found(
 
 
 def test_search_red_release_by_preferences_browse_exception_raised(valid_app_settings: AppSettings) -> None:
-    expected = _TorrentMatch(torrent_entry=None, above_max_size_found=False)
+    expected = TorrentMatch(torrent_entry=None, above_max_size_found=False)
 
     def _raise_excp(*args, **kwargs) -> None:
         raise Exception("Fake exception")
@@ -515,7 +515,7 @@ def test_search_for_release_te_none(
         patch.object(
             ReleaseSearcher,
             "_search_red_release_by_preferences",
-            return_value=_TorrentMatch(torrent_entry=None, above_max_size_found=False),
+            return_value=TorrentMatch(torrent_entry=None, above_max_size_found=False),
         ) as mock_search_red_by_prefs,
         patch.object(
             SearchState, "post_red_search_filter", return_value=post_red_search_filer_res
@@ -538,7 +538,11 @@ def test_search_for_release_te_none(
 
 @pytest.mark.parametrize("require_mbid_resolution", [False, True])
 def test_search_for_release_te(
-    valid_app_settings: AppSettings, mock_lfmai: LFMAlbumInfo, mock_mbr: MBRelease, require_mbid_resolution: bool
+    valid_app_settings: AppSettings,
+    mock_lfmai: LFMAlbumInfo,
+    mock_mbr: MBRelease,
+    mock_best_te: te,
+    require_mbid_resolution: bool,
 ) -> None:
     """Validates that the conditions where _search_for_release_te should return non-None do so."""
 
@@ -559,7 +563,7 @@ def test_search_for_release_te(
         patch.object(
             ReleaseSearcher,
             "_search_red_release_by_preferences",
-            return_value=_TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
+            return_value=TorrentMatch(torrent_entry=mock_best_te, above_max_size_found=False),
         ) as mocked_torrent_match,
     ):
         with ReleaseSearcher(app_settings=valid_app_settings) as release_searcher:
@@ -841,7 +845,7 @@ def test_manual_search(
         ReleaseSearcher(app_settings=valid_app_settings) as release_searcher,
     ):
         release_searcher._run_cache = MagicMock(spec=RunCache)
-        release_searcher.manual_search(manual_query=manual_query)
+        release_searcher.manual_search(manual_search_instance=manual_query)
         assert len(mock_search.mock_calls) == expected_search_calls
         assert len(mock_track_search.mock_calls) == expected_track_search_calls
         release_searcher._run_cache.close.assert_called_once()

@@ -7,7 +7,7 @@ import pytest
 
 from plastered.api.server import fastapi_app, show_config_endpoint
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import RunState, SearchRun
+from plastered.db.db_models import SearchRun
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
@@ -107,7 +107,6 @@ def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> No
             entity_type=EntityType.ALBUM,
             artist="Fake Artist",
             entity="Fake Name",
-            state=RunState.ACTIVE,
         )
         if mock_record_found
         else None

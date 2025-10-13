@@ -1,16 +1,17 @@
 import logging
 import os
-from collections import namedtuple
 
 from plastered.config.app_settings import AppSettings
+from plastered.db.db_models import FinalState
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
-from plastered.models.red_models import RedUserDetails, ReleaseEntry
+from plastered.models.red_models import RedUserDetails, ReleaseEntry, TorrentMatch
 from plastered.models.search_item import SearchItem
 from plastered.models.types import EntityType
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.stats.stats import SkippedReason
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
@@ -19,9 +20,6 @@ from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress, red_browse_progress
 
 _LOGGER = logging.getLogger(__name__)
-
-
-_TorrentMatch = namedtuple("_TorrentMatch", ["torrent_entry", "above_max_size_found"])
 
 
 class ReleaseSearcher:
@@ -42,7 +40,6 @@ class ReleaseSearcher:
         self._search_state = SearchState(app_settings=app_settings)
         self._enable_snatches = app_settings.red.snatches.snatch_recs
         self._snatch_directory = app_settings.red.snatches.snatch_directory
-        self._snatched_manual_search_item: SearchItem | None = None
 
     def __enter__(self):
         return self
@@ -94,7 +91,7 @@ class ReleaseSearcher:
         )
         self._search_state.set_red_user_details(red_user_details=red_user_details)
 
-    def _search_red_release_by_preferences(self, si: SearchItem, rich_progress: NestedProgress) -> _TorrentMatch:
+    def _search_red_release_by_preferences(self, si: SearchItem, rich_progress: NestedProgress) -> TorrentMatch:
         above_max_size_found = False
         with red_browse_progress(release_name=si.release_name, artist_name=si.artist_name, parent_prog=rich_progress):
             for pref in self._search_state.red_format_preferences:
@@ -116,10 +113,10 @@ class ReleaseSearcher:
                     for torrent_entry in release_entry.get_torrent_entries():
                         size_gb = torrent_entry.get_size(unit="GB")
                         if size_gb <= self._search_state.max_size_gb:
-                            return _TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
+                            return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
                         above_max_size_found = True
         # TODO: figure out how to move this logic into the search_state filters instead
-        return _TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
+        return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
 
     def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo | None:
         try:
@@ -254,23 +251,24 @@ class ReleaseSearcher:
             self._run_cache.close()
         self._snatch_matches()
 
-    def manual_search(self, manual_query: ManualSearch) -> None:
+    def manual_search(self, manual_search_instance: ManualSearch) -> None:
         """Public method that the manual search endpoint should invoke. Not used by the scraper."""
         # TODO: use different class for manual searches than lfmrec
-        self._snatched_manual_search_item = None
-        search_items = [SearchItem(initial_info=manual_query, is_manual=True)]
-        if manual_query.entity_type == EntityType.ALBUM:
+        self._search_state.clear_manual_search_item()
+        if not self._search_state.red_user_details_initialized():
+            self._gather_red_user_details()
+        search_items = [SearchItem(initial_info=manual_search_instance, is_manual=True)]
+        if manual_search_instance.entity_type == EntityType.ALBUM:
             self._search(search_items=search_items)
-        elif manual_query.entity_type == EntityType.TRACK:
+        elif manual_search_instance.entity_type == EntityType.TRACK:
             self._search_for_track_recs(search_items=search_items)
         if self._run_cache.enabled:
             self._run_cache.close()
-        self._snatch_matches(
-            manual_run=True
-        )  # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
+        # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
+        self._snatch_matches(manual_run=True)
 
-    def get_snatched_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
-        return self._snatched_manual_search_item
+    def get_finalized_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
+        return self._search_state.get_manual_search_item()
 
     def _snatch_matches(self, manual_run: bool = False) -> None:
         if not self._enable_snatches:
@@ -281,15 +279,17 @@ class ReleaseSearcher:
             # with Progress(*prog_args(), **prog_kwargs()) as progress:
             with NestedProgress() as progress:
                 for si_to_snatch in progress.track(search_items_to_snatch, description="Snatching matched torrents"):
-                    self._snatch_match(si_to_snatch=si_to_snatch, manual_run=manual_run)
+                    self._snatch_match(si_to_snatch=si_to_snatch)
         else:
             _LOGGER.warning("No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
             return
 
-    def _snatch_match(self, si_to_snatch: SearchItem, manual_run: bool = False) -> None:
+    def _snatch_match(self, si_to_snatch: SearchItem) -> None:
         te_to_snatch = si_to_snatch.torrent_entry
         if not te_to_snatch:  # pragma: no cover
             _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
+            si_to_snatch.search_result.final_state = FinalState.SKIPPED
+            si_to_snatch.search_result.skip_reason = SkippedReason.NO_MATCH_FOUND
             return
         permalink = te_to_snatch.get_permalink_url()
         out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")
@@ -301,8 +301,8 @@ class ReleaseSearcher:
             )
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
-            if manual_run:
-                self._snatched_manual_search_item = si_to_snatch  # pragma: no cover
+            si_to_snatch.search_result.final_state = FinalState.SUCCESS
+            si_to_snatch.search_result.snatch_path = out_filepath
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
             if os.path.exists(out_filepath):
@@ -310,12 +310,11 @@ class ReleaseSearcher:
             _LOGGER.error(f"Failed to snatch due to uncaught error for: {permalink}: ", exc_info=True)
             exc_name = ex.__class__.__name__
         finally:
+            fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=te_to_snatch.torrent_id)
+            si_to_snatch.search_result.fl_token_used = fl_token_used
             if not si_to_snatch.is_manual:
                 self._search_state.add_snatch_final_status_row(
-                    si=si_to_snatch,
-                    snatched_with_fl=self._red_snatch_client.tid_snatched_with_fl_token(tid=te_to_snatch.torrent_id),
-                    snatch_path=out_filepath,
-                    exc_name=exc_name,
+                    si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=out_filepath, exc_name=exc_name
                 )
 
     def generate_summary_stats(self) -> None:

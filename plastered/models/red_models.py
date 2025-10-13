@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Annotated, Any
+from typing import Annotated, Any, NamedTuple
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
@@ -191,6 +191,11 @@ class TorrentEntry:
 
     def get_permalink_url(self) -> str:
         return f"https://redacted.sh/torrents.php?torrentid={self.torrent_id}"
+
+
+class TorrentMatch(NamedTuple):
+    torrent_entry: TorrentEntry | None
+    above_max_size_found: bool
 
 
 # TODO (later): reformat this as a dataclass

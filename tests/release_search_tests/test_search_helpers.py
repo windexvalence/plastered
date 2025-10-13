@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.db.db_models import FinalState
 from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
@@ -612,7 +613,7 @@ def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, ex
 
 
 @pytest.mark.parametrize(
-    "mock_rec_type, mock_lfmti, expected_get_human_readable_release_str_call_cnt, expected_result",
+    "mock_rec_type, mock_lfmti, expected_get_human_readable_entity_str_call_cnt, expected_result",
     [
         pytest.param(rt.ALBUM, None, 1, "Title", id="album rec"),
         pytest.param(rt.TRACK, None, 0, "None", id="track-no-lfmti"),
@@ -628,11 +629,11 @@ def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, ex
 def test_search_item_release_name(
     mock_rec_type: rt,
     mock_lfmti: LFMTrackInfo | None,
-    expected_get_human_readable_release_str_call_cnt: int,
+    expected_get_human_readable_entity_str_call_cnt: int,
     expected_result: str,
 ) -> None:
     with patch.object(
-        LFMRec, "get_human_readable_release_str", return_value=expected_result
+        LFMRec, "get_human_readable_entity_str", return_value=expected_result
     ) as mock_lfm_rec_get_human_readable_track_str_method:
         si = SearchItem(
             initial_info=LFMRec("artist", "Title", mock_rec_type, rc.SIMILAR_ARTIST), lfm_track_info=mock_lfmti
@@ -641,5 +642,16 @@ def test_search_item_release_name(
         assert actual == expected_result
         assert (
             len(mock_lfm_rec_get_human_readable_track_str_method.mock_calls)
-            == expected_get_human_readable_release_str_call_cnt
+            == expected_get_human_readable_entity_str_call_cnt
         )
+
+
+def test_search_item_set_snatch_skipped_fields() -> None:
+    si = SearchItem(initial_info=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST))
+    assert si.snatch_skip_reason is None
+    assert si.search_result.skip_reason is None
+    assert si.search_result.final_state is None
+    si.set_snatch_skipped_fields(reason=sr.ALREADY_SNATCHED)
+    assert si.snatch_skip_reason == sr.ALREADY_SNATCHED
+    assert si.search_result.skip_reason == sr.ALREADY_SNATCHED
+    assert si.search_result.final_state == FinalState.SKIPPED

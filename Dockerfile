@@ -13,7 +13,7 @@ RUN uv run rebrowser_playwright install --with-deps chromium-headless-shell \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /root/.cache/ms-playwright/ffmpeg-1010 \
     && find /usr/share/fonts/truetype -type f -name '*.ttc' -o -name '*.ttf' -o -name '*.otf' -delete
-COPY  ./entrypoint.sh .
+COPY  ./entrypoint.sh ./server_entrypoint.sh /app/
 COPY ./plastered /app/plastered
 ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
 ENTRYPOINT ["/app/entrypoint.sh"]

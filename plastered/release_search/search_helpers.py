@@ -81,6 +81,10 @@ class SearchState:
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
 
+    def red_user_details_initialized(self) -> bool:
+        """Returns `True` if the red user details have been initialized, `False` otherwise."""
+        return isinstance(self._red_user_details, RedUserDetails)
+
     def set_red_user_details(self, red_user_details: RedUserDetails) -> None:
         """
         Updates the relevant information related to the RedUserDetails instance provided.
@@ -264,7 +268,14 @@ class SearchState:
                 self._add_skipped_snatch_row(si=si, reason=SkippedReason.MIN_RATIO_LIMIT)
         return will_snatch
 
+    def clear_manual_search_item(self) -> None:
+        self._manual_search_item_to_snatch = None
+
+    def get_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
+        return self._manual_search_item_to_snatch
+
     def _add_skipped_snatch_row(self, si: SearchItem, reason: SkippedReason) -> None:
+        si.set_snatch_skipped_fields(reason=reason)
         self._skipped_snatch_summary_rows.append(
             [
                 str(si.initial_info.entity_type),
@@ -281,6 +292,7 @@ class SearchState:
         snatch_failure_reason = SnatchFailureReason.OTHER
         if exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR:
             snatch_failure_reason = SnatchFailureReason(exc_name)
+        si.set_snatch_failure_fields(reason=snatch_failure_reason)
         matched_mbid = "" if si.get_matched_mbid() is None else si.get_matched_mbid()
         self._failed_snatches_summary_rows.append(
             [

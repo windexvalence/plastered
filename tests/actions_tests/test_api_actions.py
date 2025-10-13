@@ -1,13 +1,15 @@
+import re
 from typing import Final, Generator
 from unittest.mock import MagicMock, patch, PropertyMock
 
+from fastapi import HTTPException
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel.pool import StaticPool
 
 from plastered.actions.api_actions import inspect_run_action, run_history_action, manual_search_action
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import RunState, SearchRun
+from plastered.db.db_models import FinalState, SearchResult, SearchRun
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import TorrentEntry
 from plastered.models.search_item import SearchItem
@@ -48,8 +50,6 @@ def mock_search_run_instance() -> SearchRun:
         entity_type=EntityType.ALBUM,
         artist="Fake Artist",
         entity="Fake Album",
-        state=RunState.ACTIVE,
-        tid=_MOCK_RECORD_TID,
     )
 
 
@@ -101,23 +101,23 @@ def mock_te() -> MagicMock:
 async def test_manual_search_action(
     valid_app_settings: AppSettings, mock_session: Session, mock_search_run: SearchRun, mock_te: MagicMock
 ) -> None:
+    mock_si = SearchItem(
+        initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist="a", entity="b"),
+        torrent_entry=mock_te,
+        search_result=SearchResult(final_state=FinalState.SUCCESS),
+    )
     with (
         patch.object(ReleaseSearcher, "manual_search"),
-        patch.object(
-            ReleaseSearcher,
-            "get_snatched_manual_search_item",
-            return_value=SearchItem(
-                initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist="a", entity="b"), torrent_entry=mock_te
-            ),
-        ),
+        patch.object(ReleaseSearcher, "get_finalized_manual_search_item", return_value=mock_si),
     ):
         actual = await manual_search_action(
             session=mock_session, app_settings=valid_app_settings, search_run=mock_search_run
         )
-        assert actual is not None
-        search_item_records = mock_session.exec(select(SearchRun)).all()
-        assert len(search_item_records) == 1
-        assert search_item_records[0].model_dump() == actual
+        search_run_records = mock_session.exec(select(SearchRun)).all()
+        assert len(search_run_records) == 1
+        search_result_records = mock_session.exec(select(SearchResult)).all()
+        assert len(search_result_records) == 1
+        assert search_result_records[0].search_run_id == actual["search_run_id"]
 
 
 @pytest.mark.asyncio
@@ -126,16 +126,16 @@ async def test_manual_search_action_state_failed(
 ) -> None:
     with (
         patch.object(ReleaseSearcher, "manual_search"),
-        patch.object(ReleaseSearcher, "get_snatched_manual_search_item", return_value=None),
+        patch.object(ReleaseSearcher, "get_finalized_manual_search_item", return_value=None),
+        pytest.raises(HTTPException, match=re.escape("SearchItem not found")),
     ):
-        actual = await manual_search_action(
+        _ = await manual_search_action(
             session=mock_session, app_settings=valid_app_settings, search_run=mock_search_run
         )
-        assert actual is not None
-        search_item_records = mock_session.exec(select(SearchRun)).all()
-        assert len(search_item_records) == 1
-        assert search_item_records[0].model_dump() == actual
-        assert actual["state"] == "failed"
+    search_item_records = mock_session.exec(select(SearchRun)).all()
+    assert len(search_item_records) == 1
+    search_result_records = mock_session.exec(select(SearchResult)).all()
+    assert len(search_result_records) == 0
 
 
 def test_inspect_run_action_empty_table(empty_search_run_table: Session) -> None:

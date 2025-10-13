@@ -20,6 +20,8 @@ from plastered.db.db_utils import db_startup, get_session
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
+# Required for uvicorn logging to be at all configurable: https://github.com/Kludex/uvicorn/issues/945#issuecomment-819692145
+logging.basicConfig(level=get_app_settings().server.log_level)
 _LOGGER = logging.getLogger(__name__)
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
 _VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
@@ -55,6 +57,7 @@ def root_endpoint() -> JSONResponse:
 # /show_config
 @fastapi_app.get("/show_config")
 def show_config_endpoint() -> JSONResponse:
+    _LOGGER.debug(f"/show_config endpoint called at {datetime.now().timestamp()}")
     return JSONResponse(content=show_config_action(app_settings=_STATE["app_settings"]))
 
 
@@ -67,6 +70,7 @@ def search_form_endpoint(request: Request) -> HTMLResponse:
 async def submit_album_search_form_endpoint(
     session: SessionDep, album: Annotated[str, Form()], artist: Annotated[str, Form()], mbid: str | None = Form(None)
 ) -> JSONResponse:
+    _LOGGER.info(f"POST /submit_album_search_form {album=} {artist=} {mbid=}")
     manual_run_json_data = await manual_search_action(
         session=session,
         app_settings=_STATE["app_settings"],
@@ -128,6 +132,13 @@ def inspect_run_endpoint(session: SessionDep, run_id: int) -> JSONResponse:
 
 if __name__ == "__main__":
     app_settings = get_app_settings()
+    log_level = app_settings.server.log_level
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
     uvicorn.run(
-        "plastered.api.server:fastapi_app", host=app_settings.server.host, port=app_settings.server.port, reload=True
+        "plastered.api.server:fastapi_app",
+        host=app_settings.server.host,
+        port=app_settings.server.port,
+        reload=True,
+        log_level=log_level.lower(),
     )

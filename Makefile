@@ -1,6 +1,9 @@
 # Add the following 'help' target to your Makefile
 # And add help text after each target name starting with '\#\#'
 PROJECT_DIR_PATH := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+# For colored shell output from Makefile echos: https://stackoverflow.com/a/24148388
+RED := $(shell echo "\033[1;33m")
+NC := $(shell echo "\033[0m")
 ifndef TEST_TARGET
 override TEST_TARGET = tests
 endif
@@ -12,6 +15,14 @@ endif
 
 ifndef PDB
 override PDB = 0
+endif
+
+ifndef APP_CONFIG_DIR
+override APP_CONFIG_DIR = $(PROJECT_DIR_PATH)/examples
+endif
+
+ifndef DOWNLOADS_DIR
+override DOWNLOADS_DIR = $(APP_CONFIG_DIR)
 endif
 
 help:           ## Show this help.
@@ -36,7 +47,8 @@ docker-shell:  docker-build  ## Execs a local shell inside a locally built plast
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
 docker-server:  docker-build  ## Execs a local container running the server on localhost port 8000
-	docker run --rm --name plastered-api -p 8000:80 -v $(PROJECT_DIR_PATH)/examples:/config -e PLASTERED_CONFIG=/config/config.yaml -e PYTHONPATH=/app --entrypoint /bin/bash wv/plastered-test:latest -c 'uvicorn plastered.api.server:fastapi_app --host 0.0.0.0 --port 80'
+	@echo "\n $(RED) Enter http://localhost:8000/ into your browser. $(NC) \n"
+	docker run --rm --name plastered-api -p 8000:80 -v $(APP_CONFIG_DIR):/config -v $(DOWNLOADS_DIR):/downloads -e PLASTERED_CONFIG=/config/config.yaml --entrypoint /bin/bash wv/plastered-test:latest -c '/app/server_entrypoint.sh'
 
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i

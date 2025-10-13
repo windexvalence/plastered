@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote_plus, unquote_plus
+from urllib.parse import unquote_plus
 
 from plastered.models.types import EntityType, RecContext
 from plastered.utils.exceptions import LFMRecException
@@ -100,7 +100,6 @@ class LFMRec:
         self._lfm_entity_str = lfm_entity_str
         self._entity_type = EntityType(recommendation_type)
         self._rec_context = RecContext(rec_context)
-        self._track_origin_release: str | None = None
         self._track_origin_release_mbid: str | None = None
 
     def __str__(self) -> str:
@@ -116,22 +115,6 @@ class LFMRec:
             and self.rec_context.value == other.rec_context.value
         )
 
-    def set_track_origin_release(self, track_origin_release: str) -> None:
-        """Set the release that the track rec originated from. Only used for EntityType.TRACK instances."""
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot set the track_origin_release on a LFMRec instance with a {self._entity_type.value} reccommendation type."
-            )
-        self._track_origin_release = quote_plus(track_origin_release)
-
-    def set_track_origin_release_mbid(self, track_origin_release_mbid: str) -> None:
-        """Set the MBID of the release which the track rec originated from. Only used for EntityType.TRACK instances."""
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot set the track_origin_release_mbid on a LFMRec instance with a {self._entity_type.value} reccommendation type."
-            )
-        self._track_origin_release_mbid = track_origin_release_mbid
-
     def is_album_rec(self) -> bool:
         return self._entity_type == EntityType.ALBUM
 
@@ -145,11 +128,6 @@ class LFMRec:
     def get_human_readable_artist_str(self) -> str:
         return unquote_plus(self._lfm_artist_str)
 
-    def get_human_readable_release_str(self) -> str:
-        if self.is_track_rec():
-            return "None" if not self._track_origin_release else unquote_plus(self._track_origin_release)
-        return unquote_plus(self._lfm_entity_str)
-
     def get_human_readable_entity_str(self) -> str:
         return unquote_plus(self._lfm_entity_str)
 
@@ -159,13 +137,6 @@ class LFMRec:
                 f"Cannot get the track name from an LFMRec instance with a {self._entity_type.value} reccommendation type."
             )
         return unquote_plus(self._lfm_entity_str)
-
-    def get_human_readable_track_origin_release_str(self) -> str:
-        if not self.is_track_rec() or self._track_origin_release is None:
-            raise LFMRecException(
-                f"Cannot get the track_origin_release from an LFMRec instance with a {self._entity_type.value} reccommendation type."
-            )
-        return unquote_plus(self._track_origin_release)
 
     @property
     def encoded_entity_str(self) -> str:
@@ -184,11 +155,3 @@ class LFMRec:
         if self._entity_type == EntityType.ALBUM:
             return f"https://www.last.fm/music/{self._lfm_artist_str}/{self._lfm_entity_str}"
         return f"https://www.last.fm/music/{self._lfm_artist_str}/_/{self._lfm_entity_str}"
-
-    @property
-    def track_origin_release_mbid(self) -> str | None:
-        if not self.is_track_rec():
-            raise LFMRecException(
-                f"Cannot get the track_origin_release_mbid from an LFMRec instance with a {self._entity_type.value} reccommendation type."
-            )
-        return self._track_origin_release_mbid

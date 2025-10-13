@@ -13,15 +13,6 @@ class TestManualSearch:
         ms = ManualSearch(entity_type=entity_type, artist="foo", entity="bar", mbid=mbid)
         assert isinstance(ms, ManualSearch)
 
-    @pytest.mark.parametrize(
-        "entity_type, entity, expected",
-        [(EntityType.ALBUM, "Fake Album", "Fake Album"), (EntityType.TRACK, "Fake Track", "Fake Track")],
-    )
-    def test_get_human_readable_release_str(self, entity_type: EntityType, entity: str, expected: str) -> None:
-        ms = ManualSearch(entity_type=entity_type, entity=entity, artist="Fake Artist")
-        actual = ms.get_human_readable_release_str()
-        assert actual == expected
-
     @pytest.mark.parametrize("entity_type", [EntityType.ALBUM, EntityType.TRACK])
     def test_get_human_artist_str(self, entity_type: EntityType) -> None:
         mock_artist = "Fake Artist"
