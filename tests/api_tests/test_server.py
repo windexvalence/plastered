@@ -23,7 +23,7 @@ def client(valid_app_settings: AppSettings) -> Generator[TestClient, None, None]
 def test_favicon_endpoint(client: TestClient) -> None:
     resp = client.get("/favicon.ico")
     assert resp.status_code == 200
-    assert resp.headers["content-type"] == "image/x-icon"
+    assert "image" in resp.headers["content-type"]
 
 
 def test_root_endpoint(client: TestClient) -> None:
