@@ -21,7 +21,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             max_api_call_retries=app_settings.musicbrainz.musicbrainz_api_max_retries,
             seconds_between_api_calls=app_settings.musicbrainz.musicbrainz_api_seconds_between_calls,
             run_cache=run_cache,
-            valid_endpoints=PERMITTED_MUSICBRAINZ_API_ENDPOINTS,
+            valid_endpoints=set(PERMITTED_MUSICBRAINZ_API_ENDPOINTS),
         )
         self._recording_endpoint = "recording"
         self._release_endpoint = "release"
@@ -41,7 +41,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         # Once throttling requirements are met, continue with building and submitting the request
         inc_params = "inc=artist-credits+media+labels+release-groups"
         request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}/{mbid}?{inc_params}"
-        mb_response = self._session.get(url=request_url, headers={"Accept": "application/json"})
+        mb_response = self._client.get(url=request_url, headers={"Accept": "application/json"})
         if mb_response.is_error:
             raise MusicBrainzClientException(
                 f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"
@@ -100,7 +100,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
         request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json"
-        mb_response = self._session.get(url=request_url, headers={"Accept": "application/json"})
+        mb_response = self._client.get(url=request_url, headers={"Accept": "application/json"})
         if mb_response.is_error:
             LOGGER.warning(
                 f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"

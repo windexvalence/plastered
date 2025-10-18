@@ -104,7 +104,7 @@ class StatsRunPicker:
                 f"Desired run date {dt_attr_name}?", choices=self._get_dt_choices(dt_attr_name=dt_attr_name)
             ).ask()
         )
-        self._candidate_dt = self._candidate_dt.replace(**{dt_attr_name: user_input})
+        self._candidate_dt = self._candidate_dt.replace(**{dt_attr_name: user_input})  # type: ignore
         return user_input
 
     def get_run_date_from_user_prompts(self) -> datetime:

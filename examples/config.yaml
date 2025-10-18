@@ -9,7 +9,6 @@ red:
     use_first_release_year: true
     use_record_label: false
     use_catalog_number: false
-    enable_api_cache: true
     use_fl_tokens: false
   snatches:
     snatch_directory: /app/tests/resources
@@ -52,7 +51,12 @@ lfm:
   lfm_api_seconds_between_calls: 2
   rec_types_to_scrape: [album, track]
   allow_library_items: false
-  enable_scraper_cache: true
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
+cache:
+  api_cache_enabled: true
+  scraper_cache_enabled: true
+server:
+  host: "0.0.0.0"
+  port: 80

@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote_plus
 
+from plastered.models.types import RedReleaseType
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
 )
-from plastered.utils.red_utils import RedReleaseType
 
 _RELEASE_YEAR_REGEX_PATTERN = re.compile(r"^([0-9]{4})[^0-9]*.*")
 
@@ -30,7 +30,7 @@ class MBRelease:
     release_group_mbid: str
     label: str | None = None
     catalog_number: str | None = None
-    first_release_year: int | None = -1
+    first_release_year: int = -1
 
     @classmethod
     def construct_from_api(cls, json_blob: dict[str, Any]):

@@ -6,10 +6,12 @@ from collections import Counter
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
+from pprint import pformat
 from typing import Any, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
 from plastered.config.field_validators import (
@@ -17,18 +19,14 @@ from plastered.config.field_validators import (
     CLIOverrideSetting,
     NonRedCallWait,
     RedCallWait,
-    ValidRedEncoding,
-    ValidRedFormat,
-    ValidRedMedia,
-    validate_cd_extras_log_value,
     validate_rec_types_to_scrape,
 )
-from plastered.utils.constants import CACHE_DIRNAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
+from plastered.models.red_models import RedFormat
+from plastered.models.types import MediaEnum
+from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
-from plastered.utils.red_utils import MediaEnum
 
 _LOGGER = logging.getLogger(__name__)
-
 _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
@@ -45,18 +43,17 @@ def load_init_config_template() -> str:  # pragma: no cover
 class SearchConfig(BaseModel):
     """RED search settings defined in the plastered config at `red.search`."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="search")
     use_release_type: bool = Field(default=True)
     use_first_release_year: bool = Field(default=True)
     use_record_label: bool = Field(default=False)
     use_catalog_number: bool = Field(default=False)
-    enable_api_cache: bool = Field(default=True)
 
 
 class SnatchesConfig(BaseModel):
     """RED snatch settings defined in the plastered config at `red.snatches`."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="snatches")
     snatch_directory: Path
     snatch_recs: bool
     max_size_gb: float = Field(ge=0.02, le=100.0)
@@ -65,29 +62,10 @@ class SnatchesConfig(BaseModel):
     min_allowed_ratio: float = Field(default=-1.0)
 
 
-class CdOnlyExtras(BaseModel):
-    """RED settings defined for a `red.format_preferences.cd_only_extras` entry in the plasterd yaml config."""
+class FormatPreference(RedFormat):
+    """RED settings entry for a `red.format_preferences` entry in the plastered yaml config."""
 
-    log: int
-    has_cue: bool
-
-    # model_config = ConfigDict(validate_default=True)
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
-
-    @model_validator(mode="after")
-    def post_model_validator(self) -> "CdOnlyExtras":
-        validate_cd_extras_log_value(self.log)
-        return self
-
-
-class FormatPreference(BaseModel):
-    """RED settings entry for a `red.format_preferences` entry in the plasterd yaml config."""
-
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
-    format: ValidRedFormat
-    encoding: ValidRedEncoding
-    media: ValidRedMedia
-    cd_only_extras: CdOnlyExtras | None = None
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="format_preference")
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -97,18 +75,15 @@ class FormatPreference(BaseModel):
             )
         return self
 
-    # def get_yaml_dict_for_pretty_print(self) -> dict[str, Any]:
-    #     entries = {"format": self.format, "encoding": self.encoding, "media": self.encoding}
-    #     if self.cd_only_extras:
-    #         log_str, cue_str = _CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN.findall(self.cd_only_extras)[0]
-    #         entries["cd_only_extras"] = {"log": int(log_str), "has_cue": bool(int(cue_str))}
-    #     return {"preference": entries}
+
+def _default_red_search_config() -> SearchConfig:  # pragma: no cover
+    return SearchConfig()
 
 
 class RedConfig(BaseModel):
     """App settings defined under the plastered yaml config's top-level `red` key."""
 
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="red")
     red_user_id: int = Field(gt=0)
     red_api_key: str = Field(min_length=1)
     red_api_retries: int = Field(ge=APIRetries.MIN.value, le=APIRetries.MAX.value, default=APIRetries.DEFAULT.value)
@@ -116,8 +91,8 @@ class RedConfig(BaseModel):
         ge=RedCallWait.MIN.value, le=RedCallWait.MAX.value, default=RedCallWait.DEFAULT.value
     )
     format_preferences: list[FormatPreference]
-    snatches: SnatchesConfig
-    search: SearchConfig | None = None
+    snatches: SnatchesConfig = Field(title="snatches")
+    search: SearchConfig = Field(title="search", default_factory=_default_red_search_config)
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -133,7 +108,7 @@ class RedConfig(BaseModel):
 
 
 class LFMConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="lfm")
     lfm_api_key: str = Field(min_length=1)
     lfm_username: str = Field(min_length=1)
     lfm_password: str = Field(min_length=1)
@@ -144,7 +119,6 @@ class LFMConfig(BaseModel):
     rec_types_to_scrape: list[str] = Field(default_factory=lambda: ["album", "track"])
     scraper_max_rec_pages_to_scrape: int = Field(ge=1, le=5, default=5)
     allow_library_items: bool = Field(default=False)
-    enable_scraper_cache: bool = Field(default=True)
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
@@ -162,7 +136,35 @@ class MusicBrainzConfig(BaseModel):
     )
 
     # model_config = ConfigDict(validate_default=True)
-    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
+    model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="musicbrainz")
+
+
+class CacheConfig(BaseModel):
+    model_config = ConfigDict(title="cache")
+    api_cache_enabled: bool = Field(default=True)
+    scraper_cache_enabled: bool = Field(default=True)
+
+
+class ServerConfig(BaseModel):
+    """Config section for the plastered API server."""
+
+    model_config = ConfigDict(title="server")
+    host: str = Field(default="0.0.0.0")  # nosec: B104
+    port: int = Field(default=80)
+    log_level: str = Field(default="INFO")
+    workers: int = Field(default=4)
+
+
+def _default_music_brainz_config() -> MusicBrainzConfig:
+    return MusicBrainzConfig()
+
+
+def _default_cache_config() -> CacheConfig:
+    return CacheConfig()
+
+
+def _default_server_config() -> ServerConfig:
+    return ServerConfig()
 
 
 # TODO: change the config language to TOML
@@ -170,16 +172,19 @@ class MusicBrainzConfig(BaseModel):
 class AppSettings(BaseSettings):
     """Pydantic settings class encapsulating the `plastered` application yaml config."""
 
-    model_config = SettingsConfigDict(frozen=True, extra="ignore")
-    src_yaml_filepath: Path
-    red: RedConfig
-    lfm: LFMConfig
-    musicbrainz: MusicBrainzConfig | None = None
+    model_config = SettingsConfigDict(frozen=True, extra="ignore", title="config")
+    src_yaml_filepath: SkipJsonSchema[Path]
+    red: RedConfig = Field(title="red")
+    lfm: LFMConfig = Field(title="lfm")
+    musicbrainz: MusicBrainzConfig = Field(title="musicbrainz", default_factory=_default_music_brainz_config)
+    cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
+    server: ServerConfig = Field(title="server", default_factory=_default_server_config)
     # Private, post-init attributes below
     _run_datestr: str
     _config_directory_path: Path
     _base_cache_directory_path: Path
     _root_summary_directory_path: Path
+    _db_filepath: Path
 
     def model_post_init(self, context: Any) -> None:
         """
@@ -190,6 +195,7 @@ class AppSettings(BaseSettings):
         self._config_directory_path = Path(os.path.dirname(os.path.abspath(self.src_yaml_filepath)))
         self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
         self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
+        self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
     def get(self, section: str, setting: str) -> Any:
         """Return the value for the specified config option, if it exists. Return `None` otherwise."""
@@ -202,7 +208,10 @@ class AppSettings(BaseSettings):
         return val
 
     def get_root_summary_directory_path(self) -> str:
-        return self._root_summary_directory_path
+        return os.fspath(self._root_summary_directory_path)
+
+    def get_db_filepath(self) -> str:
+        return os.fspath(self._db_filepath)
 
     def get_output_summary_dir_path(self, date_str: str | None = None) -> str:
         if not date_str:
@@ -215,37 +224,39 @@ class AppSettings(BaseSettings):
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
 
-    def is_cache_enabled(self, cache_type: str) -> None:
+    def is_cache_enabled(self, cache_type: str) -> bool:
         if cache_type == "scraper":
-            return self.lfm.enable_scraper_cache
-        return self.red.search.enable_api_cache
+            return self.cache.scraper_cache_enabled
+        return self.cache.api_cache_enabled
 
     def pretty_print_config(self) -> None:  # pragma: no cover
         yaml.dump(self.model_dump(), sys.stdout)
 
 
-def get_app_settings(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
+def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
     """
     Returns the read-only `plastered` application settings configured by the yaml config plus any settings provided
     as options to the CLI. CLI options take precedence over the associated YAML settings.
     """
+    if not src_yaml_filepath:
+        src_yaml_filepath = Path(os.environ["PLASTERED_CONFIG"])
     settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath, cli_overrides=cli_overrides)
     try:
         app_settings = AppSettings(**settings_data)
     except (ValidationError, ValueError) as ve:  # pragma: no cover
         if isinstance(ve, ValidationError):
-            _LOGGER.error(f"Invalid app config. Validation errors: {ve.errors()}")
+            _LOGGER.error(f"Invalid app config. Validation errors: {pformat(ve.errors())}")
             raise AppConfigException(
-                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md"
+                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
             ) from ve
         _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
         raise AppConfigException(
-            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/configuration_reference.md"
+            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
         ) from ve
     return app_settings
 
 
-def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any]) -> dict[str, Any]:
+def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     yaml_source = YamlConfigSettingsSource(AppSettings, yaml_file=src_yaml_filepath)
     yaml_data = yaml_source()
     yaml_data["src_yaml_filepath"] = src_yaml_filepath

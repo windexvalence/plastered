@@ -1,22 +1,21 @@
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call, patch, ANY
 
 import pytest
 from click.testing import CliRunner
 
 from plastered.cli import cli
 from plastered.config.app_settings import AppSettings
+from plastered.models.lfm_models import LFMRec
+from plastered.models.types import RecContext, EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
-from plastered.scraper.lfm_scraper import LFMRec, LFMRecsScraper, RecContext, RecommendationType
+from plastered.scraper.lfm_scraper import LFMRecsScraper
 from plastered.utils.cli_utils import StatsRunPicker
 from plastered.utils.constants import RUN_DATE_STR_FORMAT
 from plastered.utils.exceptions import RunCacheDisabledException, StatsRunPickerException
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function")
@@ -57,12 +56,12 @@ def test_cli_help_command(verbosity: str) -> None:
 
 @pytest.mark.parametrize("verbosity", ["DEBUG", "INFO", "WARNING", "ERROR"])
 def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: MagicMock, verbosity: bool) -> None:
-    with patch.object(AppSettings, "pretty_print_config") as mock_pretty_print_config:
+    with patch("plastered.cli.show_config_action") as mock_show_config_action_fn:
         cli_runner = CliRunner()
         cmd = ["--verbosity", verbosity, "conf", "--config", valid_config_filepath]
         result = cli_runner.invoke(cli, cmd)
         assert result.exit_code == 0, f"Expected cli command 'conf' to pass but errored: {result.exception}"
-        mock_pretty_print_config.assert_called_once()
+        mock_show_config_action_fn.assert_called_once()
         mock_logger_set_level.assert_called_once_with(verbosity)
 
 
@@ -72,39 +71,31 @@ def test_cli_conf_command(valid_config_filepath: str, mock_logger_set_level: Mag
         (
             "album",
             {
-                RecommendationType.ALBUM: [
-                    LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
-                    ),
+                EntityType.ALBUM: [
+                    LFMRec("Fake+Artist", "Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
                 ]
             },
         ),
         (
             "track",
             {
-                RecommendationType.TRACK: [
-                    LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
-                    ),
+                EntityType.TRACK: [
+                    LFMRec("Even+More+Fake+Artist", "Faker+Track", EntityType.TRACK, RecContext.SIMILAR_ARTIST),
+                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY),
                 ]
             },
         ),
         (
             "@all",
             {
-                RecommendationType.ALBUM: [
-                    LFMRec("Fake+Artist", "Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Fake+Artist", "Other+Fake+Album", RecommendationType.ALBUM, RecContext.SIMILAR_ARTIST
-                    ),
+                EntityType.ALBUM: [
+                    LFMRec("Fake+Artist", "Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
+                    LFMRec("Other+Fake+Artist", "Other+Fake+Album", EntityType.ALBUM, RecContext.SIMILAR_ARTIST),
                 ],
-                RecommendationType.TRACK: [
-                    LFMRec("Even+More+Fake+Artist", "Faker+Track", RecommendationType.TRACK, RecContext.SIMILAR_ARTIST),
-                    LFMRec(
-                        "Other+Faker+Artist", "Faker+Shittier+Track", RecommendationType.TRACK, RecContext.IN_LIBRARY
-                    ),
+                EntityType.TRACK: [
+                    LFMRec("Even+More+Fake+Artist", "Faker+Track", EntityType.TRACK, RecContext.SIMILAR_ARTIST),
+                    LFMRec("Other+Faker+Artist", "Faker+Shittier+Track", EntityType.TRACK, RecContext.IN_LIBRARY),
                 ],
             },
         ),
@@ -114,7 +105,7 @@ def test_cli_scrape_command(
     valid_config_filepath: str,
     valid_app_settings: AppSettings,
     rec_types: str,
-    mock_scrape_result: dict[RecommendationType, list[LFMRec]],
+    mock_scrape_result: dict[EntityType, list[LFMRec]],
 ) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as mock_enter:
         mock_enter.return_value = LFMRecsScraper(app_settings=valid_app_settings)
@@ -136,46 +127,35 @@ def test_cli_scrape_command(
 
 
 @pytest.mark.parametrize(
-    "cache_arg, info_flag_present, empty_flag_present, check_flag_present, list_flag_present, read_value, expected_run_cache_calls",
+    "cache_arg, info_flag_present, empty_flag_present, check_flag_present, list_flag_present, read_value",
     [
-        ("api", False, False, False, False, None, [call.close()]),
-        ("api", False, True, False, False, None, [call.clear(), call.close()]),
-        ("api", True, False, False, False, None, [call.print_summary_info(), call.close()]),
-        ("api", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
-        ("scraper", False, False, False, False, None, [call.close()]),
-        ("scraper", False, True, False, False, None, [call.clear(), call.close()]),
-        ("scraper", True, False, False, False, None, [call.print_summary_info(), call.close()]),
-        ("scraper", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
-        ("@all", False, False, False, False, None, [call.close()]),
-        ("@all", False, True, False, False, None, [call.clear(), call.close()]),
-        ("@all", True, False, False, False, None, [call.print_summary_info(), call.close()]),
-        ("@all", True, True, False, False, None, [call.print_summary_info(), call.clear(), call.close()]),
-        ("@all", False, False, True, False, None, [call.check(), call.close()]),
-        ("api", False, False, False, True, None, [call.cli_list_cache_keys()]),
-        ("scraper", False, False, False, True, None, [call.cli_list_cache_keys()]),
-        ("api", False, False, False, False, "false-key", [call.cli_print_cached_value(key="false-key"), call.close()]),
-        (
-            "scraper",
-            False,
-            False,
-            False,
-            False,
-            "false-key",
-            [call.cli_print_cached_value(key="false-key"), call.close()],
-        ),
+        ("api", False, False, False, False, None),
+        ("api", False, True, False, False, None),
+        ("api", True, False, False, False, None),
+        ("api", True, True, False, False, None),
+        ("scraper", False, False, False, False, None),
+        ("scraper", False, True, False, False, None),
+        ("scraper", True, False, False, False, None),
+        ("scraper", True, True, False, False, None),
+        ("@all", False, False, False, False, None),
+        ("@all", False, True, False, False, None),
+        ("@all", True, False, False, False, None),
+        ("@all", True, True, False, False, None),
+        ("@all", False, False, True, False, None),
+        ("api", False, False, False, True, None),
+        ("scraper", False, False, False, True, None),
+        ("api", False, False, False, False, "false-key"),
+        ("scraper", False, False, False, False, "false-key"),
     ],
 )
 def test_cli_cache_command(
     valid_config_filepath: str,
-    mock_api_run_cache_instance: MagicMock,
-    mock_scraper_run_cache_instance: MagicMock,
     cache_arg: str,
     info_flag_present: bool,
     empty_flag_present: bool,
     check_flag_present: bool,
     list_flag_present: bool,
     read_value: str | None,
-    expected_run_cache_calls: list[Any],
 ) -> None:
     test_cmd = ["cache", "--config", valid_config_filepath, cache_arg]
     if info_flag_present:
@@ -189,45 +169,21 @@ def test_cli_cache_command(
     if read_value:
         test_cmd.extend(["--read-value", read_value])
 
-    def _mock_run_cache_init_side_effect(*args, **kwargs) -> RunCache:
-        if kwargs["cache_type"] == "api":
-            return mock_api_run_cache_instance
-        if kwargs["cache_type"] == "scraper":
-            return mock_scraper_run_cache_instance
-
-    with patch("plastered.cli.RunCache") as mock_run_cache_constructor:
-        mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
+    with patch("plastered.cli.cache_action", return_value=None) as mock_cache_action_fn:
         cli_runner = CliRunner()
         result = cli_runner.invoke(cli, test_cmd)
         assert result.exit_code == 0, (
             f"Expected cli command '{' '.join(test_cmd)}' to pass but errored: {result.exception}"
         )
-        if cache_arg == "api":
-            mock_api_run_cache_instance.assert_has_calls(expected_run_cache_calls)
-        elif cache_arg == "scraper":
-            mock_scraper_run_cache_instance.assert_has_calls(expected_run_cache_calls)
-        elif cache_arg == "@all":
-            mock_api_run_cache_instance.assert_has_calls(expected_run_cache_calls)
-            mock_scraper_run_cache_instance.assert_has_calls(expected_run_cache_calls)
-
-
-def test_cli_cache_disabled_exception(
-    valid_config_filepath: str, mock_api_run_cache_instance: MagicMock, mock_scraper_run_cache_instance: MagicMock
-) -> None:
-    cli_runner = CliRunner()
-    mock_api_run_cache_instance.check.side_effect = RunCacheDisabledException("")
-    mock_scraper_run_cache_instance.check.side_effect = RunCacheDisabledException("")
-
-    def _mock_run_cache_init_side_effect(*args, **kwargs) -> RunCache:
-        if kwargs["cache_type"] == "api":
-            return mock_api_run_cache_instance
-        if kwargs["cache_type"] == "scraper":
-            return mock_scraper_run_cache_instance
-
-    with patch("plastered.cli.RunCache") as mock_run_cache_constructor:
-        mock_run_cache_constructor.side_effect = _mock_run_cache_init_side_effect
-        result = cli_runner.invoke(cli, ["cache", "--config", valid_config_filepath, "--check", "@all"])
-        assert result.exit_code != 0
+        mock_cache_action_fn.assert_called_once_with(
+            app_settings=ANY,
+            target_cache=cache_arg,
+            info=info_flag_present,
+            empty=empty_flag_present,
+            check=check_flag_present,
+            list_keys=list_flag_present,
+            read_value=read_value,
+        )
 
 
 def test_cli_init_conf_command() -> None:

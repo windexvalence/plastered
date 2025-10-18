@@ -10,7 +10,6 @@ fi
 export PYTHONPATH="${APP_DIR}/plastered/"
 if [[ -z "${GITHUB_ACTIONS}" ]]; then
     echo "Not running in a github actions environment"
-    cd /project_src_mnt
 fi
 if [[ "$CHECK" == "1" ]]; then
     uv run ruff check

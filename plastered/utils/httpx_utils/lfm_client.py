@@ -20,7 +20,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
             max_api_call_retries=app_settings.lfm.lfm_api_retries,
             seconds_between_api_calls=app_settings.lfm.lfm_api_seconds_between_calls,
             run_cache=run_cache,
-            valid_endpoints=PERMITTED_LFM_API_ENDPOINTS,
+            valid_endpoints=set(PERMITTED_LFM_API_ENDPOINTS),
         )
         # TODO: figure out how to redact this from logs
         self._api_key = app_settings.lfm.lfm_api_key
@@ -37,7 +37,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         # Enforce request throttling
         self._throttle()
         # Once throttling requirements are met, continue with building and submitting the request
-        lfm_response = self._session.get(
+        lfm_response = self._client.get(
             url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
         )

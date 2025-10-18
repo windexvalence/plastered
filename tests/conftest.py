@@ -2,22 +2,27 @@ import copy
 import csv
 import json
 import os
+
+os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 import re
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 import yaml
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.models.red_models import CdOnlyExtras, RedFormat
+from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
-from plastered.utils.musicbrainz_utils import MBRelease
-from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum, RedFormat, RedUserDetails
+from plastered.models.musicbrainz_models import MBRelease
+from plastered.models.red_models import RedUserDetails
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
@@ -314,10 +319,10 @@ def mock_red_user_details(
 def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> RedUserDetails:
     """Same contents as the session-scoped one above, but function-scoped to allow for per-test attribute overrides."""
     return RedUserDetails(
-        user_id=mock_red_user_details._user_id,
-        snatched_count=mock_red_user_details._snatched_count,
-        snatched_torrents_list=copy.deepcopy(mock_red_user_details._snatched_torrents),
-        user_profile_json=copy.deepcopy(mock_red_user_details._user_profile_json),
+        user_id=mock_red_user_details.user_id,
+        snatched_count=mock_red_user_details.snatched_count,
+        snatched_torrents_list=copy.deepcopy(mock_red_user_details.snatched_torrents_list),
+        user_profile_json=copy.deepcopy(mock_red_user_details.user_profile_json),
     )
 
 
@@ -406,15 +411,17 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     return scraper_cache_path
 
 
-@pytest.fixture(scope="function")
-def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
-    """
-    Function-scoped valid AppConfig fixture, with cache root dir
-    overridden to use the session-scoped tmp cache root dir fixture
-    """
-    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    # app_config._base_cache_directory_path = str(cache_root_dir_path)
-    return app_settings
+# @pytest.fixture(scope="function")
+# def valid_app_settings(valid_config_filepath: str, valid_config_envvar, cache_root_dir_path: Path) -> AppSettings:
+#     """
+#     Function-scoped valid AppConfig fixture, with cache root dir
+#     overridden to use the session-scoped tmp cache root dir fixture
+#     """
+#     valid_path = Path(valid_config_filepath)
+#     with patch("plastered.config.app_settings.get_config_path", return_value=valid_path):
+#         app_settings = get_app_settings(src_yaml_filepath=valid_path)
+#         # app_config._base_cache_directory_path = str(cache_root_dir_path)
+#         yield app_settings
 
 
 @pytest.fixture(scope="function")
@@ -528,19 +535,19 @@ def expected_red_format_list() -> list[RedFormat]:
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=100&hascue=1",
+            cd_only_extras=CdOnlyExtras(log=100, has_cue=True),
         ),
         RedFormat(
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=100&hascue=0",
+            cd_only_extras=CdOnlyExtras(log=100, has_cue=False),
         ),
         RedFormat(
             format=FormatEnum.FLAC,
             encoding=EncodingEnum.LOSSLESS,
             media=MediaEnum.CD,
-            cd_only_extras="haslog=0&hascue=0",
+            cd_only_extras=CdOnlyExtras(log=0, has_cue=False),
         ),
         RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.ANY),
     ]

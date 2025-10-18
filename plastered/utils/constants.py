@@ -7,7 +7,8 @@ MUSICBRAINZ_API_BASE_URL: Final[str] = "https://musicbrainz.org/ws/2/"
 RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
 CACHE_DIRNAME: Final[str] = "cache"
-SUMMARIES_DIRNAME = "summaries"
+DB_FILENAME: Final[str] = "plastered.db"
+SUMMARIES_DIRNAME: Final[str] = "summaries"
 API_CACHE_DIRNAME: Final[str] = "api_cache"
 SCRAPER_CACHE_DIRNAME: Final[str] = "scraper_cache"
 CACHE_TYPE_API: Final[str] = "api"
@@ -69,3 +70,6 @@ OPTIONAL_RED_PARAMS: Final[list[str]] = [
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_CATALOG_NUMBER,
 ]
+
+CLI_ALL_CACHE_TYPES: Final[str] = "@all"
+API_ALL_CACHE_TYPES: Final[str] = "all"

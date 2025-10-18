@@ -78,16 +78,15 @@ class StatsTable:
         cell_idxs_to_style_fns: dict[int, Callable] | None = None,
         caption: str | None = None,
     ):
-        style_fns_map = cell_idxs_to_style_fns or {}
+        style_fns_map: dict[int, Callable] = cell_idxs_to_style_fns or {}
         self._title = title
         self._columns = columns
         self._tsv_path = tsv_path
         self._read_only = read_only
         self._num_cols = len(self._columns)
-        self._per_row_cell_style_fns = {}
         if len(style_fns_map) > self._num_cols or any([idx < 0 or self._num_cols <= idx for idx in style_fns_map]):
             raise StatsTableException("Invalid cell_idxs_to_style_fns. Length may not exceed table columns count.")
-        self._per_row_cell_style_fns = {i: style_fns_map.get(i, None) for i in range(self._num_cols)}
+        self._per_row_cell_style_fns: dict[int, Callable] = {i: style_fns_map.get(i) for i in range(self._num_cols)}  # type: ignore
         self._caption = caption
         self._table = Table(
             *columns, title=self._title, caption=self._caption, title_style="bold white", show_lines=True, expand=True
@@ -98,7 +97,7 @@ class StatsTable:
         stylized_row = [
             (
                 cell_data
-                if not self._per_row_cell_style_fns[i]
+                if self._per_row_cell_style_fns[i] is None
                 else Text(cell_data, style=self._per_row_cell_style_fns[i](cell_data))
             )
             for i, cell_data in enumerate(row)
@@ -123,9 +122,9 @@ class StatsTable:
             raise StatsTableException(
                 f"Unexpected to_tsv_file call on a StatsTable instance with read_only set to {self._read_only}"
             )
-        tsv_header = [re.sub(r"\s+", "_", col.header) for col in self._table.columns]
+        tsv_header = [re.sub(r"\s+", "_", col.header) for col in self._table.columns]  # type: ignore
         try:
-            with open(self._tsv_path, "w") as f:
+            with open(self._tsv_path, "w") as f:  # type: ignore
                 tsv_writer = csv.writer(f, delimiter="\t", lineterminator="\n")
                 tsv_writer.writerow(tsv_header)
                 tsv_writer.writerows(self._raw_rows)
@@ -157,11 +156,11 @@ class SkippedSummaryTable(StatsTable):
         self,
         rows: list[list[str]],
         tsv_path: str | None = None,
-        title: str | None = "Unsnatched / Skipped LFM Recs",
+        title: str | None = None,
         read_only: bool | None = False,
     ):
         super().__init__(
-            title=title,
+            title=title or "Unsnatched / Skipped LFM Recs",
             columns=[
                 Column(header="Type", justify="left", no_wrap=True),
                 Column(header="LFM Rec context", no_wrap=True),
@@ -199,11 +198,11 @@ class FailedSnatchSummaryTable(StatsTable):
         self,
         rows: list[list[str]],
         tsv_path: str | None = None,
-        title: str | None = "Failed Downloads",
+        title: str | None = None,
         read_only: bool | None = False,
     ):
         super().__init__(
-            title=title,
+            title=title or "Failed Downloads",
             columns=[
                 Column(header="RED permalink", justify="left", no_wrap=True, ratio=1),
                 Column(header="Matched MBID (if any)", no_wrap=True, ratio=1),
@@ -223,11 +222,11 @@ class SnatchSummaryTable(StatsTable):
         self,
         rows: list[list[str]],
         tsv_path: str | None = None,
-        title: str | None = "Snatched LFM Recs",
+        title: str | None = None,
         read_only: bool | None = False,
     ):
         super().__init__(
-            title=title,
+            title=title or "Snatched LFM Recs",
             columns=[
                 Column(header="Type", justify="left", no_wrap=True, ratio=1),
                 Column(header="LFM Rec context", no_wrap=False, ratio=1),

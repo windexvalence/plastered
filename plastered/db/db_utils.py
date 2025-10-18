@@ -1,0 +1,36 @@
+import logging
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Final
+
+from sqlmodel import Session, SQLModel, create_engine
+
+from plastered.config.app_settings import get_app_settings
+from plastered.db.db_models import SearchRun
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine.base import Engine
+
+
+_LOGGER = logging.getLogger(__name__)
+_DB_FILEPATH: Final[str] = get_app_settings().get_db_filepath()
+_SQLITE_URL: Final[str] = f"sqlite:///{_DB_FILEPATH}"
+_ENGINE: Final["Engine"] = create_engine(_SQLITE_URL, connect_args={"check_same_thread": False})
+
+
+def get_session() -> Generator[Session, None, None]:
+    _LOGGER.debug("Initializing db session ...")
+    with Session(_ENGINE) as session:
+        yield session
+
+
+def db_startup() -> None:
+    _LOGGER.info("Creating metadata for DB tables ...")
+    SearchRun.metadata.create_all(_ENGINE)
+    _LOGGER.info("DB tables metadata creation complete.")
+
+
+def add_record(session: Session, model_inst: SQLModel) -> None:
+    """Helper for running a `session.add()`, `session.commit()` and `session.refresh()`."""
+    session.add(model_inst)
+    session.commit()
+    session.refresh(model_inst)

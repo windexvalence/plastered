@@ -181,3 +181,10 @@ tests/resources/adhoc_manual_test_configs/*.json
 # vscode
 .vscode
 
+
+# Local testing artifacts
+*.db
+examples/cache/*
+examples/summaries/*
+*.tsv
+

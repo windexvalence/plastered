@@ -1,3 +1,5 @@
+from enum import StrEnum
+from itertools import product
 import re
 from typing import Any
 
@@ -10,7 +12,8 @@ from plastered.config.field_validators import (
     validate_raw_cli_overrides,
     validate_rec_types_to_scrape,
 )
-from plastered.utils.red_utils import EncodingEnum, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, MediaEnum
+from plastered.models.types import FormatEnum
 
 
 def test_validate_raw_cli_overrides() -> None:
@@ -58,7 +61,28 @@ def test_validate_rec_types_to_scrape_raises(bad_value: list[str], exc_msg: str)
         _ = validate_rec_types_to_scrape(value=bad_value)
 
 
-@pytest.mark.parametrize("enum_class", [FormatEnum, MediaEnum, EncodingEnum])
-def test_validate_red_pref_val(enum_class: FormatEnum | MediaEnum | EncodingEnum) -> None:
-    with pytest.raises(ValueError, match=re.escape("must be one of")):
+@pytest.mark.parametrize(
+    "enum_class, valid_value",
+    list(product([EncodingEnum], [m.value for m in EncodingEnum]))
+    + list(product([FormatEnum], [m.value for m in FormatEnum]))
+    + list(product([MediaEnum], [m.value for m in MediaEnum])),
+)
+def test_validate_red_pref_val_valid(enum_class: EncodingEnum | FormatEnum | MediaEnum, valid_value: str) -> None:
+    actual = _validate_red_pref_val(value=valid_value, enum_class=enum_class)
+    assert isinstance(actual, str)
+    assert actual in enum_class
+
+
+@pytest.mark.parametrize(
+    "bad_input_type, expected_msg",
+    [(StrEnum(value="", names=()), "Unexpected enum_class type"), ("primitive", "enum_class must be a class type")],
+)
+def test_validate_red_pref_val_bad_type_raises(bad_input_type: Any, expected_msg: str) -> None:
+    with pytest.raises(ValueError, match=re.escape(expected_msg)):
+        _ = _validate_red_pref_val(value="fake", enum_class=bad_input_type)
+
+
+@pytest.mark.parametrize("enum_class", [EncodingEnum, FormatEnum, MediaEnum])
+def test_validate_red_pref_val_bad_val_raises(enum_class: EncodingEnum | FormatEnum | MediaEnum) -> None:
+    with pytest.raises(ValueError, match=re.escape("Bad raw value")):
         _ = _validate_red_pref_val(value="fake", enum_class=enum_class)

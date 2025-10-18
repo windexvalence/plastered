@@ -53,7 +53,7 @@ class RunCache:
         LOGGER.debug(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_settings.get_cache_directory_path(cache_type=self._cache_type)
         LOGGER.debug(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
-        self._cache: Cache | None = None
+        # self._cache: Cache | None = None
         if self._enabled:
             LOGGER.debug(f"Enabling diskcache for {self._cache_type.value} ...")
             self._cache = Cache(self._cache_dir_path)
@@ -72,7 +72,7 @@ class RunCache:
         return self._enabled
 
     def print_summary_info(self) -> None:
-        if not self._enabled:
+        if not self._enabled or not self._cache:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         disk_usage_mb = self._cache.volume() / BYTES_IN_MB
         hits, misses = self._cache.stats()
@@ -156,7 +156,7 @@ class RunCache:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.set(cache_key, data, expire=self._seconds_to_expiry())
 
-    def cli_list_cache_keys(self) -> list[str]:
+    def cli_list_cache_keys(self) -> None:
         """
         Convenience method exclusively for use by the cache CLI command.
         Prints the list of string representations of all currently available cache keys.
@@ -166,7 +166,7 @@ class RunCache:
         for str_key in [str(raw_key) for raw_key in list(self._cache)]:
             print(str_key)
 
-    def cli_print_cached_value(self, key: str) -> str:
+    def cli_print_cached_value(self, key: str) -> None:
         """
         Convenience method exclusively for use by the cache CLI command.
         Prints the string representation of the cached value assigned to the given cache key.

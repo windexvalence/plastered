@@ -4,7 +4,7 @@ from time import perf_counter_ns
 from typing import Any, Final
 
 import httpx
-from tenacity import Retrying, wait_exponential
+from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from plastered.run_cache.run_cache import RunCache
 
@@ -34,14 +34,17 @@ class HTTPXRetryTransport(httpx.BaseTransport):
     This class is used as the underlying httpx transport for all the `ThrottledAPIBaseClient` classes.
     """
 
-    def __init__(self, max_retries: int):
+    def __init__(self, max_retries: int, min_wait_seconds: int):
         self._max_retries = max_retries
+        self._min_wait_seconds = min_wait_seconds
         self._transport = httpx.HTTPTransport()
 
     # NOTE: non-decorated tenacity retry logic which resets per-call to handle_request was adopted
     # from this SO answer: https://stackoverflow.com/a/62238110
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        for attempt in Retrying(stop=wait_exponential(self._max_retries), reraise=True):
+        for attempt in Retrying(
+            wait=wait_fixed(self._min_wait_seconds), stop=stop_after_attempt(self._max_retries), reraise=True
+        ):
             with attempt:
                 LOGGER.debug(f"Handling request attempt number: {attempt.retry_state.attempt_number} ...")
                 response = self._transport.handle_request(request)
@@ -69,7 +72,7 @@ class ThrottledAPIBaseClient:
         self._throttle_period = timedelta(seconds=seconds_between_api_calls)
         self._valid_endpoints = valid_endpoints
         self._run_cache = run_cache
-        self._non_cached_endpoints = non_cached_endpoints or {}
+        self._non_cached_endpoints: set[str] = non_cached_endpoints or set()
         self._extra_client_transport_mount_entries = extra_client_transport_mount_entries or {}
 
         # initialize _time_of_last_call to midnight of the current day
@@ -78,17 +81,20 @@ class ThrottledAPIBaseClient:
             year=init_time.year, month=init_time.month, day=init_time.day, hour=0, minute=0
         )
         self._base_domain = base_api_url
-        # TODO: rename the _session attribute and methods with "session" in name to "client"
-        self._session = httpx.Client(
-            mounts={self._base_domain: HTTPXRetryTransport(max_retries=self._max_api_call_retries)}
-            | self._extra_client_transport_mount_entries,
+        self._client = httpx.Client(
+            mounts={
+                self._base_domain: HTTPXRetryTransport(
+                    max_retries=self._max_api_call_retries, min_wait_seconds=self._throttle_period.seconds
+                )
+            }
+            | self._extra_client_transport_mount_entries,  # type: ignore
             follow_redirects=True,
         )
 
     # Too much of a pain in the ass to write a test for
-    def close_session(self) -> None:  # pragma: no cover
-        if self._session:
-            self._session.close()
+    def close_client(self) -> None:  # pragma: no cover
+        if self._client:
+            self._client.close()
 
     # adopted from https://gist.github.com/johncadengo/0f54a9ff5b53d10024ed
     def _throttle(self) -> None:

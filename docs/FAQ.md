@@ -20,7 +20,7 @@ See the [User Guide](./user_guide.md)!
 
 ## How do I configure `plastered` to do X thing?
 
-See the [Configuration Reference](./configuration_reference.md)
+See the [Configuration Reference](./config_reference.md)
 
 ## Why does `plastered` run as a Docker container?
 
