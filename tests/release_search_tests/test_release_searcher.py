@@ -834,11 +834,20 @@ def test_generate_summary_stats(tmp_path: pytest.FixtureRequest, valid_app_setti
 @pytest.mark.parametrize(
     "entity_type, expected_search_calls, expected_track_search_calls", [(et.ALBUM, 1, 0), (et.TRACK, 0, 1)]
 )
+@pytest.mark.parametrize("has_red_user_details", [False, True])
 def test_manual_search(
-    valid_app_settings: AppSettings, entity_type: et, expected_search_calls, expected_track_search_calls
+    valid_app_settings: AppSettings,
+    entity_type: et,
+    expected_search_calls: int,
+    expected_track_search_calls: int,
+    has_red_user_details: bool,
 ) -> None:
     manual_query = ManualSearch(entity_type=entity_type, artist="foo", entity="bar")
     with (
+        patch.object(
+            SearchState, "red_user_details_initialized", return_value=has_red_user_details
+        ) as mock_rud_initialized,
+        patch.object(ReleaseSearcher, "_gather_red_user_details") as mock_gather_rud,
         patch.object(ReleaseSearcher, "_search") as mock_search,
         patch.object(ReleaseSearcher, "_search_for_track_recs") as mock_track_search,
         patch.object(ReleaseSearcher, "_snatch_matches") as mock_snatch_matches,
@@ -846,6 +855,11 @@ def test_manual_search(
     ):
         release_searcher._run_cache = MagicMock(spec=RunCache)
         release_searcher.manual_search(manual_search_instance=manual_query)
+        mock_rud_initialized.assert_called_once()
+        if not has_red_user_details:
+            mock_gather_rud.assert_called_once()
+        else:
+            mock_gather_rud.assert_not_called()
         assert len(mock_search.mock_calls) == expected_search_calls
         assert len(mock_track_search.mock_calls) == expected_track_search_calls
         release_searcher._run_cache.close.assert_called_once()

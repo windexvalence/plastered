@@ -152,6 +152,7 @@ class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")  # nosec: B104
     port: int = Field(default=80)
     log_level: str = Field(default="INFO")
+    workers: int = Field(default=4)
 
 
 def _default_music_brainz_config() -> MusicBrainzConfig:

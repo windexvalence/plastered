@@ -237,6 +237,15 @@ def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_ap
         _ = search_state._pre_search_rule_skip_prior_snatch(si=si)
 
 
+@pytest.mark.parametrize("initialized, expected", [(False, False), (True, True)])
+def test_red_user_details_initialized(valid_app_settings: AppSettings, initialized: bool, expected: bool) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    if initialized:
+        search_state._red_user_details = MagicMock(spec=RedUserDetails)
+    actual = search_state.red_user_details_initialized()
+    assert actual == expected
+
+
 @pytest.mark.parametrize(
     "allow_library_items, rec_context, expected",
     [

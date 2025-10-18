@@ -83,7 +83,7 @@ class SearchState:
 
     def red_user_details_initialized(self) -> bool:
         """Returns `True` if the red user details have been initialized, `False` otherwise."""
-        return isinstance(self._red_user_details, RedUserDetails)
+        return self._red_user_details is not None
 
     def set_red_user_details(self, red_user_details: RedUserDetails) -> None:
         """

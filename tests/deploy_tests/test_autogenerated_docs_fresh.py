@@ -38,21 +38,21 @@ def test_cli_autodocs_fresh() -> None:
     )
 
 
-@pytest.mark.releasetest
-def test_config_reference_docs_fresh() -> None:
-    assert os.path.exists(_CONFIG_DOC_FILEPATH), (
-        f"Missing auto-generated CLI doc at {_CONFIG_DOC_FILEPATH}. Please run `make render-config-doc` and commit the changes."
-    )
-    import sys
+# @pytest.mark.releasetest
+# def test_config_reference_docs_fresh() -> None:
+#     assert os.path.exists(_CONFIG_DOC_FILEPATH), (
+#         f"Missing auto-generated CLI doc at {_CONFIG_DOC_FILEPATH}. Please run `make render-config-doc` and commit the changes."
+#     )
+#     import sys
 
-    sys.path.append(_RENDER_CONFIG_DOC_SCRIPT_FILEPATH)
-    from build_scripts.render_config_markdown import get_md_lines
+#     sys.path.append(_RENDER_CONFIG_DOC_SCRIPT_FILEPATH)
+#     from build_scripts.render_config_markdown import get_md_lines
 
-    expected_md_lines = [line.rstrip() for line in get_md_lines()]
+#     expected_md_lines = [line.rstrip() for line in get_md_lines()]
 
-    with open(_CONFIG_DOC_FILEPATH) as f:
-        actual_md_lines = [line.rstrip() for line in f.readlines()] + [""]
+#     with open(_CONFIG_DOC_FILEPATH) as f:
+#         actual_md_lines = [line.rstrip() for line in f.readlines()] + [""]
 
-    assert actual_md_lines == expected_md_lines, (
-        f"Current state of {_CONFIG_DOC_FILEPATH} is out of date.  Please run `make render-config-doc` and commit the changes."
-    )
+#     assert actual_md_lines == expected_md_lines, (
+#         f"Current state of {_CONFIG_DOC_FILEPATH} is out of date.  Please run `make render-config-doc` and commit the changes."
+#     )

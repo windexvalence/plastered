@@ -11,3 +11,4 @@
 !tests
 !pyproject.toml
 !uv.lock
+!vendor

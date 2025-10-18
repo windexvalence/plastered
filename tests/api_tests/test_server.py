@@ -20,13 +20,18 @@ def client(valid_app_settings: AppSettings) -> Generator[TestClient, None, None]
         yield test_client
 
 
+def test_favicon_endpoint(client: TestClient) -> None:
+    resp = client.get("/favicon.ico")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/x-icon"
+
+
 def test_root_endpoint(client: TestClient) -> None:
     expected_version = get_project_version()
     resp = client.get("/")
     assert resp.status_code == 200
-    resp_json = resp.json()
-    assert "message" in resp_json
-    assert resp_json["message"] == f"Plastered {expected_version}"
+    assert resp.headers["content-type"] == "text/html; charset=utf-8"
+    assert f"<title>Plastered v{expected_version}</title>" in resp.text
 
 
 def test_show_config_endpoint(valid_app_settings: AppSettings, client: TestClient) -> None:
@@ -43,24 +48,23 @@ def test_search_form_endpoint(client: TestClient) -> None:
     assert resp.headers["content-type"] == "text/html; charset=utf-8"
 
 
-@pytest.mark.asyncio
-async def test_submit_album_search_form_endpoint(client: TestClient) -> None:
-    mock_album = "fake-album"
-    mock_artist = "fake-artist"
+@pytest.mark.parametrize(
+    "form_data, request_params, expected_entity_type",
+    [
+        ({"entity": "fake-album", "artist": "fake-artist"}, None, EntityType.ALBUM),
+        ({"entity": "fake-track", "artist": "fake-artist"}, "?is_track=true", EntityType.TRACK),
+    ],
+)
+def test_submit_search_form_endpoint(
+    client: TestClient, form_data: dict[str, str], request_params: str | None, expected_entity_type: EntityType
+) -> None:
+    target_endpoint = f"/submit_search_form{request_params or ''}"
     with patch("plastered.api.server.manual_search_action", return_value={"fake": "data"}) as mock_manual_search_action:
-        resp = client.post("/submit_album_search_form", data={"album": mock_album, "artist": mock_artist})
+        resp = client.post(target_endpoint, data=form_data)
         assert resp.status_code == 200
+        assert resp.headers["content-type"] == "text/html; charset=utf-8"
+        assert "<title>Search Submitted</title>" in resp.text
         mock_manual_search_action.assert_called_once()
-        pass  # TODO: implement
-
-
-@pytest.mark.asyncio
-async def test_submit_track_search_form_endpoint(client: TestClient) -> None:
-    mock_track = "fake-track"
-    mock_artist = "fake-artist"
-    resp = client.post("/submit_track_search_form", data={"track": mock_track, "artist": mock_artist})
-    assert resp.status_code == 200
-    pass  # TODO: implement real test here
 
 
 @pytest.mark.parametrize("snatch", [False, True])

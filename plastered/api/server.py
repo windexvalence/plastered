@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Annotated, Any, Final
 
 import uvicorn
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
@@ -25,9 +26,14 @@ logging.basicConfig(level=get_app_settings().server.log_level)
 _LOGGER = logging.getLogger(__name__)
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
 _VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
-_TEMPLATES_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api", "templates"))
+_API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api"))
+_TEMPLATES_DIRPATH: Final[Path] = _API_DIRPATH / "templates"
+_STATIC_DIRPATH: Final[Path] = _API_DIRPATH / "static"
+_HTMX_FILEPATH: Final[Path] = _API_DIRPATH / "static" / "js" / "htmx.min.js"
+_STATIC_IMAGES_DIRPATH: Final[Path] = _STATIC_DIRPATH / "images"
 templates = Jinja2Templates(directory=_TEMPLATES_DIRPATH)
 _STATE: dict[str, Any] = {}
+_BASE_URL: Final[str] = "http://localhost:8000"
 
 
 # Set up some application state stuff
@@ -46,12 +52,21 @@ async def _app_lifespan(app: FastAPI):
 # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
 SessionDep = Annotated[Session, Depends(get_session)]
 fastapi_app = FastAPI(lifespan=_app_lifespan)
+fastapi_app.mount("/static", StaticFiles(directory=os.fspath(_STATIC_DIRPATH)), name="static")
+
+
+@fastapi_app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(os.fspath(_STATIC_IMAGES_DIRPATH / "favicon.ico"))
 
 
 # https://fastapi.tiangolo.com/async/#in-a-hurry
 @fastapi_app.get("/")
-def root_endpoint() -> JSONResponse:
-    return JSONResponse(content={"message": f"Plastered {_STATE['app_version']}"})
+async def root_endpoint(request: Request) -> HTMLResponse:
+    _LOGGER.debug(f"htmx_path: {os.fspath(_HTMX_FILEPATH)}")
+    return templates.TemplateResponse(
+        name="index.html.template", request=request, context={"plastered_version": _STATE["app_version"]}
+    )
 
 
 # /show_config
@@ -66,31 +81,36 @@ def search_form_endpoint(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("manual_search.html.template", {"request": request})
 
 
-@fastapi_app.post("/submit_album_search_form")
-async def submit_album_search_form_endpoint(
-    session: SessionDep, album: Annotated[str, Form()], artist: Annotated[str, Form()], mbid: str | None = Form(None)
-) -> JSONResponse:
-    _LOGGER.info(f"POST /submit_album_search_form {album=} {artist=} {mbid=}")
-    manual_run_json_data = await manual_search_action(
+# /submit_search_form
+@fastapi_app.post("/submit_search_form")
+async def submit_search_form_endpoint(
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    entity: Annotated[str, Form()],
+    artist: Annotated[str, Form()],
+    is_track: bool = False,
+    mbid: str | None = Form(None),
+) -> HTMLResponse:
+    _LOGGER.debug(f"POST /submit_album_search_form {entity=} {artist=} {is_track=} {mbid=}")
+    background_tasks.add_task(
+        func=manual_search_action,
         session=session,
         app_settings=_STATE["app_settings"],
         search_run=SearchRun(
             is_manual=True,
             artist=artist,
-            entity=album,
+            entity=entity,
             submit_timestamp=int(datetime.now().timestamp()),
-            entity_type=EntityType.ALBUM,
+            entity_type=EntityType.TRACK if is_track else EntityType.ALBUM,
         ),
         mbid=mbid,
     )
-    return JSONResponse(content=manual_run_json_data, status_code=200)
-
-
-@fastapi_app.post("/submit_track_search_form")
-async def submit_track_search_form_endpoint(
-    session: SessionDep, track: Annotated[str, Form()], artist: Annotated[str, Form()], mbid: str | None = Form(None)
-) -> JSONResponse:
-    return JSONResponse(content={"track": track, "artist": artist, "mbid": mbid if mbid else "n/a"}, status_code=200)
+    return templates.TemplateResponse(
+        name="search_submitted.html.j2",
+        request=request,
+        context={"base_url": _BASE_URL, "artist_name": artist, "entity_name": entity},
+    )
 
 
 # /scrape?snatch=<false|true>&rec_type=<album|track|all>
@@ -141,4 +161,5 @@ if __name__ == "__main__":
         port=app_settings.server.port,
         reload=True,
         log_level=log_level.lower(),
+        workers=app_settings.server.workers,
     )

@@ -3,28 +3,31 @@
 <head>
     <title>FastAPI Form</title>
 </head>
+<script
 <body>
     <h1>Manual Search</h1>
     <h2>Album Search</h2>
-    <form action="/submit_album_search_form/" method="post">
-        <label for="album">Album:</label>
-        <input type="text" id="album" name="album"><br>
+    <form action="/submit_search_form/" method="post">
+        <label for="entity">Album:</label>
+        <input type="text" id="entity" name="entity"><br>
         <label for="artist">Artist:</label>
         <input type="text" id="artist" name="artist"><br>
         <label for="mbid">musicbrainz ID (optional):</label>
         <input type="text" id="mbid" name="mbid"><br><br>
+        <input type="hidden" name="is_track" value="false">
         <input type="submit" value="Submit">
     </form>
     <br>
     <br>
     <h2>Track Search</h2>
-    <form action="/submit_track_search_form/" method="post">
-        <label for="track">Track:</label>
-        <input type="text" id="track" name="track"><br>
+    <form action="/submit_search_form/" method="post">
+        <label for="entity">Track:</label>
+        <input type="text" id="entity" name="entity"><br>
         <label for="artist">Artist:</label>
         <input type="text" id="artist" name="artist"><br>
         <label for="mbid">musicbrainz ID (optional):</label>
         <input type="text" id="mbid" name="mbid"><br><br>
+        <input type="hidden" name="is_track" value="true">
         <input type="submit" value="Submit">
     </form>
 </body>
