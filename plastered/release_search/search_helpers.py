@@ -1,7 +1,11 @@
 import logging
 from urllib.parse import quote_plus
 
+from sqlmodel import Session
+
 from plastered.config.app_settings import AppSettings, FormatPreference
+from plastered.db.db_models import Skipped
+from plastered.db.db_utils import add_record, get_session
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RecContext
@@ -48,7 +52,8 @@ class SearchState:
     which handles the pre and post search filtering logic during a search run.
     """
 
-    def __init__(self, app_settings: AppSettings):
+    def __init__(self, app_settings: AppSettings, session: Session | None = None):
+        self._session = session if session else get_session()
         self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
         self._allow_library_items = app_settings.lfm.allow_library_items
         self._use_release_type = app_settings.red.search.use_release_type
@@ -287,6 +292,7 @@ class SearchState:
                 reason.value,
             ]
         )
+        add_record(Skipped())
 
     def _add_failed_snatch_row(self, si: SearchItem, exc_name: str) -> None:
         snatch_failure_reason = SnatchFailureReason.OTHER

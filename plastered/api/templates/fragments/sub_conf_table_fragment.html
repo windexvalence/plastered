@@ -1,0 +1,43 @@
+<div id="modal" _="on closeModal add .closing then wait for animationend then remove me">
+	<div class="modal-underlay" _="on click trigger closeModal"></div>
+	<div class="modal-content">
+		{% if config_section_name == 'format_preferences' %}
+            <h3>RED Format Preferences Settings</h3>
+            <br>
+            Ordered from most preferred to least:
+            <br>
+            <br>
+            <table>
+                <tr>
+                    <th>Format</th><th>Encoding</th><th>Media</th><th>CD-Only Extras</th>
+                </tr>
+                {% for pref_dict in conf %}
+                    <tr>
+                        <td>{{ pref_dict.format }}</td>
+                        <td>{{ pref_dict.encoding }}</td>
+                        <td>{{ pref_dict.media }}</td>
+                        <td>{{ pref_dict.cd_only_extras }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <h3>RED {{ html_formatted_section_name }} Settings</h3>
+            <br>
+            <br>
+            <table>
+                <tr>
+                    <th>Setting</th><th>Value</th>
+                </tr>
+                {% for k, v in conf.items() %}
+                    <tr>
+                        <td><code>{{ k }}</code></td>
+                        <td>{{ v }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endif %}
+		<br>
+		<br>
+		<button class="btn danger" hx-on:click='document.getElementById("modal").remove()'>Close</button>
+	</div>
+</div>

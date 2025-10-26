@@ -1,0 +1,15 @@
+<div id="modal" _="on closeModal add .closing then wait for animationend then remove me">
+	<div class="modal-underlay" _="on click trigger closeModal"></div>
+	<div class="modal-content">
+		<h2>Help</h2>
+		<!-- TODO: make these links point to the specific versioned links by version tag -->
+		Plastered User Guide: <a href="https://github.com/windexvalence/plastered/blob/main/docs/user_guide.md" target="_blank">here</a>
+		<br>
+		Plastered FAQ: <a href="https://github.com/windexvalence/plastered/blob/main/docs/FAQ.md" target="_blank">here</a>
+		<br>
+		Plastered Config Reference: <a href="https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md" target="_blank">here</a>
+		<br>
+		<br>
+		<button class="btn danger" hx-on:click='document.getElementById("modal").remove()'>Close</button>
+	</div>
+</div>

@@ -1,8 +1,10 @@
 import logging
 import os
 
+from sqlmodel import Session
+
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import FinalState
+from plastered.db.db_models import Status
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
@@ -30,14 +32,14 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_settings: AppSettings):
+    def __init__(self, app_settings: AppSettings, session: Session | None = None):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
         self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_user_id = app_settings.red.red_user_id
-        self._search_state = SearchState(app_settings=app_settings)
+        self._search_state = SearchState(app_settings=app_settings, session=session)
         self._enable_snatches = app_settings.red.snatches.snatch_recs
         self._snatch_directory = app_settings.red.snatches.snatch_directory
 
@@ -288,7 +290,7 @@ class ReleaseSearcher:
         te_to_snatch = si_to_snatch.torrent_entry
         if not te_to_snatch:  # pragma: no cover
             _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
-            si_to_snatch.search_result.final_state = FinalState.SKIPPED
+            si_to_snatch.search_result.state = Status.SKIPPED
             si_to_snatch.search_result.skip_reason = SkippedReason.NO_MATCH_FOUND
             return
         permalink = te_to_snatch.get_permalink_url()
@@ -301,7 +303,7 @@ class ReleaseSearcher:
             )
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
-            si_to_snatch.search_result.final_state = FinalState.SUCCESS
+            si_to_snatch.search_result.state = Status.SUCCESS
             si_to_snatch.search_result.snatch_path = out_filepath
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.

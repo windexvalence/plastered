@@ -3,6 +3,8 @@ import logging
 import sys
 from typing import Any
 
+from sqlmodel import Session
+
 from plastered.config.app_settings import AppSettings
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import CacheType, RunCache
@@ -13,7 +15,7 @@ from plastered.utils.exceptions import RunCacheDisabledException
 _LOGGER = logging.getLogger(__name__)
 
 
-def scrape_action(app_settings: AppSettings) -> None:
+def scrape_action(app_settings: AppSettings, session: Session | None = None) -> None:
     """Wrapper function for entrypoint of scrape actions."""
     with LFMRecsScraper(app_settings=app_settings) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()

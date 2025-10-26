@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import FinalState
+from plastered.db.db_models import Status
 from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
@@ -659,8 +659,8 @@ def test_search_item_set_snatch_skipped_fields() -> None:
     si = SearchItem(initial_info=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST))
     assert si.snatch_skip_reason is None
     assert si.search_result.skip_reason is None
-    assert si.search_result.final_state is None
+    assert si.search_result.state is None
     si.set_snatch_skipped_fields(reason=sr.ALREADY_SNATCHED)
     assert si.snatch_skip_reason == sr.ALREADY_SNATCHED
     assert si.search_result.skip_reason == sr.ALREADY_SNATCHED
-    assert si.search_result.final_state == FinalState.SKIPPED
+    assert si.search_result.state == Status.SKIPPED

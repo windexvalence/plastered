@@ -10,7 +10,7 @@ from pprint import pformat
 from typing import Any, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
@@ -85,7 +85,7 @@ class RedConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="red")
     red_user_id: int = Field(gt=0)
-    red_api_key: str = Field(min_length=1)
+    red_api_key: SecretStr = Field(min_length=1)
     red_api_retries: int = Field(ge=APIRetries.MIN.value, le=APIRetries.MAX.value, default=APIRetries.DEFAULT.value)
     red_api_seconds_between_calls: int = Field(
         ge=RedCallWait.MIN.value, le=RedCallWait.MAX.value, default=RedCallWait.DEFAULT.value
@@ -109,9 +109,9 @@ class RedConfig(BaseModel):
 
 class LFMConfig(BaseModel):
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="lfm")
-    lfm_api_key: str = Field(min_length=1)
+    lfm_api_key: SecretStr = Field(min_length=1)
     lfm_username: str = Field(min_length=1)
-    lfm_password: str = Field(min_length=1)
+    lfm_password: SecretStr = Field(min_length=1)
     lfm_api_retries: int = Field(ge=APIRetries.MIN.value, le=APIRetries.MAX.value, default=APIRetries.DEFAULT.value)
     lfm_api_seconds_between_calls: int = Field(
         ge=NonRedCallWait.MIN.value, le=NonRedCallWait.MAX.value, default=NonRedCallWait.DEFAULT.value
@@ -231,6 +231,9 @@ class AppSettings(BaseSettings):
 
     def pretty_print_config(self) -> None:  # pragma: no cover
         yaml.dump(self.model_dump(), sys.stdout)
+
+    def html_subtable_classes(self) -> list[BaseModel]:
+        return [self.red.format_preferences, self.red.search, self.red.snatches]
 
 
 def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:

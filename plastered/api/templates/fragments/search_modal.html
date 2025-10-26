@@ -1,0 +1,17 @@
+<div id="entity-search-modal" _="on closeModal add .closing then wait for animationend then remove me">
+	<div class="modal-underlay" _="on click trigger closeModal"></div>
+	<div class="modal-content">
+		<h2>{{ "Album" if entity == "album" else "Track" }} Search</h2>
+		<form autocomplete="off" action="/submit_search_form/" method="post">
+			<label for="entity">{{ "Album" if entity == "album" else "Track" }}:</label>
+			<input type="text" id="entity" name="entity"><br>
+			<label for="artist">Artist:</label>
+			<input type="text" id="artist" name="artist"><br>
+			<label for="mbid">musicbrainz ID (optional):</label>
+			<input type="text" id="mbid" name="mbid"><br><br>
+			<input type="hidden" name="is_track" value="{{ 'false' if entity == 'album' else 'true' }}">
+			<input type="submit" value="Submit">
+		</form>
+		<button class="btn danger" hx-on:click='document.getElementById("entity-search-modal").remove()'>Close</button>
+	</div>
+</div>

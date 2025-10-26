@@ -2,7 +2,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
-from plastered.db.db_models import FinalState, SearchResult
+from plastered.db.db_models import Result, Status
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
@@ -33,7 +33,7 @@ class SearchItem:
     snatch_failure_reason: SnatchFailureReason | None = None
     snatch_skip_reason: SkippedReason | None = None
     search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
-    search_result: SearchResult = field(default_factory=SearchResult)
+    search_result: Result = field(default_factory=Result)
 
     def __post_init__(self):
         """
@@ -93,12 +93,12 @@ class SearchItem:
     def set_snatch_failure_fields(self, reason: SnatchFailureReason) -> None:
         self.snatch_failure_reason = reason
         self.search_result.snatch_failure_reason = reason
-        self.search_result.final_state = FinalState.FAILED
+        self.search_result.state = Status.FAILED
 
     def set_snatch_skipped_fields(self, reason: SkippedReason) -> None:
         self.snatch_skip_reason = reason
         self.search_result.skip_reason = reason
-        self.search_result.final_state = FinalState.SKIPPED
+        self.search_result.state = Status.SKIPPED
 
     def set_lfm_album_info(self, lfmai: LFMAlbumInfo | None) -> None:
         self.lfm_album_info = lfmai

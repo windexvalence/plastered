@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plastered v{{ plastered_version }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/modal.css') }}">
+    <script src="{{ url_for('static', path='/js/htmx-2.0.4.min.js') }}"></script>
+</head>
+<style></style>
+<body>
+    <h1>Plastered v{{ plastered_version }}</h1>
+    <br>
+    <div id="nav-buttons">
+        <button class="btn primary" onclick="location.href='/scrape_form'">Scrape LFM</a>
+        <button class="btn primary" onclick="location.href='/search_form'">Manual Search</a>
+        <button class="btn primary" onclick="location.href='/run_history'">Search History</a>
+    </div>
+    <br>
+    <br>
+    <div id="help-buttons">
+        <button class="btn info" onclick="location.href='/config'">View Config</a>
+        <button class="btn info" hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+    </div>
+    <div id="help-modal-here"></div>
+</body>
+</html>
