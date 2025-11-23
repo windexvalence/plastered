@@ -12,11 +12,12 @@ from typing import TYPE_CHECKING, Final
 from sqlmodel import Field, SQLModel, create_engine
 
 from plastered.config.app_settings import get_app_settings
-from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import RedClientSnatchException
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
+
+    from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 
 
 class Status(StrEnum):

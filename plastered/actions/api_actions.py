@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -10,8 +10,10 @@ from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import Failed, Grabbed, Result, Skipped, Status
 from plastered.db.db_utils import add_record
 from plastered.models.manual_search_models import ManualSearch
-from plastered.models.search_item import SearchItem
 from plastered.release_search.release_searcher import ReleaseSearcher
+
+if TYPE_CHECKING:
+    from plastered.models.search_item import SearchItem
 
 _LOGGER = logging.getLogger(__name__)
 

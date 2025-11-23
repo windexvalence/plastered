@@ -75,7 +75,7 @@ async def submit_search_form_endpoint(
     entity: Annotated[str, Form()],
     artist: Annotated[str, Form()],
     is_track: bool = False,
-    mbid: str | None = Form(None),
+    mbid: str | None = Form(None),  # noqa: FAST002
 ) -> JSONResponse:
     _LOGGER.debug(f"POST /api/submit_album_search_form {entity=} {artist=} {is_track=} {mbid=}")
     background_tasks.add_task(  # type: ignore[call-arg]

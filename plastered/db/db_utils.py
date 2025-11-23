@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Generator
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
@@ -12,6 +11,8 @@ from plastered.db.db_models import ENGINE, Failed, FailReason, Grabbed, Result, 
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from sqlalchemy import Row
 
 
