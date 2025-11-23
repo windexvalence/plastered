@@ -17,6 +17,10 @@ ifndef PDB
 override PDB = 0
 endif
 
+ifndef DB_TEST_MODE
+override DB_TEST_MODE = false
+endif
+
 ifndef APP_CONFIG_DIR
 override APP_CONFIG_DIR = $(PROJECT_DIR_PATH)/examples
 endif
@@ -37,7 +41,7 @@ clean:  docker-clean ## Removes docker artifacts and any local pycache artifacts
 	find . -type d -name '__pycache__' -print | xargs rm -rf
 
 docker-build:  ## Build the plastered docker app and test images locally
-	docker build --target plastered-app -t wv/plastered:$$(date +%s) -t wv/plastered:latest .
+	docker build --target plastered-app -t wv/plastered:$$(date +%s) -t wv/plastered-app:latest .
 	docker build --target plastered-test -t wv/plastered-test:$$(date +%s) -t wv/plastered-test:latest .
 
 docker-build-no-test:  ## Build the plastered docker image locally without test-requirements installed
@@ -46,9 +50,17 @@ docker-build-no-test:  ## Build the plastered docker image locally without test-
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
-docker-server:  docker-build  ## Execs a local container running the server on localhost port 8000
+docker-server:  docker-build-no-test  ## Execs a local container running the server on localhost port 8000
 	@echo "\n $(RED) Enter http://localhost:8000/ into your browser. $(NC) \n"
-	docker run --rm --name plastered-api -p 8000:80 -v $(APP_CONFIG_DIR):/config -v $(DOWNLOADS_DIR):/downloads -e PLASTERED_CONFIG=/config/config.yaml --entrypoint /bin/bash wv/plastered-test:latest -c '/app/server_entrypoint.sh'
+	docker run --rm --name plastered-api \
+		-p 8000:80 \
+		-v $(APP_CONFIG_DIR):/config \
+		-v $(DOWNLOADS_DIR):/downloads \
+		-v $(PROJECT_DIR_PATH)/plastered/api/static:/app/plastered/api/static \
+		-v $(PROJECT_DIR_PATH)/plastered/api/templates:/app/plastered/api/templates \
+		-e PLASTERED_CONFIG=/config/config.yaml \
+		-e DB_TEST_MODE=$(DB_TEST_MODE) \
+		--entrypoint /bin/bash wv/plastered:non-test -c '/app/server_entrypoint.sh'
 
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
@@ -77,6 +89,6 @@ render-config-doc: docker-build  ## Autogenerates the config model fields as a m
 		--entrypoint /app/build_scripts/render-config-markdown.sh wv/plastered-test:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
+	docker run -it --rm -e IS_DOCKER=true -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
 		-v $(PROJECT_DIR_PATH)/docs:/docs \
 		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"

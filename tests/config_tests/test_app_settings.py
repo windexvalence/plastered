@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from fastapi.templating import Jinja2Templates
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings

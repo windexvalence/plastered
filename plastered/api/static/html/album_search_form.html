@@ -1,0 +1,13 @@
+<div id="tab-content" role="tabpanel" class="tab-content">
+	<h2>Album Search</h2>
+		<form autocomplete="off" action="/submit_search_form/" method="post">
+			<label for="entity">Album:</label>
+			<input type="text" id="entity" name="entity"><br>
+			<label for="artist">Artist:</label>
+			<input type="text" id="artist" name="artist"><br>
+			<label for="mbid">musicbrainz ID (optional):</label>
+			<input type="text" id="mbid" name="mbid"><br><br>
+			<input type="hidden" name="is_track" value="false">
+			<input type="submit" value="Submit">
+		</form>
+</div>

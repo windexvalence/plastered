@@ -1,0 +1,30 @@
+<div id="rendered-config">
+    Contents of your current plastered config are below:
+    <br>
+    <br>
+    {% for conf_pair in conf_items %}
+        {% if conf_pair[0] != 'src_yaml_filepath' %}
+            <table>
+                <tr>
+                <th>{{ conf_pair[0] }} Settings</th>
+                </tr>
+                {% for k, v in conf_pair[1].items() %}
+                    <tr>
+                        <td><code>{{ k }}</code></td>
+                        {% if k in sub_conf_names %}
+                            <td>
+                                <a hx-get="/api/config?sub_conf={{ k }}" hx-target="body" hx-swap="beforeend">Show Config</a>
+                            </td>
+                        {% else %}
+                            <td>{{ v }}</td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                
+            </table>
+        {% endif %}
+        <br>
+        <br>
+        <br>
+    {% endfor %}
+</div>

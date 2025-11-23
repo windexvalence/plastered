@@ -1,0 +1,53 @@
+<div id="run-history-list">
+    <p>
+        {% if records | length > 0 %}
+            <table>
+                <tr>
+                    <th>Search Type</th>
+                    <th>Entity Type</th>
+                    <th>Artist</th>
+                    <th>Entity</th>
+
+                    <th>Media</th>
+                    <th>Encoding</th>
+                    <th>Format</th>
+
+                    <th>Submit Date</th>
+                    <th>Status</th>
+                </tr>
+                {% for r in records %}
+                    <tr>
+                        <td>{{ "Manual" if r.Result.is_manual else "Scraper" }}</td>
+                        <td>{{ r.Result.entity_type }}</td>
+                        <td>{{ r.Result.artist }}</td>
+                        <td>{{ r.Result.entity }}</td>
+
+                        <td><code>{{ r.Result.media }}</code></td>
+                        <td><code>{{ r.Result.encoding }}</code></td>
+                        <td><code>{{ r.Result.format }}</code></td>
+
+                        {% set submit_dt = sr_ids_to_submit_dates[r.Result.id] %}
+                        <td>{{ submit_dt }}</td>
+                        {% if r.Result.status == 'in_progress' %}
+                            <td>In progress </td>
+                        {% else %}
+                            {% if r.Result.status == 'skipped' %}
+                                {% set modal_params = {"skip_reason": r.Skipped.skip_reason} %}
+                            {% elif r.Result.status == 'success' %}
+                                {% set modal_params = {"fl_token_used": r.Grabbed.fl_token_used, "snatch_path": r.Grabbed.snatch_path, "tid": r.Grabbed.tid} %}
+                            {% else %}
+                                {% set modal_params = {"red_permalink": r.Failed.red_permalink, "matched_mbid": r.Failed.matched_mbid, "fail_reason": r.Failed.fail_reason} %}
+                            {% endif %}
+                            <!-- https://stackoverflow.com/a/75472158 -->
+                            {% set general_params = {"status": r.Result.status} %}
+                            {% set noop = modal_params.update(general_params) %}
+                            <td><a hx-get="/result_modal?{{ modal_params | dict_to_query_params }}" hx-target="body" hx-swap="beforeend">{{r.Result.status}}</a></td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            No records of searches found
+        {% endif %}
+    </p>
+</div>

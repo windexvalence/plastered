@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual RED Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
+    <script src="{{ url_for('static', path='/js/htmx-2.0.4.min.js') }}"></script>
+</head>
+<body>
+    <h2>Manual RED Search</h2>
+    <div id="header-links" hx-get="{{ url_for('static', path='/html/header_links.html') }}" hx-target="this", hx-trigger="load"></div>
+
+    <!-- Tab links https://htmx.org/examples/tabs-hateoas/ -->
+    <br>
+    <!-- <div id="tabs" hx-target="#tab-content" hx-swap="innerHTML"> -->
+    <div id="search-select" hx-target="#search-modal" hx-swap="innerHTML">
+            <button hx-get="/search_form?entity=album">Album</button>
+            <button hx-get="/search_form?entity=track">Track</button>
+        <p>Choose which kind of search you want to run against RED.</p>
+        <div id="search-modal"></div>
+    </div>
+    <br>
+</body>
+</html>

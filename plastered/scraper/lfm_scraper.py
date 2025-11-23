@@ -63,7 +63,7 @@ class LFMRecsScraper:
     def __init__(self, app_settings: AppSettings):
         self._max_rec_pages_to_scrape = app_settings.lfm.scraper_max_rec_pages_to_scrape
         self._lfm_username = app_settings.lfm.lfm_username
-        self._lfm_password = app_settings.lfm.lfm_password
+        self._lfm_password = app_settings.lfm.lfm_password.get_secret_value()
         self._rec_types_to_scrape = [EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
         self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}

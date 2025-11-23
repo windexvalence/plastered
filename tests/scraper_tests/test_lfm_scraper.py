@@ -366,7 +366,7 @@ def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_settings: AppSe
     assert actual_username == expected_username, (
         f"Unexpected username in LFMRecsScraper instance: '{actual_username}'. Expected: '{expected_username}'"
     )
-    expected_password = valid_app_settings.lfm.lfm_password
+    expected_password = valid_app_settings.lfm.lfm_password.get_secret_value()
     actual_password = lfm_rec_scraper._lfm_password
     assert actual_password == expected_password, (
         f"Unexpected password in LFMRecsScraper instance: '{actual_password}'. Expected: '{expected_password}'"

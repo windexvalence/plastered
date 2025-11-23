@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scrape LFM Recs</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
+    <script src="{{ url_for('static', path='/js/htmx-2.0.4.min.js') }}"></script>
+</head>
+<body>
+    <h2>Scrape LFM Recommendations</h2>
+    <div id="header-links" hx-get="{{ url_for('static', path='/html/header_links.html') }}" hx-target="this", hx-trigger="load"></div>
+    <br>
+    <p>Placeholder text</p>
+</body>
+</html>

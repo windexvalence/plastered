@@ -2,17 +2,15 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
-from plastered.db.db_models import FinalState, SearchResult
+from plastered.db.db_models import Result
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import TorrentEntry, TorrentMatch
 from plastered.models.types import EntityType
-from plastered.stats.stats import SkippedReason, SnatchFailureReason
-from plastered.utils.constants import STATS_TRACK_REC_NONE
 
 
-# TODO [later]: Define a separate `MatchedSearchItem` class for matched entries in RED where the te values are guaranteed non-None.
+# TODO [later]: Consolidate the `Result` db model and `SearchItem` into a single class.
 @dataclass
 class SearchItem:
     """
@@ -26,14 +24,11 @@ class SearchItem:
     is_manual: bool = False
     above_max_size_te_found: bool | None = False
     torrent_entry: TorrentEntry | None = None
-    lfm_album_info: LFMAlbumInfo | None = None
-    lfm_track_info: LFMTrackInfo | None = None
-    mb_release: MBRelease | None = None
-    skip_reason: SkippedReason | None = None
-    snatch_failure_reason: SnatchFailureReason | None = None
-    snatch_skip_reason: SkippedReason | None = None
-    search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
-    search_result: SearchResult = field(default_factory=SearchResult)
+    search_result: Result | None = None
+    _lfm_album_info: LFMAlbumInfo | None = None
+    _lfm_track_info: LFMTrackInfo | None = None
+    _mb_release: MBRelease | None = None
+    _search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
 
     def __post_init__(self):
         """
@@ -45,7 +40,7 @@ class SearchItem:
         if self.initial_info.entity_type == EntityType.ALBUM.value:
             self.release_name = self.initial_info.get_human_readable_entity_str()
         else:
-            self.release_name = "None" if not self.lfm_track_info else self.lfm_track_info.release_name
+            self.release_name = "None" if not self._lfm_track_info else self._lfm_track_info.release_name
 
     @property
     def artist_name(self) -> str:
@@ -58,29 +53,21 @@ class SearchItem:
         return self.initial_info.get_human_readable_track_str()
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
-        return self.search_kwargs
+        return self._search_kwargs
 
     def search_kwargs_has_all_required_fields(self, required_kwargs: set[str]) -> bool:
         """
         Return `True` if all the specified fields are set to non-empty values.
         Return `False` otherwise.
         """
-        if not required_kwargs.issubset(set(self.search_kwargs.keys())):
+        if not required_kwargs.issubset(set(self._search_kwargs.keys())):
             return False
-        return all([self.search_kwargs[k] is not None for k in required_kwargs])
-
-    @property
-    def track_rec_name(self) -> str | None:
-        return (
-            STATS_TRACK_REC_NONE
-            if self.initial_info.entity_type == EntityType.ALBUM.value
-            else self.initial_info.get_human_readable_track_str()
-        )
+        return all([self._search_kwargs[k] is not None for k in required_kwargs])
 
     def get_matched_mbid(self) -> str | None:
         if self.initial_info.entity_type == EntityType.ALBUM:
-            return None if not self.lfm_album_info else self.lfm_album_info.get_release_mbid()
-        return None if not self.lfm_track_info else self.lfm_track_info.get_release_mbid()
+            return None if not self._lfm_album_info else self._lfm_album_info.get_release_mbid()
+        return None if not self._lfm_track_info else self._lfm_track_info.get_release_mbid()
 
     def found_red_match(self) -> bool:
         return self.torrent_entry is not None and not self.above_max_size_te_found
@@ -88,26 +75,15 @@ class SearchItem:
     def set_torrent_match_fields(self, torrent_match: TorrentMatch) -> None:
         self.torrent_entry = torrent_match.torrent_entry
         self.above_max_size_te_found = torrent_match.above_max_size_found
-        self.search_result.tid = None if not torrent_match.torrent_entry else torrent_match.torrent_entry.torrent_id
-
-    def set_snatch_failure_fields(self, reason: SnatchFailureReason) -> None:
-        self.snatch_failure_reason = reason
-        self.search_result.snatch_failure_reason = reason
-        self.search_result.final_state = FinalState.FAILED
-
-    def set_snatch_skipped_fields(self, reason: SkippedReason) -> None:
-        self.snatch_skip_reason = reason
-        self.search_result.skip_reason = reason
-        self.search_result.final_state = FinalState.SKIPPED
 
     def set_lfm_album_info(self, lfmai: LFMAlbumInfo | None) -> None:
-        self.lfm_album_info = lfmai
+        self._lfm_album_info = lfmai
 
     def set_lfm_track_info(self, lfmti: LFMTrackInfo | None) -> None:
-        self.lfm_track_info = lfmti
+        self._lfm_track_info = lfmti
         if lfmti:
             self.release_name = lfmti.release_name
 
     def set_mb_release(self, mbr: MBRelease) -> None:
-        self.mb_release = mbr
-        self.search_kwargs = mbr.get_release_searcher_kwargs()
+        self._mb_release = mbr
+        self._search_kwargs = mbr.get_release_searcher_kwargs()

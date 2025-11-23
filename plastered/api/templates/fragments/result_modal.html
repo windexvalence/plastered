@@ -1,0 +1,22 @@
+<div id="modal" _="on closeModal add .closing then wait for animationend then remove me">
+	<div class="modal-underlay" _="on click trigger closeModal"></div>
+	<div class="modal-content">
+        <h3>Final State: {{ params.status }}</h3>
+        <br>
+        <br>
+        <table>
+            <tr>
+                <th>Key</th><th>Value</th>
+            </tr>
+            {% for k, v in params.items() %}
+                <tr>
+                    <td>{{ k }}</td>
+                    <td>{{ v }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+		<br>
+		<br>
+		<button class="btn danger" hx-on:click='document.getElementById("modal").remove()'>Close</button>
+	</div>
+</div>

@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class AppConfigException(Exception):
     """Exception for invalid configuration errors."""
 
@@ -38,6 +41,15 @@ class MissingTorrentEntryException(SearchItemException):
     """Exception for SearchItem instances which do not have a torrent entry set when they should."""
 
     pass
+
+
+class MissingDatabaseRecordException(SearchItemException):
+    """Exception raised when actions performed on SearchItem instances require a corresponding `Result` record in the DB, but none exists."""
+
+    def __init__(self, initial_info: Any):  # pragma: no cover
+        super().__init__(
+            f"Expected 'Result' record is None for SearchItem created from initial info: {str(initial_info)}"
+        )
 
 
 class RedClientSnatchException(Exception):

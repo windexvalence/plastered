@@ -26,7 +26,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
             run_cache=run_cache,
             non_cached_endpoints=set(NON_CACHED_RED_API_ENDPOINTS),
         )
-        self._client.headers.update({"Authorization": app_settings.red.red_api_key})
+        self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
 
     def request_api(self, action: str, params: str) -> dict[str, Any]:
         """
