@@ -35,7 +35,7 @@ test = [
     "pytest-cov[toml]==6.1.1",
     "pytest-httpx==0.35.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.11.13",
+    "ruff==0.14.6",
     "types-pyyaml>=6.0.12.20250516",
     "jsonref==1.1.0",
 ]
@@ -95,12 +95,37 @@ select = [
     # isort
     "I",
 ]
+extend-select = [
+    # FastAPI ruff rules: https://docs.astral.sh/ruff/rules/#fastapi-fast
+    "FAST",
+    # Logging ruff rules: https://docs.astral.sh/ruff/rules/#flake8-logging-log
+    "LOG",
+    # Type-checking runtime imports and other sanity checks: https://docs.astral.sh/ruff/rules/#flake8-type-checking-tc
+    "TC",
+    # Don't allow raising generic `Exception`: https://docs.astral.sh/ruff/rules/raise-vanilla-class/
+    "TRY002",
+]
 # This is to get the line length auto-formatting mostly handled https://stackoverflow.com/a/77796620
 ignore = ["E203", "E501"]
+
+# https://docs.astral.sh/ruff/settings/#lintflake8-type-checking
+[tool.ruff.lint.flake8-type-checking]
+# https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_exempt-modules
+exempt-modules = ["typing", "typing_extensions", "plastered.models.types"]
+# https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-base-classes
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase", "sqlmodel.SQLModel"]
 
 [tool.ruff.lint.isort]
 # https://docs.astral.sh/ruff/settings/#lint_isort_split-on-trailing-comma
 split-on-trailing-comma = false
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
+]
+known-first-party = ["plastered"]
 
 [tool.ruff.lint.pycodestyle]
 # https://docs.astral.sh/ruff/rules/line-too-long/#why-is-this-bad

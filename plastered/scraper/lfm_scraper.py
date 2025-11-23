@@ -99,7 +99,7 @@ class LFMRecsScraper:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:  # pragma: no cover
-            _LOGGER.error("Scraper encountered an uncaught exception", exc_info=True)
+            _LOGGER.error(f"Scraper encountered an uncaught exception: {exc_val}")
         self._run_cache.close()
         if self._is_logged_in:
             self._user_logout()
