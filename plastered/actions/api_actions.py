@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import Row
 from sqlmodel import Session, desc, select
 
 from plastered.config.app_settings import AppSettings
@@ -15,19 +16,17 @@ from plastered.release_search.release_searcher import ReleaseSearcher
 _LOGGER = logging.getLogger(__name__)
 
 
-def run_history_action(
-    since_timestamp: int, session: Session, final_state: Status | None = None
-) -> list[tuple[Result, Skipped, Failed, Grabbed]]:
+def run_history_action(since_timestamp: int, session: Session, final_state: Status | None = None) -> list[Row]:
     """Queries the list of run SearchRun and/or SearchResult records matching the input criteria."""
     rows = session.exec(
         select(Result, Skipped, Failed, Grabbed)
-        .outerjoin(Skipped, Result.id == Skipped.s_result_id)
-        .outerjoin(Failed, Result.id == Failed.f_result_id)
-        .outerjoin(Grabbed, Result.id == Grabbed.g_result_id)
+        .outerjoin(Skipped, Result.id == Skipped.s_result_id)  # type: ignore[arg-type]
+        .outerjoin(Failed, Result.id == Failed.f_result_id)  # type: ignore[arg-type]
+        .outerjoin(Grabbed, Result.id == Grabbed.g_result_id)  # type: ignore[arg-type]
         # .where(Result.submit_timestamp >= since_timestamp)
         .order_by(desc(Result.submit_timestamp))
     ).all()
-    return list(rows)
+    return list(rows)  # type: ignore[arg-type]
 
 
 def inspect_run_action(run_id: int, session: Session) -> Result | None:
@@ -52,6 +51,7 @@ async def manual_search_action(
         _LOGGER.error(msg, exc_info=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from ex
     add_record(session=session, model_inst=db_initial_result)
+    result_id = db_initial_result.id
     search_item: SearchItem | None = None
     try:
         with ReleaseSearcher(app_settings=app_settings) as release_searcher:
@@ -63,15 +63,13 @@ async def manual_search_action(
                     mbid=mbid,
                 )
             )
-            search_item = release_searcher.get_finalized_manual_search_item()
+            search_item = release_searcher.get_finalized_manual_search_item(result_id=result_id)
     except Exception as ex:  # pragma: no cover
         msg = f"Uncaught exception raised during manual search attempt: {type(ex)}"
         _LOGGER.error(msg, exc_info=True)
         raise ex
-    finally:
-        if not search_item:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SearchItem not found")
-        if not (search_result := search_item.search_result):  # pragma: no cover
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SearchResult not found")
-        add_record(session=session, model_inst=search_result)
+    if not search_item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SearchItem not found")
+    if not (search_result := search_item.search_result):  # pragma: no cover
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SearchResult not found")
     return search_result.model_dump()

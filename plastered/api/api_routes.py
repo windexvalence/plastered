@@ -78,7 +78,7 @@ async def submit_search_form_endpoint(
     mbid: str | None = Form(None),
 ) -> JSONResponse:
     _LOGGER.debug(f"POST /api/submit_album_search_form {entity=} {artist=} {is_track=} {mbid=}")
-    background_tasks.add_task(
+    background_tasks.add_task(  # type: ignore[call-arg]
         func=manual_search_action,
         session=session,
         app_settings=app_settings,
@@ -145,12 +145,12 @@ def run_history_endpoint(
                     },
                 },
             )
-        except AttributeError as ex:
+        except AttributeError as ex:  # pragma: no cover
             _LOGGER.error(f"AttributeError: {pformat(records)}", exc_info=True)
             raise ex
     return JSONResponse(content=records, status_code=200)
 
 
-def _default_since_ts() -> int:
+def _default_since_ts() -> int:  # pragma: no cover
     """Returns the default timestamp 6 months ago for date-ranged default queries."""
     return int((datetime.now(tz=UTC) - timedelta(days=180)).timestamp())

@@ -1,9 +1,12 @@
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch, ANY
 
+from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
+from plastered.api.constants import SUB_CONF_NAMES
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import Result
 from plastered.models.types import EntityType
@@ -24,6 +27,39 @@ def test_show_config_endpoint(client: TestClient) -> None:
         resp = client.get("/api/config")
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "application/json", f"{resp.headers=}"
+        mock_show_config_action.assert_called_once()
+
+
+@pytest.fixture(scope="session")
+def mock_htmx_request_headers() -> dict[str, str]:
+    return {"HX-Request": "true"}
+
+
+@pytest.fixture(scope="session")
+def mock_conf_dict() -> dict[str, Any]:
+    return {"red": {sub_conf_name: "fake_value" for sub_conf_name in SUB_CONF_NAMES}}
+
+
+@pytest.mark.parametrize(
+    "sub_conf, expected_status_code",
+    [(None, 200), ("format_preferences", 200), ("search", 200), ("snatches", 200), ("bad_key", 404)],
+)
+def test_show_config_endpoint_htmx(
+    client: TestClient,
+    mock_conf_dict: dict[str, Any],
+    mock_htmx_request_headers: dict[str, str],
+    sub_conf: str | None,
+    expected_status_code: int,
+) -> None:
+    req_pathstr = "/api/config" + (f"?sub_conf={sub_conf}" if sub_conf else "")
+    with (
+        patch("plastered.api.api_routes.show_config_action", return_value=mock_conf_dict) as mock_show_config_action,
+        patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor,
+    ):
+        resp = client.get(req_pathstr, headers=mock_htmx_request_headers)
+        assert resp.status_code == expected_status_code
+        if expected_status_code == 200:
+            mock_template_response_constructor.assert_called_once()
         mock_show_config_action.assert_called_once()
 
 
@@ -102,4 +138,16 @@ def test_run_history_endpoint(client: TestClient) -> None:
     with patch("plastered.api.api_routes.run_history_action", return_value=[]) as mock_run_history_action:
         resp = client.get(f"/api/run_history?since_timestamp={mock_since}")
         assert resp.status_code == 200
-        mock_run_history_action.assert_called_once_with(since_timestamp=mock_since, session=ANY)
+        mock_run_history_action.assert_called_once_with(since_timestamp=mock_since, session=ANY, final_state=None)
+
+
+def test_run_history_endpoint_htmx(client: TestClient, mock_htmx_request_headers: dict[str, str]) -> None:
+    mock_since = 1759680000
+    with (
+        patch("plastered.api.api_routes.run_history_action", return_value=[]) as mock_run_history_action,
+        patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor,
+    ):
+        resp = client.get(f"/api/run_history?since_timestamp={mock_since}", headers=mock_htmx_request_headers)
+        assert resp.status_code == 200
+        mock_run_history_action.assert_called_once_with(since_timestamp=mock_since, session=ANY, final_state=None)
+        mock_template_response_constructor.assert_called_once()

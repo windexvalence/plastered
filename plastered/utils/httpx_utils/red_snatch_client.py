@@ -33,7 +33,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
         )
-        self._client.headers.update({"Authorization": app_settings.red.red_api_key})
+        self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
         self._available_fl_tokens = 0
         self._use_fl_tokens = app_settings.red.snatches.use_fl_tokens
         self._tids_snatched_with_fl_tokens: set[str] = set()

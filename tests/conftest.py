@@ -1,24 +1,27 @@
+from contextlib import contextmanager
 import copy
 import csv
 import json
 import os
+
+from sqlmodel import SQLModel, Session, StaticPool, create_engine
 
 os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 import re
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
 import yaml
-from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.db.db_models import Result
 from plastered.models.red_models import CdOnlyExtras, RedFormat
-from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import CacheType, RunCache
 from plastered.stats.stats import SkippedReason, SnatchFailureReason
 from plastered.models.musicbrainz_models import MBRelease
@@ -96,6 +99,58 @@ def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
     with open(json_filepath) as f:
         json_data = json.load(f)
     return json_data
+
+
+@pytest.fixture(scope="function")
+def mock_session() -> Generator[Session, None, None]:
+    """
+    Creates a temporary in-memory session, following example here:
+    https://sqlmodel.tiangolo.com/tutorial/fastapi/tests/?h=#pytest-fixtures
+    """
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        yield session
+        session.rollback()
+        session.close()
+
+
+@contextmanager
+def mock_session_context() -> Generator[Session, None, None]:
+    """
+    Creates a temporary in-memory test session, following example in SQLModel docs,
+    NOTE: This differs from the `mock_session` fixture in that this function can be used
+    directly within a single unit test function, preventing weird concurrency issues with pytest-xdist
+    which may lead to errors like 'sqlalchemy.exc.InvalidRequestError: Instance '<some ORM instance>' is not persistent within this Session'.
+    """
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    session = Session(engine)
+    yield session
+    session.rollback()
+    session.close()
+
+
+@pytest.fixture(scope="function")
+def mock_track_result() -> Result:
+    return Result(
+        submit_timestamp=1759680000,
+        is_manual=True,
+        entity_type=EntityType.TRACK,
+        artist="Some+Artist",
+        entity="Some+Song",
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_album_result() -> Result:
+    return Result(
+        submit_timestamp=1759680000,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Some+Artist",
+        entity="Some+Album",
+    )
 
 
 @pytest.fixture(scope="session")

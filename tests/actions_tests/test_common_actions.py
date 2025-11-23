@@ -69,4 +69,3 @@ def test_scrape_action(valid_app_settings: AppSettings) -> None:
         mock_scraper.scrape_recs.assert_called_once()
         mock_searcher_enter.assert_called_once()
         mock_searcher.search_for_recs.assert_called_once()
-        mock_searcher.generate_summary_stats.assert_called_once()

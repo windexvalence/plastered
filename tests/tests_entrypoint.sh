@@ -33,5 +33,9 @@ fi
 
 if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     echo "Not running in a github actions environment. Updating pytest-coverage markdown badge ..."
-    coverage-badge -f -o "/docs/image_assets/coverage.svg"
+    coverage_badge_output_path="/docs/image_assets/coverage.svg"
+    if [[ -z "${IS_DOCKER}" ]]; then
+        coverage_badge_output_path="./docs/image_assets/coverage.svg"
+    fi
+    coverage-badge -f -o "${coverage_badge_output_path}"
 fi

@@ -22,8 +22,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
             run_cache=run_cache,
             valid_endpoints=set(PERMITTED_LFM_API_ENDPOINTS),
         )
-        # TODO: figure out how to redact this from logs
-        self._api_key = app_settings.lfm.lfm_api_key
+        self._api_key = app_settings.lfm.lfm_api_key.get_secret_value()
 
     def request_api(self, method: str, params: str) -> dict[str, Any]:
         """

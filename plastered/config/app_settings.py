@@ -232,9 +232,6 @@ class AppSettings(BaseSettings):
     def pretty_print_config(self) -> None:  # pragma: no cover
         yaml.dump(self.model_dump(), sys.stdout)
 
-    def html_subtable_classes(self) -> list[BaseModel]:
-        return [self.red.format_preferences, self.red.search, self.red.snatches]
-
 
 def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
     """

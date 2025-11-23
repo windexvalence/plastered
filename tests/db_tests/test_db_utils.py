@@ -1,22 +1,12 @@
-from typing import Generator
+from typing import Any, Generator
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlmodel import create_engine, Field, Session, SQLModel, select
 from sqlmodel.pool import StaticPool
 
-from plastered.db.db_utils import add_record
-
-
-@pytest.fixture(scope="function")
-def mock_session() -> Generator[Session, None, None]:
-    """
-    Creates a temporary in-memory session, following example here:
-    https://sqlmodel.tiangolo.com/tutorial/fastapi/tests/?h=#pytest-fixtures
-    """
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+from plastered.db.db_models import FailReason, Failed, Result, SkipReason, Status
+from plastered.db.db_utils import add_record, set_result_status
 
 
 class MockTable(SQLModel, table=True):
@@ -41,3 +31,29 @@ def test_add_record(mock_session: Session) -> None:
 
     all_mock_records = mock_session.exec(select(MockTable)).all()
     assert len(all_mock_records) == 2
+
+
+@pytest.mark.parametrize(
+    "mock_status, mock_status_model_kwargs",
+    [
+        (Status.FAILED, {"red_permalink": None, "matched_mbid": None, "fail_reason": FailReason.OTHER}),
+        (Status.GRABBED, {"fl_token_used": None, "snatch_path": None, "tid": None}),
+        (Status.SKIPPED, {"skip_reason": SkipReason.NO_SOURCE_RELEASE_FOUND}),
+    ],
+)
+def test_set_result_status(
+    mock_album_result: Result, mock_session: Session, mock_status: Status, mock_status_model_kwargs: dict[str, Any]
+) -> None:
+    with (
+        patch.object(mock_session, "refresh") as mock_session_refresh,
+        patch.object(mock_session, "add") as mock_session_add,
+        patch.object(mock_session, "commit") as mock_session_commit,
+    ):
+        _ = set_result_status(
+            session=mock_session,
+            result_record=mock_album_result,
+            status=mock_status,
+            status_model_kwargs=mock_status_model_kwargs,
+        )
+        mock_session_refresh.assert_called_once_with(mock_album_result)
+        mock_session_commit.assert_called_once()

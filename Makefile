@@ -89,6 +89,6 @@ render-config-doc: docker-build  ## Autogenerates the config model fields as a m
 		--entrypoint /app/build_scripts/render-config-markdown.sh wv/plastered-test:latest
 
 docker-test: docker-build  ## Runs unit tests inside a local docker container
-	docker run -it --rm -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
+	docker run -it --rm -e IS_DOCKER=true -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
 		-v $(PROJECT_DIR_PATH)/docs:/docs \
 		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"

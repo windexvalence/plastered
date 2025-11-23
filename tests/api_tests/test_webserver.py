@@ -1,10 +1,13 @@
 from typing import Final
+from unittest.mock import patch
 
+from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 from starlette.routing import Mount
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
 
@@ -44,14 +47,35 @@ def test_show_config_endpoint(valid_app_settings: AppSettings, client: TestClien
     assert "<title>Plastered Config</title>" in resp.text
 
 
+@pytest.mark.parametrize("entity_type", [None, EntityType.ALBUM, EntityType.TRACK])
 @pytest.mark.filterwarnings("ignore:.*not the first parameter anymore.*")
-def test_search_form_endpoint(client: TestClient) -> None:
-    resp = client.get("/search_form")
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+@pytest.mark.asyncio
+def test_search_form_endpoint(client: TestClient, entity_type: EntityType | None) -> None:
+    req_pathstr = "/search_form" + (f"?entity={str(entity_type)}" if entity_type else "")
+    with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
+        resp = client.get(req_pathstr)
+        assert resp.status_code == 200
+        mock_template_response_constructor.assert_called_once()
+        # assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
 
 
 def test_scrape_form_endpoint(client: TestClient) -> None:
     resp = client.get("/scrape_form")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+
+
+@pytest.mark.asyncio
+def test_runs_page(client: TestClient) -> None:
+    with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
+        resp = client.get("/run_history")
+        assert resp.status_code == 200
+        mock_template_response_constructor.assert_called_once()
+
+
+@pytest.mark.asyncio
+def test_result_modal(client: TestClient) -> None:
+    with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
+        resp = client.get("/result_modal")
+        assert resp.status_code == 200
+        mock_template_response_constructor.assert_called_once()

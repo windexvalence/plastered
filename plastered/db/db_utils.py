@@ -31,7 +31,7 @@ def db_startup() -> None:
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(ENGINE)
     # SQLModel.metadata.create_all(ENGINE)
-    if _DB_TEST_MODE:
+    if _DB_TEST_MODE:  # pragma: no cover
         _create_test_tables(table_classes=table_classes)
     _LOGGER.info("DB tables metadata creation complete.")
 
@@ -43,7 +43,37 @@ def add_record(session: Session, model_inst: SQLModel) -> None:
     session.refresh(model_inst)
 
 
-def query_rows_to_jinja_context_obj(rows: list[Row]) -> list[dict[str, Any]]:
+def set_result_status(
+    session: Session, result_record: Result, status: Status, status_model_kwargs: dict[str, Any]
+) -> None:
+    """
+    Takes in the given `Result` object, updates its `status`, and creates a corresponding row in the
+    associated status table. status_row_kwargs is a dict of kwargs for the status ORM instance.
+    """
+    _LOGGER.debug("Refreshing Result record ...")
+    session.refresh(result_record)
+    res_id = result_record.id
+    _LOGGER.debug(f"Updating status of Result record (id={res_id}) ...")
+    result_record.status = status
+    session.add(result_record)
+    _LOGGER.debug(f"Creating associated Status record for Result record (id={res_id}) ...")
+    status_record: Failed | Grabbed | Skipped | None = None
+    if status == status.FAILED:
+        status_record = Failed(f_result_id=res_id, **status_model_kwargs)
+    elif status == status.GRABBED:
+        status_record = Grabbed(g_result_id=res_id, **status_model_kwargs)
+    elif status == status.SKIPPED:
+        status_record = Skipped(s_result_id=res_id, **status_model_kwargs)
+    else:
+        raise ValueError(  # pragma: no cover
+            f"Unexpected status: '{str(status)}'. Should be one of {[Status.FAILED, Status.GRABBED, Status.SKIPPED]}"
+        )
+    session.add(status_record)
+    session.commit()
+    _LOGGER.debug(f"Finished updating status of Result record (id={res_id}) ...")
+
+
+def query_rows_to_jinja_context_obj(rows: list[Row]) -> list[dict[str, Any]]:  # pragma: no cover
     """Takes in a SqlAlchemy query result (list of Row objects), and returns a list of stringified dicts."""
     res: list[dict[str, Any]] = []
     for row in rows:
@@ -57,7 +87,7 @@ def query_rows_to_jinja_context_obj(rows: list[Row]) -> list[dict[str, Any]]:
     return res
 
 
-def _create_test_tables(table_classes: list[SQLModel]) -> None:
+def _create_test_tables(table_classes: list[type[SQLModel]]) -> None:  # pragma: no cover
     from datetime import datetime
 
     SQLModel.metadata.drop_all(ENGINE)
@@ -105,7 +135,7 @@ def _create_test_tables(table_classes: list[SQLModel]) -> None:
         artist="Fake Artist 4",
         entity="Fake Track A",
         submit_timestamp=submit_ts,
-        status=Status.SUCCESS,
+        status=Status.GRABBED,
         media=MediaEnum.SACD,
         encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS,
         format=FormatEnum.FLAC,

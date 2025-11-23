@@ -1,25 +1,29 @@
 import logging
+from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import Skipped
-from plastered.db.db_utils import add_record, get_session
+from plastered.db.db_models import FailReason, Result, SkipReason, Status
+from plastered.db.db_utils import get_session, set_result_status
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RecContext
-from plastered.stats.stats import SkippedReason, SnatchFailureReason, print_and_save_all_searcher_stats
+from plastered.stats.stats import SnatchFailureReason
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
-    STATS_NONE,
-    STATS_TRACK_REC_NONE,
 )
-from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemException, SearchStateException
+from plastered.utils.exceptions import (
+    MissingDatabaseRecordException,
+    MissingTorrentEntryException,
+    SearchItemException,
+    SearchStateException,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +49,6 @@ def _required_search_kwargs(
     return required_kwargs
 
 
-# TODO (later): break out SearchItem definition into separate file
 class SearchState:
     """
     Helper class which maintains the variable internal state of the searching process, and
@@ -53,7 +56,7 @@ class SearchState:
     """
 
     def __init__(self, app_settings: AppSettings, session: Session | None = None):
-        self._session = session if session else get_session()
+        self._session = session if session else next(get_session())
         self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
         self._allow_library_items = app_settings.lfm.allow_library_items
         self._use_release_type = app_settings.red.search.use_release_type
@@ -79,12 +82,10 @@ class SearchState:
         self._max_download_allowed_gb = 0.0
         self._red_user_details: RedUserDetails | None = None
         self._run_download_total_gb = 0.0
-        self._snatch_summary_rows: list[list[str]] = []
-        self._skipped_snatch_summary_rows: list[list[str]] = []
-        self._failed_snatches_summary_rows: list[list[str]] = []
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
+        self._manual_res_ids_to_search_items: dict[int, SearchItem] = dict()
 
     def red_user_details_initialized(self) -> bool:
         """Returns `True` if the red user details have been initialized, `False` otherwise."""
@@ -98,6 +99,26 @@ class SearchState:
             min_allowed_ratio=self._min_allowed_ratio
         )
         self._red_user_details = red_user_details
+
+    def initialize_search_records(self, initial_search_items: list[SearchItem]) -> None:
+        """Initializes the `plastered.db.db_models.Result` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
+        if all([si.is_manual for si in initial_search_items]):
+            _LOGGER.debug("Manual search records are pre-initialized, skipping initialization.")
+            return
+        _LOGGER.info("Initializing search records ...")
+        submit_timestamp = int(datetime.now(tz=UTC).timestamp())
+        for si in initial_search_items:
+            si.search_result = Result(
+                is_manual=si.is_manual,
+                artist=si.initial_info.get_human_readable_artist_str(),
+                entity=si.initial_info.get_human_readable_entity_str(),
+                submit_timestamp=submit_timestamp,
+                entity_type=si.initial_info.entity_type,
+                status=Status.IN_PROGRESS,
+            )
+        self._session.add_all([si.search_result for si in initial_search_items])
+        self._session.commit()
+        _LOGGER.info("Search records initialized.")
 
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
@@ -120,9 +141,9 @@ class SearchState:
         Return True if the track-rec-based SearchItem is valid to search for on the various APIs.
         Return False otherwise if the SearchItem should be skipped given the lack of resolved origin release.
         """
-        if not si.lfm_track_info:
+        if not si._lfm_track_info:
             _LOGGER.warning(f"Unable to find origin release for track rec: '{si.track_name}' by '{si.artist_name}'")
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.NO_SOURCE_RELEASE_FOUND)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.NO_SOURCE_RELEASE_FOUND)
             return False
         return True
 
@@ -153,12 +174,12 @@ class SearchState:
         if self._pre_search_rule_skip_prior_snatch(si=si):
             _LOGGER.debug("'skip_prior_snatches' config field is set to True")
             _LOGGER.debug(f"'{release}' by '{artist}' due to prior snatch found in release group")
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.ALREADY_SNATCHED)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.ALREADY_SNATCHED)
             return False
         if self._pre_search_rule_skip_library_items(si=si):
             _LOGGER.debug(f"'allow_library_items' config field is set to {self._allow_library_items}.")
             _LOGGER.debug(f"Skipped '{release}' by '{artist}'. Rec context is {RecContext.IN_LIBRARY.value}")
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.REC_CONTEXT_FILTERING)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.REC_CONTEXT_FILTERING)
             return False
         return True
 
@@ -172,7 +193,7 @@ class SearchState:
         if not self._require_mbid_resolution:
             return True
         if not si.search_kwargs_has_all_required_fields(required_kwargs=self._required_red_search_kwargs):
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS)
             return False
         return True
 
@@ -186,10 +207,10 @@ class SearchState:
             raise SearchItemException("SearchItem instance has not torrent_entry.")
         # Ignore this condition for manual searches since those are not done in batch
         if (not si.is_manual) and si.torrent_entry.torrent_id in self._tids_to_snatch:
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.DUPE_OF_ANOTHER_REC)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.DUPE_OF_ANOTHER_REC)
             return True
         if self._red_user_details.has_snatched_tid(tid=si.torrent_entry.torrent_id):
-            self._add_skipped_snatch_row(si=si, reason=SkippedReason.ALREADY_SNATCHED)
+            self._add_skipped_snatch_row(si=si, reason=SkipReason.ALREADY_SNATCHED)
             return True
         return False
 
@@ -203,7 +224,7 @@ class SearchState:
             _LOGGER.info(
                 f"No valid RED match found for {si.initial_info.entity_type}: '{si.initial_info.get_human_readable_entity_str()}' by '{si.artist_name}'"
             )
-            skip_reason = SkippedReason.ABOVE_MAX_SIZE if si.above_max_size_te_found else SkippedReason.NO_MATCH_FOUND
+            skip_reason = SkipReason.ABOVE_MAX_ALLOWED_SIZE if si.above_max_size_te_found else SkipReason.NO_MATCH_FOUND
             self._add_skipped_snatch_row(si=si, reason=skip_reason)
             return False
         # Check whether the match is tied to a release which is already pending snatching during this run
@@ -222,11 +243,11 @@ class SearchState:
             return
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("SearchItem missing torrent entry")
-        self._add_snatch_success_row(si=si, snatch_path=snatch_path, snatched_with_fl=snatched_with_fl)
+        self._add_grabbed_row(si=si, snatch_path=snatch_path, snatched_with_fl=snatched_with_fl)
         if te := si.torrent_entry:
             self._update_run_dl_total(te=te)
 
-    def _update_run_dl_total(self, te: TorrentEntry) -> None:
+    def _update_run_dl_total(self, te: TorrentEntry) -> None:  # pragma: no cover
         self._run_download_total_gb += te.get_size(unit="GB")
 
     def add_search_item_to_snatch(self, si: SearchItem) -> None:
@@ -270,69 +291,54 @@ class SearchState:
                 _LOGGER.info(
                     f"Skip snatch {si.torrent_entry.get_permalink_url}: would drop ratio below min_allowed_ratio."
                 )
-                self._add_skipped_snatch_row(si=si, reason=SkippedReason.MIN_RATIO_LIMIT)
+                self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
         return will_snatch
 
-    def clear_manual_search_item(self) -> None:
-        self._manual_search_item_to_snatch = None
+    def get_manual_search_item(self, result_id: int) -> SearchItem | None:  # pragma: no cover
+        return self._manual_res_ids_to_search_items.get(result_id)
 
-    def get_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
-        return self._manual_search_item_to_snatch
-
-    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkippedReason) -> None:
-        si.set_snatch_skipped_fields(reason=reason)
-        self._skipped_snatch_summary_rows.append(
-            [
-                str(si.initial_info.entity_type),
-                str(si.initial_info.rec_context),
-                str(si.artist_name),
-                str(si.release_name),
-                str(si.track_rec_name),
-                str(si.torrent_entry.torrent_id) if si.torrent_entry else STATS_NONE,
-                reason.value,
-            ]
+    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:
+        if not (result_record := si.search_result):  # pragma: no cover
+            raise MissingDatabaseRecordException(si.initial_info)
+        _LOGGER.debug(
+            f"Refreshing result record for search state artist='{si.artist_name}' entity_name='{si.initial_info.get_human_readable_entity_str()}' ..."
         )
-        add_record(Skipped())
-
-    def _add_failed_snatch_row(self, si: SearchItem, exc_name: str) -> None:
-        snatch_failure_reason = SnatchFailureReason.OTHER
-        if exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR:
-            snatch_failure_reason = SnatchFailureReason(exc_name)
-        si.set_snatch_failure_fields(reason=snatch_failure_reason)
-        matched_mbid = "" if si.get_matched_mbid() is None else si.get_matched_mbid()
-        self._failed_snatches_summary_rows.append(
-            [
-                si.torrent_entry.get_permalink_url() if si.torrent_entry else "",
-                matched_mbid,  # type: ignore [list-item]
-                snatch_failure_reason.value,
-            ]
+        set_result_status(
+            session=self._session,
+            result_record=result_record,
+            status=Status.SKIPPED,
+            status_model_kwargs={"skip_reason": reason},
         )
 
-    def _add_snatch_success_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:
-        lfm_rec = si.initial_info
-        if not si.torrent_entry:  # pragma: no cover
+    def _add_failed_snatch_row(self, si: SearchItem, exc_name: str) -> None:  # pragma: no cover
+        snatch_failure_reason = FailReason.OTHER
+        if (
+            exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR
+        ):  # pragma: no cover
+            snatch_failure_reason = FailReason(exc_name)
+        if not (result_record := si.search_result):  # pragma: no cover
+            raise MissingDatabaseRecordException(si.initial_info)
+        set_result_status(
+            session=self._session,
+            result_record=result_record,
+            status=Status.FAILED,
+            status_model_kwargs={
+                "red_permalink": si.torrent_entry.get_permalink_url() if si.torrent_entry else None,
+                "matched_mbid": si.get_matched_mbid(),
+                "fail_reason": snatch_failure_reason,
+            },
+        )
+
+    def _add_grabbed_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:  # pragma: no cover
+        if not (te := si.torrent_entry):  # pragma: no cover
             raise MissingTorrentEntryException("Missing expected torrent_entry field.")
-        te = si.torrent_entry
-        self._snatch_summary_rows.append(
-            [
-                str(lfm_rec.entity_type),
-                str(lfm_rec.rec_context),
-                str(si.artist_name),
-                str(si.release_name),
-                str(STATS_TRACK_REC_NONE if te.track_rec_name is None else te.track_rec_name),
-                str(te.torrent_id),
-                str(te.media),
-                str("yes" if snatched_with_fl else "no"),
-                str(snatch_path),
-            ]
-        )
-
-    def generate_summary_stats(self) -> None:
-        print_and_save_all_searcher_stats(
-            skipped_rows=self._skipped_snatch_summary_rows,
-            failed_snatch_rows=self._failed_snatches_summary_rows,
-            snatch_summary_rows=self._snatch_summary_rows,
-            output_summary_dir_path=self._output_summary_dir_path,
+        if not (result_record := si.search_result):  # pragma: no cover
+            raise MissingDatabaseRecordException(si.initial_info)
+        set_result_status(
+            session=self._session,
+            result_record=result_record,
+            status=Status.GRABBED,
+            status_model_kwargs={"fl_token_used": snatched_with_fl, "snatch_path": snatch_path, "tid": te.torrent_id},
         )
 
     @property

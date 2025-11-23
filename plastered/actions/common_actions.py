@@ -21,7 +21,6 @@ def scrape_action(app_settings: AppSettings, session: Session | None = None) -> 
         rec_types_to_recs_list = scraper.scrape_recs()
     with ReleaseSearcher(app_settings=app_settings) as release_searcher:
         release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
-        release_searcher.generate_summary_stats()
 
 
 def show_config_action(app_settings: AppSettings) -> dict[str, Any]:

@@ -13,7 +13,6 @@ from plastered.models.search_item import SearchItem
 from plastered.models.types import EntityType
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.stats.stats import SkippedReason
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
 from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
 from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
@@ -213,6 +212,8 @@ class ReleaseSearcher:
         rec_type = search_items[0].initial_info.entity_type
         if not all([si.initial_info.entity_type == rec_type for si in search_items]):
             raise ReleaseSearcherException("All search items must be of same entity_type.")
+        # initialize the db records for each search item
+        self._search_state.initialize_search_records(initial_search_items=search_items)
         # with Progress(*prog_args(), **prog_kwargs()) as progress:
         with NestedProgress() as progress:
             for si in progress.track(search_items, description=f"[magenta]Searching {rec_type} recs"):
@@ -256,7 +257,6 @@ class ReleaseSearcher:
     def manual_search(self, manual_search_instance: ManualSearch) -> None:
         """Public method that the manual search endpoint should invoke. Not used by the scraper."""
         # TODO: use different class for manual searches than lfmrec
-        self._search_state.clear_manual_search_item()
         if not self._search_state.red_user_details_initialized():
             self._gather_red_user_details()
         search_items = [SearchItem(initial_info=manual_search_instance, is_manual=True)]
@@ -269,8 +269,8 @@ class ReleaseSearcher:
         # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
         self._snatch_matches(manual_run=True)
 
-    def get_finalized_manual_search_item(self) -> SearchItem | None:  # pragma: no cover
-        return self._search_state.get_manual_search_item()
+    def get_finalized_manual_search_item(self, result_id: int) -> SearchItem | None:  # pragma: no cover
+        return self._search_state.get_manual_search_item(result_id=result_id)
 
     def _snatch_matches(self, manual_run: bool = False) -> None:
         if not self._enable_snatches:
@@ -290,8 +290,6 @@ class ReleaseSearcher:
         te_to_snatch = si_to_snatch.torrent_entry
         if not te_to_snatch:  # pragma: no cover
             _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
-            si_to_snatch.search_result.state = Status.SKIPPED
-            si_to_snatch.search_result.skip_reason = SkippedReason.NO_MATCH_FOUND
             return
         permalink = te_to_snatch.get_permalink_url()
         out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")
@@ -303,8 +301,7 @@ class ReleaseSearcher:
             )
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
-            si_to_snatch.search_result.state = Status.SUCCESS
-            si_to_snatch.search_result.snatch_path = out_filepath
+            si_to_snatch.search_result.status = Status.GRABBED  # type: ignore[union-attr]
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
             if os.path.exists(out_filepath):
@@ -313,11 +310,7 @@ class ReleaseSearcher:
             exc_name = ex.__class__.__name__
         finally:
             fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=te_to_snatch.torrent_id)
-            si_to_snatch.search_result.fl_token_used = fl_token_used
             if not si_to_snatch.is_manual:
                 self._search_state.add_snatch_final_status_row(
                     si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=out_filepath, exc_name=exc_name
                 )
-
-    def generate_summary_stats(self) -> None:
-        self._search_state.generate_summary_stats()

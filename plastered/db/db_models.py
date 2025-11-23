@@ -13,6 +13,7 @@ from sqlmodel import Field, SQLModel, create_engine
 
 from plastered.config.app_settings import get_app_settings
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.utils.exceptions import RedClientSnatchException
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
 class Status(StrEnum):
     FAILED = "failed"
     IN_PROGRESS = "in_progress"
-    SUCCESS = "success"
+    GRABBED = "grabbed"
     SKIPPED = "skipped"
 
 
@@ -39,11 +40,12 @@ class SkipReason(StrEnum):
 
 
 class FailReason(StrEnum):
-    RED_API_REQUEST_ERROR = "RedClientSnatchException"
+    RED_API_REQUEST_ERROR = RedClientSnatchException.__name__
     FILE_ERROR = OSError.__name__
     OTHER = "Exception - other"
 
 
+# TODO: rename this to 'SearchRecord'
 class Result(SQLModel, table=True):
     """
     Model for the result table, which contains a record per COMPLETED manual search or scraper search run.

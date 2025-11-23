@@ -76,7 +76,7 @@ def test_run_history_action_non_empty_table(non_empty_tables: Session, mock_sear
     actual = run_history_action(since_timestamp=mock_since, session=non_empty_tables)
     assert isinstance(actual, list)
     assert len(actual) == 1
-    assert actual[0] is mock_search_result_instance
+    assert dict(actual[0]._asdict()["Result"]) == dict(mock_search_result_instance)
 
 
 @pytest.fixture(scope="function")
@@ -93,19 +93,17 @@ async def test_manual_search_action(
     mock_si = SearchItem(
         initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist="a", entity="b"),
         torrent_entry=mock_te,
-        search_result=Result(state=Status.SUCCESS),
+        search_result=Result(state=Status.GRABBED),
     )
     with (
         patch.object(ReleaseSearcher, "manual_search"),
         patch.object(ReleaseSearcher, "get_finalized_manual_search_item", return_value=mock_si),
     ):
-        actual = await manual_search_action(
-            session=mock_session, app_settings=valid_app_settings, search_run=mock_search_result_instance
+        _ = await manual_search_action(
+            session=mock_session, app_settings=valid_app_settings, result=mock_search_result_instance
         )
         search_run_records = mock_session.exec(select(Result)).all()
         assert len(search_run_records) == 1
-        search_result_records = mock_session.exec(select(Result)).all()
-        assert len(search_result_records) == 1
 
 
 @pytest.mark.asyncio
@@ -118,12 +116,10 @@ async def test_manual_search_action_state_failed(
         pytest.raises(HTTPException, match=re.escape("SearchItem not found")),
     ):
         _ = await manual_search_action(
-            session=mock_session, app_settings=valid_app_settings, search_run=mock_search_result_instance
+            session=mock_session, app_settings=valid_app_settings, result=mock_search_result_instance
         )
     search_item_records = mock_session.exec(select(Result)).all()
     assert len(search_item_records) == 1
-    search_result_records = mock_session.exec(select(Result)).all()
-    assert len(search_result_records) == 0
 
 
 def test_inspect_run_action_empty_table(empty_tables: Session) -> None:
