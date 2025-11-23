@@ -108,6 +108,13 @@ extend-select = [
 # This is to get the line length auto-formatting mostly handled https://stackoverflow.com/a/77796620
 ignore = ["E203", "E501"]
 
+# https://docs.astral.sh/ruff/settings/#lintflake8-type-checking
+[tool.ruff.lint.flake8-type-checking]
+# https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_exempt-modules
+exempt-modules = ["typing", "typing_extensions", "plastered.models.types"]
+# https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-base-classes
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase", "sqlmodel.SQLModel"]
+
 [tool.ruff.lint.isort]
 # https://docs.astral.sh/ruff/settings/#lint_isort_split-on-trailing-comma
 split-on-trailing-comma = false
