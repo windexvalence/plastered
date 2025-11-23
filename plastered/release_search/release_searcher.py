@@ -47,7 +47,7 @@ class ReleaseSearcher:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:  # pragma: no cover
-            _LOGGER.error("ReleaseSearcher encountered an uncaught exception", exc_info=True)
+            _LOGGER.error(f"ReleaseSearcher encountered an uncaught exception: {exc_val}")
         self._run_cache.close()
         if self._red_client:
             self._red_client.close_client()
