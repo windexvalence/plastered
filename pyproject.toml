@@ -98,8 +98,12 @@ select = [
 extend-select = [
     # FastAPI ruff rules: https://docs.astral.sh/ruff/rules/#fastapi-fast
     "FAST",
+    # Logging ruff rules: https://docs.astral.sh/ruff/rules/#flake8-logging-log
+    "LOG",
     # Type-checking runtime imports and other sanity checks: https://docs.astral.sh/ruff/rules/#flake8-type-checking-tc
     "TC",
+    # Don't allow raising generic `Exception`: https://docs.astral.sh/ruff/rules/raise-vanilla-class/
+    "TRY002",
 ]
 # This is to get the line length auto-formatting mostly handled https://stackoverflow.com/a/77796620
 ignore = ["E203", "E501"]

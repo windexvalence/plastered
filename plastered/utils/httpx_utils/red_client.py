@@ -45,7 +45,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         url = f"{RED_API_BASE_URL}?action={action}&{params}"
         json_data = self._client.get(url=url).json()
         if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
-            raise Exception(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
+            raise KeyError(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         result_json = json_data[RED_JSON_RESPONSE_KEY]
         cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
         LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
