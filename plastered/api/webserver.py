@@ -21,7 +21,7 @@ from plastered.version import get_project_version
 # Required for uvicorn logging to be at all configurable: https://github.com/Kludex/uvicorn/issues/945#issuecomment-819692145
 logging.basicConfig(level=get_app_settings().server.log_level)
 _LOGGER = logging.getLogger(__name__)
-_HTMX_FILEPATH: Final[Path] = STATIC_DIRPATH / "js" / "htmx-2.0.4.min.js"
+_HTMX_FILEPATH: Final[Path] = STATIC_DIRPATH / "js" / "htmx.min.js"
 _STATIC_IMAGES_DIRPATH: Final[Path] = STATIC_DIRPATH / "images"
 # TODO: switch to this block template lib: https://github.com/tataraba/simplesite/blob/main/docs/04_Chapter_4.md#the-python-stuff
 # templates = Jinja2Blocks(directory=_TEMPLATES_DIRPATH)

@@ -1,12 +1,12 @@
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlmodel import create_engine, Field, Session, SQLModel, select
-from sqlmodel.pool import StaticPool
+from sqlmodel import Field, Session, SQLModel, select
 
-from plastered.db.db_models import FailReason, Failed, Result, SkipReason, Status
-from plastered.db.db_utils import add_record, set_result_status
+from plastered.db.db_models import FailReason, Result, SkipReason, Status
+from plastered.db.db_utils import add_record, get_result_by_id, set_result_status
+from plastered.utils.exceptions import MissingDatabaseRecordException
 
 
 class MockTable(SQLModel, table=True):
@@ -42,18 +42,47 @@ def test_add_record(mock_session: Session) -> None:
     ],
 )
 def test_set_result_status(
-    mock_album_result: Result, mock_session: Session, mock_status: Status, mock_status_model_kwargs: dict[str, Any]
+    mock_album_result: Result, mock_status: Status, mock_status_model_kwargs: dict[str, Any]
+) -> None:
+    fake_id = 69
+    mock_sesh = MagicMock()
+    with (
+        patch.object(Session, "__enter__", return_value=mock_sesh),
+        patch("plastered.db.db_utils.get_result_by_id", return_value=mock_album_result) as mock_get_result_by_id,
+    ):
+        _ = set_result_status(search_id=fake_id, status=mock_status, status_model_kwargs=mock_status_model_kwargs)
+        mock_get_result_by_id.assert_called_once_with(search_id=fake_id, session=mock_sesh)
+        assert len(mock_sesh.add.mock_calls) == 2
+        mock_sesh.commit.assert_called_once()
+
+
+def test_set_result_status_fails() -> None:
+    with pytest.raises(MissingDatabaseRecordException):
+        set_result_status(search_id=None, status=Status.FAILED, status_model_kwargs={})
+
+
+@pytest.mark.parametrize(
+    "search_id, session, should_fail",
+    [
+        (None, None, True),
+        (None, MagicMock(spec=Session), True),
+        (69, MagicMock(spec=Session), False),
+        (69, None, False),
+    ],
+)
+def test_get_result_by_id(
+    mock_album_result: Result, search_id: int | None, session: Session | None, should_fail: bool
 ) -> None:
     with (
-        patch.object(mock_session, "refresh") as mock_session_refresh,
-        patch.object(mock_session, "add") as mock_session_add,
-        patch.object(mock_session, "commit") as mock_session_commit,
+        patch.object(Session, "__enter__") as mock_sesh_ctx,
+        patch("plastered.db.db_utils._get_rows", return_value=[mock_album_result]),
     ):
-        _ = set_result_status(
-            session=mock_session,
-            result_record=mock_album_result,
-            status=mock_status,
-            status_model_kwargs=mock_status_model_kwargs,
-        )
-        mock_session_refresh.assert_called_once_with(mock_album_result)
-        mock_session_commit.assert_called_once()
+        if should_fail:
+            with pytest.raises(MissingDatabaseRecordException):
+                _ = get_result_by_id(search_id=search_id, session=session)
+        else:
+            _ = get_result_by_id(search_id=search_id, session=session)
+            if session:
+                mock_sesh_ctx.assert_not_called()
+            else:
+                mock_sesh_ctx.assert_called_once()

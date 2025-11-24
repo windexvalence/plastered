@@ -5,8 +5,8 @@ from urllib.parse import quote_plus
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import FailReason, Result, SkipReason, Status
-from plastered.db.db_utils import get_session, set_result_status
+from plastered.db.db_models import ENGINE, FailReason, Result, SkipReason, Status
+from plastered.db.db_utils import add_record, set_result_status
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RecContext
@@ -18,12 +18,7 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
 )
-from plastered.utils.exceptions import (
-    MissingDatabaseRecordException,
-    MissingTorrentEntryException,
-    SearchItemException,
-    SearchStateException,
-)
+from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemException, SearchStateException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,8 +50,7 @@ class SearchState:
     which handles the pre and post search filtering logic during a search run.
     """
 
-    def __init__(self, app_settings: AppSettings, session: Session | None = None):
-        self._session = session if session else next(get_session())
+    def __init__(self, app_settings: AppSettings):
         self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
         self._allow_library_items = app_settings.lfm.allow_library_items
         self._use_release_type = app_settings.red.search.use_release_type
@@ -85,7 +79,6 @@ class SearchState:
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
-        self._manual_res_ids_to_search_items: dict[int, SearchItem] = dict()
 
     def red_user_details_initialized(self) -> bool:
         """Returns `True` if the red user details have been initialized, `False` otherwise."""
@@ -107,17 +100,18 @@ class SearchState:
             return
         _LOGGER.info("Initializing search records ...")
         submit_timestamp = int(datetime.now(tz=UTC).timestamp())
-        for si in initial_search_items:
-            si.search_result = Result(
-                is_manual=si.is_manual,
-                artist=si.initial_info.get_human_readable_artist_str(),
-                entity=si.initial_info.get_human_readable_entity_str(),
-                submit_timestamp=submit_timestamp,
-                entity_type=si.initial_info.entity_type,
-                status=Status.IN_PROGRESS,
-            )
-        self._session.add_all([si.search_result for si in initial_search_items])
-        self._session.commit()
+        with Session(ENGINE) as db_session:
+            for si in initial_search_items:
+                search_record = Result(
+                    is_manual=si.is_manual,
+                    artist=si.initial_info.get_human_readable_artist_str(),
+                    entity=si.initial_info.get_human_readable_entity_str(),
+                    submit_timestamp=submit_timestamp,
+                    entity_type=si.initial_info.entity_type,
+                    status=Status.IN_PROGRESS,
+                )
+                add_record(session=db_session, model_inst=search_record)
+                si.search_id = search_record.id
         _LOGGER.info("Search records initialized.")
 
     # pylint: disable=redefined-builtin
@@ -294,21 +288,11 @@ class SearchState:
                 self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
         return will_snatch
 
-    def get_manual_search_item(self, result_id: int) -> SearchItem | None:  # pragma: no cover
-        return self._manual_res_ids_to_search_items.get(result_id)
-
     def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:
-        if not (result_record := si.search_result):  # pragma: no cover
-            raise MissingDatabaseRecordException(si.initial_info)
         _LOGGER.debug(
             f"Refreshing result record for search state artist='{si.artist_name}' entity_name='{si.initial_info.get_human_readable_entity_str()}' ..."
         )
-        set_result_status(
-            session=self._session,
-            result_record=result_record,
-            status=Status.SKIPPED,
-            status_model_kwargs={"skip_reason": reason},
-        )
+        set_result_status(search_id=si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": reason})
 
     def _add_failed_snatch_row(self, si: SearchItem, exc_name: str) -> None:  # pragma: no cover
         snatch_failure_reason = FailReason.OTHER
@@ -316,11 +300,8 @@ class SearchState:
             exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR
         ):  # pragma: no cover
             snatch_failure_reason = FailReason(exc_name)
-        if not (result_record := si.search_result):  # pragma: no cover
-            raise MissingDatabaseRecordException(si.initial_info)
         set_result_status(
-            session=self._session,
-            result_record=result_record,
+            search_id=si.search_id,
             status=Status.FAILED,
             status_model_kwargs={
                 "red_permalink": si.torrent_entry.get_permalink_url() if si.torrent_entry else None,
@@ -332,11 +313,8 @@ class SearchState:
     def _add_grabbed_row(self, si: SearchItem, snatch_path: str, snatched_with_fl: bool) -> None:  # pragma: no cover
         if not (te := si.torrent_entry):  # pragma: no cover
             raise MissingTorrentEntryException("Missing expected torrent_entry field.")
-        if not (result_record := si.search_result):  # pragma: no cover
-            raise MissingDatabaseRecordException(si.initial_info)
         set_result_status(
-            session=self._session,
-            result_record=result_record,
+            search_id=si.search_id,
             status=Status.GRABBED,
             status_model_kwargs={"fl_token_used": snatched_with_fl, "snatch_path": snatch_path, "tid": te.torrent_id},
         )

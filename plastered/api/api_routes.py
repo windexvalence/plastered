@@ -6,6 +6,7 @@ from typing import Annotated, Final
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from pydantic import ValidationError
 
 from plastered.actions import scrape_action, show_config_action
 from plastered.actions.api_actions import inspect_run_action, manual_search_action, run_history_action
@@ -14,7 +15,7 @@ from plastered.api.fastapi_dependencies import AppSettingsDep, ConfigFilepathDep
 from plastered.config.app_settings import get_app_settings
 from plastered.config.field_validators import CLIOverrideSetting
 from plastered.db.db_models import Result, Status
-from plastered.db.db_utils import query_rows_to_jinja_context_obj
+from plastered.db.db_utils import add_record, query_rows_to_jinja_context_obj
 from plastered.models.types import EntityType
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,21 +78,25 @@ async def submit_search_form_endpoint(
     is_track: bool = False,
     mbid: str | None = Form(None),  # noqa: FAST002
 ) -> JSONResponse:
-    _LOGGER.debug(f"POST /api/submit_album_search_form {entity=} {artist=} {is_track=} {mbid=}")
-    background_tasks.add_task(  # type: ignore[call-arg]
-        func=manual_search_action,
-        session=session,
-        app_settings=app_settings,
-        search_result_record=Result(
-            is_manual=True,
-            artist=artist,
-            entity=entity,
-            submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
-            entity_type=EntityType.TRACK if is_track else EntityType.ALBUM,
-        ),
-        mbid=mbid,
+    model_inst = Result(
+        is_manual=True,
+        artist=artist,
+        entity=entity,
+        submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
+        entity_type=EntityType.TRACK if is_track else EntityType.ALBUM,
+        status=Status.IN_PROGRESS,
     )
-    return JSONResponse(content={}, status_code=200)
+    try:
+        db_initial_result = Result.model_validate(model_inst)
+    except ValidationError as ex:  # pragma: no cover
+        msg = f"Bad search_run model provided. Failed validation with following errors: {ex.errors()}"
+        _LOGGER.error(msg, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from ex
+    _LOGGER.debug(f"POST /api/submit_search_form {entity=} {artist=} {is_track=} {mbid=}")
+    add_record(session=session, model_inst=db_initial_result)
+    result_id = db_initial_result.id
+    background_tasks.add_task(func=manual_search_action, app_settings=app_settings, result_id=result_id, mbid=mbid)  # type: ignore[call-arg]
+    return JSONResponse(content={"search_id": result_id}, status_code=200)
 
 
 # /api/scrape?snatch=<false|true>&rec_type=<album|track|all>

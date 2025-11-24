@@ -5,25 +5,18 @@ import os
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final
 
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session, SQLModel, select
 
 from plastered.db.db_models import ENGINE, Failed, FailReason, Grabbed, Result, Skipped, SkipReason, Status
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.utils.exceptions import MissingDatabaseRecordException
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
     from sqlalchemy import Row
 
 
 _LOGGER = logging.getLogger(__name__)
 _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false") == "true"
-
-
-def get_session() -> Generator[Session, None, None]:
-    _LOGGER.debug("Initializing db session ...")
-    with Session(ENGINE) as session:
-        yield session
 
 
 def db_startup() -> None:
@@ -44,34 +37,53 @@ def add_record(session: Session, model_inst: SQLModel) -> None:
     session.refresh(model_inst)
 
 
-def set_result_status(
-    session: Session, result_record: Result, status: Status, status_model_kwargs: dict[str, Any]
-) -> None:
+def set_result_status(search_id: int | None, status: Status, status_model_kwargs: dict[str, Any]) -> None:
     """
     Takes in the given `Result` object, updates its `status`, and creates a corresponding row in the
     associated status table. status_row_kwargs is a dict of kwargs for the status ORM instance.
     """
-    _LOGGER.debug("Refreshing Result record ...")
-    session.refresh(result_record)
-    res_id = result_record.id
-    _LOGGER.debug(f"Updating status of Result record (id={res_id}) ...")
-    result_record.status = status
-    session.add(result_record)
-    _LOGGER.debug(f"Creating associated Status record for Result record (id={res_id}) ...")
-    status_record: Failed | Grabbed | Skipped | None = None
-    if status == status.FAILED:
-        status_record = Failed(f_result_id=res_id, **status_model_kwargs)
-    elif status == status.GRABBED:
-        status_record = Grabbed(g_result_id=res_id, **status_model_kwargs)
-    elif status == status.SKIPPED:
-        status_record = Skipped(s_result_id=res_id, **status_model_kwargs)
+    if search_id is None:
+        raise MissingDatabaseRecordException(search_id)
+    with Session(ENGINE) as session:
+        _LOGGER.debug("Quering Result record ...")
+        result_record = get_result_by_id(search_id=search_id, session=session)
+        _LOGGER.debug(f"Updating status of Result record (id={search_id}) ...")
+        result_record.status = status
+        session.add(result_record)
+        _LOGGER.debug(f"Creating associated Status record for Result record (id={search_id}) ...")
+        status_record: Failed | Grabbed | Skipped | None = None
+        if status == status.FAILED:
+            status_record = Failed(f_result_id=search_id, **status_model_kwargs)
+        elif status == status.GRABBED:
+            status_record = Grabbed(g_result_id=search_id, **status_model_kwargs)
+        elif status == status.SKIPPED:
+            status_record = Skipped(s_result_id=search_id, **status_model_kwargs)
+        else:
+            raise ValueError(  # pragma: no cover
+                f"Unexpected status: '{str(status)}'. Should be one of {[Status.FAILED, Status.GRABBED, Status.SKIPPED]}"
+            )
+        session.add(status_record)
+        session.commit()
+        _LOGGER.debug(f"Finished updating status of Result record (id={search_id}) ...")
+
+
+def get_result_by_id(search_id: int | None, session: Session | None = None) -> Result:
+    if search_id is None:
+        raise MissingDatabaseRecordException(search_id)
+
+    if not session:
+        with Session(ENGINE) as sesh:
+            result_rows = _get_rows(s=sesh, search_id=search_id)
     else:
-        raise ValueError(  # pragma: no cover
-            f"Unexpected status: '{str(status)}'. Should be one of {[Status.FAILED, Status.GRABBED, Status.SKIPPED]}"
-        )
-    session.add(status_record)
-    session.commit()
-    _LOGGER.debug(f"Finished updating status of Result record (id={res_id}) ...")
+        result_rows = _get_rows(s=session, search_id=search_id)
+
+    if result_rows:
+        return result_rows[0]
+    raise MissingDatabaseRecordException(search_id)  # pragma: no cover
+
+
+def _get_rows(s: Session, search_id: int) -> list[Result] | None:  # pragma: no cover
+    return list(s.exec(select(Result).where(Result.id == search_id)).all())
 
 
 def query_rows_to_jinja_context_obj(rows: list[Row]) -> list[dict[str, Any]]:  # pragma: no cover

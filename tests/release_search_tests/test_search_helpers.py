@@ -197,15 +197,14 @@ def test_create_browse_params(
 
 
 def test_post_resolve_track_filter_valid(valid_app_settings: AppSettings) -> None:
-    mock_session = MagicMock(spec=Session)
-    search_state = SearchState(app_settings=valid_app_settings, session=mock_session)
+    search_state = SearchState(app_settings=valid_app_settings)
     mock_search_record = MagicMock(spec=Result)
     with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
         search_item = SearchItem(
             initial_info=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST),
             _lfm_track_info=LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420"),
         )
-        search_item.search_result = mock_search_record
+        search_item.search_id = mock_search_record
         actual = search_state.post_resolve_track_filter(si=search_item)
         assert actual is True
         mock_set_result_status.assert_not_called()
@@ -213,18 +212,20 @@ def test_post_resolve_track_filter_valid(valid_app_settings: AppSettings) -> Non
 
 def test_post_resolve_track_filter_should_skip(valid_app_settings: AppSettings) -> None:
     mock_session = MagicMock(spec=Session)
-    search_state = SearchState(app_settings=valid_app_settings, session=mock_session)
-    mock_search_record = MagicMock(spec=Result)
-    with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
+    search_state = SearchState(app_settings=valid_app_settings)
+    mock_search_id = 69
+    with (
+        patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status,
+        patch.object(Session, "__enter__", return_value=mock_session),
+    ):
         search_item = SearchItem(
             initial_info=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST), _lfm_track_info=None
         )
-        search_item.search_result = mock_search_record
+        search_item.search_id = mock_search_id
         actual = search_state.post_resolve_track_filter(si=search_item)
         assert actual is False
         mock_set_result_status.assert_called_once_with(
-            session=mock_session,
-            result_record=mock_search_record,
+            search_id=mock_search_id,
             status=Status.SKIPPED,
             status_model_kwargs={"skip_reason": SkipReason.NO_SOURCE_RELEASE_FOUND},
         )
@@ -283,13 +284,13 @@ def test_initialize_search_records(
     valid_app_settings: AppSettings, initial_search_items: list[SearchItem], expect_db_write: bool
 ) -> None:
     mock_sesh = MagicMock(spec=Session)
-    mock_sesh.add_all.return_value = None
-    search_state = SearchState(app_settings=valid_app_settings, session=mock_sesh)
-    search_state.initialize_search_records(initial_search_items=initial_search_items)
-    if expect_db_write:
-        mock_sesh.add_all.assert_called_once_with([si.search_result for si in initial_search_items])
-    else:
-        mock_sesh.add_all.assert_not_called()
+    with patch.object(Session, "__enter__", return_value=mock_sesh):
+        search_state = SearchState(app_settings=valid_app_settings)
+        search_state.initialize_search_records(initial_search_items=initial_search_items)
+        if expect_db_write:
+            mock_sesh.add.assert_called_once()
+        else:
+            mock_sesh.add_all.assert_not_called()
 
 
 @pytest.mark.parametrize(

@@ -87,39 +87,20 @@ def mock_te() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_manual_search_action(
-    valid_app_settings: AppSettings, mock_session: Session, mock_search_result_instance: Result, mock_te: MagicMock
-) -> None:
+async def test_manual_search_action(valid_app_settings: AppSettings, mock_session: Session, mock_te: MagicMock) -> None:
     mock_si = SearchItem(
         initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist="a", entity="b"),
         torrent_entry=mock_te,
-        search_result=Result(state=Status.GRABBED),
+        search_id=Result(state=Status.GRABBED),
     )
+    mock_search_id = 69
     with (
-        patch.object(ReleaseSearcher, "manual_search"),
-        patch.object(ReleaseSearcher, "get_finalized_manual_search_item", return_value=mock_si),
+        patch.object(ReleaseSearcher, "manual_search") as release_searcher_manual_search,
+        patch("plastered.actions.api_actions.get_result_by_id", return_value=MagicMock(spec=Result)) as mock_get_res,
     ):
-        _ = await manual_search_action(
-            session=mock_session, app_settings=valid_app_settings, result=mock_search_result_instance
-        )
-        search_run_records = mock_session.exec(select(Result)).all()
-        assert len(search_run_records) == 1
-
-
-@pytest.mark.asyncio
-async def test_manual_search_action_state_failed(
-    valid_app_settings: AppSettings, mock_session: Session, mock_search_result_instance: Result, mock_te: MagicMock
-) -> None:
-    with (
-        patch.object(ReleaseSearcher, "manual_search"),
-        patch.object(ReleaseSearcher, "get_finalized_manual_search_item", return_value=None),
-        pytest.raises(HTTPException, match=re.escape("SearchItem not found")),
-    ):
-        _ = await manual_search_action(
-            session=mock_session, app_settings=valid_app_settings, result=mock_search_result_instance
-        )
-    search_item_records = mock_session.exec(select(Result)).all()
-    assert len(search_item_records) == 1
+        _ = await manual_search_action(app_settings=valid_app_settings, search_id=mock_search_id)
+        release_searcher_manual_search.assert_called_once_with(search_id=mock_search_id, mbid=None)
+        mock_get_res.assert_called_once_with(search_id=mock_search_id)
 
 
 def test_inspect_run_action_empty_table(empty_tables: Session) -> None:
