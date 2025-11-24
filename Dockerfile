@@ -4,7 +4,9 @@ FROM python:3.12.8-slim-bookworm AS plastered-app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 # Ensure uv installs in container do not create a virtualenv (since it is not needed in a container)
-ENV UV_PROJECT_ENVIRONMENT=/usr/local/
+ENV UV_PROJECT_ENVIRONMENT=/usr/local/ HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js CLASSLESS_CSS_COMMIT=f5ee3eadbfbdac3cf0eb8e8de951fd8b4313ae04 CLASSLESS_CSS_FILENAME=classless.css
+ADD "https://raw.githubusercontent.com/DigitallyTailored/Classless.css/${CLASSLESS_CSS_COMMIT}/${CLASSLESS_CSS_FILENAME}" \
+    "https://raw.githubusercontent.com/bigskysoftware/htmx/refs/tags/v${HTMX_VERSION}/dist/${HTMX_FILENAME}" .
 COPY ./pyproject.toml uv.lock .
 ARG PLASTERED_RELEASE_TAG=""
 RUN uv lock --check && uv sync --locked --no-group test --no-cache
@@ -15,6 +17,7 @@ RUN uv run rebrowser_playwright install --with-deps chromium-headless-shell \
     && find /usr/share/fonts/truetype -type f -name '*.ttc' -o -name '*.ttf' -o -name '*.otf' -delete
 COPY  ./entrypoint.sh ./server_entrypoint.sh /app/
 COPY ./plastered /app/plastered
+RUN ln -sf "/app/${HTMX_FILENAME}" "/app/plastered/api/static/js/${HTMX_FILENAME}" && ln -sf "/app/${CLASSLESS_CSS_FILENAME}" "/app/plastered/api/static/css/${CLASSLESS_CSS_FILENAME}"
 ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
 ENTRYPOINT ["/app/entrypoint.sh"]
 

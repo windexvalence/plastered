@@ -49,7 +49,6 @@ def test_show_config_endpoint(valid_app_settings: AppSettings, client: TestClien
 
 @pytest.mark.parametrize("entity_type", [None, EntityType.ALBUM, EntityType.TRACK])
 @pytest.mark.filterwarnings("ignore:.*not the first parameter anymore.*")
-@pytest.mark.asyncio
 def test_search_form_endpoint(client: TestClient, entity_type: EntityType | None) -> None:
     req_pathstr = "/search_form" + (f"?entity={str(entity_type)}" if entity_type else "")
     with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
@@ -65,7 +64,6 @@ def test_scrape_form_endpoint(client: TestClient) -> None:
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
 
 
-@pytest.mark.asyncio
 def test_runs_page(client: TestClient) -> None:
     with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
         resp = client.get("/run_history")
@@ -73,7 +71,6 @@ def test_runs_page(client: TestClient) -> None:
         mock_template_response_constructor.assert_called_once()
 
 
-@pytest.mark.asyncio
 def test_result_modal(client: TestClient) -> None:
     with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
         resp = client.get("/result_modal")

@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 from copy import deepcopy
 from typing import Any
-from unittest.mock import ANY, MagicMock, Mock, call, patch
+from unittest.mock import ANY, MagicMock, Mock, PropertyMock, call, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -595,8 +595,7 @@ def test_search_for_track_recs(
         ) as mock_search_state_post_resolve_track_filter,
     ):
         test_si = SearchItem(
-            initial_info=LFMRec("Some+Artist", "Track+Title", et.TRACK, rc.SIMILAR_ARTIST),
-            search_result=mock_track_result,
+            initial_info=LFMRec("Some+Artist", "Track+Title", et.TRACK, rc.SIMILAR_ARTIST), search_id=mock_track_result
         )
         mock_si_with_resolved_ti = deepcopy(test_si)
         mock_si_with_resolved_ti._lfm_track_info = mock_resolved_lfmti
@@ -775,7 +774,7 @@ def test_snatch_matches(
         "rec_context": rc.IN_LIBRARY,
     }
     mock_sis_to_snatch = [
-        SearchItem(torrent_entry=te, initial_info=LFMRec(**lfm_rec_kwargs), search_result=mock_album_result)
+        SearchItem(torrent_entry=te, initial_info=LFMRec(**lfm_rec_kwargs), search_id=mock_album_result)
         for te in mock_tes_to_snatch
     ]
 
@@ -840,7 +839,7 @@ def test_snatch_exception_handling(
                 SearchItem(
                     torrent_entry=mock_best_te,
                     initial_info=LFMRec("", "", et.ALBUM, rc.IN_LIBRARY),
-                    search_result=mock_album_result,
+                    search_id=mock_album_result,
                 )
             ]
             release_searcher._search_state.set_red_user_details(mock_red_user_details_fn_scoped)
@@ -862,11 +861,17 @@ def test_manual_search(
     expected_track_search_calls: int,
     has_red_user_details: bool,
 ) -> None:
-    manual_query = ManualSearch(entity_type=entity_type, artist="foo", entity="bar")
+    mock_record = MagicMock(spec=Result)
+    type(mock_record).entity_type = PropertyMock(return_value=entity_type)
+    type(mock_record).artist = PropertyMock(return_value="Fake Artist")
+    type(mock_record).entity = PropertyMock(return_value="Fake Release")
     with (
         patch.object(
             SearchState, "red_user_details_initialized", return_value=has_red_user_details
         ) as mock_rud_initialized,
+        patch(
+            "plastered.release_search.release_searcher.get_result_by_id", return_value=mock_record
+        ) as mock_get_result_by_id,
         patch.object(ReleaseSearcher, "_gather_red_user_details") as mock_gather_rud,
         patch.object(ReleaseSearcher, "_search") as mock_search,
         patch.object(ReleaseSearcher, "_search_for_track_recs") as mock_track_search,
@@ -874,7 +879,7 @@ def test_manual_search(
         ReleaseSearcher(app_settings=valid_app_settings) as release_searcher,
     ):
         release_searcher._run_cache = MagicMock(spec=RunCache)
-        release_searcher.manual_search(manual_search_instance=manual_query)
+        release_searcher.manual_search(search_id=69)
         mock_rud_initialized.assert_called_once()
         if not has_red_user_details:
             mock_gather_rud.assert_called_once()

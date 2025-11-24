@@ -2,7 +2,7 @@
 	<div class="modal-underlay" _="on click trigger closeModal"></div>
 	<div class="modal-content">
 		<h2>{{ "Album" if entity == "album" else "Track" }} Search</h2>
-		<form autocomplete="off" action="/submit_search_form/" method="post">
+		<form autocomplete="off" action="/api/submit_search_form/" method="post">
 			<label for="entity">{{ "Album" if entity == "album" else "Track" }}:</label>
 			<input type="text" id="entity" name="entity"><br>
 			<label for="artist">Artist:</label>

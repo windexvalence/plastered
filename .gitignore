@@ -181,10 +181,10 @@ tests/resources/adhoc_manual_test_configs/*.json
 # vscode
 .vscode
 
-
 # Local testing artifacts
 *.db
 examples/cache/*
 examples/summaries/*
 *.tsv
-
+plastered/api/static/js/htmx.min.js
+plastered/api/static/css/classless.css

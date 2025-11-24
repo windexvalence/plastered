@@ -1,10 +1,9 @@
 import logging
 import os
 
-from sqlmodel import Session
-
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import Status
+from plastered.db.db_utils import get_result_by_id
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
@@ -31,14 +30,14 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_settings: AppSettings, session: Session | None = None):
+    def __init__(self, app_settings: AppSettings):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
         self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_user_id = app_settings.red.red_user_id
-        self._search_state = SearchState(app_settings=app_settings, session=session)
+        self._search_state = SearchState(app_settings=app_settings)
         self._enable_snatches = app_settings.red.snatches.snatch_recs
         self._snatch_directory = app_settings.red.snatches.snatch_directory
 
@@ -254,12 +253,19 @@ class ReleaseSearcher:
             self._run_cache.close()
         self._snatch_matches()
 
-    def manual_search(self, manual_search_instance: ManualSearch) -> None:
+    def manual_search(self, search_id: int, mbid: str | None = None) -> None:
         """Public method that the manual search endpoint should invoke. Not used by the scraper."""
         # TODO: use different class for manual searches than lfmrec
+        db_initial_result = get_result_by_id(search_id=search_id)
+        manual_search_instance = ManualSearch(
+            entity_type=db_initial_result.entity_type,
+            artist=db_initial_result.artist,
+            entity=db_initial_result.entity,
+            mbid=mbid,
+        )
         if not self._search_state.red_user_details_initialized():
             self._gather_red_user_details()
-        search_items = [SearchItem(initial_info=manual_search_instance, is_manual=True)]
+        search_items = [SearchItem(initial_info=manual_search_instance, is_manual=True, search_id=search_id)]
         if manual_search_instance.entity_type == EntityType.ALBUM:
             self._search(search_items=search_items)
         elif manual_search_instance.entity_type == EntityType.TRACK:
@@ -269,16 +275,12 @@ class ReleaseSearcher:
         # TODO: make sure this function only snatches the manual item and ignores any queued state from scrape runs
         self._snatch_matches(manual_run=True)
 
-    def get_finalized_manual_search_item(self, result_id: int) -> SearchItem | None:  # pragma: no cover
-        return self._search_state.get_manual_search_item(result_id=result_id)
-
     def _snatch_matches(self, manual_run: bool = False) -> None:
         if not self._enable_snatches:
             _LOGGER.warning("Not configured to snatch. Please update your config to enable.")
             return
         if search_items_to_snatch := self._search_state.get_search_items_to_snatch(manual_run=manual_run):
             _LOGGER.debug(f"Beginning to snatch matched torrents to download directory '{self._snatch_directory}' ...")
-            # with Progress(*prog_args(), **prog_kwargs()) as progress:
             with NestedProgress() as progress:
                 for si_to_snatch in progress.track(search_items_to_snatch, description="Snatching matched torrents"):
                     self._snatch_match(si_to_snatch=si_to_snatch)
@@ -295,20 +297,22 @@ class ReleaseSearcher:
         out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")
         exc_name = None
         _LOGGER.debug(f"Snatching {permalink} and saving to {out_filepath} ...")
+        final_status = Status.GRABBED
         try:
             binary_contents = self._red_snatch_client.snatch(
                 tid=str(te_to_snatch.torrent_id), can_use_token=te_to_snatch.can_use_token
             )
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
-            si_to_snatch.search_result.status = Status.GRABBED  # type: ignore[union-attr]
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
+            final_status = Status.FAILED
             if os.path.exists(out_filepath):
                 os.remove(out_filepath)
             _LOGGER.error(f"Failed to snatch due to uncaught error for: {permalink}: ", exc_info=True)
             exc_name = ex.__class__.__name__
         finally:
+            si_to_snatch.search_id.status = final_status  # type: ignore[union-attr]
             fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=te_to_snatch.torrent_id)
             if not si_to_snatch.is_manual:
                 self._search_state.add_snatch_final_status_row(

@@ -52,6 +52,7 @@ docker-shell:  docker-build  ## Execs a local shell inside a locally built plast
 
 docker-server:  docker-build-no-test  ## Execs a local container running the server on localhost port 8000
 	@echo "\n $(RED) Enter http://localhost:8000/ into your browser. $(NC) \n"
+	./build_scripts/pull_static_assets_for_local_server.sh
 	docker run --rm --name plastered-api \
 		-p 8000:80 \
 		-v $(APP_CONFIG_DIR):/config \

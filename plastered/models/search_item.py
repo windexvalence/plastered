@@ -2,7 +2,6 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
-from plastered.db.db_models import Result
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
@@ -24,7 +23,7 @@ class SearchItem:
     is_manual: bool = False
     above_max_size_te_found: bool | None = False
     torrent_entry: TorrentEntry | None = None
-    search_result: Result | None = None
+    search_id: int | None = None
     _lfm_album_info: LFMAlbumInfo | None = None
     _lfm_track_info: LFMTrackInfo | None = None
     _mb_release: MBRelease | None = None
