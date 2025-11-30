@@ -2,7 +2,6 @@ import logging
 import os
 
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Status
 from plastered.db.db_utils import get_result_by_id
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.manual_search_models import ManualSearch
@@ -30,14 +29,14 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_settings: AppSettings):
+    def __init__(self, app_settings: AppSettings, red_user_details: RedUserDetails | None = None):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
         self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_user_id = app_settings.red.red_user_id
-        self._search_state = SearchState(app_settings=app_settings)
+        self._search_state = SearchState(app_settings=app_settings, red_user_details=red_user_details)
         self._enable_snatches = app_settings.red.snatches.snatch_recs
         self._snatch_directory = app_settings.red.snatches.snatch_directory
 
@@ -59,42 +58,25 @@ class ReleaseSearcher:
 
     # TODO (later): make this method call happen exclusively within the __enter__ method
     def _gather_red_user_details(self) -> None:
-        if self._red_client is None:  # pragma: no cover
-            raise ReleaseSearcherException("red client is not initialized.")
         if self._red_snatch_client is None:  # pragma: no cover
             raise ReleaseSearcherException("red snatch client is not initialized.")
-        with CONSOLE.status(
-            "Gathering RED user details to calculate ratio limits and to filter out prior snatches ...", spinner=SPINNER
-        ):
-            user_stats_json = self._red_client.request_api(
-                action="community_stats", params=f"userid={self._red_user_id}"
-            )
-            snatched_torrent_count = int(user_stats_json["snatched"].replace(",", ""))
-            seeding_torrent_count = int(user_stats_json["seeding"].replace(",", ""))
-            snatched_user_torrents_json = self._red_client.request_api(
-                action="user_torrents",
-                params=f"id={self._red_user_id}&type=snatched&limit={snatched_torrent_count}&offset=0",
-            )["snatched"]
-            seeding_user_torrents_json = self._red_client.request_api(
-                action="user_torrents",
-                params=f"id={self._red_user_id}&type=seeding&limit={seeding_torrent_count}&offset=0",
-            )["seeding"]
-            user_profile_json = self._red_client.request_api(action="user", params=f"id={self._red_user_id}")
-            red_user_details = RedUserDetails(
-                user_id=self._red_user_id,
-                snatched_count=snatched_torrent_count,
-                snatched_torrents_list=snatched_user_torrents_json + seeding_user_torrents_json,
-                user_profile_json=user_profile_json,
-            )
-        self._red_snatch_client.set_initial_available_fl_tokens(
-            initial_available_fl_tokens=red_user_details.get_initial_available_fl_tokens()
-        )
-        self._search_state.set_red_user_details(red_user_details=red_user_details)
+        if self._search_state.red_user_details_is_initialized():  # pragma: no cover
+            _LOGGER.info("RedUserDetails instance already initialized.")
+        else:
+            if self._red_client is None:  # pragma: no cover
+                raise ReleaseSearcherException("red client is not initialized.")
+            with CONSOLE.status(
+                "Gathering RED user details to calculate ratio limits and to filter out prior snatches ...",
+                spinner=SPINNER,
+            ):
+                red_user_details = self._red_client.create_red_user_details()
+            self._search_state.set_red_user_details(red_user_details=red_user_details)
 
     def _search_red_release_by_preferences(self, si: SearchItem, rich_progress: NestedProgress) -> TorrentMatch:
         above_max_size_found = False
         with red_browse_progress(release_name=si.release_name, artist_name=si.artist_name, parent_prog=rich_progress):
             for pref in self._search_state.red_format_preferences:
+                _LOGGER.debug(f"Searching Artist: '{si.artist_name}', release: '{si.release_name}', {pref=}")
                 browse_request_params = self._search_state.create_red_browse_params(red_format=pref, si=si)
                 try:
                     red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
@@ -111,8 +93,10 @@ class ReleaseSearcher:
                 # Find best entry from the RED browse response
                 for release_entry in release_entries_browse_response:
                     for torrent_entry in release_entry.get_torrent_entries():
+                        _LOGGER.debug(f"Checking size of torrent entry: {torrent_entry}")
                         size_gb = torrent_entry.get_size(unit="GB")
                         if size_gb <= self._search_state.max_size_gb:
+                            _LOGGER.debug(f"Torrent match found. ID: {torrent_entry.torrent_id}")
                             return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
                         above_max_size_found = True
         # TODO: figure out how to move this logic into the search_state filters instead
@@ -187,11 +171,15 @@ class ReleaseSearcher:
         if not self._search_state.pre_mbid_resolution_filter(si=si):
             return None
         # If filtering the RED searches by any of these fields, then grab the release mbid from LFM, then hit musicbrainz to get the relevant data fields.
-        if self._search_state.requires_mbid_resolution():
+        # TODO: allow per-manual search adjustment of what fields (if any) to resolve from MB
+        if (not si.is_manual) and self._search_state.requires_mbid_resolution():
             if si.initial_info.entity_type == EntityType.ALBUM:
                 si.set_lfm_album_info(self._resolve_lfm_album_info(si=si))
             si = self._attempt_resolve_mb_release(si=si)
             if not self._search_state.post_mbid_resolution_filter(si=si):
+                _LOGGER.debug(
+                    f"Could not resolve MBID release for artist: '{si.artist_name}',  entity: '{si.initial_info.entity_type}' ({si.initial_info.entity_type})"
+                )
                 return None
 
         torrent_match = self._search_red_release_by_preferences(si=si, rich_progress=rich_progress)
@@ -242,7 +230,8 @@ class ReleaseSearcher:
         """
         Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled.
         """
-        self._gather_red_user_details()
+        if not self._search_state.red_user_details_is_initialized():
+            self._gather_red_user_details()
         if EntityType.ALBUM in rec_type_to_recs_list:
             self._search(search_items=[SearchItem(initial_info=rec) for rec in rec_type_to_recs_list[EntityType.ALBUM]])
         if EntityType.TRACK in rec_type_to_recs_list:
@@ -263,7 +252,7 @@ class ReleaseSearcher:
             entity=db_initial_result.entity,
             mbid=mbid,
         )
-        if not self._search_state.red_user_details_initialized():
+        if not self._search_state.red_user_details_is_initialized():
             self._gather_red_user_details()
         search_items = [SearchItem(initial_info=manual_search_instance, is_manual=True, search_id=search_id)]
         if manual_search_instance.entity_type == EntityType.ALBUM:
@@ -286,35 +275,29 @@ class ReleaseSearcher:
                     self._snatch_match(si_to_snatch=si_to_snatch)
         else:
             _LOGGER.warning("No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
-            return
 
     def _snatch_match(self, si_to_snatch: SearchItem) -> None:
         te_to_snatch = si_to_snatch.torrent_entry
         if not te_to_snatch:  # pragma: no cover
             _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
             return
+        tid = te_to_snatch.torrent_id
         permalink = te_to_snatch.get_permalink_url()
-        out_filepath = os.path.join(self._snatch_directory, f"{te_to_snatch.torrent_id}.torrent")
-        exc_name = None
+        out_filepath = os.path.join(self._snatch_directory, f"{tid}.torrent")
+        exc_name: str | None = None
         _LOGGER.debug(f"Snatching {permalink} and saving to {out_filepath} ...")
-        final_status = Status.GRABBED
         try:
-            binary_contents = self._red_snatch_client.snatch(
-                tid=str(te_to_snatch.torrent_id), can_use_token=te_to_snatch.can_use_token
-            )
+            binary_contents = self._red_snatch_client.snatch(tid=str(tid), can_use_token=te_to_snatch.can_use_token)
             with open(out_filepath, "wb") as f:
                 f.write(binary_contents)
         except Exception as ex:
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
-            final_status = Status.FAILED
             if os.path.exists(out_filepath):
                 os.remove(out_filepath)
             _LOGGER.error(f"Failed to snatch due to uncaught error for: {permalink}: ", exc_info=True)
             exc_name = ex.__class__.__name__
         finally:
-            si_to_snatch.search_id.status = final_status  # type: ignore[union-attr]
-            fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=te_to_snatch.torrent_id)
-            if not si_to_snatch.is_manual:
-                self._search_state.add_snatch_final_status_row(
-                    si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=out_filepath, exc_name=exc_name
-                )
+            fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=tid)
+            self._search_state.add_snatch_final_status_row(
+                si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=out_filepath, exc_name=exc_name
+            )

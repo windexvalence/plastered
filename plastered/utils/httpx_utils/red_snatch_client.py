@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import httpx
 
 from plastered.config.app_settings import AppSettings
@@ -8,7 +10,10 @@ from plastered.utils.constants import (
     RED_API_BASE_URL,
 )
 from plastered.utils.exceptions import RedClientSnatchException
-from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
+
+if TYPE_CHECKING:
+    from plastered.models.red_models import RedUserDetails
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
@@ -34,21 +39,13 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
         )
         self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
-        self._available_fl_tokens = 0
-        self._use_fl_tokens = app_settings.red.snatches.use_fl_tokens
+        self._red_user_details: RedUserDetails | None = None
+        self._use_fl_tokens = (
+            app_settings.red.snatches.use_fl_tokens
+            and self._red_user_details is not None
+            and self._red_user_details.has_fl_tokens
+        )
         self._tids_snatched_with_fl_tokens: set[str] = set()
-
-    def set_initial_available_fl_tokens(self, initial_available_fl_tokens: int) -> None:
-        self._available_fl_tokens = initial_available_fl_tokens
-        if self._use_fl_tokens and self._available_fl_tokens == 0:
-            LOGGER.warning("Currently have zero RED FL tokens available. Ignoring 'use_fl_tokens' config setting.")
-            self._use_fl_tokens = False
-        elif self._use_fl_tokens and self._available_fl_tokens > 0:
-            LOGGER.info(f"Configured to use FL tokens. Detected {self._available_fl_tokens} FL tokens available.")
-        else:
-            LOGGER.warning(
-                "Will not use FL tokens. To enable FL token usage, set 'search.use_fl_tokens: true' in your config.yaml file."
-            )
 
     def snatch(self, tid: str, can_use_token: bool) -> bytes:
         """
@@ -61,7 +58,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
         params = f"id={tid}"
         # Try using a FL token if the app is configured to do so and the API states a FL token is usable.
         # Fallback to non-FL download on error (i.e. out of tokens after API response, etc.)
-        if self._use_fl_tokens and can_use_token and self._available_fl_tokens > 0:
+        if self._use_fl_tokens and can_use_token:
             fl_snatch_failed = False
             fl_params = f"{params}&usetoken=1"
             try:
@@ -72,10 +69,8 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
                 fl_snatch_failed = True
             if not fl_snatch_failed:
                 self._tids_snatched_with_fl_tokens.add(tid)
-                self._available_fl_tokens -= 1
-                LOGGER.info(
-                    f"Used a FL token for tid: '{tid}'. Approximate remaining tokens: {self._available_fl_tokens}"
-                )
+                if self._red_user_details is not None:
+                    self._red_user_details.decrement_fl_tokens()
                 return response.content
             self._throttle()
         response = self._client.get(url=f"{RED_API_BASE_URL}?action=download&{params}")

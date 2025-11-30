@@ -1,6 +1,7 @@
+import logging
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Annotated, Any, NamedTuple
+from typing import Annotated, Any, NamedTuple, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
@@ -14,6 +15,8 @@ from plastered.models.types import (
     coerce_to_float_value,
 )
 from plastered.utils.constants import BYTES_IN_GB, BYTES_IN_MB, STORAGE_UNIT_IDENTIFIERS
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CdOnlyExtras(BaseModel):
@@ -273,8 +276,17 @@ class RedUserDetails(BaseModel):
     model_config = ConfigDict(extra="ignore")
     user_id: int
     snatched_count: int
+    # TODO: create a model class for snatched torrents.
     snatched_torrents_list: list[dict[str, Any]]
     user_profile_json: dict[str, Any]
+    available_fl_tokens: int = Field(default=0)
+
+    @model_validator(mode="after")
+    def set_available_fl_tokens(self) -> Self:
+        gift_tokens = self.user_profile_json["personal"].get("giftTokens", 0)
+        merit_tokens = self.user_profile_json["personal"].get("meritTokens", 0)
+        self.available_fl_tokens = gift_tokens + merit_tokens
+        return self
 
     @cached_property
     def _initial_stats(self) -> _RedUserInitialStats:
@@ -307,6 +319,14 @@ class RedUserDetails(BaseModel):
     def _snatched_tids(self) -> set[int]:
         return set([int(json_entry["torrentId"]) for json_entry in self.snatched_torrents_list])
 
+    @property
+    def has_fl_tokens(self) -> bool:
+        return self.available_fl_tokens > 0
+
+    def decrement_fl_tokens(self) -> None:
+        self.available_fl_tokens -= 1
+        _LOGGER.info(f"Used an FL token. Approximate remaining tokens: {self.available_fl_tokens}")
+
     # This method specifically is for pre-RED search filtering of the LFM recs, since the LFM recs do not yet have a potential TID associated with them.
     def has_snatched_release(self, artist: str, release: str) -> bool:
         """
@@ -323,7 +343,7 @@ class RedUserDetails(BaseModel):
         """
         return tid in self._snatched_tids
 
-    def get_initial_available_fl_tokens(self) -> int:
+    def get_initial_available_fl_tokens(self) -> int:  # pragma: no cover
         """
         Returns the initial number of FL tokens available at the start of a scrape run.
         Passed to the RedApiClient instance for the client to maintain a relatively accurate accounting of FL tokens

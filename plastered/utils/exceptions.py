@@ -44,11 +44,11 @@ class MissingTorrentEntryException(SearchItemException):
 
 
 class MissingDatabaseRecordException(SearchItemException):
-    """Exception raised when actions performed on SearchItem instances require a corresponding `Result` record in the DB, but none exists."""
+    """Exception raised when actions performed on SearchItem instances require a corresponding `SearchRecord` record in the DB, but none exists."""
 
     def __init__(self, initial_info: Any):  # pragma: no cover
         super().__init__(
-            f"Expected 'Result' record is None for SearchItem created from initial info: {str(initial_info)}"
+            f"Expected 'SearchRecord' record is None for SearchItem created from initial info: {str(initial_info)}"
         )
 
 
@@ -56,6 +56,13 @@ class RedClientSnatchException(Exception):
     """Exception for failed snatch attempts from a RedAPIClient.snatch(...) call."""
 
     pass
+
+
+class RedUserDetailsInitError(Exception):
+    """Exception for failed attempts to initialize the `RedUserDetails` instance."""
+
+    def __init__(self, failed_step: str):  # pragma: no cover
+        super().__init__(f"Failed to get or process user {failed_step} info during RedUserDetails initialization.")
 
 
 class LFMClientException(Exception):

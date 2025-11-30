@@ -4,9 +4,10 @@
     <br>
     {% for conf_pair in conf_items %}
         {% if conf_pair[0] != 'src_yaml_filepath' %}
+            <h2>{{ conf_pair[0] }} settings</h2>
             <table>
                 <tr>
-                <th>{{ conf_pair[0] }} Settings</th>
+                <th>Setting</th><th>Value</th>
                 </tr>
                 {% for k, v in conf_pair[1].items() %}
                     <tr>

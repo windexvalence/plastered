@@ -64,13 +64,17 @@ class ThrottledAPIBaseClient:
         max_api_call_retries: int,
         seconds_between_api_calls: int,
         valid_endpoints: set[str],
-        run_cache: RunCache,
+        run_cache: RunCache | None = None,
         non_cached_endpoints: set[str] | None = None,
         extra_client_transport_mount_entries: dict[str, httpx.BaseTransport] | None = None,
     ):
         self._max_api_call_retries = max_api_call_retries
         self._throttle_period = timedelta(seconds=seconds_between_api_calls)
         self._valid_endpoints = valid_endpoints
+        if run_cache is None:
+            LOGGER.warning(
+                f"{self.__class__.__name__}: No run cache instance provided. Caching disabled for this client."
+            )
         self._run_cache = run_cache
         self._non_cached_endpoints: set[str] = non_cached_endpoints or set()
         self._extra_client_transport_mount_entries = extra_client_transport_mount_entries or {}
@@ -130,12 +134,20 @@ class ThrottledAPIBaseClient:
                 f"{self.__class__.__name__}: Skipping read from api cache. endpoint '{endpoint}' is categorized as non-cacheable: {endpoint in self._non_cached_endpoints}"
             )
             return None
+        if self._run_cache is None:
+            LOGGER.debug(f"{self.__class__.__name__}: No run cache initialized for this client instance.")
+            return None
         return self._run_cache.load_data_if_valid(
             cache_key=self._construct_cache_key(endpoint=endpoint, params=params),
             data_validator_fn=lambda x: isinstance(x, dict),
         )
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: dict[str, Any]) -> bool:
+        if self._run_cache is None:
+            LOGGER.debug(
+                f"{self.__class__.__name__}: Skip cache write. No run cache initialized for this client instance."
+            )
+            return False
         if endpoint in self._non_cached_endpoints or not self._run_cache.enabled:
             LOGGER.debug(
                 f"{self.__class__.__name__}: Skipping write to api cache. Endpoint '{endpoint}' non-cacheable: {endpoint in self._non_cached_endpoints}"

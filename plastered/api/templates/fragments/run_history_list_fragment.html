@@ -15,33 +15,33 @@
                     <th>Submit Date</th>
                     <th>Status</th>
                 </tr>
-                {% for r in records %}
+                {% for r in records.runs %}
                     <tr>
-                        <td>{{ "Manual" if r.Result.is_manual else "Scraper" }}</td>
-                        <td>{{ r.Result.entity_type }}</td>
-                        <td>{{ r.Result.artist }}</td>
-                        <td>{{ r.Result.entity }}</td>
+                        <td>{{ "Manual" if r.result.is_manual else "Scraper" }}</td>
+                        <td>{{ r.result.entity_type }}</td>
+                        <td>{{ r.result.artist }}</td>
+                        <td>{{ r.result.entity }}</td>
 
-                        <td><code>{{ r.Result.media }}</code></td>
-                        <td><code>{{ r.Result.encoding }}</code></td>
-                        <td><code>{{ r.Result.format }}</code></td>
+                        <td><code>{{ r.result.media }}</code></td>
+                        <td><code>{{ r.result.encoding }}</code></td>
+                        <td><code>{{ r.result.format }}</code></td>
 
-                        {% set submit_dt = sr_ids_to_submit_dates[r.Result.id] %}
+                        {% set submit_dt = sr_ids_to_submit_dates[r.result.id] %}
                         <td>{{ submit_dt }}</td>
-                        {% if r.Result.status == 'in_progress' %}
+                        {% if r.result.status == 'in_progress' %}
                             <td>In progress </td>
                         {% else %}
-                            {% if r.Result.status == 'skipped' %}
-                                {% set modal_params = {"skip_reason": r.Skipped.skip_reason} %}
-                            {% elif r.Result.status == 'success' %}
-                                {% set modal_params = {"fl_token_used": r.Grabbed.fl_token_used, "snatch_path": r.Grabbed.snatch_path, "tid": r.Grabbed.tid} %}
+                            {% if r.result.status == 'skipped' %}
+                                {% set modal_params = {"skip_reason": r.skipped.skip_reason} %}
+                            {% elif r.result.status == 'success' %}
+                                {% set modal_params = {"fl_token_used": r.grabbed.fl_token_used, "snatch_path": r.grabbed.snatch_path, "tid": r.grabbed.tid} %}
                             {% else %}
-                                {% set modal_params = {"red_permalink": r.Failed.red_permalink, "matched_mbid": r.Failed.matched_mbid, "fail_reason": r.Failed.fail_reason} %}
+                                {% set modal_params = {"red_permalink": r.failed.red_permalink, "matched_mbid": r.failed.matched_mbid, "fail_reason": r.failed.fail_reason} %}
                             {% endif %}
                             <!-- https://stackoverflow.com/a/75472158 -->
-                            {% set general_params = {"status": r.Result.status} %}
+                            {% set general_params = {"status": r.result.status} %}
                             {% set noop = modal_params.update(general_params) %}
-                            <td><a hx-get="/result_modal?{{ modal_params | dict_to_query_params }}" hx-target="body" hx-swap="beforeend">{{r.Result.status}}</a></td>
+                            <td><a hx-get="/result_modal?{{ modal_params | dict_to_query_params }}" hx-target="body" hx-swap="beforeend">{{r.result.status}}</a></td>
                         {% endif %}
                     </tr>
                 {% endfor %}

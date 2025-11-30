@@ -3,10 +3,13 @@ import copy
 import csv
 import json
 import os
-
-from sqlmodel import SQLModel, Session, StaticPool, create_engine
+from unittest.mock import patch
 
 os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
+from sqlmodel import SQLModel, Session, StaticPool, create_engine
+
+from plastered.api.fastapi_dependencies import _DependencySingletons
+
 import re
 from collections.abc import Generator
 from pathlib import Path
@@ -19,7 +22,7 @@ import yaml
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import Result
+from plastered.db.db_models import SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import CacheType, RunCache
@@ -132,8 +135,8 @@ def mock_session_context() -> Generator[Session, None, None]:
 
 
 @pytest.fixture(scope="function")
-def mock_track_result() -> Result:
-    return Result(
+def mock_track_result() -> SearchRecord:
+    return SearchRecord(
         submit_timestamp=1759680000,
         is_manual=True,
         entity_type=EntityType.TRACK,
@@ -143,8 +146,8 @@ def mock_track_result() -> Result:
 
 
 @pytest.fixture(scope="function")
-def mock_album_result() -> Result:
-    return Result(
+def mock_album_result() -> SearchRecord:
+    return SearchRecord(
         submit_timestamp=1759680000,
         is_manual=True,
         entity_type=EntityType.ALBUM,
@@ -379,6 +382,17 @@ def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> Re
         snatched_torrents_list=copy.deepcopy(mock_red_user_details.snatched_torrents_list),
         user_profile_json=copy.deepcopy(mock_red_user_details.user_profile_json),
     )
+
+
+@pytest.fixture(scope="session")
+def valid_app_settings_sesh_scoped(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
+    """
+    Session-scoped valid `AppSettings` fixture, with cache root dir
+    overridden to use the session-scoped tmp cache root dir fixture
+    """
+    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
+    app_settings._base_cache_directory_path = str(cache_root_dir_path)
+    return app_settings
 
 
 @pytest.fixture(scope="session")

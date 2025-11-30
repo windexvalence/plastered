@@ -1,7 +1,5 @@
-import json
 import logging
-from datetime import UTC, datetime, timedelta
-from pprint import pformat
+from datetime import UTC, datetime
 from typing import Annotated, Final
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
@@ -10,30 +8,36 @@ from pydantic import ValidationError
 
 from plastered.actions import scrape_action, show_config_action
 from plastered.actions.api_actions import inspect_run_action, manual_search_action, run_history_action
-from plastered.api.constants import SUB_CONF_NAMES, TEMPLATES, WEB_DATE_FMT
-from plastered.api.fastapi_dependencies import AppSettingsDep, ConfigFilepathDep, PlasteredVersionDep, SessionDep
+from plastered.api.api_models import RunHistoryListResponse
+from plastered.api.constants import API_ROUTES_PREFIX, SUB_CONF_NAMES, TEMPLATES, Endpoint
+from plastered.api.fastapi_dependencies import (
+    AppSettingsDep,
+    ConfigFilepathDep,
+    PlasteredVersionDep,
+    RedUserDetailsDep,
+    SessionDep,
+)
 from plastered.config.app_settings import get_app_settings
 from plastered.config.field_validators import CLIOverrideSetting
-from plastered.db.db_models import Result, Status
-from plastered.db.db_utils import add_record, query_rows_to_jinja_context_obj
+from plastered.db.db_models import SearchRecord, Status
+from plastered.db.db_utils import add_record
 from plastered.models.types import EntityType
 
 _LOGGER = logging.getLogger(__name__)
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
 _VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
 
-API_URL_PATH_PREFIX: Final[str] = "/api"
-plastered_api_router = APIRouter(prefix=API_URL_PATH_PREFIX)
+plastered_api_router = APIRouter(prefix=API_ROUTES_PREFIX)
 
 
 # /api/healthcheck
-@plastered_api_router.get("/healthcheck")
+@plastered_api_router.get(Endpoint.HEALTHCHECK.value.rel_path)
 async def healthcheck_endpoint(plastered_version: PlasteredVersionDep) -> JSONResponse:
     return JSONResponse(content={"version": plastered_version}, status_code=200)
 
 
 # /api/config?sub_conf=<format_preferences|search|snatch>
-@plastered_api_router.get("/config", response_model=None)
+@plastered_api_router.get(Endpoint.CONFIG.value.rel_path, response_model=None)
 async def show_config_endpoint(
     app_settings: AppSettingsDep, request: Request, sub_conf: str | None = None
 ) -> JSONResponse | HTMLResponse:
@@ -42,15 +46,14 @@ async def show_config_endpoint(
     _LOGGER.debug(f"/api/config endpoint acquired conf_dict of size {len(conf_dict)}.")
     if request.headers.get("HX-Request") == "true":
         _LOGGER.debug("/api/config endpoint detected request from HTMX.")
-        json.loads(app_settings.model_dump_json())
         if sub_conf:
             if sub_conf not in SUB_CONF_NAMES:
                 raise HTTPException(
                     status_code=404, detail=f"Invalid sub_conf '{sub_conf}'. Expected one of {SUB_CONF_NAMES}"
                 )
             return TEMPLATES.TemplateResponse(
-                name="fragments/sub_conf_table_fragment.html",
                 request=request,
+                name="fragments/sub_conf_table_fragment.html",
                 context={
                     "conf": conf_dict["red"][sub_conf],
                     "config_section_name": sub_conf,
@@ -59,26 +62,27 @@ async def show_config_endpoint(
             )
         conf_items = sorted(conf_dict.items(), key=lambda x: x[0])
         return TEMPLATES.TemplateResponse(
-            name="fragments/config_fragment.html",
             request=request,
+            name="fragments/config_fragment.html",
             context={"conf_items": conf_items, "sub_conf_names": SUB_CONF_NAMES},
         )
     return JSONResponse(content=conf_dict)
 
 
 # /api/submit_search
-@plastered_api_router.post("/submit_search_form")
+@plastered_api_router.post(Endpoint.SUBMIT_SEARCH_FORM.value.rel_path)
 async def submit_search_form_endpoint(
     session: SessionDep,
     app_settings: AppSettingsDep,
+    red_user_details: RedUserDetailsDep,
     background_tasks: BackgroundTasks,
     request: Request,
     entity: Annotated[str, Form()],
     artist: Annotated[str, Form()],
-    is_track: bool = False,
+    is_track: Annotated[bool, Form()],
     mbid: str | None = Form(None),  # noqa: FAST002
-) -> JSONResponse:
-    model_inst = Result(
+) -> RedirectResponse:
+    model_inst = SearchRecord(
         is_manual=True,
         artist=artist,
         entity=entity,
@@ -87,21 +91,32 @@ async def submit_search_form_endpoint(
         status=Status.IN_PROGRESS,
     )
     try:
-        db_initial_result = Result.model_validate(model_inst)
+        db_initial_result = SearchRecord.model_validate(model_inst)
     except ValidationError as ex:  # pragma: no cover
-        msg = f"Bad search_run model provided. Failed validation with following errors: {ex.errors()}"
+        msg = f"Bad SearchRecord model provided. Failed validation with following errors: {ex.errors()}"
         _LOGGER.error(msg, exc_info=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from ex
-    _LOGGER.debug(f"POST /api/submit_search_form {entity=} {artist=} {is_track=} {mbid=}")
+    _LOGGER.debug(f"POST {Endpoint.SUBMIT_SEARCH_FORM.value.full_path} {entity=} {artist=} {is_track=} {mbid=}")
     add_record(session=session, model_inst=db_initial_result)
-    result_id = db_initial_result.id
-    background_tasks.add_task(func=manual_search_action, app_settings=app_settings, result_id=result_id, mbid=mbid)  # type: ignore[call-arg]
-    return JSONResponse(content={"search_id": result_id}, status_code=200)
+    if (search_id := db_initial_result.id) is None:  # pragma: no cover
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unable to create search record")
+    background_tasks.add_task(
+        func=manual_search_action,
+        app_settings=app_settings,
+        red_user_details=red_user_details,
+        search_id=search_id,
+        mbid=mbid,  # type: ignore[call-arg]
+    )
+    # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
+    return RedirectResponse(
+        url=f"{Endpoint.RUN_HISTORY_PAGE.value.full_path}?submitted_search_id={search_id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 # /api/scrape?snatch=<false|true>&rec_type=<album|track|all>
-@plastered_api_router.post("/scrape")
-def scrape_endpoint(
+@plastered_api_router.post(Endpoint.SCRAPE.value.rel_path)
+async def scrape_endpoint(
     session: SessionDep, config_filepath: ConfigFilepathDep, snatch: bool = False, rec_type: str = "all"
 ) -> RedirectResponse:
     if rec_type not in _VALID_REC_TYPES:  # pragma: no cover
@@ -122,40 +137,21 @@ def scrape_endpoint(
 
 
 # /api/inspect_run?run_id=<int>
-@plastered_api_router.get("/inspect_run")
-def inspect_run_endpoint(session: SessionDep, run_id: int) -> JSONResponse:
+@plastered_api_router.get(Endpoint.INSPECT_RUN.value.rel_path)
+async def inspect_run_endpoint(session: SessionDep, run_id: int) -> JSONResponse:
     if matched_record := inspect_run_action(run_id=run_id, session=session):
         return JSONResponse(content=matched_record.model_dump(), status_code=status.HTTP_200_OK)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No records matching run_id={run_id} found.")
 
 
-# /api/run_history?since_timestamp=<unix timestamp int>&final_state=<success|skipped|failed>
-@plastered_api_router.get("/run_history", response_model=None)
-def run_history_endpoint(
-    session: SessionDep, request: Request, since_timestamp: int | None = None, final_state: Status | None = None
-) -> JSONResponse | HTMLResponse:
-    since_timestamp = since_timestamp if since_timestamp else _default_since_ts()
-    records = run_history_action(since_timestamp=since_timestamp, session=session, final_state=final_state)
-    if request.headers.get("HX-Request") == "true":
-        _LOGGER.debug("/api/run_history Request received from HTMX. Will return as HTML fragment.")
-        try:
-            return TEMPLATES.TemplateResponse(
-                name="fragments/run_history_list_fragment.html",
-                request=request,
-                context={
-                    "records": query_rows_to_jinja_context_obj(records),
-                    "sr_ids_to_submit_dates": {
-                        sr.Result.id: datetime.fromtimestamp(sr.Result.submit_timestamp).strftime(WEB_DATE_FMT)
-                        for sr in records
-                    },
-                },
-            )
-        except AttributeError as ex:  # pragma: no cover
-            _LOGGER.error(f"AttributeError: {pformat(records)}", exc_info=True)
-            raise ex
-    return JSONResponse(content=records, status_code=200)
-
-
-def _default_since_ts() -> int:  # pragma: no cover
-    """Returns the default timestamp 6 months ago for date-ranged default queries."""
-    return int((datetime.now(tz=UTC) - timedelta(days=180)).timestamp())
+# /api/run_history?since_timestamp=<unix timestamp int>&final_state=<success|skipped|failed>&submitted_search_id=<int>
+@plastered_api_router.get(Endpoint.RUN_HISTORY.value.rel_path)
+async def run_history_endpoint(
+    session: SessionDep,
+    since_timestamp: int | None = None,
+    final_state: Status | None = None,
+    search_id: int | None = None,
+) -> RunHistoryListResponse:
+    return run_history_action(
+        since_timestamp=since_timestamp, session=session, final_state=final_state, search_id=search_id
+    )

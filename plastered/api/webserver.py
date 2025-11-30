@@ -12,7 +12,8 @@ from fastapi.staticfiles import StaticFiles
 
 # from jinja2_fragments.fastapi import Jinja2Blocks
 from plastered.api.api_routes import plastered_api_router
-from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
+from plastered.api.constants import STATIC_DIRPATH, STATIC_ROUTES_PREFIX, TEMPLATES, Endpoint
+from plastered.api.fastapi_dependencies import RedUserDetailsDep
 from plastered.config.app_settings import get_app_settings
 from plastered.db.db_utils import db_startup
 from plastered.models.types import EntityType
@@ -40,12 +41,12 @@ async def _app_lifespan(app: FastAPI):
 
 # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
 fastapi_app = FastAPI(version=get_project_version(), lifespan=_app_lifespan)
-fastapi_app.mount("/static", StaticFiles(directory=os.fspath(STATIC_DIRPATH)), name="static")
+fastapi_app.mount(STATIC_ROUTES_PREFIX, StaticFiles(directory=os.fspath(STATIC_DIRPATH)), name="static")
 fastapi_app.include_router(plastered_api_router)
 # fastapi_app.mount(API_URL_PATH_PREFIX, plastered_api_router)
 
 
-@fastapi_app.get("/favicon.ico", include_in_schema=False)
+@fastapi_app.get(Endpoint.FAVICON.value.rel_path, include_in_schema=False)
 async def favicon() -> FileResponse:
     return FileResponse(os.fspath(_STATIC_IMAGES_DIRPATH / "favicon.ico"))
 
@@ -55,47 +56,56 @@ async def favicon() -> FileResponse:
 async def root_endpoint(request: Request) -> HTMLResponse:
     _LOGGER.debug(f"htmx_path: {os.fspath(_HTMX_FILEPATH)}")
     return TEMPLATES.TemplateResponse(
-        name="index.html", request=request, context={"plastered_version": fastapi_app.version}
+        request=request, name="index.html", context={"plastered_version": fastapi_app.version}
     )
 
 
 # /config
-@fastapi_app.get("/config")
+@fastapi_app.get(Endpoint.CONFIG_PAGE.value.rel_path)
 async def show_config_endpoint(request: Request) -> HTMLResponse:
     _LOGGER.debug(f"/config endpoint called at {datetime.now().timestamp()}")
-    return TEMPLATES.TemplateResponse("config.html", {"request": request})
+    return TEMPLATES.TemplateResponse(request=request, name="config.html")
 
 
 # /search_form<?entity=(album|track)>
-@fastapi_app.get("/search_form")
+@fastapi_app.get(Endpoint.SEARCH_FORM.value.rel_path)
 async def search_form_endpoint(request: Request, entity: EntityType | None = None) -> HTMLResponse:
     if entity is None:
         return TEMPLATES.TemplateResponse("manual_search.html", {"request": request})
     return TEMPLATES.TemplateResponse(
-        name="fragments/search_modal.html", request=request, context={"entity": str(entity)}
+        request=request, name="fragments/search_modal.html", context={"entity": str(entity)}
     )
 
 
 # /scrape_form
-@fastapi_app.get("/scrape_form")
+@fastapi_app.get(Endpoint.SCRAPE_FORM.value.rel_path)
 async def scrape_form_endpoint(request: Request) -> HTMLResponse:
     # TODO: have HTMX hit the /api/scrape endpoint following user setup
-    return TEMPLATES.TemplateResponse("scrape_form.html", {"request": request})
+    return TEMPLATES.TemplateResponse(request=request, name="scrape_form.html")
 
 
 # /run_history
-@fastapi_app.get("/run_history")
-async def runs_page(request: Request) -> HTMLResponse:
+@fastapi_app.get(Endpoint.RUN_HISTORY_PAGE.value.rel_path)
+async def runs_page(request: Request, search_id: int | None = None) -> HTMLResponse:
     # TODO: have HTMX hit the /api/run_history endpoint following user setup
-    return TEMPLATES.TemplateResponse("run_history_page.html", {"request": request})
+    return TEMPLATES.TemplateResponse(request=request, name="run_history_page.html", context={"search_id": search_id})
+
+
+@fastapi_app.get(Endpoint.USER_DETAILS_PAGE.value.rel_path)
+async def user_details_page(request: Request, red_user_details: RedUserDetailsDep) -> HTMLResponse:
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="user_details.html",
+        context={"user_id": red_user_details.user_id, "available_fl_tokens": red_user_details.available_fl_tokens},
+    )
 
 
 # /result_modal?<final-state-specific query parameters created by HTMX>
-@fastapi_app.get("/result_modal")
+@fastapi_app.get(Endpoint.RESULT_MODAL.value.rel_path)
 async def result_modal(request: Request) -> HTMLResponse:
     _LOGGER.debug(f"endpoint /result_modal called with params: {request.query_params}")
     return TEMPLATES.TemplateResponse(
-        name="fragments/result_modal.html", request=request, context={"params": request.query_params}
+        request=request, name="fragments/result_modal.html", context={"params": request.query_params}
     )
 
 

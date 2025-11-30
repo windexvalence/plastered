@@ -5,7 +5,7 @@ from urllib.parse import quote_plus
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import ENGINE, FailReason, Result, SkipReason, Status
+from plastered.db.db_models import ENGINE, FailReason, SearchRecord, SkipReason, Status
 from plastered.db.db_utils import add_record, set_result_status
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
@@ -50,7 +50,7 @@ class SearchState:
     which handles the pre and post search filtering logic during a search run.
     """
 
-    def __init__(self, app_settings: AppSettings):
+    def __init__(self, app_settings: AppSettings, red_user_details: RedUserDetails | None = None):
         self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
         self._allow_library_items = app_settings.lfm.allow_library_items
         self._use_release_type = app_settings.red.search.use_release_type
@@ -74,13 +74,13 @@ class SearchState:
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
         self._output_summary_dir_path = app_settings.get_output_summary_dir_path()
         self._max_download_allowed_gb = 0.0
-        self._red_user_details: RedUserDetails | None = None
+        self._red_user_details = red_user_details
         self._run_download_total_gb = 0.0
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
 
-    def red_user_details_initialized(self) -> bool:
+    def red_user_details_is_initialized(self) -> bool:
         """Returns `True` if the red user details have been initialized, `False` otherwise."""
         return self._red_user_details is not None
 
@@ -94,7 +94,7 @@ class SearchState:
         self._red_user_details = red_user_details
 
     def initialize_search_records(self, initial_search_items: list[SearchItem]) -> None:
-        """Initializes the `plastered.db.db_models.Result` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
+        """Initializes the `plastered.db.db_models.SearchRecord` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
         if all([si.is_manual for si in initial_search_items]):
             _LOGGER.debug("Manual search records are pre-initialized, skipping initialization.")
             return
@@ -102,7 +102,7 @@ class SearchState:
         submit_timestamp = int(datetime.now(tz=UTC).timestamp())
         with Session(ENGINE) as db_session:
             for si in initial_search_items:
-                search_record = Result(
+                search_record = SearchRecord(
                     is_manual=si.is_manual,
                     artist=si.initial_info.get_human_readable_artist_str(),
                     entity=si.initial_info.get_human_readable_entity_str(),

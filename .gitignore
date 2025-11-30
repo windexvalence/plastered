@@ -187,4 +187,3 @@ examples/cache/*
 examples/summaries/*
 *.tsv
 plastered/api/static/js/htmx.min.js
-plastered/api/static/css/classless.css

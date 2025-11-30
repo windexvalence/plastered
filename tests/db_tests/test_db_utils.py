@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import Field, Session, SQLModel, select
 
-from plastered.db.db_models import FailReason, Result, SkipReason, Status
+from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status
 from plastered.db.db_utils import add_record, get_result_by_id, set_result_status
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
@@ -42,7 +42,7 @@ def test_add_record(mock_session: Session) -> None:
     ],
 )
 def test_set_result_status(
-    mock_album_result: Result, mock_status: Status, mock_status_model_kwargs: dict[str, Any]
+    mock_album_result: SearchRecord, mock_status: Status, mock_status_model_kwargs: dict[str, Any]
 ) -> None:
     fake_id = 69
     mock_sesh = MagicMock()
@@ -71,7 +71,7 @@ def test_set_result_status_fails() -> None:
     ],
 )
 def test_get_result_by_id(
-    mock_album_result: Result, search_id: int | None, session: Session | None, should_fail: bool
+    mock_album_result: SearchRecord, search_id: int | None, session: Session | None, should_fail: bool
 ) -> None:
     with (
         patch.object(Session, "__enter__") as mock_sesh_ctx,

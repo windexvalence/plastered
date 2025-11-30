@@ -6,29 +6,10 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.red_models import RedUserDetails
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
-
-
-@pytest.mark.parametrize(
-    "initial_use_fl_tokens, initial_tokens, expected_use_fl_tokens, expected_available_fl_tokens",
-    [(False, 0, False, 0), (False, 1, False, 1), (True, 0, False, 0), (True, 1, True, 1)],
-)
-def test_set_initial_available_fl_tokens(
-    disabled_api_run_cache: RunCache,
-    valid_app_settings: AppSettings,
-    initial_use_fl_tokens: bool,
-    initial_tokens: int,
-    expected_use_fl_tokens: bool,
-    expected_available_fl_tokens: int,
-) -> None:
-    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
-    assert red_snatch_client._available_fl_tokens == 0
-    red_snatch_client._use_fl_tokens = initial_use_fl_tokens
-    red_snatch_client.set_initial_available_fl_tokens(initial_available_fl_tokens=initial_tokens)
-    assert red_snatch_client._use_fl_tokens == expected_use_fl_tokens
-    assert red_snatch_client._available_fl_tokens == expected_available_fl_tokens
 
 
 @pytest.mark.override_global_httpx_mock
@@ -60,6 +41,7 @@ def test_snatch_red_api_use_token(
     httpx_mock: HTTPXMock,
     disabled_api_run_cache: RunCache,
     valid_app_settings: AppSettings,
+    mock_red_user_details: RedUserDetails,
     mock_response_codes: list[int],
     expected_get_params: list[Callable],
     raise_client_exc: bool,
@@ -69,8 +51,8 @@ def test_snatch_red_api_use_token(
         httpx_mock.add_response(status_code=mock_response_code)
     expected_throttle_calls = len(expected_get_urls)
     red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
+    red_snatch_client._red_user_details = mock_red_user_details
     red_snatch_client._use_fl_tokens = True
-    red_snatch_client._available_fl_tokens = 100
     red_snatch_client._throttle = Mock(name="_throttle")
     red_snatch_client._throttle.return_value = None
     with pytest.raises(RedClientSnatchException) if raise_client_exc else nullcontext():

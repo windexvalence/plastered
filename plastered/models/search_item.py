@@ -9,7 +9,7 @@ from plastered.models.red_models import TorrentEntry, TorrentMatch
 from plastered.models.types import EntityType
 
 
-# TODO [later]: Consolidate the `Result` db model and `SearchItem` into a single class.
+# TODO [later]: Consolidate the `SearchRecord` db model and `SearchItem` into a single class.
 @dataclass
 class SearchItem:
     """
