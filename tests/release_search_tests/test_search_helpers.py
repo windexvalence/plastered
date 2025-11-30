@@ -8,7 +8,7 @@ import pytest
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import Result, Status, SkipReason
+from plastered.db.db_models import SearchRecord, Status, SkipReason
 from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
@@ -198,7 +198,7 @@ def test_create_browse_params(
 
 def test_post_resolve_track_filter_valid(valid_app_settings: AppSettings) -> None:
     search_state = SearchState(app_settings=valid_app_settings)
-    mock_search_record = MagicMock(spec=Result)
+    mock_search_record = MagicMock(spec=SearchRecord)
     with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
         search_item = SearchItem(
             initial_info=LFMRec("Some+Artist", "Track+Title", rt.TRACK, rc.SIMILAR_ARTIST),
@@ -258,11 +258,11 @@ def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_ap
 
 
 @pytest.mark.parametrize("initialized, expected", [(False, False), (True, True)])
-def test_red_user_details_initialized(valid_app_settings: AppSettings, initialized: bool, expected: bool) -> None:
+def test_red_user_details_is_initialized(valid_app_settings: AppSettings, initialized: bool, expected: bool) -> None:
     search_state = SearchState(app_settings=valid_app_settings)
     if initialized:
         search_state._red_user_details = MagicMock(spec=RedUserDetails)
-    actual = search_state.red_user_details_initialized()
+    actual = search_state.red_user_details_is_initialized()
     assert actual == expected
 
 

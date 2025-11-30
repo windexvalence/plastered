@@ -419,3 +419,12 @@ def test_red_user_details_has_snatched_tid(
     mock_red_user_details_fn_scoped._snatched_tids = mock_snatched_tids
     actual = mock_red_user_details_fn_scoped.has_snatched_tid(tid)
     assert actual == expected
+
+
+@pytest.mark.parametrize("mock_available_fl_tokens, expected", [(-1, False), (0, False), (1, True), (69, True)])
+def test_red_user_details_has_fl_tokens(
+    mock_red_user_details_fn_scoped: RedUserDetails, mock_available_fl_tokens: int, expected: bool
+) -> None:
+    mock_red_user_details_fn_scoped.available_fl_tokens = mock_available_fl_tokens
+    actual = mock_red_user_details_fn_scoped.has_fl_tokens
+    assert actual == expected

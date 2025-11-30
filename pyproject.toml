@@ -34,6 +34,8 @@ test = [
     "pytest-asyncio==1.2.0",
     "pytest-cov[toml]==6.1.1",
     "pytest-httpx==0.35.0",
+    "pytest-mock>=3.15.1",
+    "pytest-socket>=0.7.0",
     "pytest-xdist==3.8.0",
     "ruff==0.14.6",
     "types-pyyaml>=6.0.12.20250516",
@@ -173,7 +175,7 @@ exclude_also = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=plastered --no-cov-on-fail"
+addopts = "--cov=plastered --no-cov-on-fail --disable-socket --allow-hosts=testclient --durations=5"
 markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",

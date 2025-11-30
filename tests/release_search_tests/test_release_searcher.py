@@ -8,12 +8,10 @@ from unittest.mock import ANY, MagicMock, Mock, PropertyMock, call, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
-from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import Result
+from plastered.db.db_models import SearchRecord
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.manual_search_models import ManualSearch
 from plastered.models.search_item import SearchItem
 from plastered.release_search.release_searcher import ReleaseSearcher, SearchState
 from plastered.release_search.search_helpers import SearchState
@@ -585,7 +583,7 @@ def test_search_for_release_te(
     [None, LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")],
 )
 def test_search_for_track_recs(
-    valid_app_settings: AppSettings, mock_track_result: Result, mock_resolved_lfmti: LFMTrackInfo | None
+    valid_app_settings: AppSettings, mock_track_result: SearchRecord, mock_resolved_lfmti: LFMTrackInfo | None
 ) -> None:
     with (
         patch.object(ReleaseSearcher, "_search") as mock_search_fn,
@@ -754,7 +752,7 @@ def test_search_for_recs(
 )
 def test_snatch_matches(
     tmp_path: Path,
-    mock_album_result: Result,
+    mock_album_result: SearchRecord,
     valid_config_raw_data: dict[str, Any],
     valid_config_filepath: str,
     mock_red_user_details_fn_scoped: RedUserDetails,
@@ -811,7 +809,7 @@ def test_snatch_matches(
 )
 def test_snatch_exception_handling(
     tmp_path: Path,
-    mock_album_result: Result,
+    mock_album_result: SearchRecord,
     valid_config_raw_data: dict[str, Any],
     valid_config_filepath: str,
     mock_best_te: te,
@@ -861,13 +859,13 @@ def test_manual_search(
     expected_track_search_calls: int,
     has_red_user_details: bool,
 ) -> None:
-    mock_record = MagicMock(spec=Result)
+    mock_record = MagicMock(spec=SearchRecord)
     type(mock_record).entity_type = PropertyMock(return_value=entity_type)
     type(mock_record).artist = PropertyMock(return_value="Fake Artist")
     type(mock_record).entity = PropertyMock(return_value="Fake Release")
     with (
         patch.object(
-            SearchState, "red_user_details_initialized", return_value=has_red_user_details
+            SearchState, "red_user_details_is_initialized", return_value=has_red_user_details
         ) as mock_rud_initialized,
         patch(
             "plastered.release_search.release_searcher.get_result_by_id", return_value=mock_record

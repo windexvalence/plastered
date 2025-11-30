@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from plastered.db.db_models import Result
+from plastered.db.db_models import SearchRecord
 from plastered.models.red_models import RedUserDetails
 from plastered.models.types import EntityType
 

@@ -2,23 +2,28 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Plastered Run History</title>
+    <title>Plastered RED User Details</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/modal.css') }}">
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
 </head>
 <body>
-    <h2>Plastered Run History</h2>
+    <h2>Plastered RED User Details</h2>
     <div id="header-links" hx-get="{{ url_for('static', path='/html/header_links.html') }}" hx-target="this", hx-trigger="load"></div>
     <br>
     <br>
-    {% if search_id is not none %}
-        <div id="run-history-list" hx-get="/api/run_history" hx-target="this" hx-trigger="load"></div>
-    {% else %}
-        <div id="run-history-list" hx-get="/api/run_history?search_id={{ search_id }}" hx-target="this" hx-trigger="load"></div>
-    {% endif %}
+    <table>
+        <tr>
+            <th>Key</th><th>Value</th>
+        </tr>
+        <tr>
+            <td>User ID</td><td>{{ user_id }}</td>
+        </tr>
+        <tr>
+            <td>Available FL Tokens (approximate)</td><td>{{ available_fl_tokens }}</td>
+        </tr>
+    </table>
     <br>
     <br>
-    <!-- <div id="run-history-list" hx-get="/api/run_history?final_state=failed" hx-target="this" hx-trigger="load"></div> -->
 </body>
 </html>

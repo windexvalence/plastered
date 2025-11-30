@@ -45,8 +45,7 @@ class FailReason(StrEnum):
     OTHER = "Exception - other"
 
 
-# TODO: rename this to 'SearchRecord'
-class Result(SQLModel, table=True):
+class SearchRecord(SQLModel, table=True):
     """
     Model for the result table, which contains a record per COMPLETED manual search or scraper search run.
     May contain both failed, skipped, or successful snatch results for each given search.
@@ -75,7 +74,7 @@ class Skipped(SQLModel, table=True):
     """
 
     id: int | None = Field(default=None, primary_key=True)
-    s_result_id: int | None = Field(default=None, foreign_key="result.id")
+    s_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
     skip_reason: SkipReason
 
 
@@ -86,7 +85,7 @@ class Failed(SQLModel, table=True):
     """
 
     id: int | None = Field(default=None, primary_key=True)
-    f_result_id: int | None = Field(default=None, foreign_key="result.id")
+    f_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
     red_permalink: str | None = Field(default=None)
     matched_mbid: str | None = Field(default=None)
     fail_reason: FailReason
@@ -100,7 +99,7 @@ class Grabbed(SQLModel, table=True):
     """
 
     id: int | None = Field(default=None, primary_key=True)
-    g_result_id: int | None = Field(default=None, foreign_key="result.id")
+    g_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
     fl_token_used: bool | None = Field(default=None)
     snatch_path: str | None = Field(default=None)
     tid: int | None = Field(default=None)

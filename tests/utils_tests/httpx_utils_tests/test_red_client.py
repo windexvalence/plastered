@@ -1,11 +1,15 @@
 from contextlib import nullcontext
-from unittest.mock import Mock
+import re
+from typing import Any
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.red_models import RedUserDetails
 from plastered.run_cache.run_cache import RunCache
+from plastered.utils.exceptions import RedUserDetailsInitError
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 
 
@@ -87,3 +91,50 @@ def test_red_client_cache_hit(
     actual_result = test_client.request_api(endpoint, params)
     assert actual_result == mocked_json
     assert not httpx_mock.get_requests()
+
+
+@pytest.mark.parametrize("cache_enabled", [False, True])
+@pytest.mark.parametrize(
+    "action, mock_resp_fixture_name, type_, lim",
+    [
+        ("community_stats", "mock_red_user_stats_response", None, None),
+        ("user_torrents", "mock_red_user_torrents_snatched_response", "snatched", 216),
+        ("user_torrents", "mock_red_user_torrents_seeding_response", "seeding", 397),
+        ("user", "mock_red_user_response", None, None),
+    ],
+)
+def test_rud_helper(
+    valid_app_settings: AppSettings,
+    enabled_api_run_cache: RunCache,
+    request: pytest.FixtureRequest,
+    cache_enabled: bool,
+    action: str,
+    mock_resp_fixture_name: str,
+    type_: str | None,
+    lim: int | None,
+) -> None:
+    mock_resp = request.getfixturevalue(mock_resp_fixture_name)["response"]
+    run_cache = enabled_api_run_cache if cache_enabled else None
+    with patch.object(RedAPIClient, "request_api", return_value=mock_resp) as mock_req_api:
+        test_client = RedAPIClient(app_settings=valid_app_settings, run_cache=run_cache)
+        actual = test_client._rud_helper(action=action, type_=type_, lim=lim)
+        assert actual is not None
+        mock_req_api.assert_called_once_with(action=action, params=ANY)
+
+
+@pytest.mark.parametrize("cache_enabled", [False, True])
+def test_rud_helper_raises(
+    valid_app_settings: AppSettings,
+    enabled_api_run_cache: RunCache,
+    request: pytest.FixtureRequest,
+    cache_enabled: bool,
+) -> None:
+    run_cache = enabled_api_run_cache if cache_enabled else None
+
+    def _side_effect(*args, **kwargs) -> Any:
+        raise Exception("Intentional mock exception for testing")
+
+    with patch.object(RedAPIClient, "request_api", side_effect=_side_effect) as mock_req_api:
+        test_client = RedAPIClient(app_settings=valid_app_settings, run_cache=run_cache)
+        with pytest.raises(RedUserDetailsInitError, match=re.escape("during RedUserDetails initialization")):
+            _ = test_client._rud_helper(action="user_torrents", type_="snatched", lim=69)

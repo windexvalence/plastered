@@ -1,5 +1,7 @@
 import datetime
+import re
 from time import time
+from typing import Any
 from unittest.mock import call, patch
 
 import pytest
@@ -213,3 +215,48 @@ def test_init_throttled_api_client(
     assert actual_throttle_period == expected_throttle_period, (
         f"Expected throttle period to be {expected_throttle_period}, but got {actual_throttle_period}"
     )
+
+
+@pytest.mark.parametrize(
+    "endpoint, valid_endpoints, non_cached_endpoints, run_cache_exists, load_data_call_expected",
+    [
+        ("/foo", {"/foo", "/bar"}, {}, False, False),
+        ("/foo", {"/foo", "/bar"}, {}, True, True),
+        ("/foo", {"/foo", "/bar", "/fubar"}, {"/fubar"}, True, True),
+        ("/fubar", {"/foo", "/bar", "/fubar"}, {"/fubar"}, True, False),
+    ],
+)
+def test_read_from_run_cache(
+    enabled_api_run_cache: RunCache,
+    endpoint: str,
+    valid_endpoints: set[str],
+    non_cached_endpoints: set[str] | None,
+    run_cache_exists: bool,
+    load_data_call_expected: bool,
+) -> None:
+    mock_cached = {"fake": "data"}
+    expected_result = mock_cached if load_data_call_expected else None
+    with patch.object(RunCache, "load_data_if_valid", return_value=mock_cached) as mock_run_cache_load_data:
+        client_inst = ThrottledAPIBaseClient(
+            base_api_url="http://localhost",
+            max_api_call_retries=3,
+            seconds_between_api_calls=4,
+            valid_endpoints=valid_endpoints,
+            run_cache=enabled_api_run_cache if run_cache_exists else None,
+            non_cached_endpoints=non_cached_endpoints,
+        )
+        actual = client_inst._read_from_run_cache(endpoint=endpoint, params="fake=param&other=also-fake")
+        assert actual == expected_result
+        if load_data_call_expected:
+            mock_run_cache_load_data.assert_called_once()
+
+
+def test_read_from_run_cache_raises() -> None:
+    client_inst = ThrottledAPIBaseClient(
+        base_api_url="http://localhost",
+        max_api_call_retries=3,
+        seconds_between_api_calls=4,
+        valid_endpoints={"/foo", "/bar"},
+    )
+    with pytest.raises(ValueError, match=re.escape("Invalid endpoint provided")):
+        _ = client_inst._read_from_run_cache(endpoint="/invalid-endpoint", params="foo=bar")
