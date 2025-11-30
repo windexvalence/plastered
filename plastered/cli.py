@@ -5,7 +5,6 @@ USAGE: See docs/user_guide.md
 """
 
 import logging
-from datetime import datetime
 from pathlib import Path
 from pprint import pprint
 from typing import Final
@@ -16,10 +15,8 @@ from plastered.actions import cache_action, scrape_action, show_config_action
 from plastered.config.app_settings import get_app_settings, load_init_config_template
 from plastered.config.field_validators import CLIOverrideSetting
 from plastered.models.types import ALL_ENTITY_TYPES
-from plastered.stats.stats import PriorRunStats
-from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, prompt_user_for_run_date, subcommand_flag
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES, RUN_DATE_STR_FORMAT
-from plastered.utils.exceptions import StatsRunPickerException
+from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, subcommand_flag
+from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
 from plastered.version import get_project_version
 
@@ -104,37 +101,6 @@ def scrape(ctx, config: str, no_snatch: bool | None = False, rec_types: str | No
 
 
 @cli.command(
-    help="Gather and inspect the summary stats of a prior scrape run identified by the specified run_date.",
-    short_help="View the summary stats of a specific past scrape run",
-)
-@config_path_option
-@click.option(
-    "-d",
-    "--run-date",
-    type=click.DateTime(formats=[RUN_DATE_STR_FORMAT]),
-    required=False,
-    default=None,
-    envvar=None,
-    help="Specify the exact run date to inspect. Overrides the default interactive prompts for choosing the run date to inspect.",
-)
-@click.pass_context
-def inspect_stats(ctx, config: str, run_date: datetime | None = None) -> None:
-    app_settings = get_app_settings(src_yaml_filepath=Path(config), cli_overrides=ctx.obj.get(_GROUP_PARAMS_KEY))
-    # if the user doesn't provide a --run-date value, prompt the user for the required run_date information.
-    if not run_date:
-        _LOGGER.info("Explicit --run-date not provided. Will run in interactive mode.")
-        try:
-            run_date = prompt_user_for_run_date(
-                summaries_directory_path=app_settings.get_root_summary_directory_path(),
-                date_str_format=RUN_DATE_STR_FORMAT,
-            )
-        except StatsRunPickerException:  # pragma: no cover
-            _LOGGER.error("No run prior run summaries available for inspection.")
-            ctx.exit(2)
-    PriorRunStats(app_settings=app_settings, run_date=run_date).print_summary_tables()  # type: ignore
-
-
-@cli.command(
     help="Output the contents of your existing config.yaml, along with any default values and/or CLI option overrides.",
     short_help="Output the current state of your app config for inspection.",
 )
@@ -180,7 +146,6 @@ def cache(
     cache_action(
         app_settings=app_settings,
         target_cache=target_cache,
-        info=info,
         empty=empty,
         check=check,
         list_keys=list_keys,

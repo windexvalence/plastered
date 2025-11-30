@@ -3,26 +3,15 @@ import logging
 from ast import literal_eval as make_tuple
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from enum import StrEnum
 from typing import Any
 
 from diskcache import Cache
 
 from plastered.config.app_settings import AppSettings
-from plastered.stats.stats import RunCacheSummaryTable
-from plastered.utils.constants import BYTES_IN_MB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.models.types import CacheType
 from plastered.utils.exceptions import RunCacheDisabledException
 
 LOGGER = logging.getLogger(__name__)
-
-
-class CacheType(StrEnum):
-    """
-    Helper enum class used for indicating what type of caching behavior a RunCache instance is meant for.
-    """
-
-    API = CACHE_TYPE_API
-    SCRAPER = CACHE_TYPE_SCRAPER
 
 
 def _tomorrow_midnight_datetime() -> datetime:
@@ -70,34 +59,6 @@ class RunCache:
     @property
     def enabled(self) -> bool:
         return self._enabled
-
-    def print_summary_info(self) -> None:
-        if not self._enabled or not self._cache:
-            raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        disk_usage_mb = self._cache.volume() / BYTES_IN_MB
-        hits, misses = self._cache.stats()
-        hit_rate_str = "NA" if hits + misses == 0 else str(float(hits) / float(hits + misses))
-        RunCacheSummaryTable(
-            cache_type_str=self._cache_type.value,
-            disk_usage_mb=str(disk_usage_mb),
-            hits=str(hits),
-            misses=str(misses),
-            hit_rate=hit_rate_str,
-            directory_path=self._cache_dir_path,
-        ).print_table()
-        # print(f"----------------------------------")
-        # print(f"Cache Summary: {self._cache_type.value}")
-        # print(f"    Directory path in container: {self._cache_dir_path}")
-        # print(f"    Disk usage (MB): {}")
-        # print(f"    Cache hits (prior run):   {hits}")
-        # print(f"    Cache misses (prior run): {misses}")
-        # print(f"    Cache hit rate (prior run): {}")
-        # if self._cache_type == CacheType.API:
-        #     base_domain_cache_cnts = defaultdict(int)
-        #     for cache_key in self._cache.iterkeys():
-        #         base_domain_cache_cnts[cache_key[0]] += 1
-        #     print(f"    Cache entries by base domains: {list(base_domain_cache_cnts.items())}")
-        # print(f"----------------------------------")
 
     def clear(self) -> None:
         """

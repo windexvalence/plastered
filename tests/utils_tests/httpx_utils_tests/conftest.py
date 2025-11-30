@@ -4,7 +4,8 @@ from unittest.mock import patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.models.types import CacheType
+from plastered.run_cache.run_cache import RunCache
 
 
 @pytest.fixture(scope="session")

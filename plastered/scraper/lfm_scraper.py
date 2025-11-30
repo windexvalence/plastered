@@ -9,8 +9,8 @@ from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_pl
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
-from plastered.models.types import EntityType, RecContext
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.models.types import CacheType, EntityType, RecContext
+from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,

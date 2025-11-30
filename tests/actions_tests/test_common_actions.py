@@ -4,8 +4,9 @@ import pytest
 
 from plastered.actions.common_actions import cache_action, scrape_action, show_config_action
 from plastered.config.app_settings import AppSettings
+from plastered.models.types import CacheType
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
 
 
@@ -13,7 +14,6 @@ from plastered.scraper.lfm_scraper import LFMRecsScraper
 @pytest.mark.parametrize(
     "test_kwargs, run_cache_method_name",
     [
-        ({"info": True}, "print_summary_info"),
         ({"empty": True}, "clear"),
         ({"check": True}, "check"),
         ({"list_keys": True}, "cli_list_cache_keys"),
@@ -38,7 +38,7 @@ def test_cache_action(
 
 @pytest.mark.parametrize("target_cache", ["api", "scraper"])
 @pytest.mark.parametrize(
-    "test_kwargs", [{"info": True}, {"empty": True}, {"check": True}, {"list_keys": True}, {"read_value": "fake-key"}]
+    "test_kwargs", [{"empty": True}, {"check": True}, {"list_keys": True}, {"read_value": "fake-key"}]
 )
 def test_cache_action_disabled_raises(
     valid_app_settings: AppSettings, target_cache: str, test_kwargs: dict[str, bool | str | None]

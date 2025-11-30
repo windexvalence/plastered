@@ -3,7 +3,7 @@ from typing import Annotated, Final
 
 from pydantic import BeforeValidator
 
-from plastered.utils.constants import BYTES_IN_GB
+from plastered.utils.constants import BYTES_IN_GB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
 
 
 class RedReleaseType(IntEnum):
@@ -97,3 +97,12 @@ class RecContext(StrEnum):
     IN_LIBRARY = "in-library"
     SIMILAR_ARTIST = "similar-artist"
     NOT_SET = "not-set"  # For manual runs only, where the concept of a "rec" isn't relevant
+
+
+class CacheType(StrEnum):
+    """
+    Helper enum class used for indicating what type of caching behavior a RunCache instance is meant for.
+    """
+
+    API = CACHE_TYPE_API
+    SCRAPER = CACHE_TYPE_SCRAPER

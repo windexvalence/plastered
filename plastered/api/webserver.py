@@ -91,6 +91,12 @@ async def runs_page(request: Request, search_id: int | None = None) -> HTMLRespo
     return TEMPLATES.TemplateResponse(request=request, name="run_history_page.html", context={"search_id": search_id})
 
 
+# TODO [later]: add the html template and migrate logic of plastered.stats.PriorRunStats to here.
+# @fastapi_app.get(Endpoint.STATS_PAGE.value.rel_path)
+# async def scraper_stats_page(request: Request) -> HTMLResponse:
+#     return TEMPLATES.TemplateResponse(request=request, name="scraper_stats_page.html", context={})
+
+
 @fastapi_app.get(Endpoint.USER_DETAILS_PAGE.value.rel_path)
 async def user_details_page(request: Request, red_user_details: RedUserDetailsDep) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(

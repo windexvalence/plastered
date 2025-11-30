@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Final
 from sqlmodel import Field, SQLModel, create_engine
 
 from plastered.config.app_settings import get_app_settings
-from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum, RecContext
 from plastered.utils.exceptions import RedClientSnatchException
 
 if TYPE_CHECKING:
@@ -103,6 +103,27 @@ class Grabbed(SQLModel, table=True):
     fl_token_used: bool | None = Field(default=None)
     snatch_path: str | None = Field(default=None)
     tid: int | None = Field(default=None)
+
+
+class LFMSourceDetails(SQLModel, table=True):
+    """Model for the extra source data related to an LFM rec."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    search_id: int | None = Field(default=None, foreign_key="searchrecord.id")
+    rec_context: RecContext
+    lfm_artist_str: str | None = Field(default=None)
+    lfm_entity_str: str | None = Field(default=None)
+
+
+# TODO [later]: create this, and a "run" record, which encapsulates all searchrecord entries for a given scraper/manual run
+# class RunCacheSummary(SQLModel, table=True):
+#     """Model for tracking the RunCache stats for a given scraper / manual run."""
+#     id: int | None = Field(default=None, primary_key=True)
+#     run_id: int | None = Field(default=None, foreign_key="runs.id")
+#     cache_type: CacheType
+#     hits: int
+#     misses: int
+#     dir_path: str | None = Field(default=None)
 
 
 _DB_FILEPATH: Final[str] = get_app_settings().get_db_filepath()

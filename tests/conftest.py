@@ -3,12 +3,9 @@ import copy
 import csv
 import json
 import os
-from unittest.mock import patch
 
 os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 from sqlmodel import SQLModel, Session, StaticPool, create_engine
-
-from plastered.api.fastapi_dependencies import _DependencySingletons
 
 import re
 from collections.abc import Generator
@@ -22,11 +19,11 @@ import yaml
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import SearchRecord
+from plastered.db.db_models import FailReason, SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
-from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
-from plastered.run_cache.run_cache import CacheType, RunCache
-from plastered.stats.stats import SkippedReason, SnatchFailureReason
+from plastered.models.types import CacheType, EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.run_cache.run_cache import RunCache
+from plastered.db.db_models import SkipReason
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import RedUserDetails
 
@@ -210,7 +207,7 @@ def mock_output_summary_dir_path(mock_root_summary_dir_path: Path, mock_run_date
 @pytest.fixture(scope="session")
 def skipped_rows() -> list[list[str]]:
     return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkippedReason.ALREADY_SNATCHED.value],
+        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkipReason.ALREADY_SNATCHED.value],
         [
             "album",
             "similar-artist",
@@ -218,18 +215,10 @@ def skipped_rows() -> list[list[str]]:
             "Other Album",
             "N/A",
             "69420",
-            SkippedReason.ABOVE_MAX_SIZE.value,
+            SkipReason.ABOVE_MAX_ALLOWED_SIZE.value,
         ],
-        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkippedReason.NO_MATCH_FOUND.value],
-        [
-            "album",
-            "in-library",
-            "Another Artist",
-            "Fake Album",
-            "N/A",
-            "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
-        ],
+        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkipReason.NO_MATCH_FOUND.value],
+        ["album", "in-library", "Another Artist", "Fake Album", "N/A", "None", SkipReason.REC_CONTEXT_FILTERING.value],
         [
             "track",
             "in-library",
@@ -237,7 +226,7 @@ def skipped_rows() -> list[list[str]]:
             "Fake Release",
             "Some Track",
             "None",
-            SkippedReason.REC_CONTEXT_FILTERING.value,
+            SkipReason.REC_CONTEXT_FILTERING.value,
         ],
     ]
 
@@ -245,9 +234,9 @@ def skipped_rows() -> list[list[str]]:
 @pytest.fixture(scope="session")
 def failed_snatch_rows() -> list[list[str]]:
     return [
-        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", SnatchFailureReason.RED_API_REQUEST_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", SnatchFailureReason.FILE_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", SnatchFailureReason.OTHER.value],
+        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", FailReason.RED_API_REQUEST_ERROR.value],
+        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", FailReason.FILE_ERROR.value],
+        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", FailReason.OTHER.value],
     ]
 
 

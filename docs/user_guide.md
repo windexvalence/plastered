@@ -66,12 +66,4 @@ plastered cache --help
 
 ### Inpsecting Prior Run Results
 
-Anytime you run `plastered scrape`, the app will create several TSV files which summarize the recommendations results, as well as the snatch status of each. This information is displayed at the end of each run in a set of printed tables. You can check the summary details of past runs via the `plastered inspect_stats` command.
-
-However, if you want to run some custom scripts off those results, you could use the equivalent TSV files as needed. The TSV file for a given scrape run can be found at the following paths:
-
-* `/config/summaries/<SCRAPE_RUN_DATE_HERE>/failed.tsv`: TSV of attempted snatches from RED which failed.
-
-* `/config/summaries/<SCRAPE_RUN_DATE_HERE>/skipped.tsv`: TSV of skipped RED snatches (due to user config filtering preferences).
-
-* `/config/summaries/<SCRAPE_RUN_DATE_HERE>/snatched.tsv`: TSV of successful snatches from RED.
+TODO: update this section
