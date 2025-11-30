@@ -10,7 +10,6 @@ from plastered.db.db_utils import add_record, set_result_status
 from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RecContext
-from plastered.stats.stats import SnatchFailureReason
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
@@ -72,7 +71,6 @@ class SearchState:
         self._red_format_preferences = app_settings.get_red_format_preferences()
         self._max_size_gb = app_settings.red.snatches.max_size_gb
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
-        self._output_summary_dir_path = app_settings.get_output_summary_dir_path()
         self._max_download_allowed_gb = 0.0
         self._red_user_details = red_user_details
         self._run_download_total_gb = 0.0
@@ -296,9 +294,7 @@ class SearchState:
 
     def _add_failed_snatch_row(self, si: SearchItem, exc_name: str) -> None:  # pragma: no cover
         snatch_failure_reason = FailReason.OTHER
-        if (
-            exc_name == SnatchFailureReason.RED_API_REQUEST_ERROR or exc_name == SnatchFailureReason.FILE_ERROR
-        ):  # pragma: no cover
+        if exc_name == FailReason.RED_API_REQUEST_ERROR or exc_name == FailReason.FILE_ERROR:  # pragma: no cover
             snatch_failure_reason = FailReason(exc_name)
         set_result_status(
             search_id=si.search_id,

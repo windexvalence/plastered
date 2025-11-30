@@ -89,27 +89,3 @@ class RunCacheDisabledException(RunCacheException):
     """
 
     pass
-
-
-class StatsTableException(Exception):
-    """
-    Exception for errors from StatsTable / subclasses.
-    """
-
-    pass
-
-
-class StatsRunPickerException(Exception):
-    """
-    Exception specifically for the StatsRunPicker errors.
-    """
-
-    pass
-
-
-class PriorRunStatsException(StatsTableException):
-    """
-    Exception for errors from PriorRunStats instances.
-    """
-
-    pass

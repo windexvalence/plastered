@@ -6,8 +6,9 @@ from typing import Any
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.types import CacheType
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.run_cache.run_cache import CacheType, RunCache
+from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
 from plastered.utils.constants import API_ALL_CACHE_TYPES, CLI_ALL_CACHE_TYPES
 from plastered.utils.exceptions import RunCacheDisabledException
@@ -31,7 +32,6 @@ def show_config_action(app_settings: AppSettings) -> dict[str, Any]:
 def cache_action(
     app_settings: AppSettings,
     target_cache: str,
-    info: bool | None = False,
     empty: bool | None = False,
     check: bool | None = False,
     list_keys: bool | None = False,
@@ -45,8 +45,6 @@ def cache_action(
     for target_cache_type in target_cache_types:
         target_run_cache = RunCache(app_settings=app_settings, cache_type=target_cache_type)
         try:
-            if info:
-                target_run_cache.print_summary_info()
             if empty:
                 target_run_cache.clear()
             if check:

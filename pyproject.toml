@@ -13,7 +13,6 @@ dependencies = [
     "pydantic==2.12.3",
     "pydantic-settings>=2.10.1",
     "PyYAML==6.0.3",
-    "questionary==2.1.1",
     "rebrowser-playwright==1.52.0",
     "rich==14.2.0",
     "sqlmodel==0.0.27",

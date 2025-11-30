@@ -207,16 +207,8 @@ class AppSettings(BaseSettings):
             return None
         return val
 
-    def get_root_summary_directory_path(self) -> str:
-        return os.fspath(self._root_summary_directory_path)
-
     def get_db_filepath(self) -> str:
         return os.fspath(self._db_filepath)
-
-    def get_output_summary_dir_path(self, date_str: str | None = None) -> str:
-        if not date_str:
-            return os.path.join(self._root_summary_directory_path, self._run_datestr)
-        return os.path.join(self._root_summary_directory_path, date_str)
 
     def get_cache_directory_path(self, cache_type: str) -> str:
         return os.path.join(self._base_cache_directory_path, cache_type)

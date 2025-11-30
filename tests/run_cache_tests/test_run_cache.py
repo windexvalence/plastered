@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings
-from plastered.run_cache.run_cache import CacheType, RunCache, _tomorrow_midnight_datetime
+from plastered.models.types import CacheType
+from plastered.run_cache.run_cache import RunCache, _tomorrow_midnight_datetime
 from plastered.utils.exceptions import RunCacheDisabledException
 
 _DT_STR_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -300,33 +301,6 @@ def test_run_cache_check(
                 mock_diskcache.check.assert_called_once()
 
         pass  # TODO: implement
-
-
-@pytest.mark.parametrize(
-    "cache_type, run_cache_enabled",
-    [(CacheType.API, False), (CacheType.SCRAPER, False), (CacheType.API, True), (CacheType.SCRAPER, True)],
-)
-def test_print_summary_info(valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool) -> None:
-    mock_diskcache = MagicMock()
-
-    def _stats_side_effect(*args, **kwargs) -> tuple[int, int] | None:
-        if len(args) > 0 or len(kwargs) > 0:
-            return None
-        return (69, 420)
-
-    with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
-        with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
-            mock_diskcache_constructor.return_value = mock_diskcache
-            mock_diskcache.stats.side_effect = _stats_side_effect
-            mock_diskcache.expire.return_value = None
-            mock_diskcache.volume.return_value = 10000.0
-            run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
-            if not run_cache_enabled:
-                with pytest.raises(RunCacheDisabledException, match="cache is not enabled"):
-                    actual = run_cache.print_summary_info()
-            else:
-                actual = run_cache.print_summary_info()
-                mock_diskcache.stats.assert_has_calls([call(enable=True, reset=True), call()])
 
 
 @pytest.mark.parametrize(

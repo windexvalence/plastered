@@ -64,6 +64,8 @@ class Endpoint(Enum):
     USER_DETAILS_PAGE = RoutePath(rel_path="/user_details", api_prefix=WEBSERVER_ROUTES_PREFIX)
     # /result_modal
     RESULT_MODAL = RoutePath(rel_path="/result_modal", api_prefix=WEBSERVER_ROUTES_PREFIX)
+    # /scraper_stats
+    STATS_PAGE = RoutePath(rel_path="/scraper_stats", api_prefix=WEBSERVER_ROUTES_PREFIX)
 
 
 _API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api"))
