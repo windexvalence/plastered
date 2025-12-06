@@ -95,6 +95,7 @@ async def submit_search_form_endpoint(
         red_user_details=request.state.lifespan_singleton.red_user_details,
         search_id=search_id,
         mbid=mbid,  # type: ignore[call-arg]
+        **request.state.lifespan_singleton.get_all_client_kwargs(),
     )
     # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
     return RedirectResponse(

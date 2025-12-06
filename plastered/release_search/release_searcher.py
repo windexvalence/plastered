@@ -29,12 +29,24 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_settings: AppSettings, red_user_details: RedUserDetails | None = None):
+    def __init__(
+        self,
+        app_settings: AppSettings,
+        red_user_details: RedUserDetails | None = None,
+        red_api_client: RedAPIClient | None = None,
+        red_snatch_client: RedSnatchAPIClient | None = None,
+        lfm_client: LFMAPIClient | None = None,
+        musicbrainz_client: MusicBrainzAPIClient | None = None,
+    ):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
-        self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._red_client = red_api_client or RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._red_snatch_client = red_snatch_client or RedSnatchAPIClient(
+            app_settings=app_settings, run_cache=self._run_cache
+        )
+        self._lfm_client = lfm_client or LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._musicbrainz_client = musicbrainz_client or MusicBrainzAPIClient(
+            app_settings=app_settings, run_cache=self._run_cache
+        )
         self._red_user_id = app_settings.red.red_user_id
         self._search_state = SearchState(app_settings=app_settings, red_user_details=red_user_details)
         self._enable_snatches = app_settings.red.snatches.snatch_recs

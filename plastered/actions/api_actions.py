@@ -64,7 +64,7 @@ def inspect_run_action(run_id: int, session: Session) -> SearchRecord | None:
 
 
 async def manual_search_action(
-    app_settings: AppSettings, red_user_details: RedUserDetails, search_id: int, mbid: str | None = None
+    app_settings: AppSettings, red_user_details: RedUserDetails, search_id: int, **kwargs: Any
 ) -> dict[str, Any]:
     """
     Action for executing a manual search + snatch of a given Album or track.
@@ -72,8 +72,15 @@ async def manual_search_action(
     """
     search_result: SearchRecord | None = None
     try:
-        with ReleaseSearcher(app_settings=app_settings, red_user_details=red_user_details) as release_searcher:
-            release_searcher.manual_search(search_id=search_id, mbid=mbid)
+        with ReleaseSearcher(
+            app_settings=app_settings,
+            red_user_details=red_user_details,
+            red_api_client=kwargs.get("red_api_client"),
+            red_snatch_client=kwargs.get("red_snatch_client"),
+            lfm_client=kwargs.get("lfm_client"),
+            musicbrainz_client=kwargs.get("musicbrainz_client"),
+        ) as release_searcher:
+            release_searcher.manual_search(search_id=search_id, mbid=kwargs.get("mbid"))
     except Exception as ex:  # pragma: no cover
         msg = f"Uncaught exception raised during manual search attempt: {type(ex)}"
         _LOGGER.error(msg, exc_info=True)
