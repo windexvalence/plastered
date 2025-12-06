@@ -1,5 +1,5 @@
 from typing import Final
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
@@ -58,12 +58,13 @@ def test_runs_page(client: TestClient) -> None:
         mock_template_response_constructor.assert_called_once()
 
 
-@pytest.mark.slow
-def test_user_details(client: TestClient) -> None:
+def test_user_details_page(client: TestClient) -> None:
     with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
         resp = client.get("/user_details")
         assert resp.status_code == 200
-        mock_template_response_constructor.assert_called_once()
+        mock_template_response_constructor.assert_called_once_with(
+            request=ANY, name="user_details.html", context={"user_id": ANY, "available_fl_tokens": ANY}
+        )
 
 
 def test_result_modal(client: TestClient) -> None:

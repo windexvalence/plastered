@@ -3,17 +3,16 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-# from jinja2_fragments.fastapi import Jinja2Blocks
 from plastered.api.api_routes import plastered_api_router
 from plastered.api.constants import STATIC_DIRPATH, STATIC_ROUTES_PREFIX, TEMPLATES, Endpoint
-from plastered.api.fastapi_dependencies import RedUserDetailsDep
+from plastered.api.lifespan_resources import LifespanSingleton, get_lifespan_singleton
 from plastered.config.app_settings import get_app_settings
 from plastered.db.db_utils import db_startup
 from plastered.models.types import EntityType
@@ -24,7 +23,7 @@ logging.basicConfig(level=get_app_settings().server.log_level)
 _LOGGER = logging.getLogger(__name__)
 _HTMX_FILEPATH: Final[Path] = STATIC_DIRPATH / "js" / "htmx.min.js"
 _STATIC_IMAGES_DIRPATH: Final[Path] = STATIC_DIRPATH / "images"
-# TODO: switch to this block template lib: https://github.com/tataraba/simplesite/blob/main/docs/04_Chapter_4.md#the-python-stuff
+# TODO (maybe / later): switch to this block template lib: https://github.com/tataraba/simplesite/blob/main/docs/04_Chapter_4.md#the-python-stuff
 # templates = Jinja2Blocks(directory=_TEMPLATES_DIRPATH)
 
 
@@ -34,9 +33,14 @@ async def _app_lifespan(app: FastAPI):
     # Startup events: Initialize stuff
     _LOGGER.info("Running fastapi app lifespan startup ...")
     db_startup()
-    yield
+    singleton = get_lifespan_singleton()
+    app.state.lifespan_singleton = singleton
+    cast("LifespanSingleton", app.state.lifespan_singleton)
+    # https://github.com/fastapi/fastapi/discussions/9664#discussioncomment-11170662
+    yield {"lifespan_singleton": singleton}
     # Shutdown events: Clean up stuff
     _LOGGER.info("Server shutting down ...")
+    app.state.lifespan_singleton.shutdown()
 
 
 # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
@@ -98,7 +102,8 @@ async def runs_page(request: Request, search_id: int | None = None) -> HTMLRespo
 
 
 @fastapi_app.get(Endpoint.USER_DETAILS_PAGE.value.rel_path)
-async def user_details_page(request: Request, red_user_details: RedUserDetailsDep) -> HTMLResponse:
+async def user_details_page(request: Request) -> HTMLResponse:
+    red_user_details = fastapi_app.state.lifespan_singleton.red_user_details
     return TEMPLATES.TemplateResponse(
         request=request,
         name="user_details.html",
