@@ -143,7 +143,7 @@ class ThrottledAPIBaseClient:
         )
 
     def _write_cache_if_enabled(self, endpoint: str, params: str, result_json: dict[str, Any]) -> bool:
-        if self._run_cache is None:
+        if self._run_cache is None:  # pragma: no cover
             LOGGER.debug(
                 f"{self.__class__.__name__}: Skip cache write. No run cache initialized for this client instance."
             )

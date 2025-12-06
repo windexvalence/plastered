@@ -1,7 +1,6 @@
 import datetime
 import re
 from time import time
-from typing import Any
 from unittest.mock import call, patch
 
 import pytest

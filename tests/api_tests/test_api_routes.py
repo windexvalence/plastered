@@ -93,8 +93,6 @@ def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> No
             assert resp.status_code == 404
 
 
-# Horrible hack bc of fastapi bs: https://github.com/Kludex/starlette/issues/533#issuecomment-1040074223
-@pytest.mark.slow
 @pytest.mark.parametrize(
     "form_data, request_params, expected_entity_type",
     [

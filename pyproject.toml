@@ -178,6 +178,7 @@ addopts = "--cov=plastered --no-cov-on-fail --disable-socket --allow-hosts=testc
 markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
+    "no_autouse_mock_lifespan_singleton_inst: mark a test to not use the auto-use fixture for the fastapi lifespan singleton.",
     "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
 ]
 filterwarnings = [

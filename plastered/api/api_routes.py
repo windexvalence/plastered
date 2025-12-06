@@ -10,13 +10,7 @@ from plastered.actions import scrape_action, show_config_action
 from plastered.actions.api_actions import inspect_run_action, manual_search_action, run_history_action
 from plastered.api.api_models import RunHistoryListResponse
 from plastered.api.constants import API_ROUTES_PREFIX, SUB_CONF_NAMES, TEMPLATES, Endpoint
-from plastered.api.fastapi_dependencies import (
-    AppSettingsDep,
-    ConfigFilepathDep,
-    PlasteredVersionDep,
-    RedUserDetailsDep,
-    SessionDep,
-)
+from plastered.api.fastapi_dependencies import SessionDep
 from plastered.config.app_settings import get_app_settings
 from plastered.config.field_validators import CLIOverrideSetting
 from plastered.db.db_models import SearchRecord, Status
@@ -32,17 +26,15 @@ plastered_api_router = APIRouter(prefix=API_ROUTES_PREFIX)
 
 # /api/healthcheck
 @plastered_api_router.get(Endpoint.HEALTHCHECK.value.rel_path)
-async def healthcheck_endpoint(plastered_version: PlasteredVersionDep) -> JSONResponse:
-    return JSONResponse(content={"version": plastered_version}, status_code=200)
+async def healthcheck_endpoint(request: Request) -> JSONResponse:
+    return JSONResponse(content={"version": request.state.lifespan_singleton.project_version}, status_code=200)
 
 
 # /api/config?sub_conf=<format_preferences|search|snatch>
 @plastered_api_router.get(Endpoint.CONFIG.value.rel_path, response_model=None)
-async def show_config_endpoint(
-    app_settings: AppSettingsDep, request: Request, sub_conf: str | None = None
-) -> JSONResponse | HTMLResponse:
+async def show_config_endpoint(request: Request, sub_conf: str | None = None) -> JSONResponse | HTMLResponse:
     _LOGGER.debug(f"/api/config endpoint called at {datetime.now(tz=UTC).timestamp()}")
-    conf_dict = show_config_action(app_settings=app_settings)
+    conf_dict = show_config_action(app_settings=request.state.lifespan_singleton.app_settings)
     _LOGGER.debug(f"/api/config endpoint acquired conf_dict of size {len(conf_dict)}.")
     if request.headers.get("HX-Request") == "true":
         _LOGGER.debug("/api/config endpoint detected request from HTMX.")
@@ -73,8 +65,6 @@ async def show_config_endpoint(
 @plastered_api_router.post(Endpoint.SUBMIT_SEARCH_FORM.value.rel_path)
 async def submit_search_form_endpoint(
     session: SessionDep,
-    app_settings: AppSettingsDep,
-    red_user_details: RedUserDetailsDep,
     background_tasks: BackgroundTasks,
     request: Request,
     entity: Annotated[str, Form()],
@@ -102,8 +92,8 @@ async def submit_search_form_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unable to create search record")
     background_tasks.add_task(
         func=manual_search_action,
-        app_settings=app_settings,
-        red_user_details=red_user_details,
+        app_settings=request.state.lifespan_singleton.app_settings,
+        red_user_details=request.state.lifespan_singleton.red_user_details,
         search_id=search_id,
         mbid=mbid,  # type: ignore[call-arg]
     )
@@ -117,7 +107,7 @@ async def submit_search_form_endpoint(
 # /api/scrape?snatch=<false|true>&rec_type=<album|track|all>
 @plastered_api_router.post(Endpoint.SCRAPE.value.rel_path)
 async def scrape_endpoint(
-    session: SessionDep, config_filepath: ConfigFilepathDep, snatch: bool = False, rec_type: str = "all"
+    request: Request, session: SessionDep, snatch: bool = False, rec_type: str = "all"
 ) -> RedirectResponse:
     if rec_type not in _VALID_REC_TYPES:  # pragma: no cover
         msg = f"Invalid rec_type value '{rec_type}'. Must be one of {_VALID_REC_TYPES}"
@@ -125,7 +115,7 @@ async def scrape_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     target_entities = [et.value for et in EntityType] if rec_type == "all" else [rec_type]
     app_settings = get_app_settings(
-        config_filepath,
+        request.state.lifespan_singleton.config_filepath,
         cli_overrides={
             CLIOverrideSetting.SNATCH_ENABLED.name: snatch,
             CLIOverrideSetting.REC_TYPES.name: target_entities,
