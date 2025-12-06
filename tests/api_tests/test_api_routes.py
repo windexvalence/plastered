@@ -1,20 +1,15 @@
 from pathlib import Path
-import re
 from typing import Any
 from unittest.mock import patch, ANY
 
-from fastapi import HTTPException
-from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
 import pytest
-from pytest_mock import MockerFixture
 
 from plastered.api.api_models import RunHistoryItem, RunHistoryListResponse
-from plastered.api.constants import SUB_CONF_NAMES, Endpoint
+from plastered.api.constants import SUB_CONF_NAMES
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Failed, Grabbed, SearchRecord, SkipReason, Skipped
+from plastered.db.db_models import Grabbed, SearchRecord, SkipReason, Skipped
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
@@ -28,7 +23,7 @@ def test_healthcheck_endpoint(client: TestClient) -> None:
 
 def test_show_config_endpoint(client: TestClient) -> None:
     with patch(
-        "plastered.api.api_routes.show_config_action", return_value={"fake-key": "fake-value"}
+        "plastered.api.routes.api_routes.show_config_action", return_value={"fake-key": "fake-value"}
     ) as mock_show_config_action:
         resp = client.get("/api/config")
         assert resp.status_code == 200
@@ -59,7 +54,9 @@ def test_show_config_endpoint_htmx(
 ) -> None:
     req_pathstr = "/api/config" + (f"?sub_conf={sub_conf}" if sub_conf else "")
     with (
-        patch("plastered.api.api_routes.show_config_action", return_value=mock_conf_dict) as mock_show_config_action,
+        patch(
+            "plastered.api.routes.api_routes.show_config_action", return_value=mock_conf_dict
+        ) as mock_show_config_action,
         patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor,
     ):
         resp = client.get(req_pathstr, headers=mock_htmx_request_headers)
@@ -84,7 +81,7 @@ def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> No
         if mock_record_found
         else None
     )
-    with patch("plastered.api.api_routes.inspect_run_action", return_value=mock_record) as mock_inspect_fn:
+    with patch("plastered.api.routes.api_routes.inspect_run_action", return_value=mock_record) as mock_inspect_fn:
         resp = client.get(f"/api/inspect_run?run_id={mock_id}")
         if mock_record_found:
             assert resp.status_code == 200
@@ -104,9 +101,9 @@ def test_submit_search_form_endpoint(
     client: TestClient, form_data: dict[str, str], request_params: str | None, expected_entity_type: EntityType
 ) -> None:
     with (
-        patch("plastered.api.api_routes.manual_search_action", return_value={"fake": "data"}),
+        patch("plastered.api.routes.api_routes.manual_search_action", return_value={"fake": "data"}),
         patch(
-            "plastered.api.api_routes.run_history_endpoint",
+            "plastered.api.routes.api_routes.run_history_endpoint",
             return_value=RunHistoryListResponse(runs=[], since_timestamp=1759680000),
         ) as mock_run_history_endpoint,
     ):
@@ -127,8 +124,10 @@ def test_scrape_endpoint(
     expected_rt_cli_override_arg: list[str],
 ) -> None:
     with (
-        patch("plastered.api.api_routes.scrape_action", return_value=None) as mock_scrape_action,
-        patch("plastered.api.api_routes.get_app_settings", return_value=valid_app_settings) as mock_get_app_settings,
+        patch("plastered.api.routes.api_routes.scrape_action", return_value=None) as mock_scrape_action,
+        patch(
+            "plastered.api.routes.api_routes.get_app_settings", return_value=valid_app_settings
+        ) as mock_get_app_settings,
     ):
         resp = client.post(f"/api/scrape?snatch={str(snatch).lower()}&rec_type={rec_type}")
         assert resp.status_code == 200
@@ -197,7 +196,7 @@ def test_scrape_endpoint(
 def test_run_history_endpoint(client: TestClient, mock_response_model: RunHistoryListResponse) -> None:
     mock_since = 1759680000
     with patch(
-        "plastered.api.api_routes.run_history_action", return_value=mock_response_model
+        "plastered.api.routes.api_routes.run_history_action", return_value=mock_response_model
     ) as mock_run_history_action:
         resp = client.get(f"/api/run_history?since_timestamp={mock_since}")
         assert resp.status_code == 200

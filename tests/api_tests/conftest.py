@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from plastered.api.lifespan_resources import LifespanSingleton
-from plastered.api.webserver import fastapi_app
+from plastered.api.main import fastapi_app
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
 from plastered.utils.httpx_utils.red_client import RedAPIClient
@@ -31,7 +31,7 @@ def mock_LifespanSingleton_inst(
         type(singleton_inst).project_version = PropertyMock(return_value=get_project_version())
         with (
             patch.object(BackgroundTasks, "add_task", side_effect=lambda *args, **kwargs: None),
-            patch("plastered.api.webserver.get_lifespan_singleton", return_value=singleton_inst),
+            patch("plastered.api.main.get_lifespan_singleton", return_value=singleton_inst),
         ):
             yield singleton_inst
 

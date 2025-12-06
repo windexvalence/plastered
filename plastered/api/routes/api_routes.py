@@ -20,7 +20,6 @@ from plastered.models.types import EntityType
 _LOGGER = logging.getLogger(__name__)
 # TODO (later): consolidate this to a single constant for both CLI and server to reference.
 _VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
-
 plastered_api_router = APIRouter(prefix=API_ROUTES_PREFIX)
 
 

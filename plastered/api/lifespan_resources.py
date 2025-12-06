@@ -24,11 +24,6 @@ def get_lifespan_singleton() -> LifespanSingleton:
 class LifespanSingleton:
     """Wrapper singleton class for managing any singleton lifespan objects as attributes."""
 
-    # app_settings: AppSettings
-    # config_filepath: Path
-    # red_api_client: RedAPIClient
-    # red_user_details: RedUserDetails
-    # project_version: str
     _instance: Self | None = None
 
     def __new__(cls):

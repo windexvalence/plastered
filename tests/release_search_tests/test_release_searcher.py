@@ -253,6 +253,7 @@ def test_attempt_resolve_mb_release(
             assert actual == expected
 
 
+# TODO: fix flakiness of this test. Likely a race condition on fixtures improperly scoped.
 def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_settings: AppSettings) -> None:
     expected_red_user_id = valid_app_settings.red.red_user_id
     expected_snatch_count = 216
