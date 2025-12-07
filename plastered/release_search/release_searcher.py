@@ -3,12 +3,19 @@ import os
 
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_utils import get_result_by_id
-from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
-from plastered.models.manual_search_models import ManualSearch
-from plastered.models.musicbrainz_models import MBRelease
-from plastered.models.red_models import RedUserDetails, ReleaseEntry, TorrentMatch
-from plastered.models.search_item import SearchItem
-from plastered.models.types import CacheType, EntityType
+from plastered.models import (
+    CacheType,
+    EntityType,
+    LFMAlbumInfo,
+    LFMRec,
+    LFMTrackInfo,
+    ManualSearch,
+    MBRelease,
+    RedUserDetails,
+    ReleaseEntry,
+    SearchItem,
+    TorrentMatch,
+)
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException

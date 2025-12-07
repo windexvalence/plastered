@@ -5,7 +5,7 @@ from typing import Annotated, Any, NamedTuple, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
 
-from plastered.config.field_validators import validate_cd_extras_log_value
+from plastered.models.field_validators import validate_cd_extras_log_value
 from plastered.models.types import (
     EncodingEnum,
     FormatEnum,

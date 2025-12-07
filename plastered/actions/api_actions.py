@@ -14,7 +14,7 @@ from plastered.release_search.release_searcher import ReleaseSearcher
 
 if TYPE_CHECKING:
     from plastered.config.app_settings import AppSettings
-    from plastered.models.red_models import RedUserDetails
+    from plastered.models import RedUserDetails
 
 _LOGGER = logging.getLogger(__name__)
 

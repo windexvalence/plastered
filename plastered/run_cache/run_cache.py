@@ -8,7 +8,7 @@ from typing import Any
 from diskcache import Cache
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.types import CacheType
+from plastered.models import CacheType
 from plastered.utils.exceptions import RunCacheDisabledException
 
 LOGGER = logging.getLogger(__name__)

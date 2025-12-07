@@ -6,7 +6,7 @@ from typing import Any
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.types import CacheType, EntityType
+from plastered.models import CacheType, EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper

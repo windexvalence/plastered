@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES, Endpoint
-from plastered.models.types import EntityType
+from plastered.models import EntityType
 
 _LOGGER = logging.getLogger(__name__)
 plastered_web_router = APIRouter(prefix="")

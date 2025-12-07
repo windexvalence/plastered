@@ -13,8 +13,8 @@ import click
 
 from plastered.actions import cache_action, scrape_action, show_config_action
 from plastered.config.app_settings import get_app_settings, load_init_config_template
-from plastered.config.field_validators import CLIOverrideSetting
-from plastered.models.types import ALL_ENTITY_TYPES
+from plastered.models import ALL_ENTITY_TYPES
+from plastered.models.field_validators import CLIOverrideSetting
 from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, subcommand_flag
 from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler

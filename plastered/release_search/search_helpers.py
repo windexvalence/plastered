@@ -7,9 +7,7 @@ from sqlmodel import Session
 from plastered.config.app_settings import AppSettings, FormatPreference
 from plastered.db.db_models import ENGINE, FailReason, SearchRecord, SkipReason, Status
 from plastered.db.db_utils import add_record, set_result_status
-from plastered.models.red_models import RedFormat, RedUserDetails, TorrentEntry
-from plastered.models.search_item import SearchItem
-from plastered.models.types import RecContext
+from plastered.models import RecContext, RedFormat, RedUserDetails, SearchItem, TorrentEntry
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
     RED_PARAM_CATALOG_NUMBER,

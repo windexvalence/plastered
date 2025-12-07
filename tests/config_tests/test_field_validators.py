@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from plastered.config.field_validators import (
+from plastered.models.field_validators import (
     CLIOverrideSetting,
     _validate_red_pref_val,
     validate_cd_extras_log_value,

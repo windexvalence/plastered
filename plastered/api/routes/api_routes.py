@@ -13,7 +13,7 @@ from plastered.api.constants import API_ROUTES_PREFIX, SUB_CONF_NAMES, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
 from plastered.db.db_models import SearchRecord, Status
 from plastered.db.db_utils import add_record
-from plastered.models.types import EntityType
+from plastered.models import EntityType
 
 _LOGGER = logging.getLogger(__name__)
 plastered_api_router = APIRouter(prefix=API_ROUTES_PREFIX)

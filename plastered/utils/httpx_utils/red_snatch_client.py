@@ -13,7 +13,7 @@ from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
-    from plastered.models.red_models import RedUserDetails
+    from plastered.models import RedUserDetails
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.

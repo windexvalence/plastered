@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from plastered.config.app_settings import AppSettings
-    from plastered.models.red_models import RedUserDetails
+    from plastered.models import RedUserDetails
     from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 
