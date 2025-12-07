@@ -1,7 +1,7 @@
 from contextlib import nullcontext
 import re
 from typing import Any
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -91,6 +91,32 @@ def test_red_client_cache_hit(
     actual_result = test_client.request_api(endpoint, params)
     assert actual_result == mocked_json
     assert not httpx_mock.get_requests()
+
+
+def test_create_red_user_details(valid_app_settings: AppSettings, enabled_api_run_cache: RunCache) -> None:
+    mock_snatch_cnt = 69
+    mock_seed_cnt = 420
+    mock_user_profile_json = {"personal": {"giftTokens": 69, "meritTokens": 420}}
+
+    def _side_effect(action: str, type_: str | None = None, lim: int | None = None) -> Any:
+        return {
+            "community_stats": (mock_snatch_cnt, mock_seed_cnt),
+            "user_torrents": [],
+            "user": mock_user_profile_json,
+        }[action]
+
+    test_client = RedAPIClient(app_settings=valid_app_settings)
+    with patch.object(test_client, "_rud_helper", side_effect=_side_effect) as mock_rud_helper:
+        actual = test_client.create_red_user_details()
+        assert isinstance(actual, RedUserDetails)
+        mock_rud_helper.assert_has_calls(
+            [
+                call(action="community_stats"),
+                call(action="user_torrents", type_="snatched", lim=mock_snatch_cnt),
+                call(action="user_torrents", type_="seeding", lim=mock_seed_cnt),
+                call(action="user"),
+            ]
+        )
 
 
 @pytest.mark.parametrize("cache_enabled", [False, True])
