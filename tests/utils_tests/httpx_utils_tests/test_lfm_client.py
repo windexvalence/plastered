@@ -7,7 +7,7 @@ from pytest_httpx import HTTPXMock
 from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException
-from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
+from plastered.utils.httpx_utils import LFMAPIClient
 
 
 @pytest.fixture(scope="session")

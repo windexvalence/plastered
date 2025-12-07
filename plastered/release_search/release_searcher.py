@@ -12,10 +12,7 @@ from plastered.models.types import CacheType, EntityType
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
-from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
-from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
-from plastered.utils.httpx_utils.red_client import RedAPIClient
-from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
+from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress, red_browse_progress
 
 _LOGGER = logging.getLogger(__name__)
