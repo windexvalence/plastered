@@ -113,29 +113,25 @@ def test_submit_search_form_endpoint(
 
 @pytest.mark.parametrize("snatch", [False, True])
 @pytest.mark.parametrize(
-    "rec_type, expected_rt_cli_override_arg", [("track", ["track"]), ("album", ["album"]), ("all", ["album", "track"])]
+    "rec_type, expected_rt_cli_override_arg",
+    [
+        (EntityType("track"), [EntityType("track")]),
+        (EntityType("album"), [EntityType("album")]),
+        (None, [EntityType("album"), EntityType("track")]),
+    ],
 )
 def test_scrape_endpoint(
-    valid_config_filepath: str,
-    valid_app_settings: AppSettings,
-    client: TestClient,
-    snatch: bool,
-    rec_type: str,
-    expected_rt_cli_override_arg: list[str],
+    client: TestClient, snatch: bool, rec_type: EntityType | None, expected_rt_cli_override_arg: list[EntityType]
 ) -> None:
-    with (
-        patch("plastered.api.routes.api_routes.scrape_action", return_value=None) as mock_scrape_action,
-        patch(
-            "plastered.api.routes.api_routes.get_app_settings", return_value=valid_app_settings
-        ) as mock_get_app_settings,
-    ):
-        resp = client.post(f"/api/scrape?snatch={str(snatch).lower()}&rec_type={rec_type}")
+    request_path = f"/api/scrape?snatch={str(snatch).lower()}"
+    if rec_type is not None:
+        request_path += f"&rec_type={rec_type}"
+    with patch("plastered.api.routes.api_routes.scrape_action", return_value=None) as mock_scrape_action:
+        resp = client.post(request_path)
         assert resp.status_code == 200
-        mock_get_app_settings.assert_called_once_with(
-            Path(valid_config_filepath),
-            cli_overrides={"SNATCH_ENABLED": snatch, "REC_TYPES": expected_rt_cli_override_arg},
+        mock_scrape_action.assert_called_once_with(
+            app_settings=ANY, rec_types_to_scrape_override=expected_rt_cli_override_arg, snatch_override=snatch
         )
-        mock_scrape_action.assert_called_once()
 
 
 @pytest.mark.parametrize(

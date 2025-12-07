@@ -32,6 +32,7 @@ class ReleaseSearcher:
     def __init__(
         self,
         app_settings: AppSettings,
+        snatch_override: bool | None = None,
         red_user_details: RedUserDetails | None = None,
         red_api_client: RedAPIClient | None = None,
         red_snatch_client: RedSnatchAPIClient | None = None,
@@ -49,7 +50,9 @@ class ReleaseSearcher:
         )
         self._red_user_id = app_settings.red.red_user_id
         self._search_state = SearchState(app_settings=app_settings, red_user_details=red_user_details)
-        self._enable_snatches = app_settings.red.snatches.snatch_recs
+        self._enable_snatches = (
+            snatch_override if snatch_override is not None else app_settings.red.snatches.snatch_recs
+        )
         self._snatch_directory = app_settings.red.snatches.snatch_directory
 
     def __enter__(self):

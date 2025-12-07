@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, datetime
-from typing import Annotated, Final
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -11,15 +11,11 @@ from plastered.actions.api_actions import inspect_run_action, manual_search_acti
 from plastered.api.api_models import RunHistoryListResponse
 from plastered.api.constants import API_ROUTES_PREFIX, SUB_CONF_NAMES, TEMPLATES, Endpoint
 from plastered.api.fastapi_dependencies import SessionDep
-from plastered.config.app_settings import get_app_settings
-from plastered.config.field_validators import CLIOverrideSetting
 from plastered.db.db_models import SearchRecord, Status
 from plastered.db.db_utils import add_record
 from plastered.models.types import EntityType
 
 _LOGGER = logging.getLogger(__name__)
-# TODO (later): consolidate this to a single constant for both CLI and server to reference.
-_VALID_REC_TYPES: Final[tuple[str, ...]] = tuple(["album", "track", "all"])
 plastered_api_router = APIRouter(prefix=API_ROUTES_PREFIX)
 
 
@@ -104,24 +100,16 @@ async def submit_search_form_endpoint(
     )
 
 
-# /api/scrape?snatch=<false|true>&rec_type=<album|track|all>
+# /api/scrape?snatch=<false|true>&rec_type=<album|track|None>
 @plastered_api_router.post(Endpoint.SCRAPE.value.rel_path)
 async def scrape_endpoint(
-    request: Request, session: SessionDep, snatch: bool = False, rec_type: str = "all"
+    request: Request, session: SessionDep, snatch: bool = False, rec_type: EntityType | None = None
 ) -> RedirectResponse:
-    if rec_type not in _VALID_REC_TYPES:  # pragma: no cover
-        msg = f"Invalid rec_type value '{rec_type}'. Must be one of {_VALID_REC_TYPES}"
-        _LOGGER.warning(msg)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
-    target_entities = [et.value for et in EntityType] if rec_type == "all" else [rec_type]
-    app_settings = get_app_settings(
-        request.state.lifespan_singleton.config_filepath,
-        cli_overrides={
-            CLIOverrideSetting.SNATCH_ENABLED.name: snatch,
-            CLIOverrideSetting.REC_TYPES.name: target_entities,
-        },
+    scrape_action(
+        app_settings=request.state.lifespan_singleton.app_settings,
+        rec_types_to_scrape_override=[rec_type] if rec_type is not None else [et for et in EntityType],
+        snatch_override=snatch,
     )
-    scrape_action(app_settings=app_settings)
     # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
