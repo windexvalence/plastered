@@ -354,8 +354,8 @@ def mock_red_user_details(
     mock_red_user_response: dict[str, Any],
 ) -> RedUserDetails:
     return RedUserDetails(
-        user_id=69,
-        snatched_count=5216,
+        user_id=12345,
+        snatched_count=216,
         snatched_torrents_list=mock_red_user_torrents_snatched_response["response"]["snatched"]
         + mock_red_user_torrents_seeding_response["response"]["seeding"],
         user_profile_json=mock_red_user_response["response"],
