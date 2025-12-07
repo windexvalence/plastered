@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.red_models import RedUserDetails
+from plastered.models import RedUserDetails
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     NON_CACHED_RED_API_ENDPOINTS,

@@ -8,8 +8,7 @@ from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.lfm_models import LFMRec
-from plastered.models.types import CacheType, EntityType, RecContext
+from plastered.models import CacheType, EntityType, LFMRec, RecContext
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
@@ -60,11 +59,13 @@ class LFMRecsScraper:
     Utility class which manages the headless browser-based interactions with the recommendations pages to gather the recommendation data for subsequent searching and processing.
     """
 
-    def __init__(self, app_settings: AppSettings):
+    def __init__(self, app_settings: AppSettings, rec_types_to_scrape_override: list[EntityType] | None = None):
         self._max_rec_pages_to_scrape = app_settings.lfm.scraper_max_rec_pages_to_scrape
         self._lfm_username = app_settings.lfm.lfm_username
         self._lfm_password = app_settings.lfm.lfm_password.get_secret_value()
-        self._rec_types_to_scrape = [EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape]
+        self._rec_types_to_scrape = rec_types_to_scrape_override or [
+            EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape
+        ]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
         self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}
         self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"

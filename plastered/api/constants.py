@@ -9,7 +9,6 @@ from urllib.parse import urlencode
 from fastapi.templating import Jinja2Templates
 
 API_ROUTES_PREFIX: Final[str] = "/api"
-STATIC_ROUTES_PREFIX: Final[str] = "/static"
 WEBSERVER_ROUTES_PREFIX: Final[str] = "/"
 TEST_MODE: Final[bool] = os.getenv("PYTEST_VERSION") is not None
 
@@ -74,6 +73,6 @@ STATIC_DIRPATH: Final[Path] = _API_DIRPATH / "static"
 WEB_DATE_FMT: Final[str] = "%Y/%m/%d, %H:%M:%S"
 
 TEMPLATES: Final[Jinja2Templates] = Jinja2Templates(directory=TEMPLATES_DIRPATH)
-TEMPLATES.env.filters["dict_to_query_params"] = urlencode  # _dict_to_query_params
+TEMPLATES.env.filters["dict_to_query_params"] = urlencode
 
 SUB_CONF_NAMES: Final[tuple[str, ...]] = ("format_preferences", "search", "snatches")

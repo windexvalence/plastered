@@ -3,19 +3,23 @@ import os
 
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_utils import get_result_by_id
-from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
-from plastered.models.manual_search_models import ManualSearch
-from plastered.models.musicbrainz_models import MBRelease
-from plastered.models.red_models import RedUserDetails, ReleaseEntry, TorrentMatch
-from plastered.models.search_item import SearchItem
-from plastered.models.types import CacheType, EntityType
+from plastered.models import (
+    CacheType,
+    EntityType,
+    LFMAlbumInfo,
+    LFMRec,
+    LFMTrackInfo,
+    ManualSearch,
+    MBRelease,
+    RedUserDetails,
+    ReleaseEntry,
+    SearchItem,
+    TorrentMatch,
+)
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException, ReleaseSearcherException
-from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
-from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
-from plastered.utils.httpx_utils.red_client import RedAPIClient
-from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
+from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress, red_browse_progress
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,15 +33,30 @@ class ReleaseSearcher:
     interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
     """
 
-    def __init__(self, app_settings: AppSettings, red_user_details: RedUserDetails | None = None):
+    def __init__(
+        self,
+        app_settings: AppSettings,
+        snatch_override: bool | None = None,
+        red_user_details: RedUserDetails | None = None,
+        red_api_client: RedAPIClient | None = None,
+        red_snatch_client: RedSnatchAPIClient | None = None,
+        lfm_client: LFMAPIClient | None = None,
+        musicbrainz_client: MusicBrainzAPIClient | None = None,
+    ):
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
-        self._red_client = RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._red_snatch_client = RedSnatchAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._lfm_client = LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._musicbrainz_client = MusicBrainzAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._red_client = red_api_client or RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._red_snatch_client = red_snatch_client or RedSnatchAPIClient(
+            app_settings=app_settings, run_cache=self._run_cache
+        )
+        self._lfm_client = lfm_client or LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
+        self._musicbrainz_client = musicbrainz_client or MusicBrainzAPIClient(
+            app_settings=app_settings, run_cache=self._run_cache
+        )
         self._red_user_id = app_settings.red.red_user_id
         self._search_state = SearchState(app_settings=app_settings, red_user_details=red_user_details)
-        self._enable_snatches = app_settings.red.snatches.snatch_recs
+        self._enable_snatches = (
+            snatch_override if snatch_override is not None else app_settings.red.snatches.snatch_recs
+        )
         self._snatch_directory = app_settings.red.snatches.snatch_directory
 
     def __enter__(self):

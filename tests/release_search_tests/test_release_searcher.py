@@ -19,9 +19,7 @@ from plastered.models.lfm_models import LFMRec
 from plastered.models.types import EntityType as et, RecContext as rc
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedClientSnatchException, ReleaseSearcherException
-from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
-from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
-from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
+from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedSnatchAPIClient
 from plastered.models.lfm_models import LFMTrackInfo
 from plastered.utils.log_utils import NestedProgress
 from plastered.models.musicbrainz_models import MBRelease
@@ -253,6 +251,7 @@ def test_attempt_resolve_mb_release(
             assert actual == expected
 
 
+# TODO: fix flakiness of this test. Likely a race condition on fixtures improperly scoped.
 def test_gather_red_user_details(global_httpx_mock: HTTPXMock, valid_app_settings: AppSettings) -> None:
     expected_red_user_id = valid_app_settings.red.red_user_id
     expected_snatch_count = 216

@@ -33,11 +33,37 @@ def test_get_lifespan_singleton(reset_imports_and_instances: pytest.FixtureReque
 
 
 @pytest.mark.no_autouse_mock_lifespan_singleton_inst
+def test_get_all_client_kwargs(reset_imports_and_instances: pytest.FixtureRequest) -> None:
+    """Ensures the LifespanSingleton.get_all_client_kwargs() method works as intended."""
+    from plastered.api.lifespan_resources import get_lifespan_singleton
+
+    with (
+        patch("plastered.api.lifespan_resources.RedAPIClient"),
+        patch("plastered.api.lifespan_resources.RedSnatchAPIClient"),
+        patch("plastered.api.lifespan_resources.LFMAPIClient"),
+        patch("plastered.api.lifespan_resources.MusicBrainzAPIClient"),
+    ):
+        lsi = get_lifespan_singleton()
+        actual = lsi.get_all_client_kwargs()
+        assert isinstance(actual, dict)
+        assert len(actual) == 4
+        assert set(actual.keys()) == {"red_api_client", "red_snatch_client", "lfm_client", "musicbrainz_client"}
+
+
+@pytest.mark.no_autouse_mock_lifespan_singleton_inst
 def test_lifespan_singleton_shutdown(reset_imports_and_instances: pytest.FixtureRequest) -> None:
     """Ensures the LifespanSingleton.shutdown() method works as intended."""
     from plastered.api.lifespan_resources import get_lifespan_singleton
 
-    with patch("plastered.api.lifespan_resources.RedAPIClient") as MockCls:
+    with (
+        patch("plastered.api.lifespan_resources.RedAPIClient"),
+        patch("plastered.api.lifespan_resources.RedSnatchAPIClient"),
+        patch("plastered.api.lifespan_resources.LFMAPIClient"),
+        patch("plastered.api.lifespan_resources.MusicBrainzAPIClient"),
+    ):
         lsi = get_lifespan_singleton()
         lsi.shutdown()
         lsi.red_api_client.close_client.assert_called_once()
+        lsi.red_snatch_client.close_client.assert_called_once()
+        lsi.lfm_client.close_client.assert_called_once()
+        lsi.musicbrainz_client.close_client.assert_called_once()

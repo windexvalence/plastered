@@ -14,15 +14,14 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, m
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
-from plastered.config.field_validators import (
+from plastered.models import MediaEnum, RedFormat
+from plastered.models.field_validators import (
     APIRetries,
     CLIOverrideSetting,
     NonRedCallWait,
     RedCallWait,
     validate_rec_types_to_scrape,
 )
-from plastered.models.red_models import RedFormat
-from plastered.models.types import MediaEnum
 from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
 from plastered.utils.exceptions import AppConfigException
 

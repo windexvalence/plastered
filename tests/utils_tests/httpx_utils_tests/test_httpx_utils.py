@@ -9,10 +9,7 @@ from plastered.config.app_settings import AppSettings
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import LFM_API_BASE_URL, MUSICBRAINZ_API_BASE_URL, RED_API_BASE_URL
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient, precise_delay
-from plastered.utils.httpx_utils.lfm_client import LFMAPIClient
-from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
-from plastered.utils.httpx_utils.red_client import RedAPIClient
-from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
+from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 
 
 @pytest.mark.slow

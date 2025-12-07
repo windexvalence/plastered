@@ -13,7 +13,7 @@ from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
-    from plastered.models.red_models import RedUserDetails
+    from plastered.models import RedUserDetails
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
@@ -25,7 +25,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
     Also contains some specialized logic for intelligently estimating the FL tokens available.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache):
+    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
             # NOTE: the RedSnatchAPIClient doesn't use retries, so this is ignored

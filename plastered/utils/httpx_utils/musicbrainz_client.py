@@ -15,7 +15,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache):
+    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
         super().__init__(
             base_api_url=MUSICBRAINZ_API_BASE_URL,
             max_api_call_retries=app_settings.musicbrainz.musicbrainz_api_max_retries,
