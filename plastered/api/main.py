@@ -1,3 +1,5 @@
+"""Entrypoint for the plastered server and FastAPI application."""
+
 import logging
 import os
 from contextlib import asynccontextmanager

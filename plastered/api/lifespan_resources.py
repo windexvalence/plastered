@@ -59,7 +59,7 @@ class LifespanSingleton:
         object.__setattr__(self, "musicbrainz_client", MusicBrainzAPIClient(app_settings=self.app_settings))
         object.__setattr__(self, "project_version", get_project_version())
 
-    def get_all_client_kwargs(self) -> dict[str, ThrottledAPIBaseClient]:  # pragma: no cover
+    def get_all_client_kwargs(self) -> dict[str, ThrottledAPIBaseClient]:
         """Returns all the base client subclass instances as a kwarg-compatible dict."""
         return {
             "red_api_client": self.red_api_client,
