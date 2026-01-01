@@ -27,7 +27,7 @@ test = [
     "fastapi[standard]",
     "ipython>=9.3.0",
     "mkdocs-click==0.8.1",
-    "mypy==1.18.2",
+    "mypy==1.19.1",
     "jsonschema-markdown==2025.10.1",
     "pytest==8.4.2",
     "pytest-asyncio==1.2.0",
