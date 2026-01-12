@@ -50,7 +50,7 @@ class LifespanSingleton:
         object.__setattr__(self, "app_settings", get_app_settings())
         object.__setattr__(self, "config_filepath", self.app_settings.src_yaml_filepath)
         object.__setattr__(self, "red_api_client", RedAPIClient(app_settings=self.app_settings))
-        object.__setattr__(self, "red_user_details", self.red_api_client.create_red_user_details())
+        object.__setattr__(self, "red_user_details", self.red_api_client.get_red_user_details())
         object.__setattr__(self, "red_snatch_client", RedSnatchAPIClient(app_settings=self.app_settings))
         object.__setattr__(self, "lfm_client", LFMAPIClient(app_settings=self.app_settings))
         object.__setattr__(self, "musicbrainz_client", MusicBrainzAPIClient(app_settings=self.app_settings))
@@ -65,7 +65,7 @@ class LifespanSingleton:
             "musicbrainz_client": self.musicbrainz_client,
         }
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Called at the end of the FastAPI app during the cleanup phase of the lifespan function."""
         self.red_api_client.close_client()
         self.red_snatch_client.close_client()

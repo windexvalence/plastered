@@ -7,9 +7,6 @@ from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum, RedRelea
 from plastered.models.red_models import _red_release_type_str_to_enum
 
 
-# def test_red_format_before_validators() -> None:
-
-
 @pytest.mark.parametrize(
     "other, expected",
     [
@@ -102,6 +99,31 @@ def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_
     actual_cd_only_extras_str = te.red_format.get_cd_only_extras_str()
     assert actual_cd_only_extras_str == expected_cd_only_extras_str, (
         f"Expected cd_only_extras to be '{expected_cd_only_extras_str}', but got '{actual_cd_only_extras_str}'"
+    )
+
+
+def test_torrent_entry_get_permalink_url() -> None:
+    mock_tid = 69420
+    expected = "https://redacted.sh/torrents.php?torrentid=69420"
+    assert (
+        TorrentEntry(
+            torrent_id=mock_tid,
+            media="CD",
+            format="FLAC",
+            encoding="Lossless",
+            size=69420,
+            scene=False,
+            trumpable=False,
+            has_snatched=False,
+            has_log=True,
+            log_score=100,
+            has_cue=True,
+            can_use_token=False,
+            reported=None,
+            lossy_web=None,
+            lossy_master=None,
+        ).get_permalink_url()
+        == expected
     )
 
 

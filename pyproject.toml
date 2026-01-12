@@ -15,7 +15,7 @@ dependencies = [
     "PyYAML==6.0.3",
     "rebrowser-playwright==1.52.0",
     "rich==14.2.0",
-    "sqlmodel==0.0.27",
+    "sqlmodel==0.0.31",
     "tenacity==9.1.2",
     "urllib3==2.6.0",
 ]
@@ -36,7 +36,7 @@ test = [
     "pytest-mock>=3.15.1",
     "pytest-socket>=0.7.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.14.6",
+    "ruff==0.14.11",
     "types-pyyaml>=6.0.12.20250516",
     "jsonref==1.1.0",
 ]
@@ -97,6 +97,13 @@ select = [
     "I",
 ]
 extend-select = [
+    # Async ruff rules: https://docs.astral.sh/ruff/rules/#flake8-async-async
+    "ASYNC",
+    "PYI045",  # https://docs.astral.sh/ruff/rules/iter-method-return-iterable/
+    "PT024",  # https://docs.astral.sh/ruff/rules/pytest-unnecessary-asyncio-mark-on-fixture/
+    "PLE1142",  # https://docs.astral.sh/ruff/rules/await-outside-async/
+    "PLE1700",  # https://docs.astral.sh/ruff/rules/yield-from-in-async-function/
+    "RUF006",  # https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
     # FastAPI ruff rules: https://docs.astral.sh/ruff/rules/#fastapi-fast
     "FAST",
     # Logging ruff rules: https://docs.astral.sh/ruff/rules/#flake8-logging-log
@@ -112,7 +119,7 @@ ignore = ["E203", "E501"]
 # https://docs.astral.sh/ruff/settings/#lintflake8-type-checking
 [tool.ruff.lint.flake8-type-checking]
 # https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_exempt-modules
-exempt-modules = ["typing", "typing_extensions", "plastered.models.types"]
+exempt-modules = ["typing", "typing_extensions"]
 # https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-base-classes
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase", "sqlmodel.SQLModel"]
 

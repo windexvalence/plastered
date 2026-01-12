@@ -218,10 +218,10 @@ class ReleaseEntry:
     group_id: int
     media: str
     remastered: bool
-    remaster_year: int
-    remaster_title: str
-    remaster_catalogue_number: str
     release_type: RedReleaseType
+    remaster_year: int | None = None
+    remaster_title: str | None = None
+    remaster_catalogue_number: str | None = None
     remaster_record_label: str | None = None
     torrent_entries: list[TorrentEntry] = field(default_factory=list)
 

@@ -79,7 +79,7 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
 def test_lfmti_from_mb_origin_release_info(
     si: SearchItem, mb_origin_release_info_json: dict[str, Any], expected_lfmti: LFMTrackInfo | None
 ) -> None:
-    actual = LFMTrackInfo.from_mb_origin_release_info(si=si, mb_origin_release_info_json=mb_origin_release_info_json)
+    actual = LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=mb_origin_release_info_json)
     assert actual == expected_lfmti
 
 

@@ -3,6 +3,7 @@ from typing import Any
 
 from plastered.config.app_settings import AppSettings
 from plastered.models import RedUserDetails
+from plastered.models.red_models import ReleaseEntry
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     NON_CACHED_RED_API_ENDPOINTS,
@@ -33,6 +34,7 @@ class RedAPIClient(ThrottledAPIBaseClient):
         )
         self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
         self._red_user_id = app_settings.red.red_user_id
+        self._red_user_details: RedUserDetails | None = None
 
     def request_api(self, action: str, params: str) -> dict[str, Any]:
         """
@@ -57,18 +59,23 @@ class RedAPIClient(ThrottledAPIBaseClient):
         LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
 
-    def create_red_user_details(self) -> RedUserDetails:
+    def browse(self, request_params: str) -> list[ReleaseEntry]:
+        raw_browse_resp = self.request_api(action="browse", params=request_params)
+        return [ReleaseEntry.from_torrent_search_json_blob(json_blob=blob) for blob in raw_browse_resp["results"]]
+
+    def get_red_user_details(self) -> RedUserDetails:
         """
         Helper method wrapping multiple RED API calls to generate the instance of
         `plastered.models.red_models.RedUserDetails`. All the underlying calls are essentially only called in one go
         per application run to get the initial state of pre-snatched releases and ratio stats.
         """
+        if self._red_user_details is not None:  # pragma: no cover
+            return self._red_user_details
         _LOGGER.debug(f"Gathering RED api responses to init RedUserDetails for user ID: '{self._red_user_id}' ...")
         snatch_cnt, seed_cnt = self._rud_helper(action="community_stats")
         snatched_torrents_list = self._rud_helper(action="user_torrents", type_="snatched", lim=snatch_cnt)
         seeding_torrents_list = self._rud_helper(action="user_torrents", type_="seeding", lim=seed_cnt)
         user_profile_json = self._rud_helper(action="user")
-
         _LOGGER.debug("Completed calling RED user info endpoints, returning RedUserDetails instance ...")
         return RedUserDetails(
             user_id=self._red_user_id,

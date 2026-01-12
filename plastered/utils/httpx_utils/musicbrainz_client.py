@@ -1,11 +1,15 @@
+import logging
 from typing import Any
 from urllib.parse import quote
 
 from plastered.config.app_settings import AppSettings
+from plastered.models import SearchItem
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, PERMITTED_MUSICBRAINZ_API_ENDPOINTS
 from plastered.utils.exceptions import MusicBrainzClientException
 from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
@@ -32,6 +36,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         Returns the JSON response payload on success.
         Throws an Exception after `self._max_api_call_retries` consecutive failures.
         """
+        _LOGGER.debug(f"Searching musicbrainz for release-mbid: '{mbid}' ...")
         # Sanity check endpoint then attempt reading from cache
         loaded_from_cache = self._read_from_run_cache(endpoint=self._release_endpoint, params=mbid)
         if loaded_from_cache:
@@ -70,10 +75,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         return None
 
     def request_release_details_for_track(
-        self,
-        human_readable_track_name: str,
-        artist_mbid: str | None = None,
-        human_readable_artist_name: str | None = None,
+        self, si: SearchItem, artist_mbid: str | None = None
     ) -> dict[str, str | None] | None:
         """
         Helper method specifically for attempting to resolve a release name / MBID from which a track rec originated from
@@ -84,13 +86,13 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
         Otherwise returns a dict of the the form {"origin_release_mbid": str | None, "origin_release_name": str | None}
         """
-        LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{human_readable_track_name}' ...")
+        LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{si.track_name}' ...")
+        track_name = si.track_name
+        artist_name = si.artist_name
         search_query_str = self._get_track_search_query_str(
-            human_readable_track_name=human_readable_track_name,
-            artist_mbid=artist_mbid,
-            human_readable_artist_name=human_readable_artist_name,
+            human_readable_track_name=track_name, artist_mbid=artist_mbid, human_readable_artist_name=artist_name
         )
-        if not search_query_str:
+        if not search_query_str:  # pragma: no cover
             return None
         # Sanity check endpoint then attempt reading from cache
         loaded_from_cache = self._read_from_run_cache(endpoint=self._recording_endpoint, params=search_query_str)
@@ -110,15 +112,11 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         try:
             first_release_match_json = json_data["recordings"][0]["releases"][0]
         except (KeyError, IndexError):
-            LOGGER.debug(
-                f"Unable to resolve an origin release for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
-            )
+            LOGGER.debug(f"Unable to resolve an origin release for track: '{track_name}' by '{artist_name}'")
             return None
         rel_mbid, rel_name = first_release_match_json.get("id"), first_release_match_json.get("title")
         if not rel_name:
-            LOGGER.debug(
-                f"Unable to resolve origin release title for track: '{human_readable_track_name}' by '{human_readable_artist_name}'"
-            )
+            LOGGER.debug(f"Unable to resolve origin release title for track: '{track_name}' by '{artist_name}'")
             return None
         release_details = {"origin_release_mbid": rel_mbid, "origin_release_name": rel_name}
         cache_write_success = self._write_cache_if_enabled(

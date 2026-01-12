@@ -1,7 +1,9 @@
+from datetime import datetime
 import re
 
 import pytest
 
+from plastered.db.db_models import SearchRecord
 from plastered.models.manual_search_models import ManualSearch
 from plastered.models.types import EntityType, RecContext
 
@@ -59,3 +61,22 @@ class TestManualSearch:
     def test_get_human_readable_entity_str(self, entity_type: EntityType) -> None:
         ms = ManualSearch(entity_type=entity_type, artist="Fake Artist", entity="Fake Name")
         assert ms.get_human_readable_entity_str() == ms.entity
+
+    @pytest.mark.parametrize("is_manual", [False, True])
+    @pytest.mark.parametrize("entity_type", [member for member in EntityType])
+    def test_from_search_record(self, is_manual: bool, entity_type: EntityType) -> None:
+        sr = SearchRecord(
+            id=69,
+            submit_timestamp=int(datetime.now().timestamp()),
+            is_manual=is_manual,
+            entity_type=entity_type,
+            artist="foo",
+            entity="bar",
+        )
+        mock_mbid = "abc-def"
+        actual = ManualSearch.from_search_record(search_record=sr, mbid=mock_mbid)
+        assert isinstance(actual, ManualSearch)
+        assert actual.entity_type == entity_type
+        assert actual.artist == sr.artist
+        assert actual.entity == sr.entity
+        assert actual.mbid == mock_mbid

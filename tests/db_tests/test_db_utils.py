@@ -1,5 +1,5 @@
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from sqlmodel import Field, Session, SQLModel, select
@@ -31,6 +31,17 @@ def test_add_record(mock_session: Session) -> None:
 
     all_mock_records = mock_session.exec(select(MockTable)).all()
     assert len(all_mock_records) == 2
+
+
+def test_add_record_no_session() -> None:
+    m1 = MockTable(foo="a", bar="b")
+    with (
+        patch("plastered.db.db_utils.get_engine") as mock_get_engine,
+        patch("plastered.db.db_utils._add_record") as mock_internal_add_record_fn,
+    ):
+        _ = add_record(model_inst=m1)
+        mock_get_engine.assert_called_once()
+        mock_internal_add_record_fn.assert_called_once_with(session=ANY, model_inst=m1)
 
 
 @pytest.mark.parametrize(

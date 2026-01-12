@@ -21,7 +21,7 @@ def mock_LifespanSingleton_inst(
 
     from fastapi import BackgroundTasks
 
-    with patch.object(RedAPIClient, "create_red_user_details", return_value=mock_red_user_details):
+    with patch.object(RedAPIClient, "get_red_user_details", return_value=mock_red_user_details):
         singleton_inst = MagicMock(spec=LifespanSingleton)
         type(singleton_inst).app_settings = PropertyMock(return_value=valid_app_settings_sesh_scoped)
         app_settings_src_filepath = valid_app_settings_sesh_scoped.src_yaml_filepath

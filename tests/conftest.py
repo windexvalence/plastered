@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from contextlib import contextmanager
 import copy
 import csv
@@ -24,6 +25,9 @@ from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import CacheType, EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import RunCache
 from plastered.db.db_models import SkipReason
+from plastered.models.lfm_models import LFMRec, RecContext
+from plastered.models.search_item import SearchItem
+from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import RedUserDetails
 
@@ -742,3 +746,43 @@ def global_httpx_mock(
                 url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
             )
         yield httpx_mock
+
+
+@pytest.fixture(scope="session")
+def make_album_search_item() -> Callable[[bool, str | None, str | None, RecContext | None], SearchItem]:
+    """
+    Fixture factory to generate album search items on the fly.
+    https://docs.pytest.org/en/stable/how-to/fixtures.html#factories-as-fixtures
+    """
+
+    def _make_album_search_item(
+        is_lfm_rec: bool,
+        artist: str | None = "artist",
+        album: str | None = "album",
+        rc: RecContext | None = RecContext.SIMILAR_ARTIST,
+    ) -> SearchItem:
+        if is_lfm_rec:
+            return SearchItem(initial_info=LFMRec(artist, album, EntityType.ALBUM, rc))
+        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist=artist, entity=album))
+
+    return _make_album_search_item
+
+
+@pytest.fixture(scope="session")
+def make_track_search_item() -> Callable[[bool, str | None, str | None, RecContext | None], SearchItem]:
+    """
+    Fixture factory to generate track search items on the fly.
+    https://docs.pytest.org/en/stable/how-to/fixtures.html#factories-as-fixtures
+    """
+
+    def _make_track_search_item(
+        is_lfm_rec: bool,
+        artist: str | None = "artist",
+        track: str | None = "track",
+        rc: RecContext | None = RecContext.SIMILAR_ARTIST,
+    ) -> SearchItem:
+        if is_lfm_rec:
+            return SearchItem(initial_info=LFMRec(artist, track, EntityType.TRACK, rc))
+        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.TRACK, artist=artist, entity=track))
+
+    return _make_track_search_item

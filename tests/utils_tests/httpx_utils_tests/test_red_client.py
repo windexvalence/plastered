@@ -7,7 +7,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.red_models import RedUserDetails
+from plastered.models.red_models import RedUserDetails, ReleaseEntry
+from plastered.models.types import RedReleaseType
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedUserDetailsInitError
 from plastered.utils.httpx_utils.red_client import RedAPIClient
@@ -93,7 +94,7 @@ def test_red_client_cache_hit(
     assert not httpx_mock.get_requests()
 
 
-def test_create_red_user_details(valid_app_settings: AppSettings, enabled_api_run_cache: RunCache) -> None:
+def test_create_red_user_details(valid_app_settings: AppSettings) -> None:
     mock_snatch_cnt = 69
     mock_seed_cnt = 420
     mock_user_profile_json = {"personal": {"giftTokens": 69, "meritTokens": 420}}
@@ -107,16 +108,16 @@ def test_create_red_user_details(valid_app_settings: AppSettings, enabled_api_ru
 
     test_client = RedAPIClient(app_settings=valid_app_settings)
     with patch.object(test_client, "_rud_helper", side_effect=_side_effect) as mock_rud_helper:
-        actual = test_client.create_red_user_details()
+        actual = test_client.get_red_user_details()
         assert isinstance(actual, RedUserDetails)
-        # mock_rud_helper.assert_has_calls(
-        #     [
-        #         call(action="community_stats"),
-        #         call(action="user_torrents", type_="snatched", lim=mock_snatch_cnt),
-        #         call(action="user_torrents", type_="seeding", lim=mock_seed_cnt),
-        #         call(action="user"),
-        #     ]
-        # )
+        mock_rud_helper.assert_has_calls(
+            [
+                call(action="community_stats"),
+                call(action="user_torrents", type_="snatched", lim=mock_snatch_cnt),
+                call(action="user_torrents", type_="seeding", lim=mock_seed_cnt),
+                call(action="user"),
+            ]
+        )
 
 
 @pytest.mark.parametrize("cache_enabled", [False, True])
@@ -164,3 +165,21 @@ def test_rud_helper_raises(
         test_client = RedAPIClient(app_settings=valid_app_settings, run_cache=run_cache)
         with pytest.raises(RedUserDetailsInitError, match=re.escape("during RedUserDetails initialization")):
             _ = test_client._rud_helper(action="user_torrents", type_="snatched", lim=69)
+
+
+def test_browse(valid_app_settings: AppSettings) -> None:
+    mock_params = "fake=val&other_fake=other_val"
+    with (
+        patch.object(RedAPIClient, "request_api", return_value={"results": ["foo", "bar"]}) as mock_request_api,
+        patch.object(
+            ReleaseEntry,
+            "from_torrent_search_json_blob",
+            return_value=ReleaseEntry(69, "CD", False, RedReleaseType.ALBUM),
+        ) as mock_from_torrent_json_blob,
+    ):
+        test_client = RedAPIClient(app_settings=valid_app_settings, run_cache=None)
+        actual = test_client.browse(request_params=mock_params)
+        assert isinstance(actual, list)
+        assert len(actual) == 2
+        assert all([isinstance(elem, ReleaseEntry) for elem in actual])
+        mock_request_api.assert_called_once_with(action="browse", params=mock_params)

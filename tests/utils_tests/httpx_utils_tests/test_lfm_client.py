@@ -1,10 +1,11 @@
 from contextlib import nullcontext
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
+from plastered.models.search_item import SearchItem
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import LFMClientException
 from plastered.utils.httpx_utils import LFMAPIClient
@@ -91,3 +92,33 @@ def test_api_client_cache_hit(
     actual_result = test_client.request_api(endpoint, params)
     assert actual_result == mocked_json
     assert not httpx_mock.get_requests()
+
+
+@pytest.mark.parametrize("is_lfm_rec", [False, True])
+def test_get_album_info(
+    valid_app_settings: AppSettings, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
+) -> None:
+    mock_si: SearchItem = make_album_search_item(is_lfm_rec=is_lfm_rec)
+    expected_req_params = (
+        f"artist={mock_si.initial_info.encoded_artist_str}&album={mock_si.initial_info.encoded_entity_str}"
+    )
+    with patch.object(LFMAPIClient, "request_api", return_value=dict()) as mock_request_api:
+        test_client = LFMAPIClient(app_settings=valid_app_settings, run_cache=None)
+        actual = test_client.get_album_info(si=mock_si)
+        assert isinstance(actual, dict)
+        mock_request_api.assert_called_once_with(method="album.getinfo", params=expected_req_params)
+
+
+@pytest.mark.parametrize("is_lfm_rec", [False, True])
+def test_get_track_info(
+    valid_app_settings: AppSettings, make_track_search_item: pytest.FixtureRequest, is_lfm_rec: bool
+) -> None:
+    mock_si: SearchItem = make_track_search_item(is_lfm_rec=is_lfm_rec)
+    expected_req_params = (
+        f"artist={mock_si.initial_info.encoded_artist_str}&track={mock_si.initial_info.encoded_entity_str}"
+    )
+    with patch.object(LFMAPIClient, "request_api", return_value=dict()) as mock_request_api:
+        test_client = LFMAPIClient(app_settings=valid_app_settings, run_cache=None)
+        actual = test_client.get_track_info(si=mock_si)
+        assert isinstance(actual, dict)
+        mock_request_api.assert_called_once_with(method="track.getinfo", params=expected_req_params)
