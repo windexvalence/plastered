@@ -8,6 +8,8 @@ from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import TorrentEntry, TorrentMatch
 from plastered.models.types import EntityType
 
+type InitialInfo = LFMRec | ManualSearch
+
 
 # TODO [later]: Consolidate the `SearchRecord` db model and `SearchItem` into a single class.
 @dataclass
@@ -18,9 +20,8 @@ class SearchItem:
     and/or update during the search and filtering resolution of a given rec.
     """
 
-    initial_info: LFMRec | ManualSearch
+    initial_info: InitialInfo
     release_name: str = field(init=False)
-    is_manual: bool = False
     above_max_size_te_found: bool | None = False
     torrent_entry: TorrentEntry | None = None
     search_id: int | None = None
@@ -50,6 +51,11 @@ class SearchItem:
     def track_name(self) -> str:
         """Returns the human-readable track name."""
         return self.initial_info.get_human_readable_track_str()
+
+    @property
+    def is_manual(self) -> bool:
+        """Returns `True` if the SearchItem corresponds to a manual search, otherwise `False` for LFMRec."""
+        return isinstance(self.initial_info, ManualSearch)
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
         return self._search_kwargs

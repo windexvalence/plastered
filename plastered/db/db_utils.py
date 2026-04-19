@@ -6,7 +6,7 @@ from typing import Any, Final
 
 from sqlmodel import Session, SQLModel, select
 
-from plastered.db.db_models import ENGINE, Failed, FailReason, Grabbed, SearchRecord, Skipped, SkipReason, Status
+from plastered.db.db_models import Failed, FailReason, Grabbed, SearchRecord, Skipped, SkipReason, Status, get_engine
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
@@ -18,15 +18,23 @@ def db_startup() -> None:
     table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
-        tbl_cls.metadata.create_all(ENGINE)
-    # SQLModel.metadata.create_all(ENGINE)
+        tbl_cls.metadata.create_all(get_engine())
+    # SQLModel.metadata.create_all(get_engine())
     if _DB_TEST_MODE:  # pragma: no cover
         _create_test_tables(table_classes=table_classes)
     _LOGGER.info("DB tables metadata creation complete.")
 
 
-def add_record(session: Session, model_inst: SQLModel) -> None:
+def add_record(model_inst: SQLModel, session: Session | None = None) -> None:
     """Helper for running a `session.add()`, `session.commit()` and `session.refresh()`."""
+    if not session:
+        with Session(get_engine()) as session:
+            _add_record(session=session, model_inst=model_inst)
+    else:
+        _add_record(session=session, model_inst=model_inst)
+
+
+def _add_record(session: Session, model_inst: SQLModel) -> None:
     session.add(model_inst)
     session.commit()
     session.refresh(model_inst)
@@ -39,7 +47,7 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
     """
     if search_id is None:
         raise MissingDatabaseRecordException(search_id)
-    with Session(ENGINE) as session:
+    with Session(get_engine()) as session:
         _LOGGER.debug("Querying SearchRecord record ...")
         result_record = get_result_by_id(search_id=search_id, session=session)
         _LOGGER.debug(f"Updating status of SearchRecord record (id={search_id}) ...")
@@ -67,7 +75,7 @@ def get_result_by_id(search_id: int | None, session: Session | None = None) -> S
         raise MissingDatabaseRecordException(search_id)
 
     if not session:
-        with Session(ENGINE) as sesh:
+        with Session(get_engine()) as sesh:
             result_rows = _get_rows(s=sesh, search_id=search_id)
     else:
         result_rows = _get_rows(s=session, search_id=search_id)
@@ -84,10 +92,10 @@ def _get_rows(s: Session, search_id: int) -> list[SearchRecord] | None:  # pragm
 def _create_test_tables(table_classes: list[type[SQLModel]]) -> None:  # pragma: no cover
     from datetime import datetime
 
-    SQLModel.metadata.drop_all(ENGINE)
+    SQLModel.metadata.drop_all(get_engine())
     for tbl_cls in table_classes:
-        tbl_cls.metadata.create_all(ENGINE)
-    session = Session(ENGINE)
+        tbl_cls.metadata.create_all(get_engine())
+    session = Session(get_engine())
     _LOGGER.info("Test mode detected. Initializing test records ...")
     submit_ts = int(datetime.now().timestamp())
     in_prog_res = SearchRecord(

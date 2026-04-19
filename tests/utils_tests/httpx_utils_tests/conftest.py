@@ -8,7 +8,7 @@ from plastered.models.types import CacheType
 from plastered.run_cache.run_cache import RunCache
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def disabled_api_run_cache(valid_config_filepath: str) -> RunCache:
     """
     Ensure caching doesn't interfere between unit tests for the httpx utils.

@@ -5,7 +5,7 @@ from urllib.parse import quote_plus
 from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import ENGINE, FailReason, SearchRecord, SkipReason, Status
+from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status, get_engine
 from plastered.db.db_utils import add_record, set_result_status
 from plastered.models import RecContext, RedFormat, RedUserDetails, SearchItem, TorrentEntry
 from plastered.utils.constants import (
@@ -92,11 +92,12 @@ class SearchState:
     def initialize_search_records(self, initial_search_items: list[SearchItem]) -> None:
         """Initializes the `plastered.db.db_models.SearchRecord` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
         if all([si.is_manual for si in initial_search_items]):
+            # TODO: should this be consolidated into a single record initialization for both manual and scrape?
             _LOGGER.debug("Manual search records are pre-initialized, skipping initialization.")
             return
         _LOGGER.info("Initializing search records ...")
         submit_timestamp = int(datetime.now(tz=UTC).timestamp())
-        with Session(ENGINE) as db_session:
+        with Session(get_engine()) as db_session:
             for si in initial_search_items:
                 search_record = SearchRecord(
                     is_manual=si.is_manual,
@@ -126,68 +127,38 @@ class SearchState:
                     browse_request_params += f"&{red_param}={red_param_val}"
         return browse_request_params
 
-    def post_resolve_track_filter(self, si: SearchItem) -> bool:
-        """
-        Return True if the track-rec-based SearchItem is valid to search for on the various APIs.
-        Return False otherwise if the SearchItem should be skipped given the lack of resolved origin release.
-        """
-        if not si._lfm_track_info:
-            _LOGGER.warning(f"Unable to find origin release for track rec: '{si.track_name}' by '{si.artist_name}'")
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.NO_SOURCE_RELEASE_FOUND)
-            return False
-        return True
-
-    def _pre_search_rule_skip_prior_snatch(self, si: SearchItem) -> bool:
+    def _pre_mbid_reso_rule_not_previously_snatched(self, si: SearchItem) -> SkipReason | None:
         """Return `True` if si has already been snatched, return `False` otherwise."""
         if not self._red_user_details:
             msg = "Red User Details not initialized."
             _LOGGER.error(msg)
             raise SearchStateException(msg)
-        return self._skip_prior_snatches and self._red_user_details.has_snatched_release(
+        if self._skip_prior_snatches and self._red_user_details.has_snatched_release(
             artist=si.artist_name, release=si.initial_info.get_human_readable_entity_str()
-        )
+        ):
+            return SkipReason.ALREADY_SNATCHED
+        return None
 
-    def _pre_search_rule_skip_library_items(self, si: SearchItem) -> bool:
+    def _pre_mbid_reso_rule_allowed_rec_context(self, si: SearchItem) -> SkipReason | None:
         """
         Return `True` if si has an `IN_LIBRARY` context and self._allow_library items is `False`, return `False` otherwise.
         """
-        return not self._allow_library_items and si.initial_info.rec_context == RecContext.IN_LIBRARY
+        if not self._allow_library_items and si.initial_info.rec_context == RecContext.IN_LIBRARY:
+            return SkipReason.REC_CONTEXT_FILTERING
+        return None
 
-    def pre_mbid_resolution_filter(self, si: SearchItem) -> bool:
+    def post_mbid_reso_rule_has_required_fields(self, si: SearchItem) -> SkipReason | None:
         """
-        Return `True` if the SearchItem is valid to continue searching for on the various
-        field resolution APIs (mb / LFM), or False if the SearchItem should be skipped given
-        the current user-specified app config settings.
-        """
-        artist = si.artist_name
-        release = si.release_name
-        if self._pre_search_rule_skip_prior_snatch(si=si):
-            _LOGGER.debug("'skip_prior_snatches' config field is set to True")
-            _LOGGER.debug(f"'{release}' by '{artist}' due to prior snatch found in release group")
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.ALREADY_SNATCHED)
-            return False
-        if self._pre_search_rule_skip_library_items(si=si):
-            _LOGGER.debug(f"'allow_library_items' config field is set to {self._allow_library_items}.")
-            _LOGGER.debug(f"Skipped '{release}' by '{artist}'. Rec context is {RecContext.IN_LIBRARY.value}")
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.REC_CONTEXT_FILTERING)
-            return False
-        return True
-
-    def post_mbid_resolution_filter(self, si: SearchItem) -> bool:
-        """
-        Return `True` if the SearchItem is valid to continue searching for on RED after having attempted to
-        resolve the additional fields for building the RED browse query params.
-        Return `False` if the SearchItem should be skipped due to missing fields which are marked as required
-        by the current user-specified app config settings.
+        Return `SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS` if the SearchItem should be skipped due to missing
+        fields which are marked as required by the current user-specified app config settings.
         """
         if not self._require_mbid_resolution:
-            return True
+            return None
         if not si.search_kwargs_has_all_required_fields(required_kwargs=self._required_red_search_kwargs):
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS)
-            return False
-        return True
+            return SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS
+        return None
 
-    def _post_search_rule_dupe_snatch(self, si: SearchItem) -> bool:
+    def _post_red_search_rule_not_dupe_snatch(self, si: SearchItem) -> SkipReason | None:
         """
         Return `True` if si corresponds to an already to-be-snatched entry or to a past snatch.
         """
@@ -197,30 +168,18 @@ class SearchState:
             raise SearchItemException("SearchItem instance has not torrent_entry.")
         # Ignore this condition for manual searches since those are not done in batch
         if (not si.is_manual) and si.torrent_entry.torrent_id in self._tids_to_snatch:
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.DUPE_OF_ANOTHER_REC)
-            return True
+            return SkipReason.DUPE_OF_ANOTHER_REC
         if self._red_user_details.has_snatched_tid(tid=si.torrent_entry.torrent_id):
-            self._add_skipped_snatch_row(si=si, reason=SkipReason.ALREADY_SNATCHED)
-            return True
-        return False
+            return SkipReason.ALREADY_SNATCHED
+        return None
 
-    def post_red_search_filter(self, si: SearchItem) -> bool:
-        """
-        Return `True` if the provided SearchItem and associated matched_te is valid to add to the
-        pending list of torrents to snatch, otherwise update the skipped_snatch_rows accordingly and return False.
-        """
-        # No match found
+    def post_red_search_rule_found_match_with_allowed_size(self, si: SearchItem) -> SkipReason | None:
         if not si.found_red_match():
             _LOGGER.info(
                 f"No valid RED match found for {si.initial_info.entity_type}: '{si.initial_info.get_human_readable_entity_str()}' by '{si.artist_name}'"
             )
-            skip_reason = SkipReason.ABOVE_MAX_ALLOWED_SIZE if si.above_max_size_te_found else SkipReason.NO_MATCH_FOUND
-            self._add_skipped_snatch_row(si=si, reason=skip_reason)
-            return False
-        # Check whether the match is tied to a release which is already pending snatching during this run
-        if self._post_search_rule_dupe_snatch(si=si):  # noqa: SIM103
-            return False
-        return True
+            return SkipReason.ABOVE_MAX_ALLOWED_SIZE if si.above_max_size_te_found else SkipReason.NO_MATCH_FOUND
+        return None
 
     def add_snatch_final_status_row(
         self, si: SearchItem, snatched_with_fl: bool, snatch_path: str, exc_name: str | None
@@ -271,20 +230,27 @@ class SearchState:
         will_snatch: list[SearchItem] = []
         cumulative_dl_size_gb = 0.0
         for si in search_elems_by_size:
-            if not si.torrent_entry:  # pragma: no cover
-                raise MissingTorrentEntryException("Missing torrent_entry")
-            cur_te_size_gb = si.torrent_entry.get_size("GB")
-            if cumulative_dl_size_gb + cur_te_size_gb <= self._max_download_allowed_gb:
+            valid_te_size = self._te_size_acceptable(cumulative_dl_size_gb=cumulative_dl_size_gb, si=si)
+            if valid_te_size >= 0:  # pragma: no cover
+                cumulative_dl_size_gb += valid_te_size
                 will_snatch.append(si)
-                cumulative_dl_size_gb += cur_te_size_gb
-            else:
-                _LOGGER.info(
-                    f"Skip snatch {si.torrent_entry.get_permalink_url}: would drop ratio below min_allowed_ratio."
-                )
-                self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
         return will_snatch
 
-    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:
+    def _te_size_acceptable(self, cumulative_dl_size_gb: float, si: SearchItem) -> float:
+        """
+        Returns `si.torrent_entry` size in GB when the provided `te` size will not cause `cumulative_dl_size_gb` to
+        exceed `self._max_download_allowed_gb`. Otherwise, returns a negative number.
+        """
+        if not (te := si.torrent_entry):  # pragma: no cover
+            raise MissingTorrentEntryException("Missing torrent_entry")
+        te_size_gb = te.get_size("GB")
+        if cumulative_dl_size_gb + te_size_gb <= self._max_download_allowed_gb:
+            return te_size_gb
+        _LOGGER.info(f"Skip snatch {te.get_permalink_url}: would drop ratio below min_allowed_ratio.")
+        self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
+        return -1.0
+
+    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:  # pragma: no cover
         _LOGGER.debug(
             f"Refreshing result record for search state artist='{si.artist_name}' entity_name='{si.initial_info.get_human_readable_entity_str()}' ..."
         )
@@ -314,9 +280,9 @@ class SearchState:
         )
 
     @property
-    def red_format_preferences(self) -> list[FormatPreference]:
+    def red_format_preferences(self) -> list[FormatPreference]:  # pragma: no cover
         return self._red_format_preferences
 
     @property
-    def max_size_gb(self) -> float:
+    def max_size_gb(self) -> float:  # pragma: no cover
         return self._max_size_gb

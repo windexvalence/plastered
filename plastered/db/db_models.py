@@ -6,17 +6,20 @@ https://sqlmodel.tiangolo.com/
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from functools import cache
+from typing import TYPE_CHECKING, Self
 
 from sqlmodel import Field, SQLModel, create_engine
 
-from plastered.config.app_settings import get_app_settings
-from plastered.models import EncodingEnum, EntityType, FormatEnum, MediaEnum, RecContext
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum, RecContext
 from plastered.utils.exceptions import RedClientSnatchException
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
+
+    from plastered.models.search_item import SearchItem
 
 
 class Status(StrEnum):
@@ -65,6 +68,17 @@ class SearchRecord(SQLModel, table=True):
     encoding: EncodingEnum | None = Field(default=None)
     format: FormatEnum | None = Field(default=None)
     status: Status | None = Field(default=None)
+
+    @classmethod
+    def from_search_item(cls, si: SearchItem) -> Self:
+        return cls(
+            is_manual=si.is_manual,
+            artist=si.initial_info.get_human_readable_artist_str(),
+            entity=si.initial_info.get_human_readable_entity_str(),
+            submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
+            entity_type=si.initial_info.entity_type,
+            status=Status.IN_PROGRESS,
+        )
 
 
 class Skipped(SQLModel, table=True):
@@ -126,6 +140,8 @@ class LFMSourceDetails(SQLModel, table=True):
 #     dir_path: str | None = Field(default=None)
 
 
-_DB_FILEPATH: Final[str] = get_app_settings().get_db_filepath()
-_SQLITE_URL: Final[str] = f"sqlite:///{_DB_FILEPATH}"
-ENGINE: Final[Engine] = create_engine(_SQLITE_URL, connect_args={"check_same_thread": False})
+@cache
+def get_engine() -> Engine:
+    from plastered.config.app_settings import get_app_settings
+
+    return create_engine(f"sqlite:///{get_app_settings().get_db_filepath()}", connect_args={"check_same_thread": False})

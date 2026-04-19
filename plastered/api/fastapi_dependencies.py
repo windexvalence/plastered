@@ -4,11 +4,11 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel import Session
 
-from plastered.db.db_models import ENGINE
+from plastered.db.db_models import get_engine
 
 
 def _get_session() -> Generator[Session, None, None]:
-    with Session(ENGINE) as session:
+    with Session(get_engine()) as session:
         yield session
 
 

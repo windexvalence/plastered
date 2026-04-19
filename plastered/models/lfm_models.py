@@ -64,19 +64,30 @@ class LFMTrackInfo:  # TODO (later): stop using this class and above class in fa
         )
 
     @classmethod
-    def from_mb_origin_release_info(cls, si: "SearchItem", mb_origin_release_info_json: dict[str, Any] | None):
+    def from_mb_origin_release_info(cls, si: "SearchItem", origin_info_json: dict[str, Any] | None):
         """
         Constructs an LFMTrackInfo instance from the MB API's 'recording' endpoint response.
         Returns `None` if `mb_origin_release_info_json` is `None`.
         """
-        if not mb_origin_release_info_json:
+        if not origin_info_json:
             return None
         return LFMTrackInfo(
             artist=si.artist_name,
             track_name=si.track_name,
             lfm_url=si.initial_info.lfm_entity_url,
-            release_mbid=mb_origin_release_info_json["origin_release_mbid"],
-            release_name=mb_origin_release_info_json["origin_release_name"],
+            release_mbid=origin_info_json["origin_release_mbid"],
+            release_name=origin_info_json["origin_release_name"],
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, LFMTrackInfo):
+            return False
+        return (
+            other.artist == self.artist
+            and other.track_name == self.track_name
+            and other.release_name == self.release_name
+            and other.lfm_url == self.lfm_url
+            and other.release_mbid == self.release_mbid
         )
 
     def get_release_mbid(self) -> str | None:

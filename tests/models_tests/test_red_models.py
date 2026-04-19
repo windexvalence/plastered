@@ -7,9 +7,6 @@ from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum, RedRelea
 from plastered.models.red_models import _red_release_type_str_to_enum
 
 
-# def test_red_format_before_validators() -> None:
-
-
 @pytest.mark.parametrize(
     "other, expected",
     [
@@ -102,6 +99,31 @@ def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_
     actual_cd_only_extras_str = te.red_format.get_cd_only_extras_str()
     assert actual_cd_only_extras_str == expected_cd_only_extras_str, (
         f"Expected cd_only_extras to be '{expected_cd_only_extras_str}', but got '{actual_cd_only_extras_str}'"
+    )
+
+
+def test_torrent_entry_get_permalink_url() -> None:
+    mock_tid = 69420
+    expected = "https://redacted.sh/torrents.php?torrentid=69420"
+    assert (
+        TorrentEntry(
+            torrent_id=mock_tid,
+            media="CD",
+            format="FLAC",
+            encoding="Lossless",
+            size=69420,
+            scene=False,
+            trumpable=False,
+            has_snatched=False,
+            has_log=True,
+            log_score=100,
+            has_cue=True,
+            can_use_token=False,
+            reported=None,
+            lossy_web=None,
+            lossy_master=None,
+        ).get_permalink_url()
+        == expected
     )
 
 
@@ -239,6 +261,14 @@ def test_torrent_entry_get_red_format() -> None:
     assert actual_red_format == expected_red_format, (
         f"Expected test_instance.get_red_format() to be '{str(expected_red_format)}', but got '{str(actual_red_format)}'"
     )
+
+
+def test_release_entry_from_torrent_search_json_blob(mock_red_browse_non_empty_response: dict[str, Any]) -> None:
+    mock_json = mock_red_browse_non_empty_response["response"]["results"][0]
+    expected_group_id = mock_json["groupId"]
+    actual = ReleaseEntry.from_torrent_search_json_blob(json_blob=mock_json)
+    assert isinstance(actual, ReleaseEntry)
+    assert actual.group_id == expected_group_id
 
 
 def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:

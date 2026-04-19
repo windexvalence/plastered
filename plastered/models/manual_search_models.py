@@ -1,9 +1,11 @@
 # from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Self
 from urllib.parse import quote_plus
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from plastered.db.db_models import SearchRecord
 from plastered.models.types import EntityType, RecContext
 
 # TODO (later): subclass LFMRec and ManualSearch to this class.
@@ -66,6 +68,12 @@ class ManualSearch(BaseModel):
     entity: str
     mbid: str | None = None
     submit_timestamp: int = Field(default_factory=_default_submit_timestamp_factory)
+
+    @classmethod
+    def from_search_record(cls, search_record: SearchRecord, mbid: str | None) -> Self:
+        return cls(
+            entity_type=search_record.entity_type, artist=search_record.artist, entity=search_record.entity, mbid=mbid
+        )
 
     @property
     def lfm_entity_url(self) -> str:

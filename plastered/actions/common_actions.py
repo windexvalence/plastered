@@ -27,8 +27,9 @@ def scrape_action(
         app_settings=app_settings, rec_types_to_scrape_override=rec_types_to_scrape_override
     ) as scraper:
         rec_types_to_recs_list = scraper.scrape_recs()
-    with ReleaseSearcher(app_settings=app_settings, snatch_override=snatch_override) as release_searcher:
-        release_searcher.search_for_recs(rec_type_to_recs_list=rec_types_to_recs_list)
+    ReleaseSearcher(app_settings=app_settings, snatch_override=snatch_override).search_for_recs(
+        entity_to_recs_list=rec_types_to_recs_list
+    )
 
 
 def show_config_action(app_settings: AppSettings) -> dict[str, Any]:

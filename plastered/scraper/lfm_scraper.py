@@ -29,7 +29,7 @@ from plastered.utils.constants import (
     TRACK_RECS_BASE_URL,
 )
 from plastered.utils.exceptions import ScraperException
-from plastered.utils.log_utils import CONSOLE, SPINNER, NestedProgress
+from plastered.utils.log_utils import CONSOLE, SPINNER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -192,13 +192,10 @@ class LFMRecsScraper:
         _LOGGER.info(f"Scraping '{rec_type.value}' recommendations from LFM ...")
         recs: list[LFMRec] = []
         recs_base_url = ALBUM_RECS_BASE_URL if rec_type == EntityType.ALBUM else TRACK_RECS_BASE_URL
-        with NestedProgress() as progress:
-            for page_number in progress.track(
-                range(1, self._max_rec_pages_to_scrape + 1), description=f"scraping {rec_type.value} recs pages"
-            ):
-                recs_page_url = f"{recs_base_url}?page={page_number}"
-                recs_page_source = self._navigate_to_page_and_get_page_source(url=recs_page_url, rec_type=rec_type)
-                recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=rec_type))
+        for page_number in range(1, self._max_rec_pages_to_scrape + 1):
+            recs_page_url = f"{recs_base_url}?page={page_number}"
+            recs_page_source = self._navigate_to_page_and_get_page_source(url=recs_page_url, rec_type=rec_type)
+            recs.extend(self._extract_recs_from_page_source(page_source=recs_page_source, rec_type=rec_type))
         if self._run_cache.enabled:
             _LOGGER.debug("Attempting cache write for scraper ...")
             cache_write_success = self._run_cache.write_data(cache_key=rec_type.value, data=recs)

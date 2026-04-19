@@ -1,6 +1,7 @@
 from typing import Any
 
 from plastered.config.app_settings import AppSettings
+from plastered.release_search.search_helpers import SearchItem
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import LFM_API_BASE_URL, PERMITTED_LFM_API_ENDPOINTS
 from plastered.utils.exceptions import LFMClientException
@@ -53,3 +54,11 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
         LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
         return result_json
+
+    def get_album_info(self, si: SearchItem) -> dict[str, Any]:
+        request_params = f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}"
+        return self.request_api(method="album.getinfo", params=request_params)
+
+    def get_track_info(self, si: SearchItem) -> dict[str, Any]:
+        request_params = f"artist={si.initial_info.encoded_artist_str}&track={si.initial_info.encoded_entity_str}"
+        return self.request_api(method="track.getinfo", params=request_params)
