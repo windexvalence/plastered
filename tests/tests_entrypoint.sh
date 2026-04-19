@@ -26,7 +26,7 @@ fi
 
 export PYTHONPATH="${APP_DIR}/"
 if [[ -z "${PDB}" ]] || [[ "${PDB}" == "0" ]]; then
-    pytest -n auto -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+    pytest -n auto --dist=loadfile -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"  # 
 else
     pytest -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
 fi

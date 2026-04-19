@@ -254,6 +254,63 @@ def test_initialize_search_records(
             mock_sesh.add_all.assert_not_called()
 
 
+def test_set_search_state_red_user_details(
+    valid_app_settings: AppSettings, no_snatch_user_details: RedUserDetails
+) -> None:
+    expected_max_dl = 6.942
+    search_state = SearchState(app_settings=valid_app_settings)
+    with patch.object(
+        RedUserDetails, "calculate_max_download_allowed_gb", return_value=expected_max_dl
+    ) as rud_calc_method:
+        search_state.set_red_user_details(red_user_details=no_snatch_user_details)
+        assert search_state._max_download_allowed_gb == expected_max_dl
+        assert search_state._red_user_details is no_snatch_user_details
+        rud_calc_method.assert_called_once_with(min_allowed_ratio=valid_app_settings.red.snatches.min_allowed_ratio)
+
+
+@pytest.mark.parametrize(
+    "require_mbid_resolution, has_required_fields, expected",
+    [
+        (False, False, None),
+        (False, True, None),
+        (True, False, SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS),
+        (True, True, None),
+    ],
+)
+def test_post_mbid_reso_rule_has_required_fields(
+    valid_app_settings: AppSettings,
+    require_mbid_resolution: bool,
+    has_required_fields: bool,
+    expected: SkipReason | None,
+) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._require_mbid_resolution = require_mbid_resolution
+    with patch.object(
+        SearchItem, "search_kwargs_has_all_required_fields", return_value=has_required_fields
+    ) as mock_si_method:
+        si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+        actual = search_state.post_mbid_reso_rule_has_required_fields(si=si)
+        assert actual == expected
+        if require_mbid_resolution:
+            mock_si_method.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "found_red_match, above_max_size_found, expected",
+    [(False, True, SkipReason.ABOVE_MAX_ALLOWED_SIZE), (False, False, SkipReason.NO_MATCH_FOUND), (True, False, None)],
+)
+def test_post_red_search_rule_found_match_with_allowed_size(
+    valid_app_settings: AppSettings, found_red_match: bool, above_max_size_found: bool, expected: SkipReason | None
+) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    with patch.object(SearchItem, "found_red_match", return_value=found_red_match) as mock_si_method:
+        si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+        si.above_max_size_te_found = above_max_size_found
+        actual = search_state.post_red_search_rule_found_match_with_allowed_size(si=si)
+        assert actual == expected
+        mock_si_method.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "allow_library_items, rec_context, expected",
     [
@@ -397,6 +454,36 @@ def test_get_search_items_to_snatch_manual_run_none(valid_app_settings: AppSetti
 
 
 @pytest.mark.parametrize(
+    "cum_size, te_size, max_size, expected",
+    [
+        (0.0, 1.0, 1.5, 1.0),
+        (0.0, 2.0, 1.5, -1.0),
+        (1.0, 0.25, 1.5, 0.25),
+        (1.25, 0.25, 1.5, 0.25),
+        (1.25, 0.26, 1.5, -1.0),
+    ],
+)
+def test_te_size_acceptable(
+    valid_app_settings: AppSettings,
+    mock_torrent_entry: TorrentEntry,
+    cum_size: float,
+    te_size: float,
+    max_size: float,
+    expected: float,
+) -> None:
+    with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row_fn:
+        ss = SearchState(app_settings=valid_app_settings)
+        si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+        mock_torrent_entry.size = te_size * 1e9
+        si.torrent_entry = mock_torrent_entry
+        ss._max_download_allowed_gb = max_size
+        actual = ss._te_size_acceptable(cumulative_dl_size_gb=cum_size, si=si)
+        assert actual == expected
+        if expected < 0:
+            mock_add_skipped_snatch_row_fn.assert_called_once_with(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
+
+
+@pytest.mark.parametrize(
     "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
     [
         (False, False, False, False, False),
@@ -505,6 +592,22 @@ def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, ex
         else:
             si._lfm_track_info = LFMTrackInfo("art", "track", "", "", mock_mbid)
     actual = si.get_matched_mbid()
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "has_te, above_max_size, expected",
+    [(False, False, False), (True, False, True), (True, True, False), (False, True, False)],
+)
+def test_search_item_found_red_match(
+    mock_torrent_entry: TorrentEntry, has_te: bool, above_max_size: bool, expected: bool
+) -> None:
+    si = SearchItem(
+        initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST),
+        torrent_entry=mock_torrent_entry if has_te else None,
+        above_max_size_te_found=above_max_size,
+    )
+    actual = si.found_red_match()
     assert actual == expected
 
 

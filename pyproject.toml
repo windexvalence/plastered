@@ -181,7 +181,7 @@ exclude_also = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=plastered --no-cov-on-fail --disable-socket --allow-hosts=testclient --durations=5"
+addopts = "-p no:cacheprovider --cov=plastered --no-cov-on-fail --disable-socket --allow-hosts=testclient --durations=5"
 markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",

@@ -263,6 +263,14 @@ def test_torrent_entry_get_red_format() -> None:
     )
 
 
+def test_release_entry_from_torrent_search_json_blob(mock_red_browse_non_empty_response: dict[str, Any]) -> None:
+    mock_json = mock_red_browse_non_empty_response["response"]["results"][0]
+    expected_group_id = mock_json["groupId"]
+    actual = ReleaseEntry.from_torrent_search_json_blob(json_blob=mock_json)
+    assert isinstance(actual, ReleaseEntry)
+    assert actual.group_id == expected_group_id
+
+
 def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:
     test_release_entry = ReleaseEntry(
         group_id=463161,

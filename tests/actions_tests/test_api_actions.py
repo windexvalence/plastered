@@ -113,8 +113,7 @@ def mock_te() -> MagicMock:
     return mt
 
 
-@pytest.mark.asyncio
-async def test_manual_search_action(
+def test_manual_search_action(
     valid_app_settings: AppSettings, mock_session: Session, mock_te: MagicMock, mock_red_user_details: RedUserDetails
 ) -> None:
     mock_si = SearchItem(
@@ -129,8 +128,17 @@ async def test_manual_search_action(
             "plastered.actions.api_actions.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
         ) as mock_get_res,
     ):
-        _ = await manual_search_action(
-            app_settings=valid_app_settings, red_user_details=mock_red_user_details, search_id=mock_search_id
+        mock_rs_kwargs = {
+            "red_api_client": MagicMock(),
+            "red_snatch_client": MagicMock(),
+            "lfm_client": MagicMock(),
+            "musicbrainz_client": MagicMock(),
+        }
+        _ = manual_search_action(
+            app_settings=valid_app_settings,
+            red_user_details=mock_red_user_details,
+            search_id=mock_search_id,
+            **mock_rs_kwargs,
         )
         release_searcher_manual_search.assert_called_once_with(search_id=mock_search_id, mbid=None)
         mock_get_res.assert_called_once_with(search_id=mock_search_id)

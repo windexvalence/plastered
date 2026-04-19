@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from plastered.db.db_utils import get_result_by_id
@@ -119,165 +120,14 @@ class ReleaseSearcher:
         )
         return chain.batch_process(entity_to_si_list=entity_to_si_list)
 
-    async def _async_apply_search_item_processor_chain(self, search_items: list[SearchItem]) -> list[SearchItem]:
+    async def _async_apply_search_item_processor_chain(
+        self, search_items: list[SearchItem]
+    ) -> list[SearchItem]:  # pragma: no cover
         chain = SearchItemProcessorChain(
             lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=self._search_state
         )
         results = await chain.async_batch_process(search_items=search_items)
         return results
-
-    # def _search_red_release_by_preferences(self, si: SearchItem) -> TorrentMatch:
-    #     above_max_size_found = False
-    #     for pref in self._search_state.red_format_preferences:
-    #         _LOGGER.debug(f"Searching Artist: '{si.artist_name}', release: '{si.release_name}', {pref=}")
-    #         browse_request_params = self._search_state.create_red_browse_params(red_format=pref, si=si)
-    #         try:
-    #             red_browse_response = self._red_client.request_api(action="browse", params=browse_request_params)
-    #         except Exception:
-    #             _LOGGER.error(
-    #                 f"Uncaught exception during RED browse request: {browse_request_params}: ", exc_info=True
-    #             )
-    #             continue
-    #         release_entries_browse_response = [
-    #             ReleaseEntry.from_torrent_search_json_blob(json_blob=result_blob)
-    #             for result_blob in red_browse_response["results"]
-    #         ]
-
-    #         # Find best entry from the RED browse response
-    #         for release_entry in release_entries_browse_response:
-    #             for torrent_entry in release_entry.get_torrent_entries():
-    #                 _LOGGER.debug(f"Checking size of torrent entry: {torrent_entry}")
-    #                 size_gb = torrent_entry.get_size(unit="GB")
-    #                 if size_gb <= self._search_state.max_size_gb:
-    #                     _LOGGER.debug(f"Torrent match found. ID: {torrent_entry.torrent_id}")
-    #                     return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
-    #                 above_max_size_found = True
-    #     # TODO: figure out how to move this logic into the search_state filters instead
-    #     return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
-
-    # def _resolve_lfm_album_info(self, si: SearchItem) -> LFMAlbumInfo | None:
-    #     try:
-    #         lfm_api_response = self._lfm_client.request_api(
-    #             method="album.getinfo",
-    #             params=f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}",
-    #         )
-    #         lfmai = LFMAlbumInfo.construct_from_api_response(json_blob=lfm_api_response)
-    #     except LFMClientException:  # pragma: no cover
-    #         _LOGGER.debug(f"LFMClientException encountered during LFM album info resolution for search item: {si}")
-    #         lfmai = None
-    #     return lfmai
-
-    # def _resolve_lfm_track_info(self, si: SearchItem) -> SearchItem:
-    #     """
-    #     Method that attempts to resolve the origin release that a track rec came from (in order to search for the release on RED).
-    #     First checks if the LFM API has a album associated with the track, if not, searches musicbrainz with the track info on hand,
-    #     and ideally with at least the track artist's musicbrainz artist ID. If there's no resolved release from
-    #     both the LFM API search AND the musicbrainz search, skip the recommendation.
-    #     """
-    #     _LOGGER.debug(f"Resolving LFM track info for {str(si)} ({si.initial_info.lfm_entity_url}) ...")
-    #     try:
-    #         lfm_api_response = self._lfm_client.request_api(
-    #             method="track.getinfo",
-    #             params=f"artist={si.initial_info.encoded_artist_str}&track={si.initial_info.encoded_entity_str}",
-    #         )
-    #         if lfm_api_response and "album" in lfm_api_response:
-    #             resolved_track_info = LFMTrackInfo.construct_from_api_response(json_blob=lfm_api_response)
-    #             si.set_lfm_track_info(lfmti=resolved_track_info)
-    #             return si
-    #     except LFMClientException:  # pragma: no cover
-    #         _LOGGER.debug(f"LFMClientException encountered during track origin release resolution: {si}")
-    #         lfm_api_response = None
-
-    #     mb_origin_release_info = self._musicbrainz_client.request_release_details_for_track(
-    #         si=si,
-    #         artist_mbid=None if not lfm_api_response else lfm_api_response.get("artist", {}).get("mbid"),
-    #     )
-    #     si.set_lfm_track_info(
-    #         lfmti=(
-    #             None
-    #             if not mb_origin_release_info
-    #             else LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=mb_origin_release_info)
-    #         )
-    #     )
-    #     return si
-
-    # def _attempt_resolve_mb_release(self, si: SearchItem) -> SearchItem:
-    #     if mbid := si.get_matched_mbid():
-    #         try:
-    #             mb_response_json = self._musicbrainz_client.request_release_details(mbid=mbid)
-    #             si.set_mb_release(MBRelease.construct_from_api(json_blob=mb_response_json))
-    #         except (MusicBrainzClientException, KeyError):  # pragma: no cover
-    #             _LOGGER.error(f"Musicbrainz resolution error for search item '{si}'.", exc_info=True)
-    #     else:
-    #         _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
-    #     return si
-
-    # def _search_for_release_te(self, si: SearchItem) -> SearchItem | None:
-    #     """
-    #     Searches for the recommended release, and returns a tuple containing the permalink for the best RED match
-    #     and the release mbid (if an mbid is found / the app is configured to request an mbid from LFM's API)
-    #     according to format_preferences, search preferences, and snatch preferences.
-    #     Returns None if no viable match is found.
-    #     """
-    #     if not self._search_state.pre_mbid_resolution_filter(si=si):
-    #         return None
-    #     # If filtering the RED searches by any of these fields, then grab the release mbid from LFM, then hit musicbrainz to get the relevant data fields.
-    #     # TODO: allow per-manual search adjustment of what fields (if any) to resolve from MB
-    #     if (not si.is_manual) and self._search_state.requires_mbid_resolution():
-    #         if si.initial_info.entity_type == EntityType.ALBUM:
-    #             # TODO: replace with `ResolveAlbumInfoModifier`
-    #             si.set_lfm_album_info(self._resolve_lfm_album_info(si=si))
-    #         # TODO: replace with `AttemptResolveMBReleaseModifier`
-    #         si = self._attempt_resolve_mb_release(si=si)
-    #         # TODO: replace post_mbid_reso_rule_has_required_fields with PostMBIDResolutionFilter
-    #         if not self._search_state.post_mbid_reso_rule_has_required_fields(si=si):
-    #             _LOGGER.debug(
-    #                 f"Could not resolve MBID release for artist: '{si.artist_name}',  entity: '{si.initial_info.entity_type}' ({si.initial_info.entity_type})"
-    #             )
-    #             return None
-    #     # TODO: replace this with `SearchRedReleaseByPrefsModifier`
-    #     torrent_match = self._search_red_release_by_preferences(si=si)
-    #     si.set_torrent_match_fields(torrent_match=torrent_match)
-    #     # TODO: replace this with `PostRedSearchFilter``
-    #     if not self._search_state.post_red_search_filter(si=si):
-    #         return None
-    #     return si
-
-    # def _search(self, search_items: list[SearchItem]) -> None:
-    #     """
-    #     Iterate over the list of SearchItems and search for a TE match on RED for each one.
-    #     Updates the SearchState with the valid and/or skipped recs as it searches.
-    #     """
-    #     if not search_items:
-    #         _LOGGER.warning("Input search_items list is empty. Skipping search.")
-    #         return
-    #     rec_type = search_items[0].initial_info.entity_type
-    #     if not all([si.initial_info.entity_type == rec_type for si in search_items]):
-    #         raise ReleaseSearcherException("All search items must be of same entity_type.")
-    #     # initialize the db records for each search item
-    #     self._search_state.initialize_search_records(initial_search_items=search_items)
-    #     for si in search_items:
-    #         augmented_si = self._search_for_release_te(si=si)
-    #         if augmented_si and augmented_si.found_red_match():
-    #             self._search_state.add_search_item_to_snatch(si=augmented_si)
-
-    # def _search_for_track_recs(self, search_items: list[SearchItem]) -> None:
-    #     """
-    #     Iterate over the list of track-rec-based SearchItems recs and first resolve the release the track
-    #     originates from, then search for each one on RED. Returns the list of RED permalinks which match
-    #     the search criteria for the given SearchItem.
-    #     """
-    #     if not search_items:
-    #         _LOGGER.warning("Input search_items list is empty. Skipping search.")
-    #         return
-    #     resolved_track_search_items = []
-    #     for si in search_items:
-    #         # TODO: replace with `ResolveTrackInfoModifier`
-    #         si_with_track_info = self._resolve_lfm_track_info(si=si)
-    #         # TODO: replace with PostResolveOriginTrackFilter
-    #         if self._search_state.post_resolve_track_filter(si=si_with_track_info):
-    #             resolved_track_search_items.append(si_with_track_info)
-    #     self._search(search_items=resolved_track_search_items)
 
     # TODO: create separate class and db model for snatches
     def _snatch_matches(self, manual_run: bool = False) -> None:
@@ -288,7 +138,7 @@ class ReleaseSearcher:
             _LOGGER.debug(f"Beginning to snatch matched torrents to download directory '{self._snatch_directory}' ...")
             for si_to_snatch in search_items_to_snatch:
                 self._snatch_match(si_to_snatch=si_to_snatch)
-        else:
+        else:  # pragma: no cover
             _LOGGER.warning("No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
 
     # TODO: create separate class and db model for snatches
@@ -299,14 +149,13 @@ class ReleaseSearcher:
             return
         tid = te_to_snatch.torrent_id
         permalink = te_to_snatch.get_permalink_url()
-        out_filepath = os.path.join(self._snatch_directory, f"{tid}.torrent")
+        out_filepath = Path(os.path.join(self._snatch_directory, f"{tid}.torrent"))
         exc_name: str | None = None
         _LOGGER.debug(f"Snatching {permalink} and saving to {out_filepath} ...")
         try:
             binary_contents = self._red_snatch_client.snatch(tid=str(tid), can_use_token=te_to_snatch.can_use_token)
-            with open(out_filepath, "wb") as f:
-                f.write(binary_contents)
-        except Exception as ex:
+            out_filepath.write_bytes(binary_contents)
+        except Exception as ex:  # pragma: no cover
             # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
             if os.path.exists(out_filepath):
                 os.remove(out_filepath)
@@ -315,5 +164,5 @@ class ReleaseSearcher:
         finally:
             fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=tid)
             self._search_state.add_snatch_final_status_row(
-                si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=out_filepath, exc_name=exc_name
+                si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=str(out_filepath), exc_name=exc_name
             )

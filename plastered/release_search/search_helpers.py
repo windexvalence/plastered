@@ -230,20 +230,27 @@ class SearchState:
         will_snatch: list[SearchItem] = []
         cumulative_dl_size_gb = 0.0
         for si in search_elems_by_size:
-            if not si.torrent_entry:  # pragma: no cover
-                raise MissingTorrentEntryException("Missing torrent_entry")
-            cur_te_size_gb = si.torrent_entry.get_size("GB")
-            if cumulative_dl_size_gb + cur_te_size_gb <= self._max_download_allowed_gb:
+            valid_te_size = self._te_size_acceptable(cumulative_dl_size_gb=cumulative_dl_size_gb, si=si)
+            if valid_te_size >= 0:  # pragma: no cover
+                cumulative_dl_size_gb += valid_te_size
                 will_snatch.append(si)
-                cumulative_dl_size_gb += cur_te_size_gb
-            else:
-                _LOGGER.info(
-                    f"Skip snatch {si.torrent_entry.get_permalink_url}: would drop ratio below min_allowed_ratio."
-                )
-                self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
         return will_snatch
 
-    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:
+    def _te_size_acceptable(self, cumulative_dl_size_gb: float, si: SearchItem) -> float:
+        """
+        Returns `si.torrent_entry` size in GB when the provided `te` size will not cause `cumulative_dl_size_gb` to
+        exceed `self._max_download_allowed_gb`. Otherwise, returns a negative number.
+        """
+        if not (te := si.torrent_entry):  # pragma: no cover
+            raise MissingTorrentEntryException("Missing torrent_entry")
+        te_size_gb = te.get_size("GB")
+        if cumulative_dl_size_gb + te_size_gb <= self._max_download_allowed_gb:
+            return te_size_gb
+        _LOGGER.info(f"Skip snatch {te.get_permalink_url}: would drop ratio below min_allowed_ratio.")
+        self._add_skipped_snatch_row(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
+        return -1.0
+
+    def _add_skipped_snatch_row(self, si: SearchItem, reason: SkipReason) -> None:  # pragma: no cover
         _LOGGER.debug(
             f"Refreshing result record for search state artist='{si.artist_name}' entity_name='{si.initial_info.get_human_readable_entity_str()}' ..."
         )
@@ -273,9 +280,9 @@ class SearchState:
         )
 
     @property
-    def red_format_preferences(self) -> list[FormatPreference]:
+    def red_format_preferences(self) -> list[FormatPreference]:  # pragma: no cover
         return self._red_format_preferences
 
     @property
-    def max_size_gb(self) -> float:
+    def max_size_gb(self) -> float:  # pragma: no cover
         return self._max_size_gb

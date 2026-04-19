@@ -1,79 +1,245 @@
-# from copy import deepcopy
-# import os
-# from pathlib import Path
-# import re
-# from copy import deepcopy
-# from typing import Any
-# from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
+import os
+from pathlib import Path
+import re
+from copy import deepcopy
+from typing import Any, Generator, NamedTuple, TypedDict
+from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
-# import pytest
-# from pytest_httpx import HTTPXMock
+import pytest
 
-# from plastered.config.app_settings import AppSettings, get_app_settings
-# from plastered.db.db_models import SearchRecord
-# from plastered.models.lfm_models import LFMAlbumInfo
-# from plastered.models.search_item import SearchItem
-# from plastered.release_search.release_searcher import ReleaseSearcher, SearchState
-# from plastered.release_search.search_helpers import SearchState
-# from plastered.models.lfm_models import LFMRec
-# from plastered.models.types import EntityType as et, RecContext as rc
-# from plastered.run_cache.run_cache import RunCache
-# from plastered.utils.exceptions import RedClientSnatchException, ReleaseSearcherException
-# from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedSnatchAPIClient
-# from plastered.models.lfm_models import LFMTrackInfo
-# from plastered.models.musicbrainz_models import MBRelease
-# from plastered.models.types import EncodingEnum as ee
-# from plastered.models.types import FormatEnum as fe
-# from plastered.models.types import MediaEnum as me
-# from plastered.models.red_models import RedFormat as rf
-# from plastered.models.red_models import RedUserDetails, TorrentMatch
-# from plastered.models.red_models import TorrentEntry as te
+from plastered.config.app_settings import AppSettings
+from plastered.db.db_models import SearchRecord
+from plastered.models import (
+    EntityType as et,
+    LFMRec,
+    LFMTrackInfo,
+    ManualSearch,
+    MBRelease,
+    RecContext as rc,
+    RedUserDetails,
+    SearchItem,
+    TorrentEntry as te,
+)
+from plastered.release_search.processors import SearchItemProcessorChain
+from plastered.release_search.release_searcher import ReleaseSearcher
+from plastered.release_search.search_helpers import SearchState
+from plastered.run_cache.run_cache import RunCache
+from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 
 
-# @pytest.fixture(scope="function")
-# def mock_lfm_track_info() -> LFMTrackInfo:
-#     return LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")
+@pytest.fixture(scope="function")
+def mock_lfm_track_info() -> LFMTrackInfo:
+    return LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")
 
 
-# @pytest.fixture(scope="function")
-# def initial_search_state(valid_app_settings: AppSettings) -> SearchState:
-#     return SearchState(app_settings=valid_app_settings)
+@pytest.fixture(scope="function")
+def initial_search_state(valid_app_settings: AppSettings) -> SearchState:
+    return SearchState(app_settings=valid_app_settings)
 
 
-# @pytest.fixture(scope="session")
-# def mock_mbr() -> MBRelease:
-#     return MBRelease(
-#         mbid="1234",
-#         title="Bar",
-#         artist="Foo",
-#         primary_type="Album",
-#         release_date="2017-05-19",
-#         first_release_year=2016,
-#         label="Get On Down",
-#         catalog_number="58010",
-#         release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
-#     )
+@pytest.fixture(scope="function")
+def mock_mbr() -> MBRelease:
+    return MBRelease(
+        mbid="1234",
+        title="Bar",
+        artist="Foo",
+        primary_type="Album",
+        release_date="2017-05-19",
+        first_release_year=2016,
+        label="Get On Down",
+        catalog_number="58010",
+        release_group_mbid="b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+    )
 
 
-# @pytest.fixture(scope="function", autouse=True)
-# def mock_best_te() -> te:
-#     return te(
-#         torrent_id=69420,
-#         media="WEB",
-#         format="FLAC",
-#         encoding="24bit Lossless",
-#         size=69420,
-#         scene=False,
-#         trumpable=False,
-#         has_snatched=False,
-#         has_log=False,
-#         log_score=0,
-#         has_cue=False,
-#         can_use_token=False,
-#         reported=None,
-#         lossy_web=None,
-#         lossy_master=None,
-#     )
+@pytest.fixture(scope="function")
+def mock_best_te() -> te:
+    return te(
+        torrent_id=69420,
+        media="WEB",
+        format="FLAC",
+        encoding="24bit Lossless",
+        size=69420,
+        scene=False,
+        trumpable=False,
+        has_snatched=False,
+        has_log=False,
+        log_score=0,
+        has_cue=False,
+        can_use_token=False,
+        reported=None,
+        lossy_web=None,
+        lossy_master=None,
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_run_cache() -> Generator[None, None, None]:
+    mock_rc = MagicMock(spec=RunCache)
+    with patch("plastered.release_search.release_searcher.RunCache") as mock_rc_new:
+        mock_rc = mock_rc_new.return_value
+        yield mock_rc
+
+
+class _MockRsKwargs(NamedTuple):
+    """Collection of ReleaseSearcher mock instance attr classes which are expensive to generate."""
+
+    app_settings: AppSettings
+    red_api_client: MagicMock
+    red_snatch_client: MagicMock
+    lfm_client: MagicMock
+    musicbrainz_client: MagicMock
+
+
+@pytest.fixture(scope="function")
+def mock_kwargs(valid_app_settings: AppSettings, mock_run_cache: MagicMock) -> _MockRsKwargs:
+    """Fixture for mocking the ReleaseSeacher instance attr classes which are expensive to generate."""
+    return _MockRsKwargs(
+        app_settings=valid_app_settings,
+        red_api_client=MagicMock(spec=RedAPIClient),
+        red_snatch_client=MagicMock(spec=RedSnatchAPIClient),
+        lfm_client=MagicMock(spec=LFMAPIClient),
+        musicbrainz_client=MagicMock(spec=MusicBrainzAPIClient),
+    )
+
+
+@pytest.mark.parametrize(
+    "ent_to_recs",
+    [
+        {},
+        {et.ALBUM: []},
+        {et.TRACK: []},
+        {et.ALBUM: [LFMRec("artist1", "ent1", et.ALBUM, rc.IN_LIBRARY)]},
+        {et.TRACK: [LFMRec("artist2", "ent2", et.TRACK, rc.IN_LIBRARY)]},
+        {
+            et.ALBUM: [LFMRec("artist3", "ent3", et.ALBUM, rc.IN_LIBRARY)],
+            et.TRACK: [LFMRec("artist4", "ent4", et.TRACK, rc.IN_LIBRARY)],
+        },
+        {et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY), LFMRec("a2", "e2", et.ALBUM, rc.IN_LIBRARY)]},
+        {et.TRACK: [LFMRec("a", "e", et.TRACK, rc.IN_LIBRARY), LFMRec("a2", "e2", et.TRACK, rc.IN_LIBRARY)]},
+    ],
+)
+def test_search_for_recs(
+    mock_kwargs: _MockRsKwargs, initial_search_state: SearchState, ent_to_recs: dict[et, list[LFMRec]]
+) -> None:
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with (
+            patch.object(initial_search_state, "red_user_details_is_initialized", return_value=True),
+            patch.object(rs, "_apply_si_processor_chain") as mock_apply_si_processor_chain_method,
+            patch.object(rs, "_snatch_matches") as mock_snatch_matches_method,
+        ):
+            rs.search_for_recs(entity_to_recs_list=ent_to_recs)
+            mock_apply_si_processor_chain_method.assert_called_once()
+            mock_snatch_matches_method.assert_called_once()
+
+
+@pytest.mark.parametrize("mbid", [None, "fake-mbid"])
+def test_manual_search(mock_kwargs: _MockRsKwargs, initial_search_state: SearchState, mbid: str | None) -> None:
+    mock_manual_search_record = MagicMock(spec=ManualSearch)
+    type(mock_manual_search_record).entity_type = PropertyMock(return_value=et.ALBUM)
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with (
+            patch(
+                "plastered.release_search.release_searcher.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
+            ),
+            patch.object(initial_search_state, "red_user_details_is_initialized", return_value=True),
+            patch.object(ManualSearch, "from_search_record", return_value=mock_manual_search_record),
+            patch.object(rs, "_apply_si_processor_chain") as mock_apply_si_processor_chain_method,
+            patch.object(rs, "_snatch_matches") as mock_snatch_matches_method,
+        ):
+            rs.manual_search(search_id=69, mbid=mbid)
+            mock_apply_si_processor_chain_method.assert_called_once()
+            mock_snatch_matches_method.assert_called_once_with(manual_run=True)
+
+
+@pytest.mark.parametrize(
+    "ent_to_cnt",
+    [
+        {et.ALBUM: 0, et.TRACK: 0},
+        {et.ALBUM: 1, et.TRACK: 0},
+        {et.ALBUM: 0, et.TRACK: 1},
+        {et.ALBUM: 1, et.TRACK: 1},
+        {et.ALBUM: 2, et.TRACK: 2},
+    ],
+)
+def test_apply_si_processor_chain(mock_kwargs: _MockRsKwargs, ent_to_cnt: dict[et, int]) -> None:
+    n_alb, n_track = ent_to_cnt.get(et.ALBUM, 0), ent_to_cnt.get(et.TRACK, 0)
+    ent_to_sis = {
+        et.ALBUM: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)) for _ in range(n_alb)],
+        et.TRACK: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)) for _ in range(n_track)],
+    }
+    mock_processed = []
+    for si_list in ent_to_sis.values():
+        mock_processed.extend([si_list])
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with patch.object(SearchItemProcessorChain, "batch_process", return_value=mock_processed):
+            actual = rs._apply_si_processor_chain(entity_to_si_list=ent_to_sis)
+            assert actual == mock_processed
+
+
+@pytest.mark.parametrize("manual_run", [False, True])
+@pytest.mark.parametrize("ent_type", [m for m in et])
+@pytest.mark.parametrize("enable_snatches", [False, True])
+def test_snatch_matches(mock_kwargs: _MockRsKwargs, manual_run: bool, ent_type: et, enable_snatches: bool) -> None:
+    expect_calls = enable_snatches
+    mock_si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rc.IN_LIBRARY))
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        rs._enable_snatches = enable_snatches
+        with (
+            patch.object(
+                SearchState, "get_search_items_to_snatch", return_value=[mock_si_to_snatch]
+            ) as mock_get_sis_to_snatch,
+            patch.object(ReleaseSearcher, "_snatch_match") as mock_snatch_match_method,
+        ):
+            rs._snatch_matches(manual_run=manual_run)
+            if expect_calls:
+                mock_get_sis_to_snatch.assert_called_once_with(manual_run=manual_run)
+                mock_snatch_match_method.assert_called_once_with(si_to_snatch=mock_si_to_snatch)
+            else:
+                mock_get_sis_to_snatch.assert_not_called()
+                mock_snatch_match_method.assert_not_called()
+
+
+@pytest.fixture(scope="function")
+def fake_snatch_dir(tmp_path: Path) -> Path:
+    tmp_snatch_dir = tmp_path / "snatches"
+    tmp_snatch_dir.mkdir()
+    return tmp_snatch_dir
+
+
+@pytest.mark.parametrize("ent_type", [m for m in et])
+@pytest.mark.parametrize("rec_ctx", [r for r in rc])
+@pytest.mark.parametrize("used_fl_token", [False, True])
+def test_snatch_match_valid(
+    mock_best_te: te, mock_kwargs: _MockRsKwargs, fake_snatch_dir: Path, ent_type: et, rec_ctx: rc, used_fl_token: bool
+) -> None:
+    mock_tid = mock_best_te.torrent_id
+    expected_out_filepath = fake_snatch_dir / f"{mock_tid}.torrent"
+    mock_content_bytes = b"some-fake-bytes"
+    si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rec_ctx), torrent_entry=mock_best_te)
+    mock_red_snatch_client = mock_kwargs.red_snatch_client
+    mock_red_snatch_client.snatch.return_value = mock_content_bytes
+    mock_red_snatch_client.tid_snatched_with_fl_token.return_value = used_fl_token
+    with (
+        patch.object(SearchState, "add_snatch_final_status_row") as mock_add_snatch_final_status_row,
+        ReleaseSearcher(**mock_kwargs._asdict()) as rs,
+    ):
+        rs._snatch_directory = fake_snatch_dir
+        rs._snatch_match(si_to_snatch=si_to_snatch)
+        assert expected_out_filepath.exists()
+        assert expected_out_filepath.read_bytes() == mock_content_bytes
+        mock_red_snatch_client.snatch.assert_called_once_with(tid=str(mock_tid), can_use_token=ANY)
+        mock_red_snatch_client.tid_snatched_with_fl_token.assert_called_once_with(tid=mock_tid)
+        mock_add_snatch_final_status_row.assert_called_once()
+
+
+# @pytest.mark.parametrize(
+#     "has_te, "
+# )
+# def test_snatch_match_raises(mock_kwargs: _MockRsKwargs, fake_snatch_dir: Path, has_te: bool) -> None:
+#     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+#         rs._snatch_directory = fake_snatch_dir
+#     pass  # TODO: implement
 
 
 # @pytest.mark.override_global_httpx_mock

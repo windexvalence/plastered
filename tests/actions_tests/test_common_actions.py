@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
@@ -26,14 +26,17 @@ def test_cache_action(
     test_kwargs: dict[str, bool | str | None],
     run_cache_method_name: str,
 ) -> None:
-    with patch.object(RunCache, "close") as mock_close, patch.object(RunCache, run_cache_method_name) as mock_method:
+    mock_rc = MagicMock(spec=RunCache)
+    type(mock_rc)._cache_type = PropertyMock(return_value=target_cache)
+    with patch("plastered.actions.common_actions.RunCache") as mock_rc_new:
+        mock_rc = mock_rc_new.return_value
         cache_action(app_settings=valid_app_settings, target_cache=target_cache, **test_kwargs)
         if target_cache != "all":
-            mock_method.assert_called_once()
-            mock_close.assert_called_once()
+            getattr(mock_rc, run_cache_method_name).assert_called_once()
+            mock_rc.close.assert_called_once()
         else:
-            assert len(mock_method.mock_calls) == 2
-            assert len(mock_close.mock_calls) == 2
+            assert len(getattr(mock_rc, run_cache_method_name).mock_calls) == 2
+            assert len(mock_rc.close.mock_calls) == 2
 
 
 @pytest.mark.parametrize("target_cache", ["api", "scraper"])
@@ -62,10 +65,10 @@ def test_scrape_action(valid_app_settings: AppSettings) -> None:
     mock_searcher = MagicMock(spec=ReleaseSearcher)
     with (
         patch.object(LFMRecsScraper, "__enter__", return_value=mock_scraper) as mock_scraper_enter,
-        patch.object(ReleaseSearcher, "__enter__", return_value=mock_searcher) as mock_searcher_enter,
+        patch("plastered.actions.common_actions.ReleaseSearcher") as mock_searcher_new,
     ):
+        mock_searcher = mock_searcher_new.return_value
         scrape_action(app_settings=valid_app_settings)
         mock_scraper_enter.assert_called_once()
         mock_scraper.scrape_recs.assert_called_once()
-        mock_searcher_enter.assert_called_once()
         mock_searcher.search_for_recs.assert_called_once()

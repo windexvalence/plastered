@@ -21,19 +21,27 @@ def mock_LifespanSingleton_inst(
 
     from fastapi import BackgroundTasks
 
-    with patch.object(RedAPIClient, "get_red_user_details", return_value=mock_red_user_details):
-        singleton_inst = MagicMock(spec=LifespanSingleton)
-        type(singleton_inst).app_settings = PropertyMock(return_value=valid_app_settings_sesh_scoped)
-        app_settings_src_filepath = valid_app_settings_sesh_scoped.src_yaml_filepath
-        type(singleton_inst).config_filepath = PropertyMock(return_value=app_settings_src_filepath)
-        type(singleton_inst).red_api_client = PropertyMock(return_value=MagicMock(spec=RedAPIClient))
-        type(singleton_inst).red_user_details = PropertyMock(return_value=mock_red_user_details)
-        type(singleton_inst).project_version = PropertyMock(return_value=get_project_version())
-        with (
-            patch.object(BackgroundTasks, "add_task", side_effect=lambda *args, **kwargs: None),
-            patch("plastered.api.main.get_lifespan_singleton", return_value=singleton_inst),
-        ):
-            yield singleton_inst
+    try:
+        with patch.object(RedAPIClient, "get_red_user_details", return_value=mock_red_user_details) as get_rud_mock:
+            singleton_inst = MagicMock(spec=LifespanSingleton)
+            type(singleton_inst).app_settings = PropertyMock(return_value=valid_app_settings_sesh_scoped)
+            app_settings_src_filepath = valid_app_settings_sesh_scoped.src_yaml_filepath
+            type(singleton_inst).config_filepath = PropertyMock(return_value=app_settings_src_filepath)
+            mock_red_api_client = MagicMock(spec=RedAPIClient)
+            mock_red_api_client.get_red_user_details.return_value = mock_red_user_details
+            type(singleton_inst).red_api_client = PropertyMock(
+                return_value=mock_red_api_client
+            )  # PropertyMock(return_value=MagicMock(spec=RedAPIClient))
+            type(singleton_inst).red_user_details = PropertyMock(return_value=mock_red_user_details)
+            type(singleton_inst).project_version = PropertyMock(return_value=get_project_version())
+            with (
+                patch.object(BackgroundTasks, "add_task", side_effect=lambda *args, **kwargs: None),
+                patch("plastered.api.main.get_lifespan_singleton", return_value=singleton_inst),
+            ):
+                yield singleton_inst
+    finally:
+        del singleton_inst
+        del get_rud_mock
 
 
 @pytest.fixture(scope="session")
