@@ -47,6 +47,32 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
         ``` 
 
 
+### Testing the CLI
+
+Currently, locally testing the CLI works best in docker since the playwright dependencies are not straightforward to run directly on host.
+As such, you can run the CLI with the local state of the code  by running the following:
+
+```shell
+make docker-build-no-test
+docker run -it --rm --name=plastered \
+    -e PLASTERED_CONFIG=/config/config.yaml \
+    -e COLUMNS="$(tput cols)" \
+    -e LINES="$(tput lines)" \
+    -v <path to host plastered config directory>:/config \
+    -v <path to host downloads directory>:/downloads wv/plastered:non-test
+```
+
+
+### Testing the Server
+
+Run the following:
+
+```shell
+make docker-server APP_CONFIG_DIR=<path to host plastered config directory>
+```
+
+Then open http://localhost:8000 in your
+
 ## Other testing commands
 
 Run `make` to list the other available targets and their desciptions.

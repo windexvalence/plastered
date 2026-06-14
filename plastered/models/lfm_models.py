@@ -31,9 +31,6 @@ class LFMAlbumInfo:
             lfm_url=json_blob["url"],
         )
 
-    def get_release_mbid(self) -> str | None:
-        return self.release_mbid
-
 
 @dataclass
 class LFMTrackInfo:  # TODO (later): stop using this class and above class in favor of SearchItem
@@ -89,9 +86,6 @@ class LFMTrackInfo:  # TODO (later): stop using this class and above class in fa
             and other.lfm_url == self.lfm_url
             and other.release_mbid == self.release_mbid
         )
-
-    def get_release_mbid(self) -> str | None:
-        return self.release_mbid
 
 
 class LFMRec:

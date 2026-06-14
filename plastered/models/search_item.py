@@ -70,9 +70,11 @@ class SearchItem:
         return all([self._search_kwargs[k] is not None for k in required_kwargs])
 
     def get_matched_mbid(self) -> str | None:
-        if self.initial_info.entity_type == EntityType.ALBUM:
-            return None if not self._lfm_album_info else self._lfm_album_info.get_release_mbid()
-        return None if not self._lfm_track_info else self._lfm_track_info.get_release_mbid()
+        if self.initial_info.entity_type == EntityType.ALBUM and self._lfm_album_info is not None:
+            return self._lfm_album_info.release_mbid
+        elif self.initial_info.entity_type == EntityType.TRACK and self._lfm_track_info is not None:
+            return self._lfm_track_info.release_mbid
+        return None
 
     def found_red_match(self) -> bool:
         return self.torrent_entry is not None and not self.above_max_size_te_found

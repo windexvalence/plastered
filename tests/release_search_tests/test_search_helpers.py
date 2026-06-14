@@ -234,26 +234,6 @@ def test_red_user_details_is_initialized(valid_app_settings: AppSettings, initia
     assert actual == expected
 
 
-@pytest.mark.parametrize(
-    "initial_search_items, expect_db_write",
-    [
-        ([SearchItem(initial_info=ManualSearch(entity_type=rt.ALBUM, artist="fake", entity="faker"))], False),
-        ([SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))], True),
-    ],
-)
-def test_initialize_search_records(
-    valid_app_settings: AppSettings, initial_search_items: list[SearchItem], expect_db_write: bool
-) -> None:
-    mock_sesh = MagicMock(spec=Session)
-    with patch.object(Session, "__enter__", return_value=mock_sesh):
-        search_state = SearchState(app_settings=valid_app_settings)
-        search_state.initialize_search_records(initial_search_items=initial_search_items)
-        if expect_db_write:
-            mock_sesh.add.assert_called_once()
-        else:
-            mock_sesh.add_all.assert_not_called()
-
-
 def test_set_search_state_red_user_details(
     valid_app_settings: AppSettings, no_snatch_user_details: RedUserDetails
 ) -> None:

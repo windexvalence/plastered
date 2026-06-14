@@ -1,12 +1,9 @@
 import logging
-from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
-from sqlmodel import Session
-
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status, get_engine
-from plastered.db.db_utils import add_record, set_result_status
+from plastered.db.db_models import FailReason, SkipReason, Status
+from plastered.db.db_utils import set_result_status
 from plastered.models import RecContext, RedFormat, RedUserDetails, SearchItem, TorrentEntry
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
@@ -88,28 +85,6 @@ class SearchState:
             min_allowed_ratio=self._min_allowed_ratio
         )
         self._red_user_details = red_user_details
-
-    def initialize_search_records(self, initial_search_items: list[SearchItem]) -> None:
-        """Initializes the `plastered.db.db_models.SearchRecord` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
-        if all([si.is_manual for si in initial_search_items]):
-            # TODO: should this be consolidated into a single record initialization for both manual and scrape?
-            _LOGGER.debug("Manual search records are pre-initialized, skipping initialization.")
-            return
-        _LOGGER.info("Initializing search records ...")
-        submit_timestamp = int(datetime.now(tz=UTC).timestamp())
-        with Session(get_engine()) as db_session:
-            for si in initial_search_items:
-                search_record = SearchRecord(
-                    is_manual=si.is_manual,
-                    artist=si.initial_info.get_human_readable_artist_str(),
-                    entity=si.initial_info.get_human_readable_entity_str(),
-                    submit_timestamp=submit_timestamp,
-                    entity_type=si.initial_info.entity_type,
-                    status=Status.IN_PROGRESS,
-                )
-                add_record(session=db_session, model_inst=search_record)
-                si.search_id = search_record.id
-        _LOGGER.info("Search records initialized.")
 
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
@@ -207,9 +182,6 @@ class SearchState:
         else:
             self._search_items_to_snatch.append(si)
             self._tids_to_snatch.add(si.torrent_entry.torrent_id)
-
-    def requires_mbid_resolution(self) -> bool:  # pragma: no cover
-        return self._require_mbid_resolution
 
     def get_search_items_to_snatch(self, manual_run: bool = False) -> list[SearchItem]:
         """

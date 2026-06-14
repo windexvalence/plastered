@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -72,45 +70,15 @@ class SearchItemProcessorChain:
         processed_tracks = [self._apply_track_chain(si=si) for si in entity_to_si_list.get(EntityType.TRACK, [])]
         return [si for si in processed_albums + processed_tracks if si is not None]
 
-    async def async_batch_process(self, search_items: list[SearchItem]) -> list[SearchItem]:  # pragma: no cover
-        """Async equivalent of `batch_process`, but using the underlying `SearchItemProcessor` async methods."""
-        partitioned_items = defaultdict(list)
-        for si in search_items:
-            partitioned_items[si.initial_info.entity_type].append(si)
-        processed_albums = await asyncio.gather(  # type: ignore
-            [self._async_apply_album_chain(si=si) for si in partitioned_items.get(EntityType.ALBUM, [])]
-        )
-        processed_tracks = await asyncio.gather(  # type: ignore
-            [self._async_apply_track_chain(si=si) for si in partitioned_items.get(EntityType.TRACK, [])]
-        )
-        return [si for si in processed_albums + processed_tracks if si is not None]
-
     def _apply_album_chain(self, si: SearchItem) -> SearchItem | None:
         return self._apply_chain(si=si, chain=self.album_chain)
 
-    async def _async_apply_album_chain(self, si: SearchItem) -> SearchItem | None:  # pragma: no cover
-        res = await self._async_apply_chain(si=si, chain=self.album_chain)
-        return res
-
     def _apply_track_chain(self, si: SearchItem) -> SearchItem | None:
         return self._apply_chain(si=si, chain=self.track_chain)
-
-    async def _async_apply_track_chain(self, si: SearchItem) -> SearchItem | None:  # pragma: no cover
-        res = await self._async_apply_chain(si=si, chain=self.track_chain)
-        return res
 
     def _apply_chain(self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]) -> SearchItem | None:
         for processor in chain:
             if not processor.process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red):
                 _LOGGER.debug(f"si for {si.initial_info} filtered by: {processor.__class__.__name__}")
-                return None
-        return si
-
-    async def _async_apply_chain(
-        self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]
-    ) -> SearchItem | None:  # pragma: no cover
-        for processor in chain:
-            res = await processor.a_process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red)
-            if not res:
                 return None
         return si

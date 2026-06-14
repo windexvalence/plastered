@@ -8,7 +8,7 @@ ifndef TEST_TARGET
 override TEST_TARGET = tests
 endif
 
-# Default to not running slow tests locally
+# Default to not running slow tests locallydocs/contributing/development_guide.md
 ifndef SLOW_TESTS
 override SLOW_TESTS = 0
 endif

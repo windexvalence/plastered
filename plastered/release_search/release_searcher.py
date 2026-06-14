@@ -120,15 +120,6 @@ class ReleaseSearcher:
         )
         return chain.batch_process(entity_to_si_list=entity_to_si_list)
 
-    async def _async_apply_search_item_processor_chain(
-        self, search_items: list[SearchItem]
-    ) -> list[SearchItem]:  # pragma: no cover
-        chain = SearchItemProcessorChain(
-            lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=self._search_state
-        )
-        results = await chain.async_batch_process(search_items=search_items)
-        return results
-
     # TODO: create separate class and db model for snatches
     def _snatch_matches(self, manual_run: bool = False) -> None:
         if not self._enable_snatches:

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -6,7 +7,6 @@ from collections import Counter
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
-from pprint import pformat
 from typing import Any, Self
 
 import yaml
@@ -237,9 +237,10 @@ def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[
         app_settings = AppSettings(**settings_data)
     except (ValidationError, ValueError) as ve:  # pragma: no cover
         if isinstance(ve, ValidationError):
-            _LOGGER.error(f"Invalid app config. Validation errors: {pformat(ve.errors())}")
+            formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
+            _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
             raise AppConfigException(
-                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
+                f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
             ) from ve
         _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
         raise AppConfigException(
