@@ -1,22 +1,14 @@
 # Development Guide
 
 ## Pre-requisites
-1. Install [Docker](https://docs.docker.com/get-started/get-docker/) if you do not already have it
+1. Install [`uv`](https://docs.astral.sh/uv/) if you do not already have it
 
 ## Setup / Installation
-This repo will require that you have Docker and `make` installed. All the builds and tests are executed inside of a docker container, so you do not need to have python installed locally.
 
-1. Clone the repo from git@github.com:windexvalence/plastered.git
-2. Ensure that you're able to locally build the main Docker image from master by running `make docker-build`. Address any build issues or local dev issues as necessary
-3. Explore the full list of local development options by running `make` to see the help output.
+1. Clone the repo from `git@github.com:windexvalence/plastered.git`
+2. Explore the full list of local development options by running `make` to see the help output.
 
 ### Optional: Code Editor Setup
-
-While this application along with all its tests / code analysis is fully containerized with Docker, if 
-you wish to have accurate imports and syntax highlighting in your code editor, you should configure a 
-dedicated virtual environment running Python version `3.12.8` on your host machine which you're running the code editor from.
-
-The **strongly** recommended approach for this is to [`uv`](https://docs.astral.sh/uv/). Installation instructions for uv [here](https://docs.astral.sh/uv/getting-started/installation/).
 
 Once `uv` is installed, you can follow this one-time setup for creating a host virtualenv. Make sure to run all commands from the root `plastered` repo directory:
 
@@ -32,26 +24,29 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
     ```shell
     uv sync --all-groups
     ```
-4. Lastly, configure your code editor / IDE of choice to use the uv-managed virtualenv located in the `.venv` directory at the root `plastered` project directory.
+4. Optionally, configure your code editor / IDE of choice to use the uv-managed virtualenv located in the `.venv` directory at the root `plastered` project directory.
 
 ## Testing
 
-1. To run code formatting checks, run: `make code-format-check`. 
+1. To run code formatting checks, run: `make fmt-check`. 
     
-    * If this command raises formatting errors, you will need to run the code auto-formatter by running: `make code-format`.
+    * If this command raises formatting errors, you will need to run the code auto-formatter by running: `make fmt`.
 
-    * If this command and/or the `make code-format` command raise additional [pylint](https://github.com/pylint-dev/pylint) / [bandit](https://github.com/PyCQA/bandit) errors, you will need to manually address those and re-run the `make code-format` command to verify if the raised errors have been addressed.
+    * If this command and/or the `make fmt` command raises errors, you will need to manually address those and re-run the `make fmt` command to verify if the raised errors have been addressed.
 
-2. To run ALL unit tests, run: `make docker-test`
+2. To run ALL unit tests, run: `make test`
 
     * To run only a specific test file, run the make command with `TEST_TARGET` set to the relative test file's path. For example, the following will only run tests defined in `test_http_utils.py`:
         ```shell
-        make docker-test TEST_TARGET=tests/utils_tests/test_http_utils.py
+        make test TEST_TARGET=tests/utils_tests/test_http_utils.py
         ```
     
     * To run only a specfici test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test files's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
         ```shell
-        make docker-test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle
+        make test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle
         ``` 
 
-4. To remove all the pre-existing local images you've built, run: `make docker-clean`
+
+## Other testing commands
+
+Run `make` to list the other available targets and their desciptions.
