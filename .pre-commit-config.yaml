@@ -23,6 +23,13 @@ repos:
         entry: hooks/ruff-format.sh
         language: python
         require_serial: true
+      
+      - id: bandit
+        name: bandit
+        entry: hooks/bandit.sh
+        language: script
+        files: '^plastered/.*\.py$'
+        pass_filenames: true
 
       - id: mypy
         name: mypy

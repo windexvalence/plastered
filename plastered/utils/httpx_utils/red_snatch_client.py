@@ -83,7 +83,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
         return str(tid) in self._tids_snatched_with_fl_tokens
 
 
-class AsyncSnatchClient(httpx.AsyncClient):
+class AsyncSnatchClient(httpx.AsyncClient):  # pragma: no cover
     """Subclass of `httpx.AsyncClient` specifically for async snatch request submission and resoonse handling."""
 
     def __init__(self, **kwargs: Any):
