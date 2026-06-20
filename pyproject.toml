@@ -198,7 +198,11 @@ plugins = ["pydantic.mypy"]
 exclude = [
     "tests/",
     "build_scripts/",
+	"docs/",
+	"examples/",
 ]
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
+# namespace_packages = false
 
 [[tool.mypy.overrides]]
 module = ["diskcache.*"]

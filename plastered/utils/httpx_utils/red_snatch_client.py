@@ -1,7 +1,6 @@
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from anyio import open_file
 import httpx
 
 from plastered.config.app_settings import AppSettings
@@ -86,6 +85,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
 
 class AsyncSnatchClient(httpx.AsyncClient):
     """Subclass of `httpx.AsyncClient` specifically for async snatch request submission and resoonse handling."""
+
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
 
@@ -95,4 +95,7 @@ class AsyncSnatchClient(httpx.AsyncClient):
         Returns: Path object pointg to the downloaded file on success. `None` on failure.
         """
         # TODO: use https://anyio.readthedocs.io/en/stable/fileio.html
-        return bytes(f"tid: {tid}, can_use_token: {can_use_token}")  # TODO: implement
+        # bytes(f"tid: {tid}, can_use_token: {can_use_token}")  # TODO: implement
+        if not tid:
+            return None
+        return Path(".")
