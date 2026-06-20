@@ -17,12 +17,6 @@ from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemE
 _LOGGER = logging.getLogger(__name__)
 
 
-def _require_mbid_resolution(
-    use_release_type: bool, use_first_release_year: bool, use_record_label: bool, use_catalog_number: bool
-) -> bool:
-    return use_release_type or use_first_release_year or use_record_label or use_catalog_number
-
-
 def _required_search_kwargs(
     use_release_type: bool, use_first_release_year: bool, use_record_label: bool, use_catalog_number: bool
 ) -> set[str]:
@@ -51,18 +45,15 @@ class SearchState:
         self._use_first_release_year = app_settings.red.search.use_first_release_year
         self._use_record_label = app_settings.red.search.use_record_label
         self._use_catalog_number = app_settings.red.search.use_catalog_number
-        self._require_mbid_resolution = _require_mbid_resolution(
-            use_release_type=self._use_release_type,
-            use_first_release_year=self._use_first_release_year,
-            use_record_label=self._use_record_label,
-            use_catalog_number=self._use_catalog_number,
-        )
         self._required_red_search_kwargs: set[str] = _required_search_kwargs(
             use_release_type=self._use_release_type,
             use_first_release_year=self._use_first_release_year,
             use_record_label=self._use_record_label,
             use_catalog_number=self._use_catalog_number,
         )
+        # MBID resolution is required exactly when at least one optional search field is enabled, i.e. the
+        # required-kwargs set above is non-empty.
+        self._require_mbid_resolution = bool(self._required_red_search_kwargs)
         self._red_format_preferences = app_settings.get_red_format_preferences()
         self._max_size_gb = app_settings.red.snatches.max_size_gb
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio

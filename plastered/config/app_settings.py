@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 import sys
 from collections import Counter
 from datetime import datetime
@@ -27,7 +26,6 @@ from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_F
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
-_CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
 def load_init_config_template() -> str:  # pragma: no cover
@@ -196,16 +194,6 @@ class AppSettings(BaseSettings):
         self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
         self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
         self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
-
-    def get(self, section: str, setting: str) -> Any:
-        """Return the value for the specified config option, if it exists. Return `None` otherwise."""
-        full_attr_path = f"{section}.{setting}"
-        try:
-            val = reduce(getattr, full_attr_path.split("."), self)
-        except AttributeError:  # pragma: no cover
-            _LOGGER.warning(f"No such setting field named '{full_attr_path}'")
-            return None
-        return val
 
     def get_db_filepath(self) -> str:
         return os.fspath(self._db_filepath)

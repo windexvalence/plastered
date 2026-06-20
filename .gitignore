@@ -181,6 +181,9 @@ tests/resources/adhoc_manual_test_configs/*.json
 # vscode
 .vscode
 
+# pants
+.pants.d/
+
 # Local testing artifacts
 *.db
 examples/cache/*

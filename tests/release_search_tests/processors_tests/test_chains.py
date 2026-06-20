@@ -48,38 +48,22 @@ def test_batch_process(
     num_input_albums: int,
     num_input_tracks: int,
 ) -> None:
-    with (
-        patch.object(chain_instance, "_apply_album_chain", return_value=[]) as mock_apply_album_chain,
-        patch.object(chain_instance, "_apply_track_chain", return_value=[]) as mock_apply_track_chain,
-    ):
+    with patch.object(chain_instance, "_apply_chain", return_value=[]) as mock_apply_chain:
         mock_input_dict = {
             EntityType.ALBUM: [make_album_search_item(is_lfm_rec=True) for _ in range(num_input_albums)],
             EntityType.TRACK: [make_track_search_item(is_lfm_rec=True) for _ in range(num_input_tracks)],
         }
         actual = chain_instance.batch_process(entity_to_si_list=mock_input_dict)
         assert len(actual) == num_input_albums + num_input_tracks
-        apply_album_chain_calls = len(mock_apply_album_chain.mock_calls)
-        assert apply_album_chain_calls == num_input_albums
-        apply_track_chain_calls = len(mock_apply_track_chain.mock_calls)
-        assert apply_track_chain_calls == num_input_tracks
-
-
-def test_apply_album_chain(
-    chain_instance: SearchItemProcessorChain, make_album_search_item: pytest.FixtureRequest
-) -> None:
-    mock_si = make_album_search_item(is_lfm_rec=True)
-    with patch.object(chain_instance, "_apply_chain", return_value=[]) as mock_apply_chain:
-        _ = chain_instance._apply_album_chain(si=mock_si)
-        mock_apply_chain.assert_called_once_with(si=mock_si, chain=chain_instance.album_chain)
-
-
-def test_apply_track_chain(
-    chain_instance: SearchItemProcessorChain, make_track_search_item: pytest.FixtureRequest
-) -> None:
-    mock_si = make_track_search_item(is_lfm_rec=True)
-    with patch.object(chain_instance, "_apply_chain", return_value=[]) as mock_apply_chain:
-        _ = chain_instance._apply_track_chain(si=mock_si)
-        mock_apply_chain.assert_called_once_with(si=mock_si, chain=chain_instance.track_chain)
+        assert len(mock_apply_chain.call_args_list) == num_input_albums + num_input_tracks
+        album_chain_calls = sum(
+            1 for call in mock_apply_chain.call_args_list if call.kwargs["chain"] == chain_instance.album_chain
+        )
+        track_chain_calls = sum(
+            1 for call in mock_apply_chain.call_args_list if call.kwargs["chain"] == chain_instance.track_chain
+        )
+        assert album_chain_calls == num_input_albums
+        assert track_chain_calls == num_input_tracks
 
 
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])

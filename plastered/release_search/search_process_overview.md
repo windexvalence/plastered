@@ -3,16 +3,22 @@
 This document visualizes the control flow of the `ReleaseSearcher`'s search process as a
 directed acyclic graph (DAG).
 
-- **Nodes** are `ReleaseSearcher` method calls (blue) and the individual
-  `SearchItemModifier` (green) / `SearchItemFilter` (orange) processors applied to each
+- **Nodes** are `ReleaseSearcher` method calls (blue), `Snatcher` method calls (cyan), and the
+  individual `SearchItemModifier` (green) / `SearchItemFilter` (orange) processors applied to each
   `SearchItem`.
 - **Edges** point FROM a node TO the node that runs next.
 
-Each `SearchItem` is processed by an ordered sequence of modifiers and filters that branches by
+Each search invocation first builds fresh per-run state via
+`ReleaseSearcher._new_search_state_and_snatcher()` (a new `SearchState` plus the `Snatcher` that
+owns it), gathering RED user details if they have not been fetched yet. Keeping this state out of
+`__init__` lets a single `ReleaseSearcher` be reused across calls (the FastAPI app builds it once
+at startup) without one run's matches leaking into the next.
+
+Each `SearchItem` is then processed by an ordered sequence of modifiers and filters that branches by
 `EntityType` (album vs. track) and re-converges on the processors the two share. Every
 `SearchItemFilter` may short-circuit processing: if its rules reject the item, the item is
 dropped (recorded with a `SkipReason`). Modifiers enrich the item in place and always pass it
-along. Items that survive become snatch candidates. (See the
+along. Items that survive become snatch candidates handed off to the `Snatcher`. (See the
 [Chain ordering reference](#chain-ordering-reference) for the exact per-entity ordering.)
 
 ```mermaid
@@ -20,10 +26,11 @@ flowchart TD
     %% ── ReleaseSearcher entrypoints & orchestration ──
     SFR["ReleaseSearcher.search_for_recs()"]
     MS["ReleaseSearcher.manual_search()"]
+    NEW_STATE["ReleaseSearcher._new_search_state_and_snatcher()"]
     GRUD["ReleaseSearcher._gather_red_user_details()"]
     APPLY["ReleaseSearcher._apply_si_processor_chain()"]
-    SNATCHES["ReleaseSearcher._snatch_matches()"]
-    SNATCH["ReleaseSearcher._snatch_match()"]
+    SNATCHES["Snatcher.snatch_matches()"]
+    SNATCH["Snatcher._snatch_match()"]
     DROP(["SearchItem dropped (returns None)"])
 
     %% ── Processors ──
@@ -37,10 +44,10 @@ flowchart TD
     SEARCH_RED["SearchRedReleaseByPrefsModifier"]
     POST_RED["PostRedSearchFilter"]
 
-    SFR -->|"if RED user details not initialized"| GRUD
-    MS -->|"if RED user details not initialized"| GRUD
-    SFR -.->|"already initialized"| APPLY
-    MS -.->|"already initialized"| APPLY
+    SFR --> NEW_STATE
+    MS --> NEW_STATE
+    NEW_STATE -->|"if RED user details not initialized"| GRUD
+    NEW_STATE -.->|"already initialized"| APPLY
     GRUD --> APPLY
 
     APPLY -->|"EntityType.ALBUM"| ATTACH
@@ -68,11 +75,13 @@ flowchart TD
 
     %% ── Styling ──
     classDef rsMethod fill:#cfe2ff,stroke:#0d6efd,color:#000;
+    classDef snatcher fill:#cff4fc,stroke:#0dcaf0,color:#000;
     classDef modifier fill:#d1e7dd,stroke:#198754,color:#000;
     classDef filter fill:#ffe5d0,stroke:#fd7e14,color:#000;
     classDef terminal fill:#f8d7da,stroke:#dc3545,color:#000;
 
-    class SFR,MS,GRUD,APPLY,SNATCHES,SNATCH rsMethod;
+    class SFR,MS,NEW_STATE,GRUD,APPLY rsMethod;
+    class SNATCHES,SNATCH snatcher;
     class RESOLVE_TRACK,ATTACH,RESOLVE_ALBUM,ATTEMPT_MB,SEARCH_RED modifier;
     class POST_TRACK,PREMBID,POSTMBID,POST_RED filter;
     class DROP terminal;
@@ -94,10 +103,11 @@ flowchart TD
     %% ── ReleaseSearcher orchestration ──
     SFR["ReleaseSearcher.search_for_recs()"]
     MS["ReleaseSearcher.manual_search()"]
+    NEW_STATE["ReleaseSearcher._new_search_state_and_snatcher()"]
     GRUD["ReleaseSearcher._gather_red_user_details()"]
     APPLY["ReleaseSearcher._apply_si_processor_chain()"]
-    SNATCHES["ReleaseSearcher._snatch_matches()"]
-    SNATCH["ReleaseSearcher._snatch_match()"]
+    SNATCHES["Snatcher.snatch_matches()"]
+    SNATCH["Snatcher._snatch_match()"]
     DROP(["SearchItem dropped (returns None)"])
 
     %% ── Modifiers ──
@@ -107,10 +117,10 @@ flowchart TD
     ATTEMPT_MB["AttemptResolveMBReleaseModifier"]
     SEARCH_RED["SearchRedReleaseByPrefsModifier"]
 
-    SFR -->|"if RED user details not initialized"| GRUD
-    MS -->|"if RED user details not initialized"| GRUD
-    SFR -.->|"already initialized"| APPLY
-    MS -.->|"already initialized"| APPLY
+    SFR --> NEW_STATE
+    MS --> NEW_STATE
+    NEW_STATE -->|"if RED user details not initialized"| GRUD
+    NEW_STATE -.->|"already initialized"| APPLY
     GRUD --> APPLY
 
     APPLY -->|"EntityType.ALBUM"| ATTACH
@@ -168,12 +178,14 @@ flowchart TD
 
     %% ── Styling ──
     classDef rsMethod fill:#cfe2ff,stroke:#0d6efd,color:#000;
+    classDef snatcher fill:#cff4fc,stroke:#0dcaf0,color:#000;
     classDef modifier fill:#d1e7dd,stroke:#198754,color:#000;
     classDef searchState fill:#e0cffc,stroke:#6f42c1,color:#000;
     classDef inlineRule fill:#ffe5d0,stroke:#fd7e14,color:#000;
     classDef terminal fill:#f8d7da,stroke:#dc3545,color:#000;
 
-    class SFR,MS,GRUD,APPLY,SNATCHES,SNATCH rsMethod;
+    class SFR,MS,NEW_STATE,GRUD,APPLY rsMethod;
+    class SNATCHES,SNATCH snatcher;
     class RESOLVE_TRACK,ATTACH,RESOLVE_ALBUM,ATTEMPT_MB,SEARCH_RED modifier;
     class S_snatched,S_context,S_required,S_match,S_dupe,S_add searchState;
     class TS_in inlineRule;

@@ -66,15 +66,13 @@ class SearchItemProcessorChain:
 
     def batch_process(self, entity_to_si_list: dict[EntityType, list[SearchItem]]) -> list[SearchItem]:
         """Processes the list of `SearchItems` and returns the resulting list of processed `SearchItems`."""
-        processed_albums = [self._apply_album_chain(si=si) for si in entity_to_si_list.get(EntityType.ALBUM, [])]
-        processed_tracks = [self._apply_track_chain(si=si) for si in entity_to_si_list.get(EntityType.TRACK, [])]
-        return [si for si in processed_albums + processed_tracks if si is not None]
-
-    def _apply_album_chain(self, si: SearchItem) -> SearchItem | None:
-        return self._apply_chain(si=si, chain=self.album_chain)
-
-    def _apply_track_chain(self, si: SearchItem) -> SearchItem | None:
-        return self._apply_chain(si=si, chain=self.track_chain)
+        entity_chains = {EntityType.ALBUM: self.album_chain, EntityType.TRACK: self.track_chain}
+        processed = [
+            self._apply_chain(si=si, chain=chain)
+            for entity_type, chain in entity_chains.items()
+            for si in entity_to_si_list.get(entity_type, [])
+        ]
+        return [si for si in processed if si is not None]
 
     def _apply_chain(self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]) -> SearchItem | None:
         for processor in chain:

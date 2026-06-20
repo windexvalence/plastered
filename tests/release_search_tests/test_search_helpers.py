@@ -14,7 +14,7 @@ from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
-from plastered.release_search.search_helpers import SearchState, _require_mbid_resolution, _required_search_kwargs
+from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext as rc
 from plastered.models.types import EntityType as rt
@@ -461,38 +461,6 @@ def test_te_size_acceptable(
         assert actual == expected
         if expected < 0:
             mock_add_skipped_snatch_row_fn.assert_called_once_with(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
-
-
-@pytest.mark.parametrize(
-    "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
-    [
-        (False, False, False, False, False),
-        (False, False, False, True, True),
-        (False, False, True, False, True),
-        (False, True, False, False, True),
-        (True, False, False, False, True),
-        (True, False, False, True, True),
-        (True, False, True, False, True),
-        (True, True, False, False, True),
-        (True, True, False, True, True),
-        (True, True, True, False, True),
-        (True, True, True, True, True),
-    ],
-)
-def test_require_mbid_resolution(
-    use_release_type: bool,
-    use_first_release_year: bool,
-    use_record_label: bool,
-    use_catalog_number: bool,
-    expected: bool,
-) -> None:
-    actual = _require_mbid_resolution(
-        use_release_type=use_release_type,
-        use_first_release_year=use_first_release_year,
-        use_record_label=use_record_label,
-        use_catalog_number=use_catalog_number,
-    )
-    assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 @pytest.mark.parametrize(

@@ -24,6 +24,7 @@ from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
+from plastered.snatch import Snatcher
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 
 
@@ -119,14 +120,11 @@ def mock_kwargs(valid_app_settings: AppSettings, mock_run_cache: MagicMock) -> _
         {et.TRACK: [LFMRec("a", "e", et.TRACK, rc.IN_LIBRARY), LFMRec("a2", "e2", et.TRACK, rc.IN_LIBRARY)]},
     ],
 )
-def test_search_for_recs(
-    mock_kwargs: _MockRsKwargs, initial_search_state: SearchState, ent_to_recs: dict[et, list[LFMRec]]
-) -> None:
+def test_search_for_recs(mock_kwargs: _MockRsKwargs, ent_to_recs: dict[et, list[LFMRec]]) -> None:
     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
         with (
-            patch.object(initial_search_state, "red_user_details_is_initialized", return_value=True),
             patch.object(rs, "_apply_si_processor_chain") as mock_apply_si_processor_chain_method,
-            patch.object(rs, "_snatch_matches") as mock_snatch_matches_method,
+            patch.object(Snatcher, "snatch_matches") as mock_snatch_matches_method,
         ):
             rs.search_for_recs(entity_to_recs_list=ent_to_recs)
             mock_apply_si_processor_chain_method.assert_called_once()
@@ -134,7 +132,7 @@ def test_search_for_recs(
 
 
 @pytest.mark.parametrize("mbid", [None, "fake-mbid"])
-def test_manual_search(mock_kwargs: _MockRsKwargs, initial_search_state: SearchState, mbid: str | None) -> None:
+def test_manual_search(mock_kwargs: _MockRsKwargs, mbid: str | None) -> None:
     mock_manual_search_record = MagicMock(spec=ManualSearch)
     type(mock_manual_search_record).entity_type = PropertyMock(return_value=et.ALBUM)
     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
@@ -142,10 +140,9 @@ def test_manual_search(mock_kwargs: _MockRsKwargs, initial_search_state: SearchS
             patch(
                 "plastered.release_search.release_searcher.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
             ),
-            patch.object(initial_search_state, "red_user_details_is_initialized", return_value=True),
             patch.object(ManualSearch, "from_search_record", return_value=mock_manual_search_record),
             patch.object(rs, "_apply_si_processor_chain") as mock_apply_si_processor_chain_method,
-            patch.object(rs, "_snatch_matches") as mock_snatch_matches_method,
+            patch.object(Snatcher, "snatch_matches") as mock_snatch_matches_method,
         ):
             rs.manual_search(search_id=69, mbid=mbid)
             mock_apply_si_processor_chain_method.assert_called_once()
@@ -162,7 +159,9 @@ def test_manual_search(mock_kwargs: _MockRsKwargs, initial_search_state: SearchS
         {et.ALBUM: 2, et.TRACK: 2},
     ],
 )
-def test_apply_si_processor_chain(mock_kwargs: _MockRsKwargs, ent_to_cnt: dict[et, int]) -> None:
+def test_apply_si_processor_chain(
+    mock_kwargs: _MockRsKwargs, initial_search_state: SearchState, ent_to_cnt: dict[et, int]
+) -> None:
     n_alb, n_track = ent_to_cnt.get(et.ALBUM, 0), ent_to_cnt.get(et.TRACK, 0)
     ent_to_sis = {
         et.ALBUM: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)) for _ in range(n_alb)],
@@ -173,73 +172,15 @@ def test_apply_si_processor_chain(mock_kwargs: _MockRsKwargs, ent_to_cnt: dict[e
         mock_processed.extend([si_list])
     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
         with patch.object(SearchItemProcessorChain, "batch_process", return_value=mock_processed):
-            actual = rs._apply_si_processor_chain(entity_to_si_list=ent_to_sis)
+            actual = rs._apply_si_processor_chain(entity_to_si_list=ent_to_sis, search_state=initial_search_state)
             assert actual == mock_processed
 
 
-@pytest.mark.parametrize("manual_run", [False, True])
-@pytest.mark.parametrize("ent_type", [m for m in et])
-@pytest.mark.parametrize("enable_snatches", [False, True])
-def test_snatch_matches(mock_kwargs: _MockRsKwargs, manual_run: bool, ent_type: et, enable_snatches: bool) -> None:
-    expect_calls = enable_snatches
-    mock_si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rc.IN_LIBRARY))
-    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
-        rs._enable_snatches = enable_snatches
-        with (
-            patch.object(
-                SearchState, "get_search_items_to_snatch", return_value=[mock_si_to_snatch]
-            ) as mock_get_sis_to_snatch,
-            patch.object(ReleaseSearcher, "_snatch_match") as mock_snatch_match_method,
-        ):
-            rs._snatch_matches(manual_run=manual_run)
-            if expect_calls:
-                mock_get_sis_to_snatch.assert_called_once_with(manual_run=manual_run)
-                mock_snatch_match_method.assert_called_once_with(si_to_snatch=mock_si_to_snatch)
-            else:
-                mock_get_sis_to_snatch.assert_not_called()
-                mock_snatch_match_method.assert_not_called()
-
-
-@pytest.fixture(scope="function")
-def fake_snatch_dir(tmp_path: Path) -> Path:
-    tmp_snatch_dir = tmp_path / "snatches"
-    tmp_snatch_dir.mkdir()
-    return tmp_snatch_dir
-
-
-@pytest.mark.parametrize("ent_type", [m for m in et])
-@pytest.mark.parametrize("rec_ctx", [r for r in rc])
-@pytest.mark.parametrize("used_fl_token", [False, True])
-def test_snatch_match_valid(
-    mock_best_te: te, mock_kwargs: _MockRsKwargs, fake_snatch_dir: Path, ent_type: et, rec_ctx: rc, used_fl_token: bool
-) -> None:
-    mock_tid = mock_best_te.torrent_id
-    expected_out_filepath = fake_snatch_dir / f"{mock_tid}.torrent"
-    mock_content_bytes = b"some-fake-bytes"
-    si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rec_ctx), torrent_entry=mock_best_te)
-    mock_red_snatch_client = mock_kwargs.red_snatch_client
-    mock_red_snatch_client.snatch.return_value = mock_content_bytes
-    mock_red_snatch_client.tid_snatched_with_fl_token.return_value = used_fl_token
-    with (
-        patch.object(SearchState, "add_snatch_final_status_row") as mock_add_snatch_final_status_row,
-        ReleaseSearcher(**mock_kwargs._asdict()) as rs,
-    ):
-        rs._snatch_directory = fake_snatch_dir
-        rs._snatch_match(si_to_snatch=si_to_snatch)
-        assert expected_out_filepath.exists()
-        assert expected_out_filepath.read_bytes() == mock_content_bytes
-        mock_red_snatch_client.snatch.assert_called_once_with(tid=str(mock_tid), can_use_token=ANY)
-        mock_red_snatch_client.tid_snatched_with_fl_token.assert_called_once_with(tid=mock_tid)
-        mock_add_snatch_final_status_row.assert_called_once()
-
-
-# @pytest.mark.parametrize(
-#     "has_te, "
-# )
-# def test_snatch_match_raises(mock_kwargs: _MockRsKwargs, fake_snatch_dir: Path, has_te: bool) -> None:
-#     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
-#         rs._snatch_directory = fake_snatch_dir
-#     pass  # TODO: implement
+def test_exit_closes_owned_run_cache(valid_app_settings: AppSettings, mock_run_cache: MagicMock) -> None:
+    """When ReleaseSearcher builds its own clients it owns the RunCache and closes it on __exit__."""
+    with ReleaseSearcher(app_settings=valid_app_settings) as rs:
+        assert rs._run_cache is mock_run_cache
+    mock_run_cache.close.assert_called_once()
 
 
 # @pytest.mark.override_global_httpx_mock
