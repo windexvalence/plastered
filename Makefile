@@ -67,13 +67,15 @@ docker-py-shell:  docker-build  ## Execs a local python shell inside a locally b
 	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
 
 fmt-check:  ## Runs code-auto-formatting checks, lint checks, and security checks
-	CODE_FORMAT_CHECK=1 PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run ./build_scripts/code-format.sh
+	RUFF_CHECK_ONLY=1 ./hooks/ruff.sh
+	./hooks/bandit.sh .
 
 fmt:  ## Runs code-auto-formatting, followed by lint checks, and then security checks
-	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) uv run ./build_scripts/code-format.sh
+	./hooks/ruff.sh
+	./hooks/bandit.sh .
 
 mypy:  ## Runs mypy type checking
-	uv run mypy --config-file pyproject.toml .
+	./hooks/mypy.sh
 
 test:  ## Runs unit tests locally (non-containerized)
 	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) PDB=$(PDB) uv run ./tests/tests_entrypoint.sh $(TEST_TARGET)
