@@ -10,7 +10,7 @@ red:
   snatches:
   # NOTE: the snatch_directory must point to a directory 
   # which is mounted by the container and exists on your host machine.
-    snatch_directory: /app/tests/resources
+    snatch_directory: /app/src/python/tests/resources
     snatch_recs: true
     max_size_gb: 2.0
   format_preferences:

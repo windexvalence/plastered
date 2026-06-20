@@ -11,7 +11,7 @@ red:
     use_catalog_number: false
     use_fl_tokens: false
   snatches:
-    snatch_directory: /app/tests/resources
+    snatch_directory: /app/src/python/tests/resources
     snatch_recs: true
     skip_prior_snatches: true
     max_size_gb: 2.0

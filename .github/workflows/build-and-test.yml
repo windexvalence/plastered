@@ -29,4 +29,4 @@ jobs:
           docker run -t --rm -e RUFF_CHECK_ONLY=1 -e GITHUB_ACTIONS=1 --entrypoint bash ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test -c '/app/hooks/ruff.sh && /app/hooks/bandit.sh . && /app/hooks/mypy.sh'
       - name: Run Unit Tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test tests
+          docker run -t -e GITHUB_ACTIONS=1 --rm --entrypoint /app/src/python/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}-test tests

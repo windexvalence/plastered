@@ -12,23 +12,25 @@ else
     echo "Invalid number of arguments provided: {$#}. May either indicate a single test to run, provide 'tests' to run all tests." && exit 1
 fi
 
-PYTEST_RELEASE_MARKER_FLAG=""
+# Collect optional marker flags in an array so empty values are never passed as args -- an empty
+# positional arg breaks pytest's initial conftest loading, so `pytest_addoption` never registers
+# `--slowtests`/`--releasetests` and pytest then rejects them as "unrecognized arguments".
+PYTEST_MARKER_FLAGS=()
 # Conditionally run the additional release-only tests if running on a release GH workflow, otherwise don't run the release-only tests.
 if [[ -n "${RELEASE_TESTS}" ]]; then
-    PYTEST_RELEASE_MARKER_FLAG="--releasetests"
+    PYTEST_MARKER_FLAGS+=("--releasetests")
 fi
-PYTEST_SLOW_MARKER_FLAG=""
-# Conditionally run the additional slow tests if running in a CI build or `--slowtests` explicitly 
+# Conditionally run the additional slow tests if running in a CI build or `--slowtests` explicitly
 # passed, otherwise don't run the slow tests by default.
 if [[ "${SLOW_TESTS}" == "1" ]] || [[ -n "${GITHUB_ACTIONS}" ]]; then
-    PYTEST_SLOW_MARKER_FLAG="--slowtests"
+    PYTEST_MARKER_FLAGS+=("--slowtests")
 fi
 
-export PYTHONPATH="${APP_DIR}/"
+export PYTHONPATH="${APP_DIR}/src/python"
 if [[ -z "${PDB}" ]] || [[ "${PDB}" == "0" ]]; then
-    pytest -n auto --dist=loadfile -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"  # 
+    pytest -n auto --dist=loadfile -vv "${PYTEST_MARKER_FLAGS[@]}" "${APP_DIR}/src/python/$1"
 else
-    pytest -vv "${PYTEST_RELEASE_MARKER_FLAG}" "${PYTEST_SLOW_MARKER_FLAG}" "${APP_DIR}/$1"
+    pytest -vv "${PYTEST_MARKER_FLAGS[@]}" "${APP_DIR}/src/python/$1"
 fi
 
 if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then

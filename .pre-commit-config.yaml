@@ -22,11 +22,15 @@ repos:
         name: bandit
         entry: hooks/bandit.sh
         language: script
-        files: '^plastered/.*\.py$'
+        files: '^src/python/plastered/.*\.py$'
         pass_filenames: true
 
       - id: mypy
         name: mypy
+        # Scoped to the package only: mypy's pyproject `exclude` skips `src/python/tests`, but mypy
+        # ignores `exclude` for files passed explicitly on the CLI (as prek does), so matching test
+        # files here would type-check them anyway -- contradicting the config. Keep this in sync with
+        # the mypy `exclude` setting.
         entry: hooks/mypy.sh
         language: script
-        files: '^(plastered/.*\.py|tests/.*\.py)$'
+        files: '^src/python/plastered/.*\.py$'

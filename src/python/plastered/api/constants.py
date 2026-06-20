@@ -16,7 +16,7 @@ class RouterPrefix(StrEnum):
     WEB = "/"
 
 
-_API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api"))
+_API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "src", "python", "plastered", "api"))
 _TEMPLATES_DIRPATH: Final[Path] = _API_DIRPATH / "templates"
 
 STATIC_DIRPATH: Final[Path] = _API_DIRPATH / "static"

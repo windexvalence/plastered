@@ -3,12 +3,12 @@
 
 # whitelisted folders / files for the main docker image
 !build_scripts
+!hooks
 !examples
 !docs
-!plastered
+!src
 !entrypoint.sh
 !server_entrypoint.sh
-!tests
 !pyproject.toml
 !uv.lock
 !vendor

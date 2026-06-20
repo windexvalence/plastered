@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-export PYTHONPATH="${APP_DIR}/"
+export PYTHONPATH="${APP_DIR}/src/python"
 DOC_FILENAME="config_reference.md"
 export TARGET_DOC_FILEPATH="${APP_DIR}/docs/${DOC_FILENAME}"
 if [[ -z "${GITHUB_ACTIONS}" ]]; then

@@ -1,0 +1,63 @@
+[GLOBAL]
+pants_version = "2.32.0"
+backend_packages = [
+	"pants.backend.build_files.fix.dependencies",
+	"pants.backend.build_files.fmt.ruff",
+	"pants.backend.docker",
+	"pants.backend.docker.lint.hadolint",
+	"pants.backend.experimental.python.lint.ruff.check",
+	"pants.backend.experimental.python.lint.ruff.format",
+	"pants.backend.experimental.visibilty",
+	"pants.backend.python",
+	"pants.backend.python.lint.bandit",
+	"pants.backend.python.typecheck.mypy",
+	"pants.backend.shell",
+	"pants.backend.shell.lint.shellcheck",
+	"pants.backend.shell.lint.shfmt",
+	"pants.backend.tools.taplo",
+]
+build_file_prelude_globs = [
+	"pants/macros/macros.py",
+]
+build_patterns = [ "BUILD", "BUILD.*" ]
+colors = true
+pants_ignore = [
+	".*/",
+	"**/.venv/",
+	"/dist/",
+	"__pycache__",
+	"!.semgrep/",
+	"!.github/",
+]
+
+[source]
+root_patterns = ["src/python"]
+
+[tailor]
+build_file_name = "BUILD"
+
+[taplo]
+glob_pattern = [
+	"**/*.toml", "!.taplo.toml", "!taplo.toml"
+]
+
+[test]
+extra_env_vars = ["PANTS=true"]
+
+[cli.alias]
+--all-changed = "--changed-since=HEAD --changed-dependents=transitive"
+
+[python-bootstrap]
+search_path = [ "<PYENV>", "<ASDF>", "<PATH>" ]
+
+[python]
+default_resolve = "plastered"
+enable_resolves = false
+interpreter_constraints = [">=3.12,<3.13"]
+interpreter_versions_universe = ["3.12", "3.13", "3.14"]
+pip_version = "latest"
+separate_lockfile_metadata_file = true
+
+[update-build-files]
+fmt = false
+formatter = "ruff"
