@@ -7,6 +7,8 @@
 
 1. Clone the repo from `git@github.com:windexvalence/plastered.git`
 2. Explore the full list of local development options by running `make` to see the help output.
+3. Install [`prek`](https://prek.j178.dev/installation/) for pre-commit hook support
+4. From the repo root directory, run `prek install`
 
 ### Optional: Code Editor Setup
 
