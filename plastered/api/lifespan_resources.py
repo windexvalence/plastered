@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self
 
 from plastered.config.app_settings import get_app_settings
+from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.version import get_project_version
 
@@ -38,6 +39,7 @@ class LifespanSingleton:
     red_snatch_client: RedSnatchAPIClient = field(init=False)
     lfm_client: LFMAPIClient = field(init=False)
     musicbrainz_client: MusicBrainzAPIClient = field(init=False)
+    release_searcher: ReleaseSearcher = field(init=False)
 
     _instance: Self | None = None
 
@@ -54,6 +56,20 @@ class LifespanSingleton:
         object.__setattr__(self, "red_snatch_client", RedSnatchAPIClient(app_settings=self.app_settings))
         object.__setattr__(self, "lfm_client", LFMAPIClient(app_settings=self.app_settings))
         object.__setattr__(self, "musicbrainz_client", MusicBrainzAPIClient(app_settings=self.app_settings))
+        # Build the ReleaseSearcher once at startup (reused across API calls) rather than per request. It is given the
+        # shared clients and pre-fetched user details, so it builds fresh per-run state on each search call.
+        object.__setattr__(
+            self,
+            "release_searcher",
+            ReleaseSearcher(
+                app_settings=self.app_settings,
+                red_user_details=self.red_user_details,
+                red_api_client=self.red_api_client,
+                red_snatch_client=self.red_snatch_client,
+                lfm_client=self.lfm_client,
+                musicbrainz_client=self.musicbrainz_client,
+            ),
+        )
         object.__setattr__(self, "project_version", get_project_version())
 
     def get_all_client_kwargs(self) -> dict[str, ThrottledAPIBaseClient]:

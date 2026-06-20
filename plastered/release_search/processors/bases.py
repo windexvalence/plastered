@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
@@ -24,16 +24,9 @@ class SearchItemModifier(ABC):
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem: ...
 
-    @staticmethod
-    @abstractmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem: ...
-
 
 # Type defs for reduced boilerplate
 type FilterFuncs = tuple[Callable[[SearchItem, SearchState], SkipReason | None], ...]
-type AsyncFilterFuncs = tuple[Callable[[SearchItem, SearchState], Awaitable[SkipReason | None]], ...]
 
 
 class SearchItemFilter(ABC):
@@ -46,15 +39,10 @@ class SearchItemFilter(ABC):
     """
 
     funcs: ClassVar[FilterFuncs]
-    a_funcs: ClassVar[AsyncFilterFuncs]
 
     @classmethod
     @abstractmethod
     def process(cls, si: SearchItem, state: SearchState, **kwargs: Any) -> SearchItem | None: ...
-
-    @classmethod
-    @abstractmethod
-    async def a_process(cls, si: SearchItem, state: SearchState, **kwargs: Any) -> SearchItem | None: ...
 
 
 type SearchItemProcessor = SearchItemModifier | SearchItemFilter

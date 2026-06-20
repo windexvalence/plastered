@@ -78,6 +78,3 @@ def test_base_filter_add_skipped_snatch(
         mock_set_result_status.assert_called_once_with(
             search_id=mock_si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": skip_reason}
         )
-
-
-# TODO (later): add tests for async a_process method

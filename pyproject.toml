@@ -3,6 +3,7 @@ name = "plastered"
 version = "0.2.2"
 requires-python = ">= 3.12"
 dependencies = [
+	"anyio==4.9.0",
     "beautifulsoup4==4.14.3",
     "click==8.3.1",
     "diskcache==5.6.3",
@@ -197,7 +198,11 @@ plugins = ["pydantic.mypy"]
 exclude = [
     "tests/",
     "build_scripts/",
+	"docs/",
+	"examples/",
 ]
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
+# namespace_packages = false
 
 [[tool.mypy.overrides]]
 module = ["diskcache.*"]

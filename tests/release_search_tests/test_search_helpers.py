@@ -14,7 +14,7 @@ from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
-from plastered.release_search.search_helpers import SearchState, _require_mbid_resolution, _required_search_kwargs
+from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext as rc
 from plastered.models.types import EntityType as rt
@@ -232,26 +232,6 @@ def test_red_user_details_is_initialized(valid_app_settings: AppSettings, initia
         search_state._red_user_details = MagicMock(spec=RedUserDetails)
     actual = search_state.red_user_details_is_initialized()
     assert actual == expected
-
-
-@pytest.mark.parametrize(
-    "initial_search_items, expect_db_write",
-    [
-        ([SearchItem(initial_info=ManualSearch(entity_type=rt.ALBUM, artist="fake", entity="faker"))], False),
-        ([SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.IN_LIBRARY))], True),
-    ],
-)
-def test_initialize_search_records(
-    valid_app_settings: AppSettings, initial_search_items: list[SearchItem], expect_db_write: bool
-) -> None:
-    mock_sesh = MagicMock(spec=Session)
-    with patch.object(Session, "__enter__", return_value=mock_sesh):
-        search_state = SearchState(app_settings=valid_app_settings)
-        search_state.initialize_search_records(initial_search_items=initial_search_items)
-        if expect_db_write:
-            mock_sesh.add.assert_called_once()
-        else:
-            mock_sesh.add_all.assert_not_called()
 
 
 def test_set_search_state_red_user_details(
@@ -481,38 +461,6 @@ def test_te_size_acceptable(
         assert actual == expected
         if expected < 0:
             mock_add_skipped_snatch_row_fn.assert_called_once_with(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
-
-
-@pytest.mark.parametrize(
-    "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
-    [
-        (False, False, False, False, False),
-        (False, False, False, True, True),
-        (False, False, True, False, True),
-        (False, True, False, False, True),
-        (True, False, False, False, True),
-        (True, False, False, True, True),
-        (True, False, True, False, True),
-        (True, True, False, False, True),
-        (True, True, False, True, True),
-        (True, True, True, False, True),
-        (True, True, True, True, True),
-    ],
-)
-def test_require_mbid_resolution(
-    use_release_type: bool,
-    use_first_release_year: bool,
-    use_record_label: bool,
-    use_catalog_number: bool,
-    expected: bool,
-) -> None:
-    actual = _require_mbid_resolution(
-        use_release_type=use_release_type,
-        use_first_release_year=use_first_release_year,
-        use_record_label=use_record_label,
-        use_catalog_number=use_catalog_number,
-    )
-    assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 @pytest.mark.parametrize(

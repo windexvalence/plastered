@@ -113,34 +113,15 @@ def mock_te() -> MagicMock:
     return mt
 
 
-def test_manual_search_action(
-    valid_app_settings: AppSettings, mock_session: Session, mock_te: MagicMock, mock_red_user_details: RedUserDetails
-) -> None:
-    mock_si = SearchItem(
-        initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist="a", entity="b"),
-        torrent_entry=mock_te,
-        search_id=SearchRecord(state=Status.GRABBED),
-    )
+def test_manual_search_action() -> None:
+    """Ensures `manual_search_action` delegates to the shared `ReleaseSearcher` and returns the resulting record."""
     mock_search_id = 69
-    with (
-        patch.object(ReleaseSearcher, "manual_search") as release_searcher_manual_search,
-        patch(
-            "plastered.actions.api_actions.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
-        ) as mock_get_res,
-    ):
-        mock_rs_kwargs = {
-            "red_api_client": MagicMock(),
-            "red_snatch_client": MagicMock(),
-            "lfm_client": MagicMock(),
-            "musicbrainz_client": MagicMock(),
-        }
-        _ = manual_search_action(
-            app_settings=valid_app_settings,
-            red_user_details=mock_red_user_details,
-            search_id=mock_search_id,
-            **mock_rs_kwargs,
-        )
-        release_searcher_manual_search.assert_called_once_with(search_id=mock_search_id, mbid=None)
+    mock_release_searcher = MagicMock(spec=ReleaseSearcher)
+    with patch(
+        "plastered.actions.api_actions.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
+    ) as mock_get_res:
+        _ = manual_search_action(release_searcher=mock_release_searcher, search_id=mock_search_id)
+        mock_release_searcher.manual_search.assert_called_once_with(search_id=mock_search_id, mbid=None)
         mock_get_res.assert_called_once_with(search_id=mock_search_id)
 
 

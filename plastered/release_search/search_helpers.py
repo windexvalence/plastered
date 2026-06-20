@@ -1,12 +1,9 @@
 import logging
-from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
-from sqlmodel import Session
-
 from plastered.config.app_settings import AppSettings, FormatPreference
-from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status, get_engine
-from plastered.db.db_utils import add_record, set_result_status
+from plastered.db.db_models import FailReason, SkipReason, Status
+from plastered.db.db_utils import set_result_status
 from plastered.models import RecContext, RedFormat, RedUserDetails, SearchItem, TorrentEntry
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
@@ -18,12 +15,6 @@ from plastered.utils.constants import (
 from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemException, SearchStateException
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _require_mbid_resolution(
-    use_release_type: bool, use_first_release_year: bool, use_record_label: bool, use_catalog_number: bool
-) -> bool:
-    return use_release_type or use_first_release_year or use_record_label or use_catalog_number
 
 
 def _required_search_kwargs(
@@ -54,18 +45,15 @@ class SearchState:
         self._use_first_release_year = app_settings.red.search.use_first_release_year
         self._use_record_label = app_settings.red.search.use_record_label
         self._use_catalog_number = app_settings.red.search.use_catalog_number
-        self._require_mbid_resolution = _require_mbid_resolution(
-            use_release_type=self._use_release_type,
-            use_first_release_year=self._use_first_release_year,
-            use_record_label=self._use_record_label,
-            use_catalog_number=self._use_catalog_number,
-        )
         self._required_red_search_kwargs: set[str] = _required_search_kwargs(
             use_release_type=self._use_release_type,
             use_first_release_year=self._use_first_release_year,
             use_record_label=self._use_record_label,
             use_catalog_number=self._use_catalog_number,
         )
+        # MBID resolution is required exactly when at least one optional search field is enabled, i.e. the
+        # required-kwargs set above is non-empty.
+        self._require_mbid_resolution = bool(self._required_red_search_kwargs)
         self._red_format_preferences = app_settings.get_red_format_preferences()
         self._max_size_gb = app_settings.red.snatches.max_size_gb
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
@@ -88,28 +76,6 @@ class SearchState:
             min_allowed_ratio=self._min_allowed_ratio
         )
         self._red_user_details = red_user_details
-
-    def initialize_search_records(self, initial_search_items: list[SearchItem]) -> None:
-        """Initializes the `plastered.db.db_models.SearchRecord` DB records in a single transaction so each is recorded as it was input and is assigned a unique ID."""
-        if all([si.is_manual for si in initial_search_items]):
-            # TODO: should this be consolidated into a single record initialization for both manual and scrape?
-            _LOGGER.debug("Manual search records are pre-initialized, skipping initialization.")
-            return
-        _LOGGER.info("Initializing search records ...")
-        submit_timestamp = int(datetime.now(tz=UTC).timestamp())
-        with Session(get_engine()) as db_session:
-            for si in initial_search_items:
-                search_record = SearchRecord(
-                    is_manual=si.is_manual,
-                    artist=si.initial_info.get_human_readable_artist_str(),
-                    entity=si.initial_info.get_human_readable_entity_str(),
-                    submit_timestamp=submit_timestamp,
-                    entity_type=si.initial_info.entity_type,
-                    status=Status.IN_PROGRESS,
-                )
-                add_record(session=db_session, model_inst=search_record)
-                si.search_id = search_record.id
-        _LOGGER.info("Search records initialized.")
 
     # pylint: disable=redefined-builtin
     def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
@@ -207,9 +173,6 @@ class SearchState:
         else:
             self._search_items_to_snatch.append(si)
             self._tids_to_snatch.add(si.torrent_entry.torrent_id)
-
-    def requires_mbid_resolution(self) -> bool:  # pragma: no cover
-        return self._require_mbid_resolution
 
     def get_search_items_to_snatch(self, manual_run: bool = False) -> list[SearchItem]:
         """

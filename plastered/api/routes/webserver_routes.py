@@ -5,14 +5,14 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
-from plastered.api.constants import STATIC_DIRPATH, TEMPLATES, Endpoint
+from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.models import EntityType
 
 _LOGGER = logging.getLogger(__name__)
 plastered_web_router = APIRouter(prefix="")
 
 
-@plastered_web_router.get(Endpoint.FAVICON.value.rel_path, include_in_schema=False)
+@plastered_web_router.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
     return FileResponse(os.fspath(STATIC_DIRPATH / "images" / "favicon.ico"))
 
@@ -28,14 +28,14 @@ async def root_endpoint(request: Request) -> HTMLResponse:
 
 
 # /config
-@plastered_web_router.get(Endpoint.CONFIG_PAGE.value.rel_path)
+@plastered_web_router.get("/config")
 async def show_config_endpoint(request: Request) -> HTMLResponse:
     _LOGGER.debug(f"/config endpoint called at {datetime.now().timestamp()}")
     return TEMPLATES.TemplateResponse(request=request, name="config.html")
 
 
 # /search_form<?entity=(album|track)>
-@plastered_web_router.get(Endpoint.SEARCH_FORM.value.rel_path)
+@plastered_web_router.get("/search_form")
 async def search_form_endpoint(request: Request, entity: EntityType | None = None) -> HTMLResponse:
     if entity is None:
         return TEMPLATES.TemplateResponse("manual_search.html", {"request": request})
@@ -45,14 +45,14 @@ async def search_form_endpoint(request: Request, entity: EntityType | None = Non
 
 
 # /scrape_form
-@plastered_web_router.get(Endpoint.SCRAPE_FORM.value.rel_path)
+@plastered_web_router.get("/scrape_form")
 async def scrape_form_endpoint(request: Request) -> HTMLResponse:
     # TODO: have HTMX hit the /api/scrape endpoint following user setup
     return TEMPLATES.TemplateResponse(request=request, name="scrape_form.html")
 
 
 # /run_history
-@plastered_web_router.get(Endpoint.RUN_HISTORY_PAGE.value.rel_path)
+@plastered_web_router.get("/run_history")
 async def runs_page(request: Request, search_id: int | None = None) -> HTMLResponse:
     # TODO: have HTMX hit the /api/run_history endpoint following user setup
     return TEMPLATES.TemplateResponse(request=request, name="run_history_page.html", context={"search_id": search_id})
@@ -64,7 +64,7 @@ async def runs_page(request: Request, search_id: int | None = None) -> HTMLRespo
 #     return TEMPLATES.TemplateResponse(request=request, name="scraper_stats_page.html", context={})
 
 
-@plastered_web_router.get(Endpoint.USER_DETAILS_PAGE.value.rel_path)
+@plastered_web_router.get("/user_details")
 async def user_details_page(request: Request) -> HTMLResponse:
     red_user_details = request.state.lifespan_singleton.red_user_details
     return TEMPLATES.TemplateResponse(
@@ -75,7 +75,7 @@ async def user_details_page(request: Request) -> HTMLResponse:
 
 
 # /result_modal?<final-state-specific query parameters created by HTMX>
-@plastered_web_router.get(Endpoint.RESULT_MODAL.value.rel_path)
+@plastered_web_router.get("/result_modal")
 async def result_modal(request: Request) -> HTMLResponse:
     _LOGGER.debug(f"endpoint /result_modal called with params: {request.query_params}")
     return TEMPLATES.TemplateResponse(

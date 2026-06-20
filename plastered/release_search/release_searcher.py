@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from plastered.db.db_utils import get_result_by_id
@@ -10,6 +8,7 @@ from plastered.models import CacheType, EntityType, LFMRec, ManualSearch, RedUse
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
+from plastered.snatch import Snatcher
 from plastered.utils.exceptions import ReleaseSearcherException
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.utils.log_utils import CONSOLE, SPINNER
@@ -38,7 +37,9 @@ class ReleaseSearcher:
         lfm_client: LFMAPIClient | None = None,
         musicbrainz_client: MusicBrainzAPIClient | None = None,
     ):
-        self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.API)
+        # Only own a RunCache when we have to build our own clients; injected clients already carry their own cache.
+        clients_provided = all((red_api_client, red_snatch_client, lfm_client, musicbrainz_client))
+        self._run_cache = None if clients_provided else RunCache(app_settings=app_settings, cache_type=CacheType.API)
         self._red_client = red_api_client or RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
         self._red_snatch_client = red_snatch_client or RedSnatchAPIClient(
             app_settings=app_settings, run_cache=self._run_cache
@@ -47,8 +48,8 @@ class ReleaseSearcher:
         self._musicbrainz_client = musicbrainz_client or MusicBrainzAPIClient(
             app_settings=app_settings, run_cache=self._run_cache
         )
-        self._red_user_id = app_settings.red.red_user_id
-        self._search_state = SearchState(app_settings=app_settings, red_user_details=red_user_details)
+        self._app_settings = app_settings
+        self._red_user_details = red_user_details
         self._enable_snatches = (
             snatch_override if snatch_override is not None else app_settings.red.snatches.snatch_recs
         )
@@ -60,49 +61,59 @@ class ReleaseSearcher:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:  # pragma: no cover
             _LOGGER.error(f"ReleaseSearcher encountered an uncaught exception: {exc_val}")
-        self._run_cache.close()
-        if self._red_client:
-            self._red_client.close_client()
-        if self._red_snatch_client:
-            self._red_snatch_client.close_client()
-        if self._lfm_client:
-            self._lfm_client.close_client()
-        if self._musicbrainz_client:
-            self._musicbrainz_client.close_client()
+        if self._run_cache:
+            self._run_cache.close()
+        for client in (self._red_client, self._red_snatch_client, self._lfm_client, self._musicbrainz_client):
+            if client:
+                client.close_client()
 
     def search_for_recs(self, entity_to_recs_list: dict[EntityType, list[LFMRec]]) -> None:
         """
         Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled.
         """
-        if not self._search_state.red_user_details_is_initialized():
-            self._gather_red_user_details()
+        search_state, snatcher = self._new_search_state_and_snatcher()
         entity_to_si_list = {
             entity_type: [SearchItem(initial_info=rec) for rec in rec_list]
             for entity_type, rec_list in entity_to_recs_list.items()
         }
-        self._apply_si_processor_chain(entity_to_si_list=entity_to_si_list)
-        self._snatch_matches()
+        self._apply_si_processor_chain(entity_to_si_list=entity_to_si_list, search_state=search_state)
+        snatcher.snatch_matches()
 
     def manual_search(self, search_id: int, mbid: str | None = None) -> None:
         """Public method that the manual search endpoint should invoke. Not used by the scraper."""
-        if not self._search_state.red_user_details_is_initialized():
-            self._gather_red_user_details()
-
+        search_state, snatcher = self._new_search_state_and_snatcher()
         manual_search_instance = ManualSearch.from_search_record(get_result_by_id(search_id=search_id), mbid)
         self._apply_si_processor_chain(
             entity_to_si_list={
                 manual_search_instance.entity_type: [
                     SearchItem(initial_info=manual_search_instance, search_id=search_id)
                 ]
-            }
+            },
+            search_state=search_state,
         )
-        self._snatch_matches(manual_run=True)
+        snatcher.snatch_matches(manual_run=True)
 
-    # TODO (later): make this method call happen exclusively within the __enter__ method
-    def _gather_red_user_details(self) -> None:
+    def _new_search_state_and_snatcher(self) -> tuple[SearchState, Snatcher]:
+        """
+        Builds the fresh, per-run mutable `SearchState` (and its `Snatcher`) for a single search invocation. Keeping
+        this state out of `__init__` lets a single `ReleaseSearcher` be reused across calls (e.g. the FastAPI app
+        builds it once at startup) without one run's matches leaking into the next.
+        """
+        search_state = SearchState(app_settings=self._app_settings, red_user_details=self._red_user_details)
+        if not search_state.red_user_details_is_initialized():
+            self._gather_red_user_details(search_state=search_state)
+        snatcher = Snatcher(
+            red_snatch_client=self._red_snatch_client,
+            search_state=search_state,
+            snatch_directory=self._snatch_directory,
+            enable_snatches=self._enable_snatches,
+        )
+        return search_state, snatcher
+
+    def _gather_red_user_details(self, search_state: SearchState) -> None:
         if self._red_snatch_client is None:  # pragma: no cover
             raise ReleaseSearcherException("red snatch client is not initialized.")
-        if self._search_state.red_user_details_is_initialized():  # pragma: no cover
+        if search_state.red_user_details_is_initialized():  # pragma: no cover
             _LOGGER.info("RedUserDetails instance already initialized.")
         else:
             if self._red_client is None:  # pragma: no cover
@@ -112,57 +123,14 @@ class ReleaseSearcher:
                 spinner=SPINNER,
             ):
                 red_user_details = self._red_client.get_red_user_details()
-            self._search_state.set_red_user_details(red_user_details=red_user_details)
+            # Cache the details on the instance so a reused ReleaseSearcher only fetches them once.
+            self._red_user_details = red_user_details
+            search_state.set_red_user_details(red_user_details=red_user_details)
 
-    def _apply_si_processor_chain(self, entity_to_si_list: dict[EntityType, list[SearchItem]]) -> list[SearchItem]:
+    def _apply_si_processor_chain(
+        self, entity_to_si_list: dict[EntityType, list[SearchItem]], search_state: SearchState
+    ) -> list[SearchItem]:
         chain = SearchItemProcessorChain(
-            lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=self._search_state
+            lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=search_state
         )
         return chain.batch_process(entity_to_si_list=entity_to_si_list)
-
-    async def _async_apply_search_item_processor_chain(
-        self, search_items: list[SearchItem]
-    ) -> list[SearchItem]:  # pragma: no cover
-        chain = SearchItemProcessorChain(
-            lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=self._search_state
-        )
-        results = await chain.async_batch_process(search_items=search_items)
-        return results
-
-    # TODO: create separate class and db model for snatches
-    def _snatch_matches(self, manual_run: bool = False) -> None:
-        if not self._enable_snatches:
-            _LOGGER.warning("Not configured to snatch. Please update your config to enable.")
-            return
-        if search_items_to_snatch := self._search_state.get_search_items_to_snatch(manual_run=manual_run):
-            _LOGGER.debug(f"Beginning to snatch matched torrents to download directory '{self._snatch_directory}' ...")
-            for si_to_snatch in search_items_to_snatch:
-                self._snatch_match(si_to_snatch=si_to_snatch)
-        else:  # pragma: no cover
-            _LOGGER.warning("No torrents matched to your LFM recs. Consider adjusting the search config preferences.")
-
-    # TODO: create separate class and db model for snatches
-    def _snatch_match(self, si_to_snatch: SearchItem) -> None:
-        te_to_snatch = si_to_snatch.torrent_entry
-        if not te_to_snatch:  # pragma: no cover
-            _LOGGER.error("SearchItem marked for snatching unexpected missing torrent entry: ")
-            return
-        tid = te_to_snatch.torrent_id
-        permalink = te_to_snatch.get_permalink_url()
-        out_filepath = Path(os.path.join(self._snatch_directory, f"{tid}.torrent"))
-        exc_name: str | None = None
-        _LOGGER.debug(f"Snatching {permalink} and saving to {out_filepath} ...")
-        try:
-            binary_contents = self._red_snatch_client.snatch(tid=str(tid), can_use_token=te_to_snatch.can_use_token)
-            out_filepath.write_bytes(binary_contents)
-        except Exception as ex:  # pragma: no cover
-            # Delete any potential file artifacts in case the failure took place in the middle of the .torrent file writing.
-            if os.path.exists(out_filepath):
-                os.remove(out_filepath)
-            _LOGGER.error(f"Failed to snatch due to uncaught error for: {permalink}: ", exc_info=True)
-            exc_name = ex.__class__.__name__
-        finally:
-            fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=tid)
-            self._search_state.add_snatch_final_status_row(
-                si=si_to_snatch, snatched_with_fl=fl_token_used, snatch_path=str(out_filepath), exc_name=exc_name
-            )

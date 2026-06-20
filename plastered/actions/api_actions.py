@@ -10,11 +10,9 @@ from sqlmodel import Session, and_, desc, select
 from plastered.api.api_models import RunHistoryItem, RunHistoryListResponse
 from plastered.db.db_models import Failed, Grabbed, SearchRecord, Skipped, Status
 from plastered.db.db_utils import get_result_by_id
-from plastered.release_search.release_searcher import ReleaseSearcher
 
 if TYPE_CHECKING:
-    from plastered.config.app_settings import AppSettings
-    from plastered.models import RedUserDetails
+    from plastered.release_search.release_searcher import ReleaseSearcher
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,23 +61,14 @@ def inspect_run_action(run_id: int, session: Session) -> SearchRecord | None:
     return None
 
 
-def manual_search_action(
-    app_settings: AppSettings, red_user_details: RedUserDetails, search_id: int, **kwargs: Any
-) -> dict[str, Any]:
+def manual_search_action(release_searcher: ReleaseSearcher, search_id: int, mbid: str | None = None) -> dict[str, Any]:
     """
-    Action for executing a manual search + snatch of a given Album or track.
-    Returns JSON serialized value of SearchRecord if one is found.
+    Action for executing a manual search + snatch of a given Album or track, using the application-wide
+    `ReleaseSearcher` initialized once at server startup. Returns JSON serialized value of SearchRecord if one is found.
     """
     search_result: SearchRecord | None = None
     try:
-        ReleaseSearcher(
-            app_settings=app_settings,
-            red_user_details=red_user_details,
-            red_api_client=kwargs.get("red_api_client"),
-            red_snatch_client=kwargs.get("red_snatch_client"),
-            lfm_client=kwargs.get("lfm_client"),
-            musicbrainz_client=kwargs.get("musicbrainz_client"),
-        ).manual_search(search_id=search_id, mbid=kwargs.get("mbid"))
+        release_searcher.manual_search(search_id=search_id, mbid=mbid)
     except Exception as ex:  # pragma: no cover
         msg = f"Uncaught exception raised during manual search attempt: {type(ex)}"
         _LOGGER.error(msg, exc_info=True)

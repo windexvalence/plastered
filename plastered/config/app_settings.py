@@ -1,12 +1,11 @@
+import json
 import logging
 import os
-import re
 import sys
 from collections import Counter
 from datetime import datetime
 from functools import reduce
 from pathlib import Path
-from pprint import pformat
 from typing import Any, Self
 
 import yaml
@@ -27,7 +26,6 @@ from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_F
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
-_CD_EXTRAS_PRETTY_PRINT_REGEX_PATTERN = re.compile(r"^haslog=([0-9]+)&hascue=([0-9]+)$")
 
 
 def load_init_config_template() -> str:  # pragma: no cover
@@ -197,16 +195,6 @@ class AppSettings(BaseSettings):
         self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
         self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
-    def get(self, section: str, setting: str) -> Any:
-        """Return the value for the specified config option, if it exists. Return `None` otherwise."""
-        full_attr_path = f"{section}.{setting}"
-        try:
-            val = reduce(getattr, full_attr_path.split("."), self)
-        except AttributeError:  # pragma: no cover
-            _LOGGER.warning(f"No such setting field named '{full_attr_path}'")
-            return None
-        return val
-
     def get_db_filepath(self) -> str:
         return os.fspath(self._db_filepath)
 
@@ -237,9 +225,10 @@ def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[
         app_settings = AppSettings(**settings_data)
     except (ValidationError, ValueError) as ve:  # pragma: no cover
         if isinstance(ve, ValidationError):
-            _LOGGER.error(f"Invalid app config. Validation errors: {pformat(ve.errors())}")
+            formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
+            _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
             raise AppConfigException(
-                "Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
+                f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
             ) from ve
         _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
         raise AppConfigException(

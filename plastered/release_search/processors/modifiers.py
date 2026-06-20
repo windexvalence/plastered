@@ -1,3 +1,5 @@
+"""Implementations of the `SearchItemModifier` abstract base class should live in this file."""
+
 from __future__ import annotations
 
 import logging
@@ -34,12 +36,6 @@ class ResolveAlbumInfoModifier(SearchItemModifier):
         si.set_lfm_album_info(lfmai=lfmai)
         return si
 
-    @staticmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem:
-        raise NotImplementedError("Pending async support")
-
 
 class ResolveTrackInfoModifier(SearchItemModifier):
     """Intended as replacement for `ReleaseSearcher._resolve_lfm_track_info`."""
@@ -60,12 +56,6 @@ class ResolveTrackInfoModifier(SearchItemModifier):
             si.set_lfm_track_info(lfmti=LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=origin_info))
         return si
 
-    @staticmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem:
-        raise NotImplementedError("Pending async support")
-
 
 class AttachSearchIdModifier(SearchItemModifier):
     """Creates the `SearchRecord` DB row for to the given `SearchItem`, and adds the record ID to the `SearchItem`."""
@@ -81,12 +71,6 @@ class AttachSearchIdModifier(SearchItemModifier):
         add_record(model_inst=search_record)
         si.search_id = search_record.id
         return si
-
-    @staticmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem:
-        raise NotImplementedError("Pending async support")
 
 
 class AttemptResolveMBReleaseModifier(SearchItemModifier):
@@ -106,12 +90,6 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
         except (MusicBrainzClientException, KeyError):
             _LOGGER.error(f"Musicbrainz resolution error for search item '{si}'.", exc_info=True)
         return si
-
-    @staticmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem:
-        raise NotImplementedError("Pending async support")
 
 
 class SearchRedReleaseByPrefsModifier(SearchItemModifier):
@@ -142,12 +120,6 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
 
         si.set_torrent_match_fields(torrent_match=torrent_match)
         return si
-
-    @staticmethod
-    async def a_process(
-        si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
-    ) -> SearchItem:
-        raise NotImplementedError("Pending async support")
 
     @staticmethod
     def _torrent_match_from_browse_results(browse_results: list[ReleaseEntry], state: SearchState) -> TorrentMatch:

@@ -5,11 +5,6 @@ https://docs.pydantic.dev/latest/concepts/validators/#field-validators
 """
 
 from enum import IntEnum, StrEnum, unique
-from typing import Annotated, Any
-
-from pydantic import AfterValidator
-
-from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum
 
 
 @unique
@@ -57,19 +52,6 @@ class CLIOverrideSetting(StrEnum):
     REC_TYPES = "lfm.rec_types_to_scrape"
 
 
-def validate_raw_cli_overrides(value: dict[str, Any]) -> dict[str, Any]:
-    """Validates the CLI-provided settings overrides, if any."""
-    valid_keys = set([member.name for member in CLIOverrideSetting])
-    for k, v in value.items():
-        if k not in valid_keys:
-            raise ValueError(
-                f"Invalid CLI override settings key: '{k}' is not a valid key. Available valid keys are: {valid_keys}"
-            )
-        if not v:
-            raise ValueError("CLI override settings value must be non-empty, non-NoneType.")
-    return value
-
-
 def validate_cd_extras_log_value(value: int) -> int:
     """Validates the config value of `cd_only_extras.log` for a red format entry."""
     allowed_values = {-1, 0, 1, 100}
@@ -90,34 +72,3 @@ def validate_rec_types_to_scrape(value: list[str]) -> list[str]:
                 f"rec_types_to_scrape may only contain the following possible values: {allowed_values}. Got {value}."
             )
     return value
-
-
-# Red Format Preferences config validators
-def _validate_red_pref_val(value: str, enum_class: type[FormatEnum | MediaEnum | EncodingEnum]) -> str:
-    """
-    General base validator function for format_preferences.preference entries which must be in a
-    specific enum's member values.
-    """
-    try:
-        match enum_class.__qualname__:
-            case FormatEnum.__qualname__:
-                field_name = "format"
-            case MediaEnum.__qualname__:
-                field_name = "media"
-            case EncodingEnum.__qualname__:
-                field_name = "encoding"
-            case _:
-                raise ValueError("Unexpected enum_class type. Must be one of FormatEnum | MediaEnum | EncodingEnum")
-    except AttributeError as e:
-        raise ValueError(
-            f"enum_class must be a class type. Must be one of FormatEnum | MediaEnum | EncodingEnum. Got {type(enum_class)=}"
-        ) from e
-    allowed_values = set([str(member) for member in enum_class])
-    if value not in allowed_values:
-        raise ValueError(f"Bad raw value. preference.{field_name} must be one of: {allowed_values}")
-    return value
-
-
-ValidRedEncoding = Annotated[str, AfterValidator(lambda v: _validate_red_pref_val(value=v, enum_class=EncodingEnum))]
-ValidRedFormat = Annotated[str, AfterValidator(lambda v: _validate_red_pref_val(value=v, enum_class=FormatEnum))]
-ValidRedMedia = Annotated[str, AfterValidator(lambda v: _validate_red_pref_val(value=v, enum_class=MediaEnum))]

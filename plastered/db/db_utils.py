@@ -11,7 +11,7 @@ from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEn
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
 _LOGGER = logging.getLogger(__name__)
-_DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false") == "true"
+_DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true"
 
 
 def db_startup() -> None:
@@ -19,7 +19,6 @@ def db_startup() -> None:
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(get_engine())
-    # SQLModel.metadata.create_all(get_engine())
     if _DB_TEST_MODE:  # pragma: no cover
         _create_test_tables(table_classes=table_classes)
     _LOGGER.info("DB tables metadata creation complete.")

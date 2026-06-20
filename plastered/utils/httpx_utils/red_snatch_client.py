@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -80,3 +81,21 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
 
     def tid_snatched_with_fl_token(self, tid: str | int) -> bool:
         return str(tid) in self._tids_snatched_with_fl_tokens
+
+
+class AsyncSnatchClient(httpx.AsyncClient):  # pragma: no cover
+    """Subclass of `httpx.AsyncClient` specifically for async snatch request submission and resoonse handling."""
+
+    def __init__(self, **kwargs: Any):
+        super().__init__(**kwargs)
+
+    async def snatch(self, tid: str, can_use_token: bool) -> Path | None:
+        """
+        Async RED snatch request submission, and response handling.
+        Returns: Path object pointg to the downloaded file on success. `None` on failure.
+        """
+        # TODO: use https://anyio.readthedocs.io/en/stable/fileio.html
+        # bytes(f"tid: {tid}, can_use_token: {can_use_token}")  # TODO: implement
+        if not tid:
+            return None
+        return Path(".")

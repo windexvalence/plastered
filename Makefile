@@ -8,7 +8,7 @@ ifndef TEST_TARGET
 override TEST_TARGET = tests
 endif
 
-# Default to not running slow tests locally
+# Default to not running slow tests locallydocs/contributing/development_guide.md
 ifndef SLOW_TESTS
 override SLOW_TESTS = 0
 endif
@@ -53,7 +53,7 @@ docker-shell:  docker-build  ## Execs a local shell inside a locally built plast
 docker-server:  docker-build-no-test  ## Execs a local container running the server on localhost port 8000
 	@echo "\n $(RED) Enter http://localhost:8000/ into your browser. $(NC) \n"
 	./build_scripts/pull_static_assets_for_local_server.sh
-	docker run --rm --name plastered-api \
+	docker run -it --rm --name plastered-api \
 		-p 8000:80 \
 		-v $(APP_CONFIG_DIR):/config \
 		-v $(DOWNLOADS_DIR):/downloads \

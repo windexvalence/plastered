@@ -1,0 +1,38 @@
+# prek pre-commit configuration (https://prek.j178.dev/).
+# Install the git hook with `prek install`, or run on demand with `prek run --all-files`.
+repos:
+  - repo: local
+    hooks:
+      - id: uv-lockfile-check
+        name: uv lockfile check
+        entry: hooks/uv-lockfile-check.sh
+        files: '^(pyproject\.toml|uv\.lock)$'
+        language: script
+        pass_filenames: false
+      
+      - id: ruff-check
+        name: ruff-check
+        description: "Run 'ruff check --fix' for lint + auto-fixes."
+        entry: hooks/ruff-check.sh
+        language: python
+        require_serial: true
+      
+      - id: ruff-format
+        name: ruff-format
+        description: "Run 'ruff format' for Python autoformatting."
+        entry: hooks/ruff-format.sh
+        language: python
+        require_serial: true
+      
+      - id: bandit
+        name: bandit
+        entry: hooks/bandit.sh
+        language: script
+        files: '^plastered/.*\.py$'
+        pass_filenames: true
+
+      - id: mypy
+        name: mypy
+        entry: hooks/mypy.sh
+        language: script
+        files: '^(plastered/.*\.py|tests/.*\.py)$'

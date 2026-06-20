@@ -8,6 +8,7 @@ from plastered.api.lifespan_resources import LifespanSingleton
 from plastered.api.main import fastapi_app
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
+from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.utils.httpx_utils.red_client import RedAPIClient
 from plastered.version import get_project_version
 
@@ -33,6 +34,7 @@ def mock_LifespanSingleton_inst(
                 return_value=mock_red_api_client
             )  # PropertyMock(return_value=MagicMock(spec=RedAPIClient))
             type(singleton_inst).red_user_details = PropertyMock(return_value=mock_red_user_details)
+            type(singleton_inst).release_searcher = PropertyMock(return_value=MagicMock(spec=ReleaseSearcher))
             type(singleton_inst).project_version = PropertyMock(return_value=get_project_version())
             with (
                 patch.object(BackgroundTasks, "add_task", side_effect=lambda *args, **kwargs: None),
