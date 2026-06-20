@@ -42,7 +42,7 @@ jobs:
           docker run -t --rm -e RUFF_CHECK_ONLY=1 -e GITHUB_ACTIONS=1 --entrypoint bash ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} -c '/app/hooks/ruff.sh && /app/hooks/bandit.sh .'
       - name: Run unit tests
         run: |
-          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
+          docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 --rm --entrypoint /app/src/python/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
       # - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
       #   run: echo "TODO implement in followup PR"
       - name: Docker metadata

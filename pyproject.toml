@@ -48,6 +48,7 @@ test = [
 package = false
 
 [tool.ruff]
+src = ["src/python"]
 exclude = [
     ".bzr",
     ".direnv",
@@ -82,7 +83,7 @@ indent-width = 4
 
 # RUFF Linter
 [tool.ruff.lint]
-exclude = ["tests/**/*.py"]
+exclude = ["src/python/tests/**/*.py"]
 select = [
     # pycodestyle
     "E",
@@ -153,7 +154,7 @@ docstring-code-format = true
 [tool.coverage.run]
 source = ["plastered"]
 omit = [
-    "plastered/utils/log_utils.py",
+    "*/plastered/utils/log_utils.py",
 ]
 
 [tool.coverage.report]
@@ -196,13 +197,12 @@ filterwarnings = [
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 exclude = [
-    "tests/",
+    "src/python/tests/",
     "build_scripts/",
 	"docs/",
 	"examples/",
 ]
-mypy_path = "$MYPY_CONFIG_FILE_DIR"
-# namespace_packages = false
+mypy_path = "$MYPY_CONFIG_FILE_DIR/src/python"
 
 [[tool.mypy.overrides]]
 module = ["diskcache.*"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HTMX_LOCAL_FILEPATH="./plastered/api/static/js/htmx.min.js"
+HTMX_LOCAL_FILEPATH="./src/python/plastered/api/static/js/htmx.min.js"
 
 download_local_test_asset() {
     local source_url="$1"

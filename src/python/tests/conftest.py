@@ -33,7 +33,7 @@ from plastered.models.red_models import RedUserDetails
 
 TEST_DIR_ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ABS_PATH = os.path.abspath(os.getenv("APP_DIR"))
-ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "plastered")
+ROOT_MODULE_ABS_PATH = os.path.join(PROJECT_ABS_PATH, "src", "python", "plastered")
 
 MOCK_RESOURCES_DIR_PATH = os.path.join(TEST_DIR_ABS_PATH, "resources")
 MOCK_JSON_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_api_responses")

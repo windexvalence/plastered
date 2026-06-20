@@ -57,14 +57,14 @@ docker-server:  docker-build-no-test  ## Execs a local container running the ser
 		-p 8000:80 \
 		-v $(APP_CONFIG_DIR):/config \
 		-v $(DOWNLOADS_DIR):/downloads \
-		-v $(PROJECT_DIR_PATH)/plastered/api/static:/app/plastered/api/static \
-		-v $(PROJECT_DIR_PATH)/plastered/api/templates:/app/plastered/api/templates \
+		-v $(PROJECT_DIR_PATH)/src/python/plastered/api/static:/app/src/python/plastered/api/static \
+		-v $(PROJECT_DIR_PATH)/src/python/plastered/api/templates:/app/src/python/plastered/api/templates \
 		-e PLASTERED_CONFIG=/config/config.yaml \
 		-e DB_TEST_MODE=$(DB_TEST_MODE) \
 		--entrypoint /bin/bash wv/plastered:non-test -c '/app/server_entrypoint.sh'
 
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging
-	docker run -it --rm --env PYTHONPATH=/app --entrypoint python wv/plastered-test:latest -i
+	docker run -it --rm --env PYTHONPATH=/app/src/python --entrypoint python wv/plastered-test:latest -i
 
 fmt-check:  ## Runs code-auto-formatting checks, lint checks, and security checks
 	RUFF_CHECK_ONLY=1 ./hooks/ruff.sh
@@ -78,7 +78,7 @@ mypy:  ## Runs mypy type checking
 	./hooks/mypy.sh
 
 test:  ## Runs unit tests locally (non-containerized)
-	PYTHONPATH=$(PROJECT_DIR_PATH) APP_DIR=$(PROJECT_DIR_PATH) PDB=$(PDB) uv run ./tests/tests_entrypoint.sh $(TEST_TARGET)
+	PYTHONPATH=$(PROJECT_DIR_PATH)/src/python APP_DIR=$(PROJECT_DIR_PATH) PDB=$(PDB) uv run ./src/python/tests/tests_entrypoint.sh $(TEST_TARGET)
 
 # TODO: write a script that does the rendering of the CLI docs via the mkdocs CLI
 render-cli-doc: docker-build  ## Autogenerates the CLI help output as a markdown file
@@ -94,4 +94,4 @@ render-config-doc: docker-build  ## Autogenerates the config model fields as a m
 docker-test: docker-build  ## Runs unit tests inside a local docker container
 	docker run -it --rm -e IS_DOCKER=true -e SLOW_TESTS=$(SLOW_TESTS) -e PDB=$(PDB) \
 		-v $(PROJECT_DIR_PATH)/docs:/docs \
-		--entrypoint /app/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"
+		--entrypoint /app/src/python/tests/tests_entrypoint.sh wv/plastered-test:latest "$(TEST_TARGET)"
