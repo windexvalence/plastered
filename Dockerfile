@@ -25,8 +25,9 @@ FROM plastered-app AS plastered-test
 RUN uv sync --locked --all-groups --no-cache
 ENV SLOW_TESTS=0
 COPY ./build_scripts /app/build_scripts
+COPY ./hooks /app/hooks
 COPY ./docs /app/docs
-COPY ./examples /app/examples 
+COPY ./examples /app/examples
 COPY ./tests /app/tests
 
 ENTRYPOINT ["/app/tests/tests_entrypoint.sh"]
