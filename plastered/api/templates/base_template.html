@@ -5,20 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Plastered{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/modal.css') }}">
     <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <nav id="nav-links">
-        <a href="/">Main Page</a> •
-        <a href="/scrape_form">LFM Scraper</a> •
-        <a href="/adhoc">Ad-hoc Search</a> •
-        <a href="/run_history">Run History</a> •
-        <a href="/config">Config</a> •
-        <a href="/user_details">User Details</a>
-    </nav>
-    <hr>
+    <header id="site-header">
+        <div class="bar">
+            <a class="brand" href="/">plastered</a>
+            <nav id="nav-links">
+                <a href="/">Home</a>
+                <a href="/scrape_form">LFM Scraper</a>
+                <a href="/adhoc">Ad-hoc Search</a>
+                <a href="/run_history">Run History</a>
+                <a href="/config">Config</a>
+                <a href="/user_details">User Details</a>
+            </nav>
+        </div>
+    </header>
     <main>
         {% block content %}{% endblock %}
     </main>

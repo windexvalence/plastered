@@ -1,14 +1,18 @@
 {% extends "base_template.html" %}
 {% block title %}Plastered v{{ plastered_version }}{% endblock %}
 {% block content %}
-<h1>Plastered v{{ plastered_version }}</h1>
-<p>Pull your Last.fm recommendations and snatch matching releases from RED — or run an ad-hoc search on demand.</p>
+<h1>Plastered <small>v{{ plastered_version }}</small></h1>
 <p>
+    Pull your Last.fm recommendations and snatch matching releases from RED — or run an ad-hoc search on demand.
+    Pick where you'd like to start:
+</p>
+<div id="home-actions">
     <a href="/scrape_form" role="button">Scrape LFM</a>
     <a href="/adhoc" role="button">Ad-hoc Search</a>
     <a href="/run_history" role="button">Search History</a>
     <a href="/config" role="button">View Config</a>
-</p>
-<button hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+    <a href="/user_details" role="button">User Details</a>
+    <button hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+</div>
 <div id="help-modal-here"></div>
 {% endblock %}
