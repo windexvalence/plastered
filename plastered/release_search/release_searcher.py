@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from plastered.db.db_utils import get_result_by_id
-from plastered.models import CacheType, EntityType, LFMRec, ManualSearch, RedUserDetails, SearchItem
+from plastered.models import AdhocSearch, CacheType, EntityType, LFMRec, RedUserDetails, SearchItem
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
@@ -14,7 +13,7 @@ from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedA
 from plastered.utils.log_utils import CONSOLE, SPINNER
 
 if TYPE_CHECKING:
-    from plastered.config.app_settings import AppSettings
+    from plastered.config.app_settings import AppSettings, RedSearchOverrides
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ class ReleaseSearcher:
         self._enable_snatches = (
             snatch_override if snatch_override is not None else app_settings.red.snatches.snatch_recs
         )
-        self._snatch_directory = app_settings.red.snatches.snatch_directory
 
     def __enter__(self):
         return self
@@ -79,34 +77,48 @@ class ReleaseSearcher:
         self._apply_si_processor_chain(entity_to_si_list=entity_to_si_list, search_state=search_state)
         snatcher.snatch_matches()
 
-    def manual_search(self, search_id: int, mbid: str | None = None) -> None:
-        """Public method that the manual search endpoint should invoke. Not used by the scraper."""
-        search_state, snatcher = self._new_search_state_and_snatcher()
-        manual_search_instance = ManualSearch.from_search_record(get_result_by_id(search_id=search_id), mbid)
+    def adhoc_search(
+        self, adhoc_search: AdhocSearch, search_id: int, overrides: RedSearchOverrides | None = None
+    ) -> None:
+        """
+        Public entry point for the ad-hoc (manual / on-demand) search flow used by the API. Runs the single provided
+        `AdhocSearch` through the processor chain. When snatching is enabled (by config or per-request override) the
+        top match is snatched; otherwise the match (if any) is recorded as a `MATCHED` result so it can be returned to
+        the client without a download. Not used by the scraper.
+        """
+        effective_settings = self._app_settings.with_red_overrides(overrides)
+        enable_snatches = effective_settings.red.snatches.snatch_recs
+        search_state, snatcher = self._new_search_state_and_snatcher(
+            app_settings=effective_settings, enable_snatches=enable_snatches
+        )
         self._apply_si_processor_chain(
-            entity_to_si_list={
-                manual_search_instance.entity_type: [
-                    SearchItem(initial_info=manual_search_instance, search_id=search_id)
-                ]
-            },
+            entity_to_si_list={adhoc_search.entity_type: [SearchItem(initial_info=adhoc_search, search_id=search_id)]},
             search_state=search_state,
         )
-        snatcher.snatch_matches(manual_run=True)
+        if enable_snatches:
+            snatcher.snatch_matches(manual_run=True)
+        else:
+            search_state.record_matched_result_row()
 
-    def _new_search_state_and_snatcher(self) -> tuple[SearchState, Snatcher]:
+    def _new_search_state_and_snatcher(
+        self, app_settings: AppSettings | None = None, enable_snatches: bool | None = None
+    ) -> tuple[SearchState, Snatcher]:
         """
         Builds the fresh, per-run mutable `SearchState` (and its `Snatcher`) for a single search invocation. Keeping
         this state out of `__init__` lets a single `ReleaseSearcher` be reused across calls (e.g. the FastAPI app
-        builds it once at startup) without one run's matches leaking into the next.
+        builds it once at startup) without one run's matches leaking into the next. The ad-hoc flow passes effective
+        (override-merged) settings and an explicit snatch toggle; the scraper flow uses the searcher's own defaults.
         """
-        search_state = SearchState(app_settings=self._app_settings, red_user_details=self._red_user_details)
+        app_settings = app_settings if app_settings is not None else self._app_settings
+        enable_snatches = self._enable_snatches if enable_snatches is None else enable_snatches
+        search_state = SearchState(app_settings=app_settings, red_user_details=self._red_user_details)
         if not search_state.red_user_details_is_initialized():
             self._gather_red_user_details(search_state=search_state)
         snatcher = Snatcher(
             red_snatch_client=self._red_snatch_client,
             search_state=search_state,
-            snatch_directory=self._snatch_directory,
-            enable_snatches=self._enable_snatches,
+            snatch_directory=app_settings.red.snatches.snatch_directory,
+            enable_snatches=enable_snatches,
         )
         return search_state, snatcher
 

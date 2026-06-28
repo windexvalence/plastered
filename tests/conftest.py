@@ -27,7 +27,7 @@ from plastered.run_cache.run_cache import RunCache
 from plastered.db.db_models import SkipReason
 from plastered.models.lfm_models import LFMRec, RecContext
 from plastered.models.search_item import SearchItem
-from plastered.models.manual_search_models import ManualSearch
+from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import RedUserDetails
 
@@ -763,7 +763,7 @@ def make_album_search_item() -> Callable[[bool, str | None, str | None, RecConte
     ) -> SearchItem:
         if is_lfm_rec:
             return SearchItem(initial_info=LFMRec(artist, album, EntityType.ALBUM, rc))
-        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist=artist, entity=album))
+        return SearchItem(initial_info=AdhocSearch(artist=artist, release=album))
 
     return _make_album_search_item
 
@@ -783,6 +783,6 @@ def make_track_search_item() -> Callable[[bool, str | None, str | None, RecConte
     ) -> SearchItem:
         if is_lfm_rec:
             return SearchItem(initial_info=LFMRec(artist, track, EntityType.TRACK, rc))
-        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.TRACK, artist=artist, entity=track))
+        return SearchItem(initial_info=AdhocSearch(artist=artist, track=track))
 
     return _make_track_search_item

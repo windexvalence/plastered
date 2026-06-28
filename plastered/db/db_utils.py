@@ -6,7 +6,17 @@ from typing import Any, Final
 
 from sqlmodel import Session, SQLModel, select
 
-from plastered.db.db_models import Failed, FailReason, Grabbed, SearchRecord, Skipped, SkipReason, Status, get_engine
+from plastered.db.db_models import (
+    Failed,
+    FailReason,
+    Grabbed,
+    Matched,
+    SearchRecord,
+    Skipped,
+    SkipReason,
+    Status,
+    get_engine,
+)
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
@@ -15,7 +25,7 @@ _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true
 
 
 def db_startup() -> None:
-    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed]
+    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed, Matched]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(get_engine())
@@ -53,16 +63,19 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
         result_record.status = status
         session.add(result_record)
         _LOGGER.debug(f"Creating associated Status record for SearchRecord record (id={search_id}) ...")
-        status_record: Failed | Grabbed | Skipped | None = None
+        status_record: Failed | Grabbed | Skipped | Matched | None = None
         if status == status.FAILED:
             status_record = Failed(f_result_id=search_id, **status_model_kwargs)
         elif status == status.GRABBED:
             status_record = Grabbed(g_result_id=search_id, **status_model_kwargs)
         elif status == status.SKIPPED:
             status_record = Skipped(s_result_id=search_id, **status_model_kwargs)
+        elif status == status.MATCHED:
+            status_record = Matched(m_result_id=search_id, **status_model_kwargs)
         else:
             raise ValueError(  # pragma: no cover
-                f"Unexpected status: '{str(status)}'. Should be one of {[Status.FAILED, Status.GRABBED, Status.SKIPPED]}"
+                f"Unexpected status: '{str(status)}'. Should be one of "
+                f"{[Status.FAILED, Status.GRABBED, Status.SKIPPED, Status.MATCHED]}"
             )
         session.add(status_record)
         session.commit()

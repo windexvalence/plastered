@@ -27,6 +27,8 @@ class Status(StrEnum):
     IN_PROGRESS = "in_progress"
     GRABBED = "grabbed"
     SKIPPED = "skipped"
+    # A RED match was found but not snatched (ad-hoc search-only request, i.e. the user did not request a download).
+    MATCHED = "matched"
 
 
 class SkipReason(StrEnum):
@@ -117,6 +119,24 @@ class Grabbed(SQLModel, table=True):
     fl_token_used: bool | None = Field(default=None)
     snatch_path: str | None = Field(default=None)
     tid: int | None = Field(default=None)
+
+
+class Matched(SQLModel, table=True):
+    """
+    Model for the `matched` table. Populated for an ad-hoc search that found a RED match the user did NOT request to
+    snatch. Captures the matched release's details so the ad-hoc result endpoint can return the matched release(s)
+    without a download having taken place.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    m_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
+    tid: int | None = Field(default=None)
+    red_permalink: str | None = Field(default=None)
+    matched_mbid: str | None = Field(default=None)
+    size_gb: float | None = Field(default=None)
+    media: str | None = Field(default=None)
+    format: str | None = Field(default=None)
+    encoding: str | None = Field(default=None)
 
 
 class LFMSourceDetails(SQLModel, table=True):

@@ -7,13 +7,13 @@ from unittest.mock import ANY, MagicMock, PropertyMock, call, patch
 
 import pytest
 
-from plastered.config.app_settings import AppSettings
+from plastered.config.app_settings import AppSettings, RedSearchOverrides
 from plastered.db.db_models import SearchRecord
 from plastered.models import (
+    AdhocSearch,
     EntityType as et,
     LFMRec,
     LFMTrackInfo,
-    ManualSearch,
     MBRelease,
     RecContext as rc,
     RedUserDetails,
@@ -131,22 +131,31 @@ def test_search_for_recs(mock_kwargs: _MockRsKwargs, ent_to_recs: dict[et, list[
             mock_snatch_matches_method.assert_called_once()
 
 
-@pytest.mark.parametrize("mbid", [None, "fake-mbid"])
-def test_manual_search(mock_kwargs: _MockRsKwargs, mbid: str | None) -> None:
-    mock_manual_search_record = MagicMock(spec=ManualSearch)
-    type(mock_manual_search_record).entity_type = PropertyMock(return_value=et.ALBUM)
+@pytest.mark.parametrize("snatch_enabled", [True, False])
+@pytest.mark.parametrize(
+    "adhoc_search",
+    [AdhocSearch(artist="Some Artist", release="Some Album"), AdhocSearch(artist="Some Artist", track="Some Track")],
+)
+def test_adhoc_search(mock_kwargs: _MockRsKwargs, adhoc_search: AdhocSearch, snatch_enabled: bool) -> None:
+    """
+    Ensures the ad-hoc flow runs the item through the chain, then snatches when snatching is enabled, or records the
+    matched release (search-only) when it is not.
+    """
+    overrides = RedSearchOverrides(snatch=snatch_enabled)
     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
         with (
-            patch(
-                "plastered.release_search.release_searcher.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
-            ),
-            patch.object(ManualSearch, "from_search_record", return_value=mock_manual_search_record),
             patch.object(rs, "_apply_si_processor_chain") as mock_apply_si_processor_chain_method,
             patch.object(Snatcher, "snatch_matches") as mock_snatch_matches_method,
+            patch.object(SearchState, "record_matched_result_row") as mock_record_matched_method,
         ):
-            rs.manual_search(search_id=69, mbid=mbid)
+            rs.adhoc_search(adhoc_search=adhoc_search, search_id=69, overrides=overrides)
             mock_apply_si_processor_chain_method.assert_called_once()
-            mock_snatch_matches_method.assert_called_once_with(manual_run=True)
+            if snatch_enabled:
+                mock_snatch_matches_method.assert_called_once_with(manual_run=True)
+                mock_record_matched_method.assert_not_called()
+            else:
+                mock_record_matched_method.assert_called_once_with()
+                mock_snatch_matches_method.assert_not_called()
 
 
 @pytest.mark.parametrize(

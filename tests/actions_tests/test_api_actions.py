@@ -7,11 +7,16 @@ import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 from sqlmodel.pool import StaticPool
 
-from plastered.actions.api_actions import inspect_run_action, run_history_action, manual_search_action
-from plastered.api.api_models import RunHistoryListResponse
+from plastered.actions.api_actions import (
+    adhoc_result_action,
+    adhoc_search_action,
+    inspect_run_action,
+    run_history_action,
+)
+from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Status, SearchRecord
-from plastered.models.manual_search_models import ManualSearch
+from plastered.db.db_models import Matched, SearchRecord, Status
+from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.red_models import RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import EntityType
@@ -113,16 +118,48 @@ def mock_te() -> MagicMock:
     return mt
 
 
-def test_manual_search_action() -> None:
-    """Ensures `manual_search_action` delegates to the shared `ReleaseSearcher` and returns the resulting record."""
+def test_adhoc_search_action() -> None:
+    """Ensures `adhoc_search_action` delegates to the shared `ReleaseSearcher` and returns the resulting record."""
     mock_search_id = 69
+    mock_adhoc_search = AdhocSearch(artist="Fake Artist", release="Fake Album")
     mock_release_searcher = MagicMock(spec=ReleaseSearcher)
     with patch(
         "plastered.actions.api_actions.get_result_by_id", return_value=MagicMock(spec=SearchRecord)
     ) as mock_get_res:
-        _ = manual_search_action(release_searcher=mock_release_searcher, search_id=mock_search_id)
-        mock_release_searcher.manual_search.assert_called_once_with(search_id=mock_search_id, mbid=None)
+        _ = adhoc_search_action(
+            release_searcher=mock_release_searcher, adhoc_search=mock_adhoc_search, search_id=mock_search_id
+        )
+        mock_release_searcher.adhoc_search.assert_called_once_with(
+            adhoc_search=mock_adhoc_search, search_id=mock_search_id, overrides=None
+        )
         mock_get_res.assert_called_once_with(search_id=mock_search_id)
+
+
+def test_adhoc_result_action_no_record(empty_tables: Session) -> None:
+    """Ensures `adhoc_result_action` returns `None` when there is no record for the given search id."""
+    assert adhoc_result_action(search_id=_MOCK_RECORD_ID, session=empty_tables) is None
+
+
+def test_adhoc_result_action_with_match(mock_session: Session) -> None:
+    """Ensures `adhoc_result_action` surfaces the search record plus the produced status rows."""
+    record = SearchRecord(
+        id=_MOCK_RECORD_ID,
+        submit_timestamp=_MOCK_SINCE_TIMESTAMP,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Fake Artist",
+        entity="Fake Album",
+        status=Status.MATCHED,
+    )
+    matched = Matched(m_result_id=_MOCK_RECORD_ID, tid=_MOCK_RECORD_TID, red_permalink="https://red/x", size_gb=1.0)
+    mock_session.add(record)
+    mock_session.add(matched)
+    mock_session.commit()
+    actual = adhoc_result_action(search_id=_MOCK_RECORD_ID, session=mock_session)
+    assert isinstance(actual, AdhocSearchResult)
+    assert actual.is_complete is True
+    assert actual.matched is not None and actual.matched.tid == _MOCK_RECORD_TID
+    assert actual.grabbed is None and actual.failed is None and actual.skipped is None
 
 
 def test_inspect_run_action_empty_table(empty_tables: Session) -> None:

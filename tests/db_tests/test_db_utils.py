@@ -50,6 +50,7 @@ def test_add_record_no_session() -> None:
         (Status.FAILED, {"red_permalink": None, "matched_mbid": None, "fail_reason": FailReason.OTHER}),
         (Status.GRABBED, {"fl_token_used": None, "snatch_path": None, "tid": None}),
         (Status.SKIPPED, {"skip_reason": SkipReason.NO_SOURCE_RELEASE_FOUND}),
+        (Status.MATCHED, {"tid": 420, "red_permalink": "https://red/x", "size_gb": 1.0}),
     ],
 )
 def test_set_result_status(

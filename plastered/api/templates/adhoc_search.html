@@ -1,0 +1,61 @@
+{% extends "base_template.html" %}
+{% block title %}Plastered — Ad-hoc RED Search{% endblock %}
+{% block content %}
+<h2>Ad-hoc RED Search</h2>
+<p>
+    Search RED directly for a release. Only <strong>Artist</strong> and one of <strong>Album</strong> or
+    <strong>Track</strong> are required — every other field is optional and is used to refine the search. Tick
+    <em>Download top match</em> to also snatch the best matching torrent.
+</p>
+
+<!--
+  The form posts (form-encoded, via HTMX) to /adhoc_search, which schedules the search and returns the result
+  fragment into #adhoc-result. That fragment then polls /adhoc_result until the search completes.
+-->
+<form hx-post="/adhoc_search" hx-target="#adhoc-result" hx-swap="innerHTML" autocomplete="off">
+    <label for="artist">Artist <small>(required)</small></label>
+    <input type="text" id="artist" name="artist" required>
+
+    <label for="release">Album / release name</label>
+    <input type="text" id="release" name="release" placeholder="Provide this for an album search">
+
+    <label for="track">Track name</label>
+    <input type="text" id="track" name="track" placeholder="Provide this (without an album) for a track search">
+
+    <details>
+        <summary>Optional refinements</summary>
+        <label for="mbid">MusicBrainz release ID</label>
+        <input type="text" id="mbid" name="mbid">
+
+        <label for="release_type">Release type</label>
+        <select id="release_type" name="release_type">
+            <option value="">— any —</option>
+            {% for rt in release_types %}
+                <option value="{{ rt.value }}">{{ rt.name.replace("_", " ").title() }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="release_year">Release year</label>
+        <input type="number" id="release_year" name="release_year" min="0">
+
+        <label for="record_label">Record label</label>
+        <input type="text" id="record_label" name="record_label">
+
+        <label for="catalog_number">Catalog number</label>
+        <input type="text" id="catalog_number" name="catalog_number">
+
+        <label for="max_size_gb">Max torrent size (GB) <small>(overrides config)</small></label>
+        <input type="number" id="max_size_gb" name="max_size_gb" step="0.01" min="0.02" max="100">
+    </details>
+
+    <label>
+        <input type="checkbox" name="snatch" value="true"> Download top match
+    </label>
+
+    <button type="submit">Search RED</button>
+</form>
+
+<div id="adhoc-result">
+    <p><em>Submit a search to see matching release(s) here.</em></p>
+</div>
+{% endblock %}

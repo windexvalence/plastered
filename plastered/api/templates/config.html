@@ -1,14 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Plastered Config</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/modal.css') }}">
-    <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
-</head>
-<body>
-    <h2>Plastered Config</h2>
-    <div id="header-links" hx-get="{{ url_for('static', path='/html/header_links.html') }}" hx-target="this", hx-trigger="load"></div>
-    <div id="rendered-config" hx-get="/api/config" hx-target="this", hx-trigger="load"></div>
-</body>
-</html>
+{% extends "base_template.html" %}
+{% block title %}Plastered Config{% endblock %}
+{% block content %}
+<h2>Plastered Config</h2>
+<div id="rendered-config" hx-get="/api/config" hx-target="this" hx-trigger="load"></div>
+{% endblock %}

@@ -88,9 +88,11 @@ class SearchState:
         # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
         browse_request_params = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
         for red_param in OPTIONAL_RED_PARAMS:
-            if red_param in self._required_red_search_kwargs:  # noqa: SIM102
-                if red_param_val := si.get_search_kwargs().get(red_param):
-                    browse_request_params += f"&{red_param}={red_param_val}"
+            # For ad-hoc searches, include every optional param the request actually supplied (all such fields are
+            # optional in the ad-hoc flow). For the scraper flow, only include params enabled by `red.search`.
+            include_param = si.is_manual or red_param in self._required_red_search_kwargs
+            if include_param and (red_param_val := si.get_search_kwargs().get(red_param)):
+                browse_request_params += f"&{red_param}={red_param_val}"
         return browse_request_params
 
     def _pre_mbid_reso_rule_not_previously_snatched(self, si: SearchItem) -> SkipReason | None:
@@ -118,6 +120,9 @@ class SearchState:
         Return `SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS` if the SearchItem should be skipped due to missing
         fields which are marked as required by the current user-specified app config settings.
         """
+        # In the ad-hoc flow every optional search field is best-effort: a missing field never drops the item.
+        if si.is_manual:
+            return None
         if not self._require_mbid_resolution:
             return None
         if not si.search_kwargs_has_all_required_fields(required_kwargs=self._required_red_search_kwargs):
@@ -169,10 +174,34 @@ class SearchState:
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("SearchItem missing torrent entry")
         if si.is_manual:
-            self._manual_search_item_to_snatch = si  # pragma: no cover
+            self._manual_search_item_to_snatch = si
         else:
             self._search_items_to_snatch.append(si)
             self._tids_to_snatch.add(si.torrent_entry.torrent_id)
+
+    def record_matched_result_row(self) -> None:
+        """
+        For an ad-hoc search-only run (i.e. snatching disabled / not requested): record the RED match that was found,
+        if any, as a `MATCHED` result row so the matched release can be returned to the client. A no-op when no match
+        was found (the post-RED-search filter has already written the appropriate SKIPPED row in that case).
+        """
+        si = self._manual_search_item_to_snatch
+        if si is None or not si.torrent_entry:
+            return
+        te = si.torrent_entry
+        set_result_status(
+            search_id=si.search_id,
+            status=Status.MATCHED,
+            status_model_kwargs={
+                "tid": te.torrent_id,
+                "red_permalink": te.get_permalink_url(),
+                "matched_mbid": si.get_matched_mbid(),
+                "size_gb": te.get_size(unit="GB"),
+                "media": te.media,
+                "format": te.format,
+                "encoding": te.encoding,
+            },
+        )
 
     def get_search_items_to_snatch(self, manual_run: bool = False) -> list[SearchItem]:
         """

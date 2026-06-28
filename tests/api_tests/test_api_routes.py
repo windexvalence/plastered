@@ -6,10 +6,10 @@ from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
-from plastered.api.api_models import RunHistoryItem, RunHistoryListResponse
+from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse
 from plastered.api.constants import SUB_CONF_NAMES
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Grabbed, SearchRecord, SkipReason, Skipped
+from plastered.db.db_models import Grabbed, SearchRecord, SkipReason, Skipped, Status
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
@@ -91,24 +91,49 @@ def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> No
 
 
 @pytest.mark.parametrize(
-    "form_data, request_params, expected_entity_type",
+    "body",
     [
-        ({"entity": "fake-album", "artist": "fake-artist", "is_track": "false"}, None, EntityType.ALBUM),
-        ({"entity": "fake-track", "artist": "fake-artist", "is_track": "true"}, "?is_track=true", EntityType.TRACK),
+        {"search": {"artist": "Fake Artist", "release": "Fake Album"}},
+        {"search": {"artist": "Fake Artist", "track": "Fake Track"}, "overrides": {"snatch": True}},
     ],
 )
-def test_submit_search_form_endpoint(
-    client: TestClient, form_data: dict[str, str], request_params: str | None, expected_entity_type: EntityType
-) -> None:
-    with (
-        patch("plastered.api.routes.api_routes.manual_search_action", return_value={"fake": "data"}),
-        patch(
-            "plastered.api.routes.api_routes.run_history_endpoint",
-            return_value=RunHistoryListResponse(runs=[], since_timestamp=1759680000),
-        ) as mock_run_history_endpoint,
-    ):
-        resp = client.post(f"/api/submit_search_form{request_params or ''}", data=form_data, follow_redirects=False)
-        assert resp.status_code == 303
+def test_adhoc_search_endpoint(client: TestClient, body: dict) -> None:
+    with patch("plastered.api.routes.api_routes.schedule_adhoc_search", return_value=69) as mock_schedule:
+        resp = client.post("/api/adhoc_search", json=body)
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["search_id"] == 69
+        assert data["status"] == "in_progress"
+        assert data["result_url"] == "/api/adhoc_result?search_id=69"
+        mock_schedule.assert_called_once()
+
+
+def test_adhoc_search_endpoint_invalid(client: TestClient) -> None:
+    """A request lacking both release and track must be rejected by request-body validation (422)."""
+    resp = client.post("/api/adhoc_search", json={"search": {"artist": "Fake Artist"}})
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("record_found", [True, False])
+def test_adhoc_result_endpoint(client: TestClient, record_found: bool) -> None:
+    mock_result = (
+        AdhocSearchResult(
+            searchrecord=SearchRecord(
+                id=69,
+                submit_timestamp=1759680000,
+                is_manual=True,
+                entity_type=EntityType.ALBUM,
+                artist="Fake Artist",
+                entity="Fake Album",
+                status=Status.MATCHED,
+            )
+        )
+        if record_found
+        else None
+    )
+    with patch("plastered.api.routes.api_routes.adhoc_result_action", return_value=mock_result):
+        resp = client.get("/api/adhoc_result?search_id=69")
+        assert resp.status_code == (200 if record_found else 404)
 
 
 @pytest.mark.parametrize("snatch", [False, True])

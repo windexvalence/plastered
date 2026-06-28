@@ -2,13 +2,13 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
+from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
-from plastered.models.manual_search_models import ManualSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import TorrentEntry, TorrentMatch
 from plastered.models.types import EntityType
 
-type InitialInfo = LFMRec | ManualSearch
+type InitialInfo = LFMRec | AdhocSearch
 
 
 # TODO [later]: Consolidate the `SearchRecord` db model and `SearchItem` into a single class.
@@ -41,6 +41,10 @@ class SearchItem:
             self.release_name = self.initial_info.get_human_readable_entity_str()
         else:
             self.release_name = "None" if not self._lfm_track_info else self._lfm_track_info.release_name
+        # Ad-hoc searches may carry user-supplied optional RED browse params; seed them up-front so they are used even
+        # when no MBID resolution takes place (and so they take precedence over any MB-resolved values).
+        if isinstance(self.initial_info, AdhocSearch):
+            self._search_kwargs = self.initial_info.get_user_search_kwargs()
 
     @property
     def artist_name(self) -> str:
@@ -54,8 +58,8 @@ class SearchItem:
 
     @property
     def is_manual(self) -> bool:
-        """Returns `True` if the SearchItem corresponds to a manual search, otherwise `False` for LFMRec."""
-        return isinstance(self.initial_info, ManualSearch)
+        """Returns `True` if the SearchItem is an ad-hoc (non-scraper) search, otherwise `False` for an LFMRec."""
+        return isinstance(self.initial_info, AdhocSearch)
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
         return self._search_kwargs
@@ -70,6 +74,10 @@ class SearchItem:
         return all([self._search_kwargs[k] is not None for k in required_kwargs])
 
     def get_matched_mbid(self) -> str | None:
+        # An ad-hoc search may directly supply the release MBID; prefer it, otherwise fall through to any MBID resolved
+        # from the LFM album/track info (the latter applies to ad-hoc track searches, which still resolve a release).
+        if isinstance(self.initial_info, AdhocSearch) and self.initial_info.mbid is not None:
+            return self.initial_info.mbid
         if self.initial_info.entity_type == EntityType.ALBUM and self._lfm_album_info is not None:
             return self._lfm_album_info.release_mbid
         elif self.initial_info.entity_type == EntityType.TRACK and self._lfm_track_info is not None:
@@ -93,4 +101,7 @@ class SearchItem:
 
     def set_mb_release(self, mbr: MBRelease) -> None:
         self._mb_release = mbr
-        self._search_kwargs = mbr.get_release_searcher_kwargs()
+        # MB-resolved params provide the baseline; any user-supplied (ad-hoc) params already on the item win on conflict.
+        merged = mbr.get_release_searcher_kwargs()
+        merged.update({k: v for k, v in self._search_kwargs.items() if v is not None})
+        self._search_kwargs = merged

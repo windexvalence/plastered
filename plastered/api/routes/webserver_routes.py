@@ -1,12 +1,16 @@
 import logging
 import os
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
 
+from plastered.actions.api_actions import adhoc_result_action
+from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
-from plastered.models import EntityType
+from plastered.api.fastapi_dependencies import SessionDep
+from plastered.models.types import RedReleaseType
 
 _LOGGER = logging.getLogger(__name__)
 plastered_web_router = APIRouter(prefix="")
@@ -34,13 +38,64 @@ async def show_config_endpoint(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(request=request, name="config.html")
 
 
-# /search_form<?entity=(album|track)>
-@plastered_web_router.get("/search_form")
-async def search_form_endpoint(request: Request, entity: EntityType | None = None) -> HTMLResponse:
-    if entity is None:
-        return TEMPLATES.TemplateResponse("manual_search.html", {"request": request})
+# /adhoc  (the dedicated ad-hoc release search page)
+@plastered_web_router.get("/adhoc")
+async def adhoc_search_page(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
-        request=request, name="fragments/search_modal.html", context={"entity": str(entity)}
+        request=request, name="adhoc_search.html", context={"release_types": list(RedReleaseType)}
+    )
+
+
+# POST /adhoc_search  (HTMX form submission -> schedules the search and returns the polling result fragment)
+@plastered_web_router.post("/adhoc_search")
+async def adhoc_search_submit(
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    artist: Annotated[str, Form()],
+    release: Annotated[str | None, Form()] = None,
+    track: Annotated[str | None, Form()] = None,
+    mbid: Annotated[str | None, Form()] = None,
+    release_type: Annotated[str | None, Form()] = None,
+    release_year: Annotated[str | None, Form()] = None,
+    record_label: Annotated[str | None, Form()] = None,
+    catalog_number: Annotated[str | None, Form()] = None,
+    max_size_gb: Annotated[str | None, Form()] = None,
+    snatch: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    adhoc_request = build_adhoc_request_from_form(
+        artist=artist,
+        release=release,
+        track=track,
+        mbid=mbid,
+        release_type=release_type,
+        release_year=release_year,
+        record_label=record_label,
+        catalog_number=catalog_number,
+        snatch=snatch,
+        max_size_gb=max_size_gb,
+    )
+    search_id = schedule_adhoc_search(
+        session=session,
+        background_tasks=background_tasks,
+        release_searcher=request.state.lifespan_singleton.release_searcher,
+        req=adhoc_request,
+    )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/adhoc_result_fragment.html", context={"search_id": search_id, "result": None}
+    )
+
+
+# GET /adhoc_result?search_id=<int>  (HTMX polling fragment; re-renders until the search completes)
+@plastered_web_router.get("/adhoc_result")
+async def adhoc_result_fragment(session: SessionDep, request: Request, search_id: int) -> HTMLResponse:
+    result = adhoc_result_action(search_id=search_id, session=session)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."
+        )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/adhoc_result_fragment.html", context={"search_id": search_id, "result": result}
     )
 
 
@@ -56,12 +111,6 @@ async def scrape_form_endpoint(request: Request) -> HTMLResponse:
 async def runs_page(request: Request, search_id: int | None = None) -> HTMLResponse:
     # TODO: have HTMX hit the /api/run_history endpoint following user setup
     return TEMPLATES.TemplateResponse(request=request, name="run_history_page.html", context={"search_id": search_id})
-
-
-# TODO [later]: add the html template and migrate logic of plastered.stats.PriorRunStats to here.
-# @plastered_web_router.get(Endpoint.STATS_PAGE.value.rel_path)
-# async def scraper_stats_page(request: Request) -> HTMLResponse:
-#     return TEMPLATES.TemplateResponse(request=request, name="scraper_stats_page.html", context={})
 
 
 @plastered_web_router.get("/user_details")

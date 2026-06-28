@@ -25,7 +25,7 @@ along. Items that survive become snatch candidates handed off to the `Snatcher`.
 flowchart TD
     %% ── ReleaseSearcher entrypoints & orchestration ──
     SFR["ReleaseSearcher.search_for_recs()"]
-    MS["ReleaseSearcher.manual_search()"]
+    MS["ReleaseSearcher.adhoc_search()"]
     NEW_STATE["ReleaseSearcher._new_search_state_and_snatcher()"]
     GRUD["ReleaseSearcher._gather_red_user_details()"]
     APPLY["ReleaseSearcher._apply_si_processor_chain()"]
@@ -102,7 +102,7 @@ the match rather than rejecting it), so it passes the surviving item on to snatc
 flowchart TD
     %% ── ReleaseSearcher orchestration ──
     SFR["ReleaseSearcher.search_for_recs()"]
-    MS["ReleaseSearcher.manual_search()"]
+    MS["ReleaseSearcher.adhoc_search()"]
     NEW_STATE["ReleaseSearcher._new_search_state_and_snatcher()"]
     GRUD["ReleaseSearcher._gather_red_user_details()"]
     APPLY["ReleaseSearcher._apply_si_processor_chain()"]

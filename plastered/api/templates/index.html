@@ -1,26 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Plastered v{{ plastered_version }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/modal.css') }}">
-    <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
-</head>
-<style></style>
-<body>
-    <h1>Plastered v{{ plastered_version }}</h1>
-    <br>
-    <div id="nav-buttons">
-        <button class="btn primary" onclick="location.href='/scrape_form'">Scrape LFM</a>
-        <button class="btn primary" onclick="location.href='/search_form'">Manual Search</a>
-        <button class="btn primary" onclick="location.href='/run_history'">Search History</a>
-    </div>
-    <br>
-    <br>
-    <div id="help-buttons">
-        <button class="btn info" onclick="location.href='/config'">View Config</a>
-        <button class="btn info" hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
-    </div>
-    <div id="help-modal-here"></div>
-</body>
-</html>
+{% extends "base_template.html" %}
+{% block title %}Plastered v{{ plastered_version }}{% endblock %}
+{% block content %}
+<h1>Plastered v{{ plastered_version }}</h1>
+<p>Pull your Last.fm recommendations and snatch matching releases from RED — or run an ad-hoc search on demand.</p>
+<p>
+    <a href="/scrape_form" role="button">Scrape LFM</a>
+    <a href="/adhoc" role="button">Ad-hoc Search</a>
+    <a href="/run_history" role="button">Search History</a>
+    <a href="/config" role="button">View Config</a>
+</p>
+<button hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+<div id="help-modal-here"></div>
+{% endblock %}

@@ -1,18 +1,21 @@
 import logging
 from datetime import UTC, datetime
-from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from pydantic import ValidationError
 
 from plastered.actions import scrape_action, show_config_action
-from plastered.actions.api_actions import inspect_run_action, manual_search_action, run_history_action
-from plastered.api.api_models import RunHistoryListResponse
+from plastered.actions.api_actions import adhoc_result_action, inspect_run_action, run_history_action
+from plastered.api.adhoc_helpers import schedule_adhoc_search
+from plastered.api.api_models import (
+    AdhocSearchRequest,
+    AdhocSearchResult,
+    AdhocSearchSubmittedResponse,
+    RunHistoryListResponse,
+)
 from plastered.api.constants import SUB_CONF_NAMES, TEMPLATES, RouterPrefix
 from plastered.api.fastapi_dependencies import SessionDep
-from plastered.db.db_models import SearchRecord, Status
-from plastered.db.db_utils import add_record
+from plastered.db.db_models import Status
 from plastered.models import EntityType
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,45 +59,36 @@ async def show_config_endpoint(request: Request, sub_conf: str | None = None) ->
     return JSONResponse(content=conf_dict)
 
 
-# /api/submit_search_form
-@plastered_api_router.post("/submit_search_form")
-async def submit_search_form_endpoint(
-    session: SessionDep,
-    background_tasks: BackgroundTasks,
-    request: Request,
-    entity: Annotated[str, Form()],
-    artist: Annotated[str, Form()],
-    is_track: Annotated[bool, Form()],
-    mbid: str | None = Form(None),  # noqa: FAST002
-) -> RedirectResponse:
-    model_inst = SearchRecord(
-        is_manual=True,
-        artist=artist,
-        entity=entity,
-        submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
-        entity_type=EntityType.TRACK if is_track else EntityType.ALBUM,
-        status=Status.IN_PROGRESS,
-    )
-    try:
-        db_initial_result = SearchRecord.model_validate(model_inst)
-    except ValidationError as ex:  # pragma: no cover
-        msg = f"Bad SearchRecord model provided. Failed validation with following errors: {ex.errors()}"
-        _LOGGER.error(msg, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from ex
-    _LOGGER.debug(f"POST {request.url.path} {entity=} {artist=} {is_track=} {mbid=}")
-    add_record(session=session, model_inst=db_initial_result)
-    if (search_id := db_initial_result.id) is None:  # pragma: no cover
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unable to create search record")
-    background_tasks.add_task(
-        func=manual_search_action,
+# /api/adhoc_search  (JSON REST entry point for the ad-hoc release search flow)
+@plastered_api_router.post("/adhoc_search", status_code=status.HTTP_202_ACCEPTED)
+async def adhoc_search_endpoint(
+    session: SessionDep, background_tasks: BackgroundTasks, request: Request, adhoc_request: AdhocSearchRequest
+) -> AdhocSearchSubmittedResponse:
+    """
+    Accepts an ad-hoc release search request (artist + one of release/track, all other fields optional, plus optional
+    per-request config overrides), kicks the search off in the background, and returns the new search id. Poll
+    `/api/adhoc_result?search_id=<id>` for the matched release(s) and any snatch information.
+    """
+    search_id = schedule_adhoc_search(
+        session=session,
+        background_tasks=background_tasks,
         release_searcher=request.state.lifespan_singleton.release_searcher,
-        search_id=search_id,
-        mbid=mbid,  # type: ignore[call-arg]
+        req=adhoc_request,
     )
-    # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
-    return RedirectResponse(
-        url=f"{request.url.path}?submitted_search_id={search_id}", status_code=status.HTTP_303_SEE_OTHER
+    return AdhocSearchSubmittedResponse(
+        search_id=search_id, status=Status.IN_PROGRESS, result_url=f"/api/adhoc_result?search_id={search_id}"
     )
+
+
+# /api/adhoc_result?search_id=<int>
+@plastered_api_router.get("/adhoc_result")
+async def adhoc_result_endpoint(session: SessionDep, search_id: int) -> AdhocSearchResult:
+    """Returns the matched release(s) + snatch information for an ad-hoc search once it has completed."""
+    if (result := adhoc_result_action(search_id=search_id, session=session)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."
+        )
+    return result
 
 
 # /api/scrape?snatch=<false|true>&rec_type=<album|track|None>

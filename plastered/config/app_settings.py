@@ -74,6 +74,33 @@ class FormatPreference(RedFormat):
         return self
 
 
+class RedSearchOverrides(BaseModel):
+    """
+    Per-request overrides for the ad-hoc release search flow. Every field is optional; any field left unset falls back
+    to the corresponding value from the user's `red` config. These let an ad-hoc API request tune the RED search /
+    snatch behavior (`red.format_preferences`, `red.search`, `red.snatches`) without mutating the global config or
+    touching the shared, throttled API clients.
+
+    Note: `snatch_directory` is intentionally NOT overridable — the download location is a server-side concern and must
+    not be settable by a client.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", title="red_search_overrides")
+    # red.format_preferences
+    format_preferences: list[FormatPreference] | None = Field(default=None)
+    # red.search
+    use_release_type: bool | None = Field(default=None)
+    use_first_release_year: bool | None = Field(default=None)
+    use_record_label: bool | None = Field(default=None)
+    use_catalog_number: bool | None = Field(default=None)
+    # red.snatches
+    snatch: bool | None = Field(default=None)
+    max_size_gb: float | None = Field(default=None, ge=0.02, le=100.0)
+    skip_prior_snatches: bool | None = Field(default=None)
+    use_fl_tokens: bool | None = Field(default=None)
+    min_allowed_ratio: float | None = Field(default=None)
+
+
 def _default_red_search_config() -> SearchConfig:  # pragma: no cover
     return SearchConfig()
 
@@ -203,6 +230,36 @@ class AppSettings(BaseSettings):
 
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
+
+    def with_red_overrides(self, overrides: "RedSearchOverrides | None") -> "AppSettings":
+        """
+        Returns a copy of these settings with the provided ad-hoc `RedSearchOverrides` merged onto the `red.search`,
+        `red.snatches`, and `red.format_preferences` settings. Returns `self` unchanged when `overrides` is `None` or
+        carries no set fields. Only the search/snatch parameters change — the shared, throttled API clients are never
+        rebuilt, so all per-API rate-limit invariants are preserved.
+        """
+        if overrides is None:
+            return self
+        search_updates = {
+            "use_release_type": overrides.use_release_type,
+            "use_first_release_year": overrides.use_first_release_year,
+            "use_record_label": overrides.use_record_label,
+            "use_catalog_number": overrides.use_catalog_number,
+        }
+        search = self.red.search.model_copy(update={k: v for k, v in search_updates.items() if v is not None})
+        snatch_updates = {
+            "snatch_recs": overrides.snatch,
+            "max_size_gb": overrides.max_size_gb,
+            "skip_prior_snatches": overrides.skip_prior_snatches,
+            "use_fl_tokens": overrides.use_fl_tokens,
+            "min_allowed_ratio": overrides.min_allowed_ratio,
+        }
+        snatches = self.red.snatches.model_copy(update={k: v for k, v in snatch_updates.items() if v is not None})
+        red_updates: dict[str, Any] = {"search": search, "snatches": snatches}
+        if overrides.format_preferences is not None:
+            red_updates["format_preferences"] = overrides.format_preferences
+        red = self.red.model_copy(update=red_updates)
+        return self.model_copy(update={"red": red})
 
     def is_cache_enabled(self, cache_type: str) -> bool:
         if cache_type == "scraper":

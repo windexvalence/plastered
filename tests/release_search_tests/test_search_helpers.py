@@ -9,8 +9,8 @@ from sqlmodel import Session
 
 from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import SearchRecord, Status, SkipReason
+from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.manual_search_models import ManualSearch
 from plastered.models.red_models import RedFormat, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
@@ -417,7 +417,7 @@ def test_get_search_items_to_snatch_hit_size_limit(
 
 def test_get_search_items_to_snatch_manual_run(valid_app_settings: AppSettings) -> None:
     search_state = SearchState(app_settings=valid_app_settings)
-    mock_si = SearchItem(initial_info=ManualSearch(entity_type=rt.ALBUM, artist="fake", entity="faker"))
+    mock_si = SearchItem(initial_info=AdhocSearch(artist="fake", release="faker"))
     search_state._manual_search_item_to_snatch = mock_si
     actual = search_state.get_search_items_to_snatch(manual_run=True)
     assert isinstance(actual, list)
@@ -591,3 +591,52 @@ def test_search_item_release_name(
             len(mock_lfm_rec_get_human_readable_track_str_method.mock_calls)
             == expected_get_human_readable_entity_str_call_cnt
         )
+
+
+def test_post_mbid_required_fields_skipped_for_adhoc(valid_app_settings: AppSettings) -> None:
+    """Ad-hoc searches never get dropped for a missing optional field, even when the config marks fields required."""
+    state = SearchState(app_settings=valid_app_settings)
+    si = SearchItem(initial_info=AdhocSearch(artist="a", release="b"))
+    assert state.post_mbid_reso_rule_has_required_fields(si=si) is None
+
+
+def test_add_search_item_to_snatch_adhoc_sets_pending_match(valid_app_settings: AppSettings) -> None:
+    state = SearchState(app_settings=valid_app_settings)
+    si = SearchItem(initial_info=AdhocSearch(artist="a", release="b"))
+    si.torrent_entry = MagicMock(spec=TorrentEntry)
+    state.add_search_item_to_snatch(si=si)
+    assert state._manual_search_item_to_snatch is si
+
+
+def test_record_matched_result_row_writes_matched(valid_app_settings: AppSettings) -> None:
+    state = SearchState(app_settings=valid_app_settings)
+    si = SearchItem(initial_info=AdhocSearch(artist="a", release="b"))
+    mock_te = MagicMock(spec=TorrentEntry)
+    mock_te.torrent_id = 420
+    mock_te.get_permalink_url.return_value = "https://red/x"
+    mock_te.get_size.return_value = 1.0
+    mock_te.media, mock_te.format, mock_te.encoding = "WEB", "FLAC", "Lossless"
+    si.torrent_entry = mock_te
+    si.search_id = 7
+    state._manual_search_item_to_snatch = si
+    with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
+        state.record_matched_result_row()
+    mock_set_result_status.assert_called_once()
+    kwargs = mock_set_result_status.call_args.kwargs
+    assert kwargs["status"] == Status.MATCHED
+    assert kwargs["search_id"] == 7
+    assert kwargs["status_model_kwargs"]["tid"] == 420
+
+
+@pytest.mark.parametrize("has_pending_item_without_te", [False, True])
+def test_record_matched_result_row_noop_when_no_match(
+    valid_app_settings: AppSettings, has_pending_item_without_te: bool
+) -> None:
+    state = SearchState(app_settings=valid_app_settings)
+    if has_pending_item_without_te:
+        si = SearchItem(initial_info=AdhocSearch(artist="a", release="b"))
+        si.torrent_entry = None
+        state._manual_search_item_to_snatch = si
+    with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
+        state.record_matched_result_row()
+    mock_set_result_status.assert_not_called()

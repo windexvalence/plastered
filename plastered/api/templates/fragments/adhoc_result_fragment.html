@@ -1,0 +1,51 @@
+{#
+  Ad-hoc search result fragment. Rendered into #adhoc-result.
+  While the search is still in progress it re-requests itself (HTMX polling) every 2s; once a terminal status is
+  reached it renders the matched release(s) + any snatch info and stops polling.
+#}
+<div id="adhoc-result-inner"
+    {% if not result or not result.is_complete %}
+        hx-get="/adhoc_result?search_id={{ search_id }}"
+        hx-target="#adhoc-result"
+        hx-swap="innerHTML"
+        hx-trigger="load delay:2s"
+    {% endif %}>
+
+    {% if not result or not result.is_complete %}
+        <p aria-busy="true">Searching RED for matching release(s)… <small>(search id {{ search_id }})</small></p>
+    {% else %}
+        {% set record = result.searchrecord %}
+        <h3>Result for "{{ record.entity }}" by {{ record.artist }}</h3>
+
+        {% if result.grabbed %}
+            <p><strong>✅ Matched and downloaded the top result.</strong></p>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>RED torrent</td><td><a href="https://redacted.sh/torrents.php?torrentid={{ result.grabbed.tid }}" target="_blank">{{ result.grabbed.tid }}</a></td></tr>
+                <tr><td>Freeleech token used</td><td>{{ "yes" if result.grabbed.fl_token_used else "no" }}</td></tr>
+                <tr><td>Saved .torrent to</td><td><code>{{ result.grabbed.snatch_path }}</code></td></tr>
+            </table>
+        {% elif result.matched %}
+            <p><strong>🎯 Matched a release (no download was requested).</strong></p>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>RED torrent</td><td><a href="{{ result.matched.red_permalink }}" target="_blank">{{ result.matched.tid }}</a></td></tr>
+                <tr><td>Format</td><td><code>{{ result.matched.media }} / {{ result.matched.format }} / {{ result.matched.encoding }}</code></td></tr>
+                <tr><td>Size (GB)</td><td>{{ "%.2f"|format(result.matched.size_gb) if result.matched.size_gb is not none else "?" }}</td></tr>
+                <tr><td>Matched MBID</td><td><code>{{ result.matched.matched_mbid or "—" }}</code></td></tr>
+            </table>
+        {% elif result.failed %}
+            <p><strong>❌ Search failed.</strong></p>
+            <table>
+                <tr><th>Field</th><th>Value</th></tr>
+                <tr><td>Reason</td><td>{{ result.failed.fail_reason }}</td></tr>
+                <tr><td>RED permalink</td><td>{{ result.failed.red_permalink or "—" }}</td></tr>
+            </table>
+        {% elif result.skipped %}
+            <p><strong>🚫 No matching release was snatched.</strong></p>
+            <p>Reason: {{ result.skipped.skip_reason }}</p>
+        {% else %}
+            <p>No matching release found.</p>
+        {% endif %}
+    {% endif %}
+</div>
