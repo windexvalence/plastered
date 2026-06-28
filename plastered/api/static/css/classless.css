@@ -41,11 +41,34 @@ html { font-size: 13px; }
 
 body {
     margin: 0;
-    background: var(--bg);
     color: var(--text);
     font-family: var(--font);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+
+    /*
+     * Dark wood background. The first layer points at /static/images/wood.jpg — drop in any wood texture you have the
+     * rights to use at that path and it will be used automatically. If no such file exists the layer is simply skipped
+     * and the original CSS-only wood-grain fallback below shows through.
+     */
+    background-color: var(--bg);
+    background-image:
+        url("/static/images/wood.jpg"),
+        /* faint vertical "plank" seams */
+        repeating-linear-gradient(90deg,
+            rgba(0, 0, 0, 0.22) 0, rgba(0, 0, 0, 0.22) 1px,
+            rgba(255, 255, 255, 0.018) 1px, rgba(255, 255, 255, 0.018) 3px,
+            rgba(0, 0, 0, 0) 3px, rgba(0, 0, 0, 0) 168px),
+        /* fine horizontal grain */
+        repeating-linear-gradient(0deg,
+            rgba(0, 0, 0, 0.06) 0, rgba(0, 0, 0, 0.06) 2px,
+            rgba(120, 80, 50, 0.05) 2px, rgba(120, 80, 50, 0.05) 6px),
+        /* warm base tone, lighter at the top */
+        linear-gradient(180deg, #2c2017 0%, #20160f 55%, #160f0a 100%);
+    background-size: cover, auto, auto, cover;
+    background-position: center top;
+    background-repeat: no-repeat, repeat, repeat, no-repeat;
+    background-attachment: fixed;
 }
 
 /* ----------------------------------------------------------------- header / nav */
