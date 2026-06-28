@@ -473,19 +473,6 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     return scraper_cache_path
 
 
-# @pytest.fixture(scope="function")
-# def valid_app_settings(valid_config_filepath: str, valid_config_envvar, cache_root_dir_path: Path) -> AppSettings:
-#     """
-#     Function-scoped valid AppConfig fixture, with cache root dir
-#     overridden to use the session-scoped tmp cache root dir fixture
-#     """
-#     valid_path = Path(valid_config_filepath)
-#     with patch("plastered.config.app_settings.get_config_path", return_value=valid_path):
-#         app_settings = get_app_settings(src_yaml_filepath=valid_path)
-#         # app_config._base_cache_directory_path = str(cache_root_dir_path)
-#         yield app_settings
-
-
 @pytest.fixture(scope="function")
 def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
     """
@@ -525,55 +512,6 @@ def mock_red_snatch_get_side_effect() -> bytes:
     resp_mock.content.return_value = bytes("fakebytes", encoding="utf-8")
     resp_mock.status_code.return_value = 200
     return resp_mock
-
-
-# -def mock_lfm_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
-# -    """
-# -    Helper test function to pass as the value for any
-# -    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
-# -    This ensures that the subsequent response's json() value is properly overridden with the desired data.
-# -    """
-# -    url_val = kwargs["url"]
-# -    # resp_mock = MagicMock(name="json")
-# -    mock_json = None
-# -    if "album.getinfo" in url_val:
-# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
-# -    elif "track.getinfo" in url_val:
-# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
-# -    resp_mock = MagicMock()
-# -    resp_mock.json.return_value = mock_json
-# -    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
-# -    type(resp_mock).status_code = PropertyMock(return_value=200)
-# -    return resp_mock
-
-
-# -def mock_red_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
-# -    """
-# -    Helper test function to pass as the value for any
-# -    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
-# -    This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
-# -    """
-# -    _red_actions_to_mock_json = {
-# -        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
-# -        "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
-# -        "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
-# -        "user_torrents": {
-# -            "snatched": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH),
-# -            "seeding": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH),
-# -        },
-# -    }
-# -    url_val = kwargs["url"]
-# -    m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
-# -    red_action = m.groups()[0]
-# -    if red_action == "user_torrents":
-# -        key = "snatched" if "type=snatched" in kwargs["url"] else "seeding"
-# -        mock_json = _red_actions_to_mock_json[red_action][key]
-# -    else:
-# -        mock_json = _red_actions_to_mock_json[red_action]
-# -    resp_mock = MagicMock(name="json")
-# -    resp_mock.json.return_value = mock_json
-# -    resp_mock.status_code.return_value = 200
-# -    return resp_mock
 
 
 def mock_mb_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
