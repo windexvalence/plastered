@@ -9,8 +9,6 @@ RED_JSON_RESPONSE_KEY: Final[str] = "response"
 CACHE_DIRNAME: Final[str] = "cache"
 DB_FILENAME: Final[str] = "plastered.db"
 SUMMARIES_DIRNAME: Final[str] = "summaries"
-API_CACHE_DIRNAME: Final[str] = "api_cache"
-SCRAPER_CACHE_DIRNAME: Final[str] = "scraper_cache"
 CACHE_TYPE_API: Final[str] = "api"
 CACHE_TYPE_SCRAPER: Final[str] = "scraper"
 
@@ -53,10 +51,6 @@ RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
 STORAGE_UNIT_IDENTIFIERS: Final[frozenset[str]] = frozenset(["B", "MB", "GB"])
 BYTES_IN_GB: Final[float] = 1e9
 BYTES_IN_MB: Final[float] = 1e6
-
-# TODO: consolidate these
-STATS_TRACK_REC_NONE: Final[str] = "N/A"
-STATS_NONE: Final[str] = "N/A"
 
 # User-specified params to optionally append to the RED browse requests
 RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"

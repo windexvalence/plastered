@@ -12,8 +12,6 @@ from fastapi.templating import Jinja2Templates
 @unique
 class RouterPrefix(StrEnum):
     API = "/api"
-    SNATCH = "/snatch"
-    WEB = "/"
 
 
 _API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api"))

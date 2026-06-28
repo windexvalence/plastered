@@ -263,7 +263,6 @@ class _RedUserInitialStats(BaseModel):
     downloaded: GigaBytesValue
     buffer: GigaBytesValue
     ratio: Annotated[float, BeforeValidator(coerce_to_float_value)]
-    initial_available_fl_tokens: int = 0
 
 
 # User information (for more refined RED search filtering)
@@ -290,13 +289,7 @@ class RedUserDetails(BaseModel):
 
     @cached_property
     def _initial_stats(self) -> _RedUserInitialStats:
-        return _RedUserInitialStats(
-            initial_available_fl_tokens=(
-                self.user_profile_json["personal"].get("giftTokens", 0)
-                + self.user_profile_json["personal"].get("meritTokens", 0)
-            ),
-            **self.user_profile_json["stats"],
-        )
+        return _RedUserInitialStats(**self.user_profile_json["stats"])
 
     @cached_property
     def _snatched_torrents_dict(self) -> dict[tuple[str, str], PriorSnatch]:
@@ -342,14 +335,6 @@ class RedUserDetails(BaseModel):
         Returns False otherwise.
         """
         return tid in self._snatched_tids
-
-    def get_initial_available_fl_tokens(self) -> int:  # pragma: no cover
-        """
-        Returns the initial number of FL tokens available at the start of a scrape run.
-        Passed to the RedApiClient instance for the client to maintain a relatively accurate accounting of FL tokens
-        if FL usage is enabled.
-        """
-        return self._initial_stats.initial_available_fl_tokens
 
     def calculate_max_download_allowed_gb(self, min_allowed_ratio: float) -> float:
         """
