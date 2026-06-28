@@ -21,6 +21,16 @@ def test_favicon_endpoint(client: TestClient) -> None:
     assert "image" in resp.headers["content-type"]
 
 
+def test_wood_background_asset_served(client: TestClient) -> None:
+    """The wood background image is served and the stylesheet references it via a valid url() (guards the bare-string regression)."""
+    img = client.get("/static/images/wood.jpg")
+    assert img.status_code == 200
+    assert "image" in img.headers["content-type"]
+    css = client.get("/static/css/classless.css")
+    assert css.status_code == 200
+    assert 'url("/static/images/wood.jpg")' in css.text
+
+
 def test_root_endpoint(client: TestClient) -> None:
     expected_version = get_project_version()
     resp = client.get("/")

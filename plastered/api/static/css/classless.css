@@ -47,8 +47,7 @@ body {
     -webkit-font-smoothing: antialiased;
 
     /*
-     * Dark wood background. The first layer points at /static/images/wood.jpg — drop in any wood texture you have the
-     * rights to use at that path and it will be used automatically. If no such file exists the layer is simply skipped
+     * Dark wood background. The first layer points at /static/images/wood.jpg . If no such file exists the layer is simply skipped
      * and the original CSS-only wood-grain fallback below shows through.
      */
     background-color: var(--bg);
