@@ -78,3 +78,15 @@ def test_base_filter_add_skipped_snatch(
         mock_set_result_status.assert_called_once_with(
             search_id=mock_si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": skip_reason}
         )
+
+
+def test_add_skipped_snatch_logs_real_filter_classname(
+    make_album_search_item: pytest.FixtureRequest, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The skip log must name the actual filter class, not its metaclass (regression for `cls.__class__.__name__`)."""
+    mock_si = make_album_search_item(is_lfm_rec=False)
+    with patch("plastered.release_search.processors.filters.set_result_status"):
+        with caplog.at_level("DEBUG", logger="plastered.release_search.processors.filters"):
+            PostRedSearchFilter._add_skipped_snatch(si=mock_si, skip_reason=SkipReason.NO_MATCH_FOUND)
+    assert "filtered by PostRedSearchFilter" in caplog.text
+    assert "ABCMeta" not in caplog.text

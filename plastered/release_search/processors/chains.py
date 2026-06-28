@@ -77,6 +77,6 @@ class SearchItemProcessorChain:
     def _apply_chain(self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]) -> SearchItem | None:
         for processor in chain:
             if not processor.process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red):
-                _LOGGER.debug(f"si for {si.initial_info} filtered by: {processor.__class__.__name__}")
+                _LOGGER.debug(f"si for {si.initial_info} filtered by: {processor.__name__}")
                 return None
         return si

@@ -33,7 +33,8 @@ def create_mock_processor() -> Callable[[bool], MagicMock]:
         def _side_effect(**kwargs: Any) -> bool:
             return kwargs.get("si") if processable else None
 
-        mock_proc = MagicMock()
+        # Real processors are classes, so the chain reads `processor.__name__` for skip logging; give the mock one.
+        mock_proc = MagicMock(__name__="MockProcessor")
         mock_proc.process.side_effect = _side_effect
         return mock_proc
 
