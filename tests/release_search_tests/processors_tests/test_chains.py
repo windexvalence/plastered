@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,7 +11,9 @@ from plastered.release_search.processors.bases import SearchItemProcessor
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
 
-@pytest.fixture(scope="session")
+# Function-scoped: each test gets a fresh chain so no test can leak mutated state (e.g. a patched
+# album_chain/track_chain) into another.
+@pytest.fixture(scope="function")
 def chain_instance() -> SearchItemProcessorChain:
     mock_lfm_client = MagicMock(spec=LFMAPIClient)
     mock_mb_client = MagicMock(spec=MusicBrainzAPIClient)
@@ -81,24 +83,19 @@ def test_apply_chain_all_processable(
         if entity_type == EntityType.ALBUM
         else make_track_search_item(is_lfm_rec=True)
     )
-    mock_album_chain = [create_mock_processor(True) for _ in range(len(chain_instance.album_chain))]
-    mock_track_chain = [create_mock_processor(True) for _ in range(len(chain_instance.track_chain))]
-    with (
-        patch.object(chain_instance, "album_chain", return_value=mock_album_chain),
-        patch.object(chain_instance, "track_chain", return_value=mock_track_chain),
-    ):
-        mock_chain = chain_instance.album_chain if entity_type == EntityType.ALBUM else chain_instance.track_chain
-        actual = chain_instance._apply_chain(si=mock_si, chain=mock_chain)
-        assert isinstance(actual, SearchItem)
-        assert actual is mock_si
-        for mock_processor in mock_chain:
-            mock_processor.process.assert_called_once_with(
-                si=mock_si,
-                state=chain_instance.search_state,
-                lfm=chain_instance.lfm,
-                mb=chain_instance.mb,
-                red=chain_instance.red,
-            )
+    real_chain = chain_instance.album_chain if entity_type == EntityType.ALBUM else chain_instance.track_chain
+    # `_apply_chain` takes the chain as an argument, so pass a mock chain directly rather than patching the instance.
+    mock_chain = tuple(create_mock_processor(True) for _ in range(len(real_chain)))
+    actual = chain_instance._apply_chain(si=mock_si, chain=mock_chain)
+    assert actual is mock_si
+    for mock_processor in mock_chain:
+        mock_processor.process.assert_called_once_with(
+            si=mock_si,
+            state=chain_instance.search_state,
+            lfm=chain_instance.lfm,
+            mb=chain_instance.mb,
+            red=chain_instance.red,
+        )
 
 
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])
@@ -115,42 +112,31 @@ def test_apply_chain_not_processable(
         if entity_type == EntityType.ALBUM
         else make_track_search_item(is_lfm_rec=True)
     )
-    mock_album_chain = [create_mock_processor(False) for _ in range(len(chain_instance.album_chain))]
-    mock_track_chain = [create_mock_processor(False) for _ in range(len(chain_instance.track_chain))]
-    type(chain_instance).album_chain = PropertyMock(return_value=mock_album_chain)
-    type(chain_instance).track_chain = PropertyMock(return_value=mock_track_chain)
-    mock_chain = mock_album_chain if entity_type == EntityType.ALBUM else mock_track_chain
+    real_chain = chain_instance.album_chain if entity_type == EntityType.ALBUM else chain_instance.track_chain
+    # `_apply_chain` takes the chain as an argument, so pass a mock chain directly rather than patching the instance.
+    mock_chain = tuple(create_mock_processor(False) for _ in range(len(real_chain)))
     actual = chain_instance._apply_chain(si=mock_si, chain=mock_chain)
     assert actual is None
-    for i, mock_processor in enumerate(mock_chain):
-        if i == 0:
-            mock_processor.process.assert_called_once_with(
-                si=mock_si,
-                state=chain_instance.search_state,
-                lfm=chain_instance.lfm,
-                mb=chain_instance.mb,
-                red=chain_instance.red,
-            )
-        else:
-            (
-                mock_processor.assert_not_called(),
-                f"No SearchItemProcessors should be called after the first returns a `None` value.",
-            )
+    # The first processor returns None, short-circuiting the chain; none after it should be invoked.
+    mock_chain[0].process.assert_called_once_with(
+        si=mock_si,
+        state=chain_instance.search_state,
+        lfm=chain_instance.lfm,
+        mb=chain_instance.mb,
+        red=chain_instance.red,
+    )
+    for mock_processor in mock_chain[1:]:
+        mock_processor.process.assert_not_called()
 
 
-def test_track_chain_creates_search_record_before_filtering() -> None:
+def test_track_chain_creates_search_record_before_filtering(chain_instance: SearchItemProcessorChain) -> None:
     """
     Regression: AttachSearchIdModifier must run before PostResolveOriginTrackFilter in the track chain. Otherwise a
     track that fails origin-release resolution is dropped with search_id=None, crashing the run via set_result_status.
-
-    Reads the baked dataclass field default rather than an instance attribute, since other tests in this module
-    permanently replace `track_chain` on the class with a PropertyMock (no teardown).
     """
-    import dataclasses
-
     from plastered.release_search.processors.filters import PostResolveOriginTrackFilter
     from plastered.release_search.processors.modifiers import AttachSearchIdModifier
 
-    track_chain = next(f.default for f in dataclasses.fields(SearchItemProcessorChain) if f.name == "track_chain")
+    track_chain = chain_instance.track_chain
     assert track_chain[0] is AttachSearchIdModifier
     assert track_chain.index(AttachSearchIdModifier) < track_chain.index(PostResolveOriginTrackFilter)
