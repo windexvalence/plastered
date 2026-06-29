@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, and_, desc, select
 
 from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse
-from plastered.db.db_models import Failed, Grabbed, Matched, SearchRecord, Skipped, Status
+from plastered.db.db_models import Failed, Grabbed, Matched, SearchProgress, SearchRecord, Skipped, Status
 from plastered.db.db_utils import get_result_by_id
 
 if TYPE_CHECKING:
@@ -118,6 +118,7 @@ def adhoc_result_action(search_id: int, session: Session) -> AdhocSearchResult |
         grabbed=session.exec(select(Grabbed).where(Grabbed.g_result_id == search_id)).first(),
         failed=session.exec(select(Failed).where(Failed.f_result_id == search_id)).first(),
         skipped=session.exec(select(Skipped).where(Skipped.s_result_id == search_id)).first(),
+        progress=session.exec(select(SearchProgress).where(SearchProgress.sp_result_id == search_id)).first(),
     )
 
 

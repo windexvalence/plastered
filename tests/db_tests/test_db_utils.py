@@ -2,10 +2,11 @@ from typing import Any
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
-from sqlmodel import Field, Session, SQLModel, select
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel.pool import StaticPool
 
-from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status
-from plastered.db.db_utils import add_record, get_result_by_id, set_result_status
+from plastered.db.db_models import FailReason, SearchProgress, SearchRecord, SkipReason, Status
+from plastered.db.db_utils import add_record, get_result_by_id, set_result_status, upsert_search_progress
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
 
@@ -98,3 +99,20 @@ def test_get_result_by_id(
                 mock_sesh_ctx.assert_not_called()
             else:
                 mock_sesh_ctx.assert_called_once()
+
+
+def test_upsert_search_progress_inserts_then_updates() -> None:
+    """`upsert_search_progress` keeps a single progress row per search id, updating it as the search advances."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        upsert_search_progress(search_id=69, current_pref=1, total_prefs=3, current_pref_label="FLAC / Lossless / CD")
+        upsert_search_progress(
+            search_id=69, current_pref=2, total_prefs=3, current_pref_label="FLAC / 24bit Lossless / SACD"
+        )
+    with Session(engine) as session:
+        rows = list(session.exec(select(SearchProgress).where(SearchProgress.sp_result_id == 69)).all())
+    assert len(rows) == 1
+    assert rows[0].current_pref == 2
+    assert rows[0].total_prefs == 3
+    assert "SACD" in rows[0].current_pref_label

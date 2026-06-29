@@ -471,6 +471,33 @@ class TestSearchRedReleaseByPrefsModifier:
         assert actual.torrent_entry is matched_te
         assert actual.above_max_size_te_found is False
 
+    def test_search_red_release_by_prefs_modifier_records_progress_for_adhoc(
+        self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
+    ) -> None:
+        """For an ad-hoc search with a search_id, progress is recorded per format preference for the live UI."""
+        mock_red_prefs = [
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD),
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD),
+        ]
+        type(mock_process_kwargs["state"]).red_format_preferences = PropertyMock(return_value=mock_red_prefs)
+        mock_si = make_album_search_item(is_lfm_rec=False)  # ad-hoc
+        mock_si.search_id = 7
+        with (
+            patch.object(
+                SearchRedReleaseByPrefsModifier,
+                "_torrent_match_from_browse_results",
+                return_value=TorrentMatch(torrent_entry=None, above_max_size_found=False),
+            ),
+            patch("plastered.release_search.processors.modifiers.upsert_search_progress") as mock_progress,
+        ):
+            SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        assert mock_progress.call_count == len(mock_red_prefs)
+        first_call = mock_progress.call_args_list[0].kwargs
+        assert first_call["search_id"] == 7
+        assert first_call["current_pref"] == 1
+        assert first_call["total_prefs"] == 2
+        assert "SACD" in first_call["current_pref_label"]
+
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_search_red_release_by_prefs_modifier_browse_exception_raised(
         self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool

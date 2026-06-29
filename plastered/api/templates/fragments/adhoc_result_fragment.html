@@ -12,7 +12,20 @@
     {% endif %}>
 
     {% if not result or not result.is_complete %}
-        <p aria-busy="true">Searching RED for matching release(s)… <small>(search id {{ search_id }})</small></p>
+        {% set progress = result.progress if result else None %}
+        <p>
+            Searching RED for matching release(s)… <small>(search id {{ search_id }})</small>
+            {% if progress and progress.total_prefs %}
+                <br>searching format preference: <strong>{{ progress.current_pref_label }}</strong> …
+                <small>({{ progress.current_pref }}/{{ progress.total_prefs }})</small>
+            {% endif %}
+        </p>
+        {% if progress and progress.total_prefs %}
+            <progress value="{{ progress.current_pref }}" max="{{ progress.total_prefs }}"></progress>
+        {% else %}
+            {# Resolution stage (LFM/MusicBrainz) before the RED preference loop: show an indeterminate bar. #}
+            <progress></progress>
+        {% endif %}
     {% else %}
         {% set record = result.searchrecord %}
         <h3>Result for "{{ record.entity }}" by {{ record.artist }}</h3>

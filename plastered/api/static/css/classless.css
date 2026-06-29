@@ -333,6 +333,25 @@ summary:hover { color: var(--link-hover); }
 
 @keyframes plastered-spin { to { transform: rotate(360deg); } }
 
+/* Small themed progress bar (ad-hoc search progress). Works determinate (value+max) or indeterminate (no value). */
+progress {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: 0.6rem;
+    margin: 0.4rem 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-2);
+    overflow: hidden;
+}
+
+progress::-webkit-progress-bar { background: var(--bg-2); }
+progress::-webkit-progress-value { background: var(--accent); }
+progress::-moz-progress-bar { background: var(--accent); }
+
 /* Home landing action buttons laid out as a responsive row. */
 #home-actions {
     display: flex;

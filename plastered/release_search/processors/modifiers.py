@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import SearchRecord
-from plastered.db.db_utils import add_record
+from plastered.db.db_utils import add_record, upsert_search_progress
 from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease, TorrentMatch
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
@@ -104,7 +104,17 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     ) -> SearchItem:
         matched_entry: TorrentEntry | None = None
         above_max_size_found = False
-        for pref in state.red_format_preferences:
+        total_prefs = len(state.red_format_preferences)
+        for index, pref in enumerate(state.red_format_preferences):
+            # For an ad-hoc search, record which format preference is being searched so the result UI can show a
+            # live progress bar as it polls. Guarded on search_id so it's a no-op outside the persisted ad-hoc flow.
+            if si.is_manual and si.search_id is not None:
+                upsert_search_progress(
+                    search_id=si.search_id,
+                    current_pref=index + 1,
+                    total_prefs=total_prefs,
+                    current_pref_label=f"{pref.get_format()} / {pref.get_encoding().replace('+', ' ')} / {pref.get_media()}",
+                )
             # Build params outside the try so a browse failure's log line can't hit an unassigned `req_params`.
             req_params = state.create_red_browse_params(red_format=pref, si=si)
             try:

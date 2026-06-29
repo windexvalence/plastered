@@ -11,6 +11,7 @@ from plastered.db.db_models import (
     FailReason,
     Grabbed,
     Matched,
+    SearchProgress,
     SearchRecord,
     Skipped,
     SkipReason,
@@ -25,7 +26,7 @@ _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true
 
 
 def db_startup() -> None:
-    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed, Matched]
+    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed, Matched, SearchProgress]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(get_engine())
@@ -80,6 +81,24 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
         session.add(status_record)
         session.commit()
         _LOGGER.debug(f"Finished updating status of SearchRecord record (id={search_id}) ...")
+
+
+def upsert_search_progress(search_id: int | None, current_pref: int, total_prefs: int, current_pref_label: str) -> None:
+    """
+    Records (insert-or-update) the live progress of an in-flight ad-hoc search — the RED format preference currently
+    being searched — so the result UI can render a progress bar. A no-op when `search_id` is None.
+    """
+    if search_id is None:  # pragma: no cover
+        return
+    with Session(get_engine()) as session:
+        progress = session.exec(select(SearchProgress).where(SearchProgress.sp_result_id == search_id)).first()
+        if progress is None:
+            progress = SearchProgress(sp_result_id=search_id)
+        progress.current_pref = current_pref
+        progress.total_prefs = total_prefs
+        progress.current_pref_label = current_pref_label
+        session.add(progress)
+        session.commit()
 
 
 def get_result_by_id(search_id: int | None, session: Session | None = None) -> SearchRecord:
