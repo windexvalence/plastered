@@ -1,0 +1,83 @@
+{#
+  Run-history results fragment: one expandable accordion row per run, plus pagination controls.
+  `page` is a RunHistoryPageResponse.
+#}
+<div id="run-history-list">
+    {% if page.items %}
+        <p><small>{{ page.total_count }} run(s) — page {{ page.page }} of {{ page.total_pages }}</small></p>
+
+        {% for item in page.items %}
+            {% set rec = item.searchrecord %}
+            <details data-persist-key="run-{{ rec.id }}">
+                <summary>
+                    {{ rec.submit_timestamp | format_timestamp }} &nbsp;·&nbsp;
+                    Artist: <strong>{{ rec.artist }}</strong> &nbsp;·&nbsp;
+                    Entity: <strong>{{ rec.entity }}</strong> &nbsp;·&nbsp;
+                    Status: <strong>{{ rec.status | status_label }}</strong>
+                </summary>
+
+                <table>
+                    <tr><th>Field</th><th>Value</th></tr>
+                    <tr><td>Search type</td><td>{{ "Ad-hoc" if rec.is_manual else "Scraper" }}</td></tr>
+                    <tr><td>Entity type</td><td>{{ rec.entity_type }}</td></tr>
+                    <tr><td>Artist</td><td>{{ rec.artist }}</td></tr>
+                    <tr><td>Entity</td><td>{{ rec.entity }}</td></tr>
+                    <tr><td>Submitted</td><td>{{ rec.submit_timestamp | format_timestamp }}</td></tr>
+                    <tr><td>Status</td><td>{{ rec.status | status_label }}</td></tr>
+                    {% if rec.media or rec.format or rec.encoding %}
+                        <tr><td>Media / Format / Encoding</td><td><code>{{ rec.media or "—" }} / {{ rec.format or "—" }} / {{ rec.encoding or "—" }}</code></td></tr>
+                    {% endif %}
+                </table>
+
+                {% if item.grabbed %}
+                    <p><strong>Snatched</strong></p>
+                    <table>
+                        <tr><th>Field</th><th>Value</th></tr>
+                        <tr><td>RED torrent</td><td><a href="https://redacted.sh/torrents.php?torrentid={{ item.grabbed.tid }}" target="_blank">{{ item.grabbed.tid }}</a></td></tr>
+                        <tr><td>Freeleech token used</td><td>{{ "yes" if item.grabbed.fl_token_used else "no" }}</td></tr>
+                        <tr><td>Saved .torrent to</td><td><code>{{ item.grabbed.snatch_path }}</code></td></tr>
+                    </table>
+                {% elif item.matched %}
+                    <p><strong>Matched release (not downloaded)</strong></p>
+                    <table>
+                        <tr><th>Field</th><th>Value</th></tr>
+                        <tr><td>RED torrent</td><td><a href="{{ item.matched.red_permalink }}" target="_blank">{{ item.matched.tid }}</a></td></tr>
+                        <tr><td>Format</td><td><code>{{ item.matched.media }} / {{ item.matched.format }} / {{ item.matched.encoding }}</code></td></tr>
+                        <tr><td>Size (GB)</td><td>{{ "%.2f"|format(item.matched.size_gb) if item.matched.size_gb is not none else "?" }}</td></tr>
+                        <tr><td>Matched MBID</td><td><code>{{ item.matched.matched_mbid or "—" }}</code></td></tr>
+                    </table>
+                {% elif item.failed %}
+                    <p><strong>Failed</strong></p>
+                    <table>
+                        <tr><th>Field</th><th>Value</th></tr>
+                        <tr><td>Reason</td><td>{{ item.failed.fail_reason }}</td></tr>
+                        <tr><td>RED permalink</td><td>{{ item.failed.red_permalink or "—" }}</td></tr>
+                        <tr><td>Matched MBID</td><td><code>{{ item.failed.matched_mbid or "—" }}</code></td></tr>
+                    </table>
+                {% elif item.skipped %}
+                    <p><strong>Skipped</strong> — {{ item.skipped.skip_reason }}</p>
+                {% else %}
+                    <p><em>In progress…</em></p>
+                {% endif %}
+            </details>
+        {% endfor %}
+
+        {# Pagination — preserve the active filters/sort across pages. #}
+        {% set filters = {} %}
+        {% if page.status_filter is not none %}{% set _ = filters.update({"status": page.status_filter.value}) %}{% endif %}
+        {% if page.query %}{% set _ = filters.update({"q": page.query}) %}{% endif %}
+        {% set _ = filters.update({"sort": "desc" if page.sort_desc else "asc"}) %}
+        {% if page.search_id is not none %}{% set _ = filters.update({"search_id": page.search_id}) %}{% endif %}
+        {% set filter_qs = filters | dict_to_query_params %}
+        <nav id="run-history-pagination">
+            {% if page.page > 1 %}
+                <button hx-get="/run_history_list?page={{ page.page - 1 }}&{{ filter_qs }}" hx-target="#run-history-list" hx-swap="innerHTML">← Prev</button>
+            {% endif %}
+            {% if page.page < page.total_pages %}
+                <button hx-get="/run_history_list?page={{ page.page + 1 }}&{{ filter_qs }}" hx-target="#run-history-list" hx-swap="innerHTML">Next →</button>
+            {% endif %}
+        </nav>
+    {% else %}
+        <p>No runs found.</p>
+    {% endif %}
+</div>

@@ -66,7 +66,22 @@ class RunHistoryItem(BaseModel):
     failed: Failed | None = Field(default=None)
     grabbed: Grabbed | None = Field(default=None)
     skipped: Skipped | None = Field(default=None)
+    matched: Matched | None = Field(default=None)
 
     @classmethod
     def from_sql_row(cls, row: Row) -> RunHistoryItem:
         return cls(**{k.lower(): v for k, v in row._asdict().items()})
+
+
+class RunHistoryPageResponse(BaseModel):
+    """A single page of run-history results for the HTML accordion view, newest-first by default."""
+
+    items: list[RunHistoryItem]
+    page: int
+    page_size: int
+    total_count: int
+    total_pages: int
+    status_filter: Status | None = Field(default=None)
+    query: str | None = Field(default=None)
+    sort_desc: bool = Field(default=True)
+    search_id: int | None = Field(default=None)

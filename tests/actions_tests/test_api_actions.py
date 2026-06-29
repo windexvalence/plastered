@@ -13,10 +13,11 @@ from plastered.actions.api_actions import (
     adhoc_snatch_action,
     inspect_run_action,
     run_history_action,
+    run_history_page_action,
 )
-from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse
+from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse, RunHistoryPageResponse
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Grabbed, Matched, SearchRecord, Status
+from plastered.db.db_models import Failed, FailReason, Grabbed, Matched, SearchRecord, SkipReason, Skipped, Status
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.red_models import RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
@@ -232,3 +233,86 @@ def test_inspect_run_action_match(non_empty_tables: Session, mock_search_result_
     actual = inspect_run_action(run_id=_MOCK_RECORD_ID, session=non_empty_tables)
     assert isinstance(actual, SearchRecord)
     assert actual is mock_search_result_instance
+
+
+@pytest.fixture(scope="function")
+def seeded_run_history(mock_session: Session) -> Session:
+    """Seeds 4 SearchRecords (one per terminal status) with distinct timestamps + status rows."""
+    base_ts = _MOCK_SINCE_TIMESTAMP
+    grabbed_rec = SearchRecord(
+        id=1, submit_timestamp=base_ts + 1, is_manual=True, entity_type=EntityType.ALBUM,
+        artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+    )
+    matched_rec = SearchRecord(
+        id=2, submit_timestamp=base_ts + 2, is_manual=True, entity_type=EntityType.ALBUM,
+        artist="Boards of Canada", entity="Geogaddi", status=Status.MATCHED,
+    )
+    skipped_rec = SearchRecord(
+        id=3, submit_timestamp=base_ts + 3, is_manual=False, entity_type=EntityType.TRACK,
+        artist="Autechre", entity="Gantz Graf", status=Status.SKIPPED,
+    )
+    failed_rec = SearchRecord(
+        id=4, submit_timestamp=base_ts + 4, is_manual=True, entity_type=EntityType.ALBUM,
+        artist="Squarepusher", entity="Feed Me Weird Things", status=Status.FAILED,
+    )
+    mock_session.add_all([grabbed_rec, matched_rec, skipped_rec, failed_rec])
+    mock_session.add_all([
+        Grabbed(g_result_id=1, fl_token_used=False, snatch_path="/d/1.torrent", tid=11),
+        Matched(m_result_id=2, tid=22, red_permalink="https://red/2", size_gb=1.0),
+        Skipped(s_result_id=3, skip_reason=SkipReason.NO_MATCH_FOUND),
+        Failed(f_result_id=4, fail_reason=FailReason.OTHER),
+    ])
+    mock_session.commit()
+    return mock_session
+
+
+def test_run_history_page_action_empty(empty_tables: Session) -> None:
+    actual = run_history_page_action(session=empty_tables)
+    assert isinstance(actual, RunHistoryPageResponse)
+    assert actual.items == [] and actual.total_count == 0 and actual.total_pages == 1
+
+
+def test_run_history_page_action_default_sort_newest_first(seeded_run_history: Session) -> None:
+    actual = run_history_page_action(session=seeded_run_history)
+    assert actual.total_count == 4
+    assert [item.searchrecord.id for item in actual.items] == [4, 3, 2, 1]  # newest submit_timestamp first
+    # The matched/grabbed/etc. status rows are attached per item.
+    grabbed_item = next(i for i in actual.items if i.searchrecord.id == 1)
+    assert grabbed_item.grabbed is not None and grabbed_item.grabbed.tid == 11
+    matched_item = next(i for i in actual.items if i.searchrecord.id == 2)
+    assert matched_item.matched is not None and matched_item.matched.tid == 22
+
+
+def test_run_history_page_action_sort_oldest_first(seeded_run_history: Session) -> None:
+    actual = run_history_page_action(session=seeded_run_history, sort_desc=False)
+    assert [item.searchrecord.id for item in actual.items] == [1, 2, 3, 4]
+
+
+def test_run_history_page_action_status_filter(seeded_run_history: Session) -> None:
+    actual = run_history_page_action(session=seeded_run_history, status_filter=Status.MATCHED)
+    assert actual.total_count == 1 and actual.items[0].searchrecord.id == 2
+
+
+def test_run_history_page_action_text_filter(seeded_run_history: Session) -> None:
+    by_artist = run_history_page_action(session=seeded_run_history, query="aphex")
+    assert [i.searchrecord.id for i in by_artist.items] == [1]
+    by_entity = run_history_page_action(session=seeded_run_history, query="geogaddi")
+    assert [i.searchrecord.id for i in by_entity.items] == [2]
+
+
+def test_run_history_page_action_search_id_filter(seeded_run_history: Session) -> None:
+    actual = run_history_page_action(session=seeded_run_history, search_id=3)
+    assert actual.total_count == 1 and actual.items[0].searchrecord.id == 3
+
+
+def test_run_history_page_action_pagination(seeded_run_history: Session) -> None:
+    page1 = run_history_page_action(session=seeded_run_history, page=1, page_size=2)
+    assert page1.total_count == 4 and page1.total_pages == 2
+    assert [i.searchrecord.id for i in page1.items] == [4, 3]
+    page2 = run_history_page_action(session=seeded_run_history, page=2, page_size=2)
+    assert [i.searchrecord.id for i in page2.items] == [2, 1]
+
+
+def test_run_history_page_action_clamps_page_and_size(seeded_run_history: Session) -> None:
+    actual = run_history_page_action(session=seeded_run_history, page=0, page_size=9999)
+    assert actual.page == 1 and actual.page_size == 50

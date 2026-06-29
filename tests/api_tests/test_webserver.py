@@ -5,7 +5,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
-from plastered.api.api_models import AdhocSearchResult
+from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryPageResponse
+from plastered.api.constants import _format_timestamp, _status_label
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import (
     Failed,
@@ -207,10 +208,87 @@ def test_scrape_form_endpoint(client: TestClient) -> None:
 
 
 def test_runs_page(client: TestClient) -> None:
-    with patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor:
-        resp = client.get("/run_history")
-        assert resp.status_code == 200
-        mock_template_response_constructor.assert_called_once()
+    # Render for real to validate run_history_page.html + its filter/sort controls.
+    resp = client.get("/run_history")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+    assert "Plastered Run History" in resp.text
+    assert 'id="run-history-controls"' in resp.text
+    assert 'id="run-history-list"' in resp.text
+
+
+def _run_history_page(items: list[RunHistoryItem], **kwargs: object) -> RunHistoryPageResponse:
+    defaults = dict(page=1, page_size=50, total_count=len(items), total_pages=1, sort_desc=True)
+    defaults.update(kwargs)
+    return RunHistoryPageResponse(items=items, **defaults)  # type: ignore[arg-type]
+
+
+def test_run_history_list_fragment_renders_accordion(client: TestClient) -> None:
+    """The fragment renders one accordion row per run with the summary line and a Next page control."""
+    items = [
+        RunHistoryItem(
+            searchrecord=SearchRecord(
+                id=1, submit_timestamp=1759680000, is_manual=True, entity_type=EntityType.ALBUM,
+                artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+            ),
+            grabbed=Grabbed(g_result_id=1, fl_token_used=True, snatch_path="/d/1.torrent", tid=11),
+        ),
+        RunHistoryItem(
+            searchrecord=SearchRecord(
+                id=2, submit_timestamp=1759680001, is_manual=False, entity_type=EntityType.TRACK,
+                artist="Autechre", entity="Gantz Graf", status=Status.SKIPPED,
+            ),
+            skipped=Skipped(s_result_id=2, skip_reason=SkipReason.NO_MATCH_FOUND),
+        ),
+    ]
+    page = _run_history_page(items, page=1, page_size=2, total_count=4, total_pages=2)
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page):
+        text = client.get("/run_history_list").text
+    assert "<details" in text
+    assert "Artist: <strong>Aphex Twin</strong>" in text
+    assert "Status: <strong>snatched</strong>" in text  # grabbed -> snatched label
+    assert "Status: <strong>skipped</strong>" in text
+    assert "Next →" in text  # page 1 of 2 -> Next control present
+
+
+def test_run_history_list_fragment_empty(client: TestClient) -> None:
+    page = _run_history_page([])
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page):
+        text = client.get("/run_history_list").text
+    assert "No runs found." in text
+
+
+def test_run_history_list_endpoint_passes_filters(client: TestClient) -> None:
+    page = _run_history_page([])
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page) as mock_action:
+        client.get("/run_history_list?page=3&status=grabbed&q=foo&sort=asc")
+    kwargs = mock_action.call_args.kwargs
+    assert kwargs["page"] == 3
+    assert kwargs["status_filter"] == Status.GRABBED
+    assert kwargs["query"] == "foo"
+    assert kwargs["sort_desc"] is False
+
+
+def test_run_history_list_endpoint_ignores_blank_and_invalid_status(client: TestClient) -> None:
+    page = _run_history_page([])
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page) as mock_action:
+        client.get("/run_history_list?status=&q=")
+    kwargs = mock_action.call_args.kwargs
+    assert kwargs["status_filter"] is None
+    assert kwargs["query"] is None
+
+
+def test_format_timestamp_filter() -> None:
+    assert _format_timestamp(None) == "—"
+    assert isinstance(_format_timestamp(1759680000), str) and len(_format_timestamp(1759680000)) == len("2025-01-01 00:00:00")
+
+
+def test_status_label_filter() -> None:
+    assert _status_label(None) == "unknown"
+    assert _status_label(Status.GRABBED) == "snatched"
+    assert _status_label(Status.MATCHED) == "found"
+    assert _status_label(Status.IN_PROGRESS) == "in progress"
+    assert _status_label("some-unmapped-value") == "some-unmapped-value"
 
 
 def test_user_details_page(client: TestClient) -> None:

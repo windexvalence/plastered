@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from math import ceil
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, and_, desc, select
+from sqlalchemy import func, or_
+from sqlmodel import Session, and_, asc, col, desc, select
 
-from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse
+from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse, RunHistoryPageResponse
 from plastered.db.db_models import Failed, Grabbed, Matched, SearchProgress, SearchRecord, Skipped, Status
 from plastered.db.db_utils import get_result_by_id
 
@@ -17,6 +19,7 @@ if TYPE_CHECKING:
     from plastered.release_search.release_searcher import ReleaseSearcher
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_RUN_HISTORY_PAGE_SIZE: int = 50
 
 
 def run_history_action(
@@ -61,6 +64,65 @@ def inspect_run_action(run_id: int, session: Session) -> SearchRecord | None:
     if result_rows:
         return result_rows[0]
     return None
+
+
+def _run_history_item_for_record(session: Session, record: SearchRecord) -> RunHistoryItem:
+    """Builds a `RunHistoryItem` for a single `SearchRecord`, attaching whichever status row(s) exist for it."""
+    search_id = record.id
+    return RunHistoryItem(
+        searchrecord=record,
+        grabbed=session.exec(select(Grabbed).where(Grabbed.g_result_id == search_id)).first(),
+        failed=session.exec(select(Failed).where(Failed.f_result_id == search_id)).first(),
+        skipped=session.exec(select(Skipped).where(Skipped.s_result_id == search_id)).first(),
+        matched=session.exec(select(Matched).where(Matched.m_result_id == search_id)).first(),
+    )
+
+
+def run_history_page_action(
+    session: Session,
+    page: int = 1,
+    page_size: int = _MAX_RUN_HISTORY_PAGE_SIZE,
+    status_filter: Status | None = None,
+    query: str | None = None,
+    sort_desc: bool = True,
+    search_id: int | None = None,
+) -> RunHistoryPageResponse:
+    """
+    Returns one page of run-history results for the HTML accordion view. Defaults: newest-first, <=50 per page. Supports
+    an optional status filter, a free-text filter over artist/entity, sort direction, and a specific search_id lookup.
+    """
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), _MAX_RUN_HISTORY_PAGE_SIZE)
+    conditions: list[Any] = []
+    if status_filter is not None:
+        conditions.append(SearchRecord.status == status_filter)
+    if search_id is not None:
+        conditions.append(SearchRecord.id == search_id)
+    if query:
+        like = f"%{query}%"
+        conditions.append(or_(col(SearchRecord.artist).ilike(like), col(SearchRecord.entity).ilike(like)))
+
+    count_stmt = select(func.count()).select_from(SearchRecord)
+    list_stmt = select(SearchRecord)
+    if conditions:
+        condition = and_(*conditions)
+        count_stmt = count_stmt.where(condition)
+        list_stmt = list_stmt.where(condition)
+
+    total_count = int(session.exec(count_stmt).one())
+    order_by = desc(SearchRecord.submit_timestamp) if sort_desc else asc(SearchRecord.submit_timestamp)
+    records = session.exec(list_stmt.order_by(order_by).offset((page - 1) * page_size).limit(page_size)).all()
+    return RunHistoryPageResponse(
+        items=[_run_history_item_for_record(session=session, record=record) for record in records],
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+        total_pages=max(1, ceil(total_count / page_size)),
+        status_filter=status_filter,
+        query=query,
+        sort_desc=sort_desc,
+        search_id=search_id,
+    )
 
 
 def adhoc_search_action(

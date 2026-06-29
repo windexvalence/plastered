@@ -2,9 +2,40 @@
 {% block title %}Plastered Run History{% endblock %}
 {% block content %}
 <h2>Plastered Run History</h2>
-{% if search_id is not none %}
-    <div id="run-history-list" hx-get="/api/run_history?search_id={{ search_id }}" hx-target="this" hx-trigger="load"></div>
-{% else %}
-    <div id="run-history-list" hx-get="/api/run_history" hx-target="this" hx-trigger="load"></div>
-{% endif %}
+
+{# Filter/sort controls. Any change re-loads the results fragment (resetting to page 1). #}
+<form id="run-history-controls"
+      hx-get="/run_history_list"
+      hx-target="#run-history-list"
+      hx-swap="innerHTML"
+      hx-trigger="submit, change, search">
+    <label for="q">Filter</label>
+    <input type="search" id="q" name="q" placeholder="artist or entity contains…">
+
+    <label for="status">Status</label>
+    <select id="status" name="status">
+        <option value="">Any</option>
+        <option value="grabbed">Snatched</option>
+        <option value="matched">Found (not downloaded)</option>
+        <option value="skipped">Skipped</option>
+        <option value="failed">Failed</option>
+        <option value="in_progress">In progress</option>
+    </select>
+
+    <label for="sort">Sort</label>
+    <select id="sort" name="sort">
+        <option value="desc">Newest first</option>
+        <option value="asc">Oldest first</option>
+    </select>
+
+    {% if search_id is not none %}<input type="hidden" name="search_id" value="{{ search_id }}">{% endif %}
+    <button type="submit">Apply</button>
+</form>
+
+{# Results container; loads the first page on render and is swapped by the controls/pagination. #}
+<div id="run-history-list"
+     hx-get="/run_history_list{% if search_id is not none %}?search_id={{ search_id }}{% endif %}"
+     hx-target="this"
+     hx-swap="innerHTML"
+     hx-trigger="load"></div>
 {% endblock %}

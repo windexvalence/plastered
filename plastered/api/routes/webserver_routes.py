@@ -6,10 +6,11 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
 
-from plastered.actions.api_actions import adhoc_result_action, adhoc_snatch_action
+from plastered.actions.api_actions import adhoc_result_action, adhoc_snatch_action, run_history_page_action
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
+from plastered.db.db_models import Status
 from plastered.models.types import RedReleaseType
 
 _LOGGER = logging.getLogger(__name__)
@@ -121,11 +122,35 @@ async def scrape_form_endpoint(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(request=request, name="scrape_form.html")
 
 
-# /run_history
+# /run_history  (page shell: filter/sort controls + a results container that loads the fragment below)
 @plastered_web_router.get("/run_history")
 async def runs_page(request: Request, search_id: int | None = None) -> HTMLResponse:
-    # TODO: have HTMX hit the /api/run_history endpoint following user setup
     return TEMPLATES.TemplateResponse(request=request, name="run_history_page.html", context={"search_id": search_id})
+
+
+# /run_history_list  (HTMX fragment: a single paginated page of run-history accordion rows)
+@plastered_web_router.get("/run_history_list")
+async def run_history_list_fragment(
+    session: SessionDep,
+    request: Request,
+    page: int = 1,
+    status: str | None = None,
+    q: str | None = None,
+    sort: str = "desc",
+    search_id: int | None = None,
+) -> HTMLResponse:
+    status_filter = Status(status) if status in {member.value for member in Status} else None
+    page_response = run_history_page_action(
+        session=session,
+        page=page,
+        status_filter=status_filter,
+        query=q or None,
+        sort_desc=(sort != "asc"),
+        search_id=search_id,
+    )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/run_history_list_fragment.html", context={"page": page_response}
+    )
 
 
 @plastered_web_router.get("/user_details")
