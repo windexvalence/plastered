@@ -118,6 +118,13 @@ body {
     color: #fff;
 }
 
+/* Red Help button pinned to the far right of the header bar (opens the help modal, like the home-page button). */
+#header-help-btn {
+    margin: 0;
+    padding: 0.3rem 0.9rem;
+    font-size: 0.95rem;
+}
+
 /* ----------------------------------------------------------------- layout */
 
 main {

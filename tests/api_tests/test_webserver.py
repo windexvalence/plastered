@@ -48,6 +48,17 @@ def test_root_endpoint(client: TestClient) -> None:
     assert resp.status_code == 200
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
     assert f"<title>Plastered v{expected_version}</title>" in resp.text
+    # Header Help button (from the base template) + the big home-page Help button both reference the help modal.
+    assert 'id="header-help-btn"' in resp.text
+    assert resp.text.count("/html/help_modal.html") >= 2
+
+
+def test_header_help_button_present_on_all_pages(client: TestClient) -> None:
+    """The shared header's red Help button (opening the help modal) appears on every base-template page."""
+    for path in ("/run_history", "/scrape_form", "/config"):
+        text = client.get(path).text
+        assert 'id="header-help-btn"' in text
+        assert "/html/help_modal.html" in text
 
 
 def test_show_config_endpoint(valid_app_settings: AppSettings, client: TestClient) -> None:
