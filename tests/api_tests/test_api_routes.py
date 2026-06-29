@@ -136,6 +136,29 @@ def test_adhoc_result_endpoint(client: TestClient, record_found: bool) -> None:
         assert resp.status_code == (200 if record_found else 404)
 
 
+@pytest.mark.parametrize("record_found", [True, False])
+def test_adhoc_snatch_endpoint(client: TestClient, record_found: bool) -> None:
+    mock_result = (
+        AdhocSearchResult(
+            searchrecord=SearchRecord(
+                id=69,
+                submit_timestamp=1759680000,
+                is_manual=True,
+                entity_type=EntityType.ALBUM,
+                artist="Fake Artist",
+                entity="Fake Album",
+                status=Status.GRABBED,
+            )
+        )
+        if record_found
+        else None
+    )
+    with patch("plastered.api.routes.api_routes.adhoc_snatch_action", return_value=mock_result) as mock_snatch:
+        resp = client.post("/api/adhoc_snatch?search_id=69")
+        assert resp.status_code == (200 if record_found else 404)
+        mock_snatch.assert_called_once()
+
+
 @pytest.mark.parametrize("snatch", [False, True])
 @pytest.mark.parametrize(
     "rec_type, expected_rt_cli_override_arg",

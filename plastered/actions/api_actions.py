@@ -85,6 +85,24 @@ def adhoc_search_action(
     return search_result.model_dump()
 
 
+def adhoc_snatch_action(
+    release_searcher: ReleaseSearcher, search_id: int, session: Session
+) -> AdhocSearchResult | None:
+    """
+    Snatch the release that was previously matched (but not downloaded) for an ad-hoc search-only run. Backs the
+    per-result "Download" button. Returns the refreshed `AdhocSearchResult`, or `None` if no record exists for the id.
+    A no-op (returns the current result) when the search already downloaded or has no matched release to snatch.
+    """
+    result = adhoc_result_action(search_id=search_id, session=session)
+    if result is None:
+        return None
+    if result.grabbed is not None or result.matched is None:
+        # Already downloaded, or nothing was matched to snatch — nothing to do.
+        return result
+    release_searcher.snatch_recorded_match(search_id=search_id, matched=result.matched)
+    return adhoc_result_action(search_id=search_id, session=session)
+
+
 def adhoc_result_action(search_id: int, session: Session) -> AdhocSearchResult | None:
     """
     Returns the current `AdhocSearchResult` for the given search id (the search record plus whichever status row has

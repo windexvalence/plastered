@@ -121,7 +121,7 @@ def _adhoc_result(status: Status, **status_rows: object) -> AdhocSearchResult:
                 Status.GRABBED,
                 grabbed=Grabbed(g_result_id=69, fl_token_used=False, snatch_path="/d/420.torrent", tid=420),
             ),
-            "downloaded",
+            "Downloaded the matched release",
         ),
         (
             _adhoc_result(Status.SKIPPED, skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND)),
@@ -136,6 +136,43 @@ def test_adhoc_result_fragment_renders(client: TestClient, result: AdhocSearchRe
         resp = client.get("/adhoc_result?search_id=69")
         assert resp.status_code == 200
         assert expected_snippet in resp.text
+
+
+def test_adhoc_result_fragment_matched_shows_download_button(client: TestClient) -> None:
+    """A search-only (MATCHED) result offers a per-result Download button; a downloaded (GRABBED) result does not."""
+    matched_result = _adhoc_result(
+        Status.MATCHED, matched=Matched(m_result_id=69, tid=420, red_permalink="https://red/x", size_gb=1.0)
+    )
+    grabbed_result = _adhoc_result(
+        Status.GRABBED, grabbed=Grabbed(g_result_id=69, fl_token_used=False, snatch_path="/d/420.torrent", tid=420)
+    )
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=matched_result):
+        matched_text = client.get("/adhoc_result?search_id=69").text
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=grabbed_result):
+        grabbed_text = client.get("/adhoc_result?search_id=69").text
+    assert 'hx-post="/adhoc_snatch"' in matched_text
+    assert "Download this release" in matched_text
+    assert "/adhoc_snatch" not in grabbed_text
+
+
+@pytest.mark.parametrize("record_found", [True, False])
+def test_adhoc_snatch_submit(client: TestClient, record_found: bool) -> None:
+    mock_result = (
+        _adhoc_result(
+            Status.GRABBED, grabbed=Grabbed(g_result_id=69, fl_token_used=False, snatch_path="/d/420.torrent", tid=420)
+        )
+        if record_found
+        else None
+    )
+    with (
+        patch("plastered.api.routes.webserver_routes.adhoc_snatch_action", return_value=mock_result) as mock_snatch,
+        patch.object(Jinja2Templates, "TemplateResponse") as mock_template_response_constructor,
+    ):
+        resp = client.post("/adhoc_snatch", data={"search_id": "69"})
+        assert resp.status_code == (200 if record_found else 404)
+        mock_snatch.assert_called_once()
+        if record_found:
+            mock_template_response_constructor.assert_called_once()
 
 
 def test_scrape_form_endpoint(client: TestClient) -> None:

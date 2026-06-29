@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
 
-from plastered.actions.api_actions import adhoc_result_action
+from plastered.actions.api_actions import adhoc_result_action, adhoc_snatch_action
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
@@ -90,6 +90,21 @@ async def adhoc_search_submit(
 @plastered_web_router.get("/adhoc_result")
 async def adhoc_result_fragment(session: SessionDep, request: Request, search_id: int) -> HTMLResponse:
     result = adhoc_result_action(search_id=search_id, session=session)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."
+        )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/adhoc_result_fragment.html", context={"search_id": search_id, "result": result}
+    )
+
+
+# POST /adhoc_snatch  (HTMX per-result "Download" button -> snatch the already-matched release, return the result fragment)
+@plastered_web_router.post("/adhoc_snatch")
+async def adhoc_snatch_submit(session: SessionDep, request: Request, search_id: Annotated[int, Form()]) -> HTMLResponse:
+    result = adhoc_snatch_action(
+        release_searcher=request.state.lifespan_singleton.release_searcher, search_id=search_id, session=session
+    )
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."

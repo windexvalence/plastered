@@ -18,7 +18,7 @@
         <h3>Result for "{{ record.entity }}" by {{ record.artist }}</h3>
 
         {% if result.grabbed %}
-            <p><strong>✅ Matched and downloaded the top result.</strong></p>
+            <p><strong>✅ Downloaded the matched release.</strong></p>
             <table>
                 <tr><th>Field</th><th>Value</th></tr>
                 <tr><td>RED torrent</td><td><a href="https://redacted.sh/torrents.php?torrentid={{ result.grabbed.tid }}" target="_blank">{{ result.grabbed.tid }}</a></td></tr>
@@ -34,6 +34,11 @@
                 <tr><td>Size (GB)</td><td>{{ "%.2f"|format(result.matched.size_gb) if result.matched.size_gb is not none else "?" }}</td></tr>
                 <tr><td>Matched MBID</td><td><code>{{ result.matched.matched_mbid or "—" }}</code></td></tr>
             </table>
+            {# Let the user download this reviewed match after the fact. Snatching is synchronous (one throttled RED request). #}
+            <form hx-post="/adhoc_snatch" hx-target="#adhoc-result" hx-swap="innerHTML" hx-disabled-elt="find button">
+                <input type="hidden" name="search_id" value="{{ search_id }}">
+                <button type="submit">⬇ Download this release</button>
+            </form>
         {% elif result.failed %}
             <p><strong>❌ Search failed.</strong></p>
             <table>

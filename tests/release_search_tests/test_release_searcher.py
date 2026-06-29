@@ -152,6 +152,51 @@ def test_adhoc_search(mock_kwargs: _MockRsKwargs, adhoc_search: AdhocSearch, sna
                 mock_snatch_matches_method.assert_not_called()
 
 
+@pytest.mark.parametrize("snatch_raises", [False, True])
+def test_snatch_recorded_match(mock_kwargs: _MockRsKwargs, snatch_raises: bool) -> None:
+    """Per-result Download: snatches the recorded tid and writes GRABBED on success or FAILED on error."""
+    from plastered.db.db_models import FailReason, Matched, Status
+
+    matched = Matched(
+        m_result_id=69,
+        tid=420,
+        red_permalink="https://red/x",
+        matched_mbid="mbid",
+        size_gb=1.0,
+        media="CD",
+        format="FLAC",
+        encoding="Lossless",
+    )
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        rs._red_snatch_client.tid_snatched_with_fl_token.return_value = False
+        if snatch_raises:
+            rs._red_snatch_client.snatch.side_effect = OSError("boom")
+        else:
+            rs._red_snatch_client.snatch.return_value = b"torrent-bytes"
+        with (
+            patch("plastered.release_search.release_searcher.set_result_status") as mock_set_status,
+            patch("plastered.release_search.release_searcher.Path.write_bytes") as mock_write_bytes,
+            # On failure, simulate a partial .torrent artifact so the cleanup (os.remove) branch is exercised.
+            patch("plastered.release_search.release_searcher.os.path.exists", return_value=snatch_raises),
+            patch("plastered.release_search.release_searcher.os.remove") as mock_remove,
+        ):
+            rs.snatch_recorded_match(search_id=69, matched=matched)
+
+        rs._red_snatch_client.snatch.assert_called_once_with(tid="420", can_use_token=False)
+        mock_set_status.assert_called_once()
+        status_kwarg = mock_set_status.call_args.kwargs["status"]
+        model_kwargs = mock_set_status.call_args.kwargs["status_model_kwargs"]
+        if snatch_raises:
+            assert status_kwarg == Status.FAILED
+            assert model_kwargs["fail_reason"] == FailReason.FILE_ERROR
+            mock_write_bytes.assert_not_called()
+            mock_remove.assert_called_once()
+        else:
+            assert status_kwarg == Status.GRABBED
+            assert model_kwargs["tid"] == 420
+            mock_write_bytes.assert_called_once_with(b"torrent-bytes")
+
+
 @pytest.mark.parametrize(
     "ent_to_cnt",
     [

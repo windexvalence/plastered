@@ -5,7 +5,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from plastered.actions import scrape_action, show_config_action
-from plastered.actions.api_actions import adhoc_result_action, inspect_run_action, run_history_action
+from plastered.actions.api_actions import (
+    adhoc_result_action,
+    adhoc_snatch_action,
+    inspect_run_action,
+    run_history_action,
+)
 from plastered.api.adhoc_helpers import schedule_adhoc_search
 from plastered.api.api_models import (
     AdhocSearchRequest,
@@ -85,6 +90,20 @@ async def adhoc_search_endpoint(
 async def adhoc_result_endpoint(session: SessionDep, search_id: int) -> AdhocSearchResult:
     """Returns the matched release(s) + snatch information for an ad-hoc search once it has completed."""
     if (result := adhoc_result_action(search_id=search_id, session=session)) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."
+        )
+    return result
+
+
+# /api/adhoc_snatch?search_id=<int>  (download an already-matched release from a search-only run)
+@plastered_api_router.post("/adhoc_snatch")
+async def adhoc_snatch_endpoint(session: SessionDep, request: Request, search_id: int) -> AdhocSearchResult:
+    """Snatches the release previously matched (but not downloaded) for an ad-hoc search, and returns the updated result."""
+    result = adhoc_snatch_action(
+        release_searcher=request.state.lifespan_singleton.release_searcher, search_id=search_id, session=session
+    )
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No ad-hoc search record matching search_id={search_id}."
         )

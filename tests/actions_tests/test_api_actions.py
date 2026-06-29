@@ -10,12 +10,13 @@ from sqlmodel.pool import StaticPool
 from plastered.actions.api_actions import (
     adhoc_result_action,
     adhoc_search_action,
+    adhoc_snatch_action,
     inspect_run_action,
     run_history_action,
 )
 from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Matched, SearchRecord, Status
+from plastered.db.db_models import Grabbed, Matched, SearchRecord, Status
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.red_models import RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
@@ -160,6 +161,64 @@ def test_adhoc_result_action_with_match(mock_session: Session) -> None:
     assert actual.is_complete is True
     assert actual.matched is not None and actual.matched.tid == _MOCK_RECORD_TID
     assert actual.grabbed is None and actual.failed is None and actual.skipped is None
+
+
+def test_adhoc_snatch_action_no_record(empty_tables: Session) -> None:
+    """Returns None (and snatches nothing) when no record exists for the id."""
+    mock_release_searcher = MagicMock(spec=ReleaseSearcher)
+    assert adhoc_snatch_action(mock_release_searcher, _MOCK_RECORD_ID, empty_tables) is None
+    mock_release_searcher.snatch_recorded_match.assert_not_called()
+
+
+def test_adhoc_snatch_action_snatches_recorded_match(mock_session: Session) -> None:
+    """Snatches the recorded match and returns the refreshed result when the search matched but didn't download."""
+    record = SearchRecord(
+        id=_MOCK_RECORD_ID,
+        submit_timestamp=_MOCK_SINCE_TIMESTAMP,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Fake Artist",
+        entity="Fake Album",
+        status=Status.MATCHED,
+    )
+    matched = Matched(m_result_id=_MOCK_RECORD_ID, tid=_MOCK_RECORD_TID, red_permalink="https://red/x", size_gb=1.0)
+    mock_session.add(record)
+    mock_session.add(matched)
+    mock_session.commit()
+    mock_release_searcher = MagicMock(spec=ReleaseSearcher)
+
+    actual = adhoc_snatch_action(mock_release_searcher, _MOCK_RECORD_ID, mock_session)
+
+    assert isinstance(actual, AdhocSearchResult)
+    mock_release_searcher.snatch_recorded_match.assert_called_once()
+    call_kwargs = mock_release_searcher.snatch_recorded_match.call_args.kwargs
+    assert call_kwargs["search_id"] == _MOCK_RECORD_ID
+    assert call_kwargs["matched"].tid == _MOCK_RECORD_TID
+
+
+def test_adhoc_snatch_action_noop_when_already_grabbed(mock_session: Session) -> None:
+    """A no-op (no snatch) when the search already downloaded."""
+    record = SearchRecord(
+        id=_MOCK_RECORD_ID,
+        submit_timestamp=_MOCK_SINCE_TIMESTAMP,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Fake Artist",
+        entity="Fake Album",
+        status=Status.GRABBED,
+    )
+    grabbed = Grabbed(
+        g_result_id=_MOCK_RECORD_ID, fl_token_used=False, snatch_path="/d/420.torrent", tid=_MOCK_RECORD_TID
+    )
+    mock_session.add(record)
+    mock_session.add(grabbed)
+    mock_session.commit()
+    mock_release_searcher = MagicMock(spec=ReleaseSearcher)
+
+    actual = adhoc_snatch_action(mock_release_searcher, _MOCK_RECORD_ID, mock_session)
+
+    assert isinstance(actual, AdhocSearchResult) and actual.grabbed is not None
+    mock_release_searcher.snatch_recorded_match.assert_not_called()
 
 
 def test_inspect_run_action_empty_table(empty_tables: Session) -> None:

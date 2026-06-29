@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+from plastered.db.db_models import FailReason, Status
+from plastered.db.db_utils import set_result_status
 from plastered.models import AdhocSearch, CacheType, EntityType, LFMRec, RedUserDetails, SearchItem
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.search_helpers import SearchState
@@ -14,6 +18,7 @@ from plastered.utils.log_utils import CONSOLE, SPINNER
 
 if TYPE_CHECKING:
     from plastered.config.app_settings import AppSettings, RedSearchOverrides
+    from plastered.db.db_models import Matched
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,6 +104,51 @@ class ReleaseSearcher:
             snatcher.snatch_matches(manual_run=True)
         else:
             search_state.record_matched_result_row()
+
+    def snatch_recorded_match(self, search_id: int, matched: Matched) -> None:
+        """
+        Snatch a single, already-matched release that was recorded (status `MATCHED`) by a search-only ad-hoc run.
+
+        This backs the per-result "Download" action: the user reviewed the match and chose to download it after the
+        fact, so we snatch exactly that torrent (by its recorded tid) without re-running the search. Writes a `GRABBED`
+        row on success or a `FAILED` row otherwise. Goes through the shared, throttled `RedSnatchAPIClient`, so the RED
+        rate-limit invariant is preserved.
+        """
+        if matched.tid is None:  # pragma: no cover
+            raise ReleaseSearcherException(f"Matched result for search_id={search_id} has no tid to snatch.")
+        out_filepath = Path(os.path.join(self._app_settings.red.snatches.snatch_directory, f"{matched.tid}.torrent"))
+        exc_name: str | None = None
+        _LOGGER.debug(f"Snatching recorded match tid={matched.tid} to {out_filepath} ...")
+        try:
+            binary_contents = self._red_snatch_client.snatch(tid=str(matched.tid), can_use_token=False)
+            out_filepath.write_bytes(binary_contents)
+        except Exception as ex:
+            if os.path.exists(out_filepath):
+                os.remove(out_filepath)
+            _LOGGER.error(f"Failed to snatch recorded match tid={matched.tid}: ", exc_info=True)
+            exc_name = ex.__class__.__name__
+        if exc_name is not None:
+            fail_reason = (
+                FailReason(exc_name)
+                if exc_name in (FailReason.RED_API_REQUEST_ERROR, FailReason.FILE_ERROR)
+                else FailReason.OTHER
+            )
+            set_result_status(
+                search_id=search_id,
+                status=Status.FAILED,
+                status_model_kwargs={
+                    "red_permalink": matched.red_permalink,
+                    "matched_mbid": matched.matched_mbid,
+                    "fail_reason": fail_reason,
+                },
+            )
+            return
+        fl_token_used = self._red_snatch_client.tid_snatched_with_fl_token(tid=matched.tid)
+        set_result_status(
+            search_id=search_id,
+            status=Status.GRABBED,
+            status_model_kwargs={"fl_token_used": fl_token_used, "snatch_path": str(out_filepath), "tid": matched.tid},
+        )
 
     def _new_search_state_and_snatcher(
         self, app_settings: AppSettings | None = None, enable_snatches: bool | None = None
