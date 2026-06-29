@@ -139,6 +139,34 @@ class Matched(SQLModel, table=True):
     encoding: str | None = Field(default=None)
 
 
+class ScraperRunStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ScraperRun(SQLModel, table=True):
+    """
+    Represents a single LFM-recommendations scraper run (one invocation: scrape pages, then search/snatch each rec).
+    Holds the run's options, live progress (stage + processed/total recs), and a summary. The individual per-rec
+    `SearchRecord`s a run produces are associated by their `submit_timestamp` falling within the run's window.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    submit_timestamp: int
+    finished_timestamp: int | None = Field(default=None)
+    snatch_enabled: bool
+    rec_types: str  # comma-joined EntityType values, e.g. "album,track"
+    status: ScraperRunStatus = Field(default=ScraperRunStatus.IN_PROGRESS)
+    # Live progress.
+    stage: str | None = Field(default=None)  # "scraping" | "searching"
+    progress_current: int | None = Field(default=None)
+    progress_total: int | None = Field(default=None)
+    # Summary, populated once the run completes.
+    total_recs: int | None = Field(default=None)
+    error: str | None = Field(default=None)
+
+
 class SearchProgress(SQLModel, table=True):
     """
     Live progress for an in-flight ad-hoc search: which RED format preference is currently being searched. There is at

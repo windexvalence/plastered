@@ -1,0 +1,28 @@
+{% extends "base_template.html" %}
+{% block title %}Plastered — LFM Recommendations Scraper{% endblock %}
+{% block content %}
+<h2>Last.fm Recommendations Scraper</h2>
+<p>
+    Scrape your Last.fm album/track recommendations and search RED for matches. Optionally download the top match for
+    each recommendation. Options below mirror the CLI <code>scrape</code> command.
+</p>
+
+<form hx-post="/lfm_scraper_run" hx-target="#scraper-status" hx-swap="innerHTML">
+    <label for="rec_type">Recommendation type</label>
+    <select id="rec_type" name="rec_type">
+        <option value="">All (per config)</option>
+        <option value="album">Albums only</option>
+        <option value="track">Tracks only</option>
+    </select>
+
+    <label>
+        <input type="checkbox" name="snatch" value="true"> Download matched releases
+    </label>
+
+    <button type="submit">Start scrape</button>
+</form>
+
+<div id="scraper-status">
+    <p><em>Start a scrape to see its progress here.</em></p>
+</div>
+{% endblock %}

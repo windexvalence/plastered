@@ -10,7 +10,7 @@ from sqlalchemy import func, or_
 from sqlmodel import Session, and_, asc, col, desc, select
 
 from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse, RunHistoryPageResponse
-from plastered.db.db_models import Failed, Grabbed, Matched, SearchProgress, SearchRecord, Skipped, Status
+from plastered.db.db_models import Failed, Grabbed, Matched, ScraperRun, SearchProgress, SearchRecord, Skipped, Status
 from plastered.db.db_utils import get_result_by_id
 
 if TYPE_CHECKING:
@@ -64,6 +64,11 @@ def inspect_run_action(run_id: int, session: Session) -> SearchRecord | None:
     if result_rows:
         return result_rows[0]
     return None
+
+
+def get_scraper_run_action(run_id: int, session: Session) -> ScraperRun | None:
+    """Returns the `ScraperRun` for `run_id` (used by the scraper-run progress UI), or `None` if it does not exist."""
+    return session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).first()
 
 
 def _run_history_item_for_record(session: Session, record: SearchRecord) -> RunHistoryItem:

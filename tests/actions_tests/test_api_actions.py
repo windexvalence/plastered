@@ -11,6 +11,7 @@ from plastered.actions.api_actions import (
     adhoc_result_action,
     adhoc_search_action,
     adhoc_snatch_action,
+    get_scraper_run_action,
     inspect_run_action,
     run_history_action,
     run_history_page_action,
@@ -316,3 +317,13 @@ def test_run_history_page_action_pagination(seeded_run_history: Session) -> None
 def test_run_history_page_action_clamps_page_and_size(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history, page=0, page_size=9999)
     assert actual.page == 1 and actual.page_size == 50
+
+
+def test_get_scraper_run_action(mock_session: Session) -> None:
+    from plastered.db.db_models import ScraperRun
+
+    run = ScraperRun(id=5, submit_timestamp=_MOCK_SINCE_TIMESTAMP, snatch_enabled=True, rec_types="album,track")
+    mock_session.add(run)
+    mock_session.commit()
+    assert get_scraper_run_action(run_id=5, session=mock_session).id == 5
+    assert get_scraper_run_action(run_id=999, session=mock_session) is None

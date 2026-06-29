@@ -125,6 +125,27 @@ def test_search_for_recs(mock_kwargs: _MockRsKwargs, ent_to_recs: dict[et, list[
             mock_snatch_matches_method.assert_called_once()
 
 
+def test_search_for_recs_with_snatch_override_and_progress_callback(mock_kwargs: _MockRsKwargs) -> None:
+    """search_for_recs honors a snatch override and threads the progress callback to the processor chain."""
+
+    def _callback() -> None:
+        return None
+
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with (
+            patch.object(rs, "_apply_si_processor_chain") as mock_apply,
+            patch.object(Snatcher, "snatch_matches") as mock_snatch,
+        ):
+            rs.search_for_recs(
+                {et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)]},
+                snatch_override=True,
+                progress_callback=_callback,
+            )
+            mock_apply.assert_called_once()
+            assert mock_apply.call_args.kwargs["progress_callback"] is _callback
+            mock_snatch.assert_called_once()
+
+
 @pytest.mark.parametrize("snatch_enabled", [True, False])
 @pytest.mark.parametrize(
     "adhoc_search",

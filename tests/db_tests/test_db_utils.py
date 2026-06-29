@@ -116,3 +116,22 @@ def test_upsert_search_progress_inserts_then_updates() -> None:
     assert rows[0].current_pref == 2
     assert rows[0].total_prefs == 3
     assert "SACD" in rows[0].current_pref_label
+
+
+def test_create_and_update_and_get_scraper_run() -> None:
+    """create_scraper_run inserts an IN_PROGRESS run; update_scraper_run mutates fields by id."""
+    from plastered.db.db_models import ScraperRun, ScraperRunStatus
+    from plastered.db.db_utils import create_scraper_run, update_scraper_run
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        run_id = create_scraper_run(snatch_enabled=True, rec_types=["album", "track"], submit_timestamp=1759680000)
+        update_scraper_run(run_id=run_id, stage="searching", progress_current=2, progress_total=5)
+        update_scraper_run(run_id=run_id, status=ScraperRunStatus.COMPLETED, total_recs=5)
+    with Session(engine) as session:
+        run = session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).one()
+    assert run.snatch_enabled is True
+    assert run.rec_types == "album,track"
+    assert run.stage == "searching" and run.progress_current == 2 and run.progress_total == 5
+    assert run.status == ScraperRunStatus.COMPLETED and run.total_recs == 5

@@ -1,0 +1,38 @@
+{#
+  LFM scraper-run status fragment. Rendered into #scraper-status. Polls itself every 2s while the run is in progress,
+  showing the current stage + a progress bar; once terminal it renders the run summary and stops polling.
+  `run` is a ScraperRun.
+#}
+<div id="scraper-status-inner"
+    {% if run.status == "in_progress" %}
+        hx-get="/lfm_scraper_status?run_id={{ run.id }}"
+        hx-target="#scraper-status"
+        hx-swap="innerHTML"
+        hx-trigger="load delay:2s"
+    {% endif %}>
+
+    {% if run.status == "in_progress" %}
+        {% if run.stage == "searching" and run.progress_total %}
+            <p>Searching RED for matches… processing recommendation
+                <strong>{{ run.progress_current }}</strong> of <strong>{{ run.progress_total }}</strong>
+                <small>(scraper run {{ run.id }})</small>
+            </p>
+            <progress value="{{ run.progress_current }}" max="{{ run.progress_total }}"></progress>
+        {% else %}
+            <p aria-busy="true">Scraping Last.fm recommendations… <small>(scraper run {{ run.id }})</small></p>
+            <progress></progress>
+        {% endif %}
+    {% elif run.status == "completed" %}
+        <p><strong>✅ Scrape complete.</strong></p>
+        <table>
+            <tr><th>Field</th><th>Value</th></tr>
+            <tr><td>Recommendations processed</td><td>{{ run.total_recs if run.total_recs is not none else "?" }}</td></tr>
+            <tr><td>Recommendation types</td><td><code>{{ run.rec_types }}</code></td></tr>
+            <tr><td>Downloads</td><td>{{ "enabled" if run.snatch_enabled else "disabled" }}</td></tr>
+        </table>
+        <p><a href="/run_history" role="button">View in run history</a></p>
+    {% else %}
+        <p><strong>❌ Scrape failed.</strong></p>
+        <p><code>{{ run.error or "unknown error" }}</code></p>
+    {% endif %}
+</div>

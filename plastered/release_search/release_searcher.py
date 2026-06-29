@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -70,16 +71,26 @@ class ReleaseSearcher:
             if client:
                 client.close_client()
 
-    def search_for_recs(self, entity_to_recs_list: dict[EntityType, list[LFMRec]]) -> None:
+    def search_for_recs(
+        self,
+        entity_to_recs_list: dict[EntityType, list[LFMRec]],
+        snatch_override: bool | None = None,
+        progress_callback: Callable[[], None] | None = None,
+    ) -> None:
         """
-        Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled.
+        Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled. `snatch_override`
+        overrides the configured snatch behavior for this run; `progress_callback` is invoked once per processed rec
+        (used by the scraper-run UI to report progress).
         """
-        search_state, snatcher = self._new_search_state_and_snatcher()
+        enable_snatches = self._enable_snatches if snatch_override is None else snatch_override
+        search_state, snatcher = self._new_search_state_and_snatcher(enable_snatches=enable_snatches)
         entity_to_si_list = {
             entity_type: [SearchItem(initial_info=rec) for rec in rec_list]
             for entity_type, rec_list in entity_to_recs_list.items()
         }
-        self._apply_si_processor_chain(entity_to_si_list=entity_to_si_list, search_state=search_state)
+        self._apply_si_processor_chain(
+            entity_to_si_list=entity_to_si_list, search_state=search_state, progress_callback=progress_callback
+        )
         snatcher.snatch_matches()
 
     def adhoc_search(
@@ -190,9 +201,12 @@ class ReleaseSearcher:
             search_state.set_red_user_details(red_user_details=red_user_details)
 
     def _apply_si_processor_chain(
-        self, entity_to_si_list: dict[EntityType, list[SearchItem]], search_state: SearchState
+        self,
+        entity_to_si_list: dict[EntityType, list[SearchItem]],
+        search_state: SearchState,
+        progress_callback: Callable[[], None] | None = None,
     ) -> list[SearchItem]:
         chain = SearchItemProcessorChain(
             lfm=self._lfm_client, mb=self._musicbrainz_client, red=self._red_client, search_state=search_state
         )
-        return chain.batch_process(entity_to_si_list=entity_to_si_list)
+        return chain.batch_process(entity_to_si_list=entity_to_si_list, progress_callback=progress_callback)

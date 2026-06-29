@@ -11,6 +11,7 @@ from plastered.db.db_models import (
     FailReason,
     Grabbed,
     Matched,
+    ScraperRun,
     SearchProgress,
     SearchRecord,
     Skipped,
@@ -26,7 +27,15 @@ _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true
 
 
 def db_startup() -> None:
-    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed, Matched, SearchProgress]
+    table_classes: list[type[SQLModel]] = [
+        SearchRecord,
+        Skipped,
+        Grabbed,
+        Failed,
+        Matched,
+        SearchProgress,
+        ScraperRun,
+    ]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(get_engine())
@@ -98,6 +107,32 @@ def upsert_search_progress(search_id: int | None, current_pref: int, total_prefs
         progress.total_prefs = total_prefs
         progress.current_pref_label = current_pref_label
         session.add(progress)
+        session.commit()
+
+
+def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:
+    """Creates an `IN_PROGRESS` ScraperRun row and returns its id."""
+    run = ScraperRun(
+        submit_timestamp=submit_timestamp, snatch_enabled=snatch_enabled, rec_types=",".join(rec_types)
+    )
+    with Session(get_engine()) as session:
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+    if run.id is None:  # pragma: no cover
+        raise MissingDatabaseRecordException(run.id)
+    return run.id
+
+
+def update_scraper_run(run_id: int, **fields: Any) -> None:
+    """Updates the given fields on the ScraperRun row identified by `run_id`."""
+    with Session(get_engine()) as session:
+        run = session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).first()
+        if run is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(run_id)
+        for field_name, value in fields.items():
+            setattr(run, field_name, value)
+        session.add(run)
         session.commit()
 
 

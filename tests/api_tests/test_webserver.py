@@ -13,6 +13,8 @@ from plastered.db.db_models import (
     FailReason,
     Grabbed,
     Matched,
+    ScraperRun,
+    ScraperRunStatus,
     SearchProgress,
     SearchRecord,
     Skipped,
@@ -55,7 +57,7 @@ def test_root_endpoint(client: TestClient) -> None:
 
 def test_header_help_button_present_on_all_pages(client: TestClient) -> None:
     """The shared header's red Help button (opening the help modal) appears on every base-template page."""
-    for path in ("/run_history", "/scrape_form", "/config"):
+    for path in ("/run_history", "/lfm_recommendations_scraper", "/config"):
         text = client.get(path).text
         assert 'id="header-help-btn"' in text
         assert "/html/help_modal.html" in text
@@ -212,10 +214,60 @@ def test_adhoc_snatch_submit(client: TestClient, record_found: bool) -> None:
             mock_template_response_constructor.assert_called_once()
 
 
-def test_scrape_form_endpoint(client: TestClient) -> None:
-    resp = client.get("/scrape_form")
+def test_lfm_scraper_page(client: TestClient) -> None:
+    # Render for real to validate lfm_scraper.html + its controls.
+    resp = client.get("/lfm_recommendations_scraper")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+    assert "Last.fm Recommendations Scraper" in resp.text
+    assert 'name="rec_type"' in resp.text and 'name="snatch"' in resp.text
+
+
+@pytest.mark.parametrize("form_data", [{}, {"rec_type": "album", "snatch": "true"}])
+def test_lfm_scraper_run_submit(client: TestClient, form_data: dict[str, str]) -> None:
+    """Submitting the scraper form creates a ScraperRun and returns the status fragment (background task stubbed)."""
+    with (
+        patch("plastered.api.routes.webserver_routes.create_scraper_run", return_value=7) as mock_create,
+        patch(
+            "plastered.api.routes.webserver_routes.get_scraper_run_action",
+            return_value=ScraperRun(id=7, submit_timestamp=1759680000, snatch_enabled=False, rec_types="album"),
+        ),
+    ):
+        resp = client.post("/lfm_scraper_run", data=form_data)
+        assert resp.status_code == 200
+        mock_create.assert_called_once()
+
+
+@pytest.mark.parametrize("found", [True, False])
+def test_lfm_scraper_status_fragment(client: TestClient, found: bool) -> None:
+    run = (
+        ScraperRun(
+            id=7, submit_timestamp=1759680000, snatch_enabled=True, rec_types="album,track",
+            status=ScraperRunStatus.IN_PROGRESS, stage="searching", progress_current=2, progress_total=5,
+        )
+        if found
+        else None
+    )
+    with patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=run):
+        resp = client.get("/lfm_scraper_status?run_id=7")
+        assert resp.status_code == (200 if found else 404)
+        if found:
+            assert "processing recommendation" in resp.text
+            assert '<progress value="2" max="5">' in resp.text
+
+
+@pytest.mark.parametrize(
+    "run, expected_snippet",
+    [
+        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=False, rec_types="album", status=ScraperRunStatus.IN_PROGRESS, stage="scraping"), "Scraping Last.fm"),
+        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=True, rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=12), "Scrape complete"),
+        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=False, rec_types="album", status=ScraperRunStatus.FAILED, error="boom"), "Scrape failed"),
+    ],
+)
+def test_lfm_scraper_status_fragment_renders_stages(client: TestClient, run: ScraperRun, expected_snippet: str) -> None:
+    with patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=run):
+        text = client.get("/lfm_scraper_status?run_id=1").text
+    assert expected_snippet in text
 
 
 def test_runs_page(client: TestClient) -> None:

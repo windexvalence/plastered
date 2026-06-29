@@ -129,6 +129,20 @@ def test_apply_chain_not_processable(
         mock_processor.process.assert_not_called()
 
 
+def test_batch_process_invokes_progress_callback_per_item(
+    chain_instance: SearchItemProcessorChain, make_album_search_item: pytest.FixtureRequest
+) -> None:
+    """batch_process calls the progress callback once per processed item (used by the scraper-run UI)."""
+    items = {
+        EntityType.ALBUM: [make_album_search_item(is_lfm_rec=True), make_album_search_item(is_lfm_rec=True)],
+        EntityType.TRACK: [],
+    }
+    callback = MagicMock()
+    with patch.object(chain_instance, "_apply_chain", return_value=None):
+        chain_instance.batch_process(entity_to_si_list=items, progress_callback=callback)
+    assert callback.call_count == 2
+
+
 def test_track_chain_creates_search_record_before_filtering(chain_instance: SearchItemProcessorChain) -> None:
     """
     Regression: AttachSearchIdModifier must run before PostResolveOriginTrackFilter in the track chain. Otherwise a

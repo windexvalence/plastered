@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -67,15 +68,25 @@ class SearchItemProcessorChain:
         ]
     )
 
-    def batch_process(self, entity_to_si_list: dict[EntityType, list[SearchItem]]) -> list[SearchItem]:
-        """Processes the list of `SearchItems` and returns the resulting list of processed `SearchItems`."""
+    def batch_process(
+        self,
+        entity_to_si_list: dict[EntityType, list[SearchItem]],
+        progress_callback: Callable[[], None] | None = None,
+    ) -> list[SearchItem]:
+        """
+        Processes the list of `SearchItems` and returns the resulting list of processed `SearchItems`. `progress_callback`,
+        if provided, is invoked once per item processed (used by the scraper run UI to report progress).
+        """
         entity_chains = {EntityType.ALBUM: self.album_chain, EntityType.TRACK: self.track_chain}
-        processed = [
-            self._apply_chain(si=si, chain=chain)
-            for entity_type, chain in entity_chains.items()
-            for si in entity_to_si_list.get(entity_type, [])
-        ]
-        return [si for si in processed if si is not None]
+        processed: list[SearchItem] = []
+        for entity_type, chain in entity_chains.items():
+            for si in entity_to_si_list.get(entity_type, []):
+                result = self._apply_chain(si=si, chain=chain)
+                if progress_callback is not None:
+                    progress_callback()
+                if result is not None:
+                    processed.append(result)
+        return processed
 
     def _apply_chain(self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]) -> SearchItem | None:
         for processor in chain:

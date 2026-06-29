@@ -1,17 +1,24 @@
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
 
-from plastered.actions.api_actions import adhoc_result_action, adhoc_snatch_action, run_history_page_action
+from plastered.actions.api_actions import (
+    adhoc_result_action,
+    adhoc_snatch_action,
+    get_scraper_run_action,
+    run_history_page_action,
+)
+from plastered.actions.common_actions import run_lfm_scraper
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
 from plastered.db.db_models import Status
-from plastered.models.types import RedReleaseType
+from plastered.db.db_utils import create_scraper_run
+from plastered.models.types import EntityType, RedReleaseType
 
 _LOGGER = logging.getLogger(__name__)
 plastered_web_router = APIRouter(prefix="")
@@ -115,11 +122,58 @@ async def adhoc_snatch_submit(session: SessionDep, request: Request, search_id: 
     )
 
 
-# /scrape_form
-@plastered_web_router.get("/scrape_form")
-async def scrape_form_endpoint(request: Request) -> HTMLResponse:
-    # TODO: have HTMX hit the /api/scrape endpoint following user setup
-    return TEMPLATES.TemplateResponse(request=request, name="scrape_form.html")
+# /lfm_recommendations_scraper  (page: scraper controls + a status container)
+@plastered_web_router.get("/lfm_recommendations_scraper")
+async def lfm_scraper_page(request: Request) -> HTMLResponse:
+    return TEMPLATES.TemplateResponse(request=request, name="lfm_scraper.html")
+
+
+# POST /lfm_scraper_run  (start a scrape in the background, return the polling status fragment)
+@plastered_web_router.post("/lfm_scraper_run")
+async def lfm_scraper_run_submit(
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    rec_type: Annotated[str | None, Form()] = None,
+    snatch: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    singleton = request.state.lifespan_singleton
+    app_settings = singleton.app_settings
+    rec_types_override = [EntityType(rec_type)] if rec_type in {member.value for member in EntityType} else None
+    effective_rec_types = (
+        [member.value for member in rec_types_override] if rec_types_override else app_settings.lfm.rec_types_to_scrape
+    )
+    run_id = create_scraper_run(
+        snatch_enabled=snatch,
+        rec_types=effective_rec_types,
+        submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
+    )
+    background_tasks.add_task(
+        func=run_lfm_scraper,
+        app_settings=app_settings,
+        release_searcher=singleton.release_searcher,
+        run_id=run_id,
+        rec_types_to_scrape_override=rec_types_override,
+        snatch_enabled=snatch,
+    )
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="fragments/lfm_scraper_status_fragment.html",
+        context={"run": get_scraper_run_action(run_id=run_id, session=session)},
+    )
+
+
+# GET /lfm_scraper_status?run_id=<int>  (HTMX polling fragment for an in-flight scrape)
+@plastered_web_router.get("/lfm_scraper_status")
+async def lfm_scraper_status_fragment(session: SessionDep, request: Request, run_id: int) -> HTMLResponse:
+    run = get_scraper_run_action(run_id=run_id, session=session)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}."
+        )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/lfm_scraper_status_fragment.html", context={"run": run}
+    )
 
 
 # /run_history  (page shell: filter/sort controls + a results container that loads the fragment below)
