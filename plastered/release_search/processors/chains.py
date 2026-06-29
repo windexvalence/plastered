@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,6 +20,8 @@ from plastered.release_search.processors.modifiers import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from plastered.models import SearchItem
     from plastered.release_search.processors.bases import SearchItemProcessor
     from plastered.release_search.search_helpers import SearchState

@@ -6,10 +6,16 @@ from math import ceil
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_
-from sqlmodel import Session, and_, asc, col, desc, select
+from sqlalchemy import or_
+from sqlmodel import Session, and_, col, desc, select
 
-from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse, RunHistoryPageResponse
+from plastered.api.api_models import (
+    AdhocSearchResult,
+    RunHistoryItem,
+    RunHistoryListResponse,
+    RunHistoryPageResponse,
+    RunHistoryRow,
+)
 from plastered.db.db_models import Failed, Grabbed, Matched, ScraperRun, SearchProgress, SearchRecord, Skipped, Status
 from plastered.db.db_utils import get_result_by_id
 
@@ -83,6 +89,21 @@ def _run_history_item_for_record(session: Session, record: SearchRecord) -> RunH
     )
 
 
+def _scraper_run_recs(session: Session, run: ScraperRun) -> list[RunHistoryItem]:
+    """Returns the per-rec `RunHistoryItem`s a scraper run produced (scraper-created records within its time window)."""
+    upper_bound = run.finished_timestamp if run.finished_timestamp is not None else 2**63 - 1
+    records = session.exec(
+        select(SearchRecord)
+        .where(
+            col(SearchRecord.is_manual).is_(False),
+            SearchRecord.submit_timestamp >= run.submit_timestamp,
+            SearchRecord.submit_timestamp <= upper_bound,
+        )
+        .order_by(desc(SearchRecord.submit_timestamp))
+    ).all()
+    return [_run_history_item_for_record(session=session, record=record) for record in records]
+
+
 def run_history_page_action(
     session: Session,
     page: int = 1,
@@ -93,32 +114,55 @@ def run_history_page_action(
     search_id: int | None = None,
 ) -> RunHistoryPageResponse:
     """
-    Returns one page of run-history results for the HTML accordion view. Defaults: newest-first, <=50 per page. Supports
-    an optional status filter, a free-text filter over artist/entity, sort direction, and a specific search_id lookup.
+    Returns one page of run-history rows for the HTML accordion view: ad-hoc searches plus LFM scraper runs (each run
+    is one row; its scraper-created per-rec records are nested, not listed at the top level). Defaults: newest-first,
+    <=50 per page. Supports a status filter, a free-text artist/entity filter, sort direction, and a search_id lookup —
+    all of which target ad-hoc rows; scraper runs are shown only in the unfiltered default view.
     """
     page = max(page, 1)
     page_size = min(max(page_size, 1), _MAX_RUN_HISTORY_PAGE_SIZE)
-    conditions: list[Any] = []
+
+    # Top-level ad-hoc rows: user-initiated searches only (scraper-created records nest under their run).
+    adhoc_conditions: list[Any] = [col(SearchRecord.is_manual).is_(True)]
     if status_filter is not None:
-        conditions.append(SearchRecord.status == status_filter)
+        adhoc_conditions.append(SearchRecord.status == status_filter)
     if search_id is not None:
-        conditions.append(SearchRecord.id == search_id)
+        adhoc_conditions.append(SearchRecord.id == search_id)
     if query:
         like = f"%{query}%"
-        conditions.append(or_(col(SearchRecord.artist).ilike(like), col(SearchRecord.entity).ilike(like)))
+        adhoc_conditions.append(or_(col(SearchRecord.artist).ilike(like), col(SearchRecord.entity).ilike(like)))
+    adhoc_records = session.exec(select(SearchRecord).where(and_(*adhoc_conditions))).all()
 
-    count_stmt = select(func.count()).select_from(SearchRecord)
-    list_stmt = select(SearchRecord)
-    if conditions:
-        condition = and_(*conditions)
-        count_stmt = count_stmt.where(condition)
-        list_stmt = list_stmt.where(condition)
+    # Scraper runs appear only in the unfiltered default browse (they have no artist/entity for text/status filtering).
+    include_scraper_runs = status_filter is None and not query and search_id is None
+    scraper_runs = session.exec(select(ScraperRun)).all() if include_scraper_runs else []
 
-    total_count = int(session.exec(count_stmt).one())
-    order_by = desc(SearchRecord.submit_timestamp) if sort_desc else asc(SearchRecord.submit_timestamp)
-    records = session.exec(list_stmt.order_by(order_by).offset((page - 1) * page_size).limit(page_size)).all()
+    merged: list[tuple[str, int, Any]] = [("adhoc", record.submit_timestamp, record) for record in adhoc_records] + [
+        ("scraper", run.submit_timestamp, run) for run in scraper_runs
+    ]
+    merged.sort(key=lambda entry: entry[1], reverse=sort_desc)
+
+    total_count = len(merged)
+    page_entries = merged[(page - 1) * page_size : (page - 1) * page_size + page_size]
+    rows: list[RunHistoryRow] = []
+    for kind, sort_timestamp, obj in page_entries:
+        if kind == "adhoc":
+            rows.append(
+                RunHistoryRow(
+                    kind="adhoc", sort_timestamp=sort_timestamp, adhoc=_run_history_item_for_record(session, obj)
+                )
+            )
+        else:
+            rows.append(
+                RunHistoryRow(
+                    kind="scraper",
+                    sort_timestamp=sort_timestamp,
+                    scraper=obj,
+                    scraper_recs=_scraper_run_recs(session=session, run=obj),
+                )
+            )
     return RunHistoryPageResponse(
-        items=[_run_history_item_for_record(session=session, record=record) for record in records],
+        rows=rows,
         page=page,
         page_size=page_size,
         total_count=total_count,

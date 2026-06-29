@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,6 +17,8 @@ from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedA
 from plastered.utils.log_utils import CONSOLE, SPINNER
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from plastered.config.app_settings import AppSettings, RedSearchOverrides
     from plastered.db.db_models import Matched
 

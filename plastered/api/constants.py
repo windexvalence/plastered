@@ -16,6 +16,7 @@ _STATUS_DISPLAY_LABELS: Final[dict[str, str]] = {
     "skipped": "skipped",
     "failed": "failed",
     "in_progress": "in progress",
+    "completed": "completed",
 }
 
 

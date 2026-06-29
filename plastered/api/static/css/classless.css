@@ -319,6 +319,15 @@ summary {
 
 summary:hover { color: var(--link-hover); }
 
+/* Distinguish LFM scraper-run rows from ad-hoc rows in the run history (blue-grey accent vs the default). */
+details.scraper-run {
+    background: #1a2230;
+    border-color: #2f3f57;
+    border-left: 3px solid #4d7bbf;
+}
+
+details.scraper-run > summary { color: #aac6ee; }
+
 /* ----------------------------------------------------------------- busy / loading indicator */
 
 [aria-busy="true"] {

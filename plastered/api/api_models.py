@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from plastered.config.app_settings import RedSearchOverrides
-from plastered.db.db_models import Failed, Grabbed, Matched, SearchProgress, SearchRecord, Skipped, Status
+from plastered.db.db_models import Failed, Grabbed, Matched, ScraperRun, SearchProgress, SearchRecord, Skipped, Status
 from plastered.models import AdhocSearch
 
 if TYPE_CHECKING:
@@ -73,10 +73,23 @@ class RunHistoryItem(BaseModel):
         return cls(**{k.lower(): v for k, v in row._asdict().items()})
 
 
+class RunHistoryRow(BaseModel):
+    """
+    A single run-history row, discriminated by `kind`: an `adhoc` ad-hoc search (one rec) or a `scraper` LFM scraper
+    run (which carries the recs it pulled in `scraper_recs`).
+    """
+
+    kind: str  # "adhoc" | "scraper"
+    sort_timestamp: int
+    adhoc: RunHistoryItem | None = Field(default=None)
+    scraper: ScraperRun | None = Field(default=None)
+    scraper_recs: list[RunHistoryItem] | None = Field(default=None)
+
+
 class RunHistoryPageResponse(BaseModel):
     """A single page of run-history results for the HTML accordion view, newest-first by default."""
 
-    items: list[RunHistoryItem]
+    rows: list[RunHistoryRow]
     page: int
     page_size: int
     total_count: int

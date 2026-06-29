@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
-from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryPageResponse
+from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryPageResponse, RunHistoryRow
 from plastered.api.constants import _format_timestamp, _status_label
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import (
@@ -280,38 +280,64 @@ def test_runs_page(client: TestClient) -> None:
     assert 'id="run-history-list"' in resp.text
 
 
-def _run_history_page(items: list[RunHistoryItem], **kwargs: object) -> RunHistoryPageResponse:
-    defaults = dict(page=1, page_size=50, total_count=len(items), total_pages=1, sort_desc=True)
+def _run_history_page(rows: list[RunHistoryRow], **kwargs: object) -> RunHistoryPageResponse:
+    defaults = dict(page=1, page_size=50, total_count=len(rows), total_pages=1, sort_desc=True)
     defaults.update(kwargs)
-    return RunHistoryPageResponse(items=items, **defaults)  # type: ignore[arg-type]
+    return RunHistoryPageResponse(rows=rows, **defaults)  # type: ignore[arg-type]
+
+
+def _adhoc_row(**rec_kwargs: object) -> RunHistoryRow:
+    rec = SearchRecord(**rec_kwargs)  # type: ignore[arg-type]
+    return RunHistoryRow(kind="adhoc", sort_timestamp=rec.submit_timestamp, adhoc=RunHistoryItem(searchrecord=rec))
 
 
 def test_run_history_list_fragment_renders_accordion(client: TestClient) -> None:
     """The fragment renders one accordion row per run with the summary line and a Next page control."""
-    items = [
-        RunHistoryItem(
-            searchrecord=SearchRecord(
-                id=1, submit_timestamp=1759680000, is_manual=True, entity_type=EntityType.ALBUM,
-                artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+    grabbed_rec = SearchRecord(
+        id=1, submit_timestamp=1759680000, is_manual=True, entity_type=EntityType.ALBUM,
+        artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+    )
+    rows = [
+        RunHistoryRow(
+            kind="adhoc", sort_timestamp=grabbed_rec.submit_timestamp,
+            adhoc=RunHistoryItem(
+                searchrecord=grabbed_rec,
+                grabbed=Grabbed(g_result_id=1, fl_token_used=True, snatch_path="/d/1.torrent", tid=11),
             ),
-            grabbed=Grabbed(g_result_id=1, fl_token_used=True, snatch_path="/d/1.torrent", tid=11),
-        ),
-        RunHistoryItem(
-            searchrecord=SearchRecord(
-                id=2, submit_timestamp=1759680001, is_manual=False, entity_type=EntityType.TRACK,
-                artist="Autechre", entity="Gantz Graf", status=Status.SKIPPED,
-            ),
-            skipped=Skipped(s_result_id=2, skip_reason=SkipReason.NO_MATCH_FOUND),
         ),
     ]
-    page = _run_history_page(items, page=1, page_size=2, total_count=4, total_pages=2)
+    page = _run_history_page(rows, page=1, page_size=1, total_count=2, total_pages=2)
     with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page):
         text = client.get("/run_history_list").text
     assert "<details" in text
     assert "Artist: <strong>Aphex Twin</strong>" in text
     assert "Status: <strong>snatched</strong>" in text  # grabbed -> snatched label
-    assert "Status: <strong>skipped</strong>" in text
     assert "Next →" in text  # page 1 of 2 -> Next control present
+
+
+def test_run_history_list_fragment_renders_scraper_run_row(client: TestClient) -> None:
+    """A scraper run renders as a distinctly-styled accordion row that nests the recs it pulled."""
+    scraper_run = ScraperRun(
+        id=3, submit_timestamp=1759680000, finished_timestamp=1759680100, snatch_enabled=True,
+        rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=1,
+    )
+    nested_rec = SearchRecord(
+        id=9, submit_timestamp=1759680050, is_manual=False, entity_type=EntityType.ALBUM,
+        artist="Scraped Artist", entity="Scraped Album", status=Status.SKIPPED,
+    )
+    rows = [
+        RunHistoryRow(
+            kind="scraper", sort_timestamp=scraper_run.submit_timestamp, scraper=scraper_run,
+            scraper_recs=[RunHistoryItem(searchrecord=nested_rec)],
+        )
+    ]
+    page = _run_history_page(rows)
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page):
+        text = client.get("/run_history_list").text
+    assert 'class="scraper-run"' in text  # distinct styling hook
+    assert "LFM scraper run" in text
+    assert "Recommendations pulled (1)" in text
+    assert "Scraped Artist" in text  # nested rec shown on expand
 
 
 def test_run_history_list_fragment_empty(client: TestClient) -> None:

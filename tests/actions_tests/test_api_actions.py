@@ -236,9 +236,13 @@ def test_inspect_run_action_match(non_empty_tables: Session, mock_search_result_
     assert actual is mock_search_result_instance
 
 
+def _adhoc_ids(response: RunHistoryPageResponse) -> list[int]:
+    return [row.adhoc.searchrecord.id for row in response.rows if row.kind == "adhoc"]
+
+
 @pytest.fixture(scope="function")
 def seeded_run_history(mock_session: Session) -> Session:
-    """Seeds 4 SearchRecords (one per terminal status) with distinct timestamps + status rows."""
+    """Seeds 4 ad-hoc SearchRecords (one per terminal status) with distinct timestamps + status rows."""
     base_ts = _MOCK_SINCE_TIMESTAMP
     grabbed_rec = SearchRecord(
         id=1, submit_timestamp=base_ts + 1, is_manual=True, entity_type=EntityType.ALBUM,
@@ -249,7 +253,7 @@ def seeded_run_history(mock_session: Session) -> Session:
         artist="Boards of Canada", entity="Geogaddi", status=Status.MATCHED,
     )
     skipped_rec = SearchRecord(
-        id=3, submit_timestamp=base_ts + 3, is_manual=False, entity_type=EntityType.TRACK,
+        id=3, submit_timestamp=base_ts + 3, is_manual=True, entity_type=EntityType.TRACK,
         artist="Autechre", entity="Gantz Graf", status=Status.SKIPPED,
     )
     failed_rec = SearchRecord(
@@ -270,53 +274,96 @@ def seeded_run_history(mock_session: Session) -> Session:
 def test_run_history_page_action_empty(empty_tables: Session) -> None:
     actual = run_history_page_action(session=empty_tables)
     assert isinstance(actual, RunHistoryPageResponse)
-    assert actual.items == [] and actual.total_count == 0 and actual.total_pages == 1
+    assert actual.rows == [] and actual.total_count == 0 and actual.total_pages == 1
 
 
 def test_run_history_page_action_default_sort_newest_first(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history)
     assert actual.total_count == 4
-    assert [item.searchrecord.id for item in actual.items] == [4, 3, 2, 1]  # newest submit_timestamp first
-    # The matched/grabbed/etc. status rows are attached per item.
-    grabbed_item = next(i for i in actual.items if i.searchrecord.id == 1)
-    assert grabbed_item.grabbed is not None and grabbed_item.grabbed.tid == 11
-    matched_item = next(i for i in actual.items if i.searchrecord.id == 2)
-    assert matched_item.matched is not None and matched_item.matched.tid == 22
+    assert _adhoc_ids(actual) == [4, 3, 2, 1]  # newest submit_timestamp first
+    # The matched/grabbed/etc. status rows are attached per row.
+    grabbed_row = next(r for r in actual.rows if r.adhoc and r.adhoc.searchrecord.id == 1)
+    assert grabbed_row.adhoc.grabbed is not None and grabbed_row.adhoc.grabbed.tid == 11
+    matched_row = next(r for r in actual.rows if r.adhoc and r.adhoc.searchrecord.id == 2)
+    assert matched_row.adhoc.matched is not None and matched_row.adhoc.matched.tid == 22
 
 
 def test_run_history_page_action_sort_oldest_first(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history, sort_desc=False)
-    assert [item.searchrecord.id for item in actual.items] == [1, 2, 3, 4]
+    assert _adhoc_ids(actual) == [1, 2, 3, 4]
 
 
 def test_run_history_page_action_status_filter(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history, status_filter=Status.MATCHED)
-    assert actual.total_count == 1 and actual.items[0].searchrecord.id == 2
+    assert actual.total_count == 1 and _adhoc_ids(actual) == [2]
 
 
 def test_run_history_page_action_text_filter(seeded_run_history: Session) -> None:
     by_artist = run_history_page_action(session=seeded_run_history, query="aphex")
-    assert [i.searchrecord.id for i in by_artist.items] == [1]
+    assert _adhoc_ids(by_artist) == [1]
     by_entity = run_history_page_action(session=seeded_run_history, query="geogaddi")
-    assert [i.searchrecord.id for i in by_entity.items] == [2]
+    assert _adhoc_ids(by_entity) == [2]
 
 
 def test_run_history_page_action_search_id_filter(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history, search_id=3)
-    assert actual.total_count == 1 and actual.items[0].searchrecord.id == 3
+    assert actual.total_count == 1 and _adhoc_ids(actual) == [3]
 
 
 def test_run_history_page_action_pagination(seeded_run_history: Session) -> None:
     page1 = run_history_page_action(session=seeded_run_history, page=1, page_size=2)
     assert page1.total_count == 4 and page1.total_pages == 2
-    assert [i.searchrecord.id for i in page1.items] == [4, 3]
+    assert _adhoc_ids(page1) == [4, 3]
     page2 = run_history_page_action(session=seeded_run_history, page=2, page_size=2)
-    assert [i.searchrecord.id for i in page2.items] == [2, 1]
+    assert _adhoc_ids(page2) == [2, 1]
 
 
 def test_run_history_page_action_clamps_page_and_size(seeded_run_history: Session) -> None:
     actual = run_history_page_action(session=seeded_run_history, page=0, page_size=9999)
     assert actual.page == 1 and actual.page_size == 50
+
+
+def test_run_history_page_action_includes_scraper_runs_with_nested_recs(mock_session: Session) -> None:
+    """A scraper run appears as its own row (merged by timestamp); its scraper-created recs nest under it, not top-level."""
+    from plastered.db.db_models import ScraperRun, ScraperRunStatus
+
+    base_ts = _MOCK_SINCE_TIMESTAMP
+    adhoc_rec = SearchRecord(
+        id=1, submit_timestamp=base_ts + 100, is_manual=True, entity_type=EntityType.ALBUM,
+        artist="Adhoc Artist", entity="Adhoc Album", status=Status.GRABBED,
+    )
+    scraper_run = ScraperRun(
+        id=1, submit_timestamp=base_ts + 10, finished_timestamp=base_ts + 20, snatch_enabled=True,
+        rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=1,
+    )
+    scraper_rec = SearchRecord(
+        id=2, submit_timestamp=base_ts + 15, is_manual=False, entity_type=EntityType.ALBUM,
+        artist="Scraped Artist", entity="Scraped Album", status=Status.SKIPPED,
+    )
+    mock_session.add_all([adhoc_rec, scraper_run, scraper_rec])
+    mock_session.add(Skipped(s_result_id=2, skip_reason=SkipReason.NO_MATCH_FOUND))
+    mock_session.commit()
+
+    actual = run_history_page_action(session=mock_session)
+    # Two top-level rows (adhoc + scraper run), newest first; the scraper-created rec is NOT a top-level row.
+    assert actual.total_count == 2
+    assert [row.kind for row in actual.rows] == ["adhoc", "scraper"]
+    scraper_row = actual.rows[1]
+    assert scraper_row.scraper is not None and scraper_row.scraper.id == 1
+    assert scraper_row.scraper_recs is not None
+    assert [item.searchrecord.id for item in scraper_row.scraper_recs] == [2]
+
+
+def test_run_history_page_action_excludes_scraper_runs_when_filtered(mock_session: Session) -> None:
+    """Scraper runs only appear in the unfiltered default view (filters target ad-hoc rows)."""
+    from plastered.db.db_models import ScraperRun
+
+    base_ts = _MOCK_SINCE_TIMESTAMP
+    mock_session.add(ScraperRun(id=1, submit_timestamp=base_ts, snatch_enabled=False, rec_types="album"))
+    mock_session.commit()
+    filtered = run_history_page_action(session=mock_session, status_filter=Status.GRABBED)
+    assert all(row.kind == "adhoc" for row in filtered.rows)
+    assert filtered.total_count == 0
 
 
 def test_get_scraper_run_action(mock_session: Session) -> None:
