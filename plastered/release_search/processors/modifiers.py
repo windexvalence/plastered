@@ -12,7 +12,7 @@ from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
 
 if TYPE_CHECKING:
-    from plastered.models import ReleaseEntry, SearchItem
+    from plastered.models import ReleaseEntry, SearchItem, TorrentEntry
     from plastered.release_search.search_helpers import SearchState
     from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
@@ -102,7 +102,8 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
-        torrent_match: TorrentMatch | None = None
+        matched_entry: TorrentEntry | None = None
+        above_max_size_found = False
         for pref in state.red_format_preferences:
             # Build params outside the try so a browse failure's log line can't hit an unassigned `req_params`.
             req_params = state.create_red_browse_params(red_format=pref, si=si)
@@ -111,17 +112,21 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
             except Exception:
                 _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
                 continue
-            if not (
-                torrent_match := SearchRedReleaseByPrefsModifier._torrent_match_from_browse_results(
-                    browse_results=release_entries, state=state
-                )
-            ).above_max_size_found:
+            match = SearchRedReleaseByPrefsModifier._torrent_match_from_browse_results(
+                browse_results=release_entries, state=state
+            )
+            if match.torrent_entry is not None:
+                matched_entry = match.torrent_entry
                 break
+            # No usable match for this preference (empty results, or all candidates above max size). Remember whether
+            # we saw an oversized candidate and keep trying the remaining (lower) preferences before giving up.
+            above_max_size_found = above_max_size_found or match.above_max_size_found
 
-        if not torrent_match:
+        if matched_entry is None:
             _LOGGER.debug(f"No torrent match found for si: {si.initial_info}")
-            torrent_match = TorrentMatch(torrent_entry=None, above_max_size_found=False)
-
+        torrent_match = TorrentMatch(
+            torrent_entry=matched_entry, above_max_size_found=(matched_entry is None and above_max_size_found)
+        )
         si.set_torrent_match_fields(torrent_match=torrent_match)
         return si
 

@@ -383,18 +383,6 @@ class TestSearchRedReleaseByPrefsModifier:
                     torrent_id=69420, media="WEB", format="FLAC", encoding="24bit Lossless", **_MOCK_TE_KWARGS
                 ),
             ),
-            (  # Test case 3: empty browse results for first pref, and non-empty browse results for 2nd preference
-                ["mock_red_browse_empty_response", "mock_red_browse_non_empty_response"],
-                [
-                    RedFormat(
-                        format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD
-                    ),
-                    RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.WEB),
-                ],
-                TorrentEntry(
-                    torrent_id=69420, media="WEB", format="FLAC", encoding="24bit Lossless", **_MOCK_TE_KWARGS
-                ),
-            ),
         ],
     )
     def test_search_red_release_by_prefs_modifier(
@@ -451,6 +439,37 @@ class TestSearchRedReleaseByPrefsModifier:
             assert actual is mock_si
             assert actual.torrent_entry is None
             assert actual.above_max_size_te_found is True
+
+    @pytest.mark.parametrize("is_lfm_rec", [False, True])
+    def test_search_red_release_by_prefs_modifier_falls_through_when_top_pref_empty(
+        self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
+    ) -> None:
+        """
+        Regression: when the top preference yields no match (e.g. empty results), the search must continue to the
+        remaining preferences and use a match found in a lower one — rather than stopping after the first.
+        """
+        mock_red_prefs = [
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.TWO_FOUR_BIT_LOSSLESS, media=MediaEnum.SACD),
+            RedFormat(format=FormatEnum.FLAC, encoding=EncodingEnum.LOSSLESS, media=MediaEnum.CD),
+        ]
+        type(mock_process_kwargs["state"]).red_format_preferences = PropertyMock(return_value=mock_red_prefs)
+        matched_te = TorrentEntry(torrent_id=69420, media="CD", format="FLAC", encoding="Lossless", **_MOCK_TE_KWARGS)
+        mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
+        assert mock_si.torrent_entry is None
+        with patch.object(
+            SearchRedReleaseByPrefsModifier,
+            "_torrent_match_from_browse_results",
+            # First (top) preference: no match. Second preference: a usable match.
+            side_effect=[
+                TorrentMatch(torrent_entry=None, above_max_size_found=False),
+                TorrentMatch(torrent_entry=matched_te, above_max_size_found=False),
+            ],
+        ) as mock_tm_from_browse_res:
+            actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        assert mock_process_kwargs["red"].browse.call_count == 2
+        assert mock_tm_from_browse_res.call_count == 2
+        assert actual.torrent_entry is matched_te
+        assert actual.above_max_size_te_found is False
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_search_red_release_by_prefs_modifier_browse_exception_raised(
