@@ -217,6 +217,25 @@ def test_pre_search_rule_skip_prior_snatch(
     assert actual == expected
 
 
+def test_pre_search_rule_skip_prior_snatch_uses_resolved_release_name(valid_app_settings: AppSettings) -> None:
+    """
+    Regression: the prior-snatch check must compare the (resolved) release name, not a track's name. For a track,
+    initial_info.get_human_readable_entity_str() is the track name, while release_name is the origin-release name.
+    """
+    si = SearchItem(initial_info=AdhocSearch(artist="Queen", track="Bohemian Rhapsody"))
+    si.release_name = "A Night at the Opera"  # as set by track resolution earlier in the chain
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_user_details = MagicMock()
+    search_state._red_user_details.has_snatched_release.return_value = False
+    search_state._skip_prior_snatches = True
+
+    search_state._pre_mbid_reso_rule_not_previously_snatched(si=si)
+
+    search_state._red_user_details.has_snatched_release.assert_called_once_with(
+        artist="Queen", release="A Night at the Opera"
+    )
+
+
 def test_pre_search_rule_skip_prior_snatch_user_details_not_initialized(valid_app_settings: AppSettings) -> None:
     si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
     search_state = SearchState(app_settings=valid_app_settings)

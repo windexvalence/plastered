@@ -49,9 +49,12 @@ class ResolveTrackInfoModifier(SearchItemModifier):
             if (lfm_resp := lfm.get_track_info(si=si)) and "album" in lfm_resp:
                 si.set_lfm_track_info(LFMTrackInfo.construct_from_api_response(json_blob=lfm_resp))
                 return si
-        except LFMClientException as ex:
+        except (LFMClientException, KeyError, TypeError) as ex:
+            # KeyError/TypeError guard against a malformed LFM `album` blob; fall through to MusicBrainz resolution.
             _LOGGER.debug(f"{ex.__class__.__name__} during track origin release resolution: {si}")
-        artist_mbid = None if not lfm_resp else lfm_resp.get("artist", {}).get("mbid")
+        artist_mbid = None
+        if isinstance(lfm_resp, dict) and isinstance(lfm_resp.get("artist"), dict):
+            artist_mbid = lfm_resp["artist"].get("mbid")
         if origin_info := mb.request_release_details_for_track(si=si, artist_mbid=artist_mbid):
             si.set_lfm_track_info(lfmti=LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=origin_info))
         return si
@@ -101,8 +104,9 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     ) -> SearchItem:
         torrent_match: TorrentMatch | None = None
         for pref in state.red_format_preferences:
+            # Build params outside the try so a browse failure's log line can't hit an unassigned `req_params`.
+            req_params = state.create_red_browse_params(red_format=pref, si=si)
             try:
-                req_params = state.create_red_browse_params(red_format=pref, si=si)
                 release_entries = red.browse(request_params=req_params)
             except Exception:
                 _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)

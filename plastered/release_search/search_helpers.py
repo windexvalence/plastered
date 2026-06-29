@@ -101,8 +101,11 @@ class SearchState:
             msg = "Red User Details not initialized."
             _LOGGER.error(msg)
             raise SearchStateException(msg)
+        # Use `si.release_name`, not `initial_info.get_human_readable_entity_str()`: for a track the latter is the track
+        # name, whereas the prior-snatch dict is keyed by release name. `release_name` is the album name for albums and
+        # the resolved origin-release name for tracks (this filter runs after track resolution in the chain).
         if self._skip_prior_snatches and self._red_user_details.has_snatched_release(
-            artist=si.artist_name, release=si.initial_info.get_human_readable_entity_str()
+            artist=si.artist_name, release=si.release_name
         ):
             return SkipReason.ALREADY_SNATCHED
         return None
@@ -206,9 +209,14 @@ class SearchState:
     def get_search_items_to_snatch(self, manual_run: bool = False) -> list[SearchItem]:
         """
         Called by the ReleaseSearcher, returns the list of SearchItems which should be snatched following the full searching and filtering of recs.
-        The returned list is sorted from largest to smallest torrent, in order to optimize FL token usage (if enabled and tokens are available).
 
-        Only returns a list which has a total size of <= self._max_download_allowed_gb. Any remaining torrents are added to the skipped summary list.
+        For a `manual_run` (single ad-hoc search) the matched item is returned as-is: it is an explicit, user-initiated
+        download, so only the per-torrent `max_size_gb` cap (applied during matching) governs it — the ratio-based
+        cumulative cap below does NOT apply.
+
+        For the scraper flow the list is sorted from largest to smallest torrent (to optimize FL token usage if enabled)
+        and is capped so its cumulative size is <= self._max_download_allowed_gb; any torrents that would exceed that
+        ratio-based limit are dropped and recorded as skipped.
         """
         if manual_run and self._manual_search_item_to_snatch is not None:
             return [self._manual_search_item_to_snatch]

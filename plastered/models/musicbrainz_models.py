@@ -54,7 +54,14 @@ class MBRelease:
         )
 
     def get_red_release_type(self) -> RedReleaseType:
-        return RedReleaseType[self.primary_type.upper()]
+        # MusicBrainz may return a null primary-type, or a value RED has no enum for (e.g. "Broadcast", "Other").
+        # Fall back to UNKNOWN rather than raising AttributeError/KeyError, which would otherwise abort the search run.
+        if not self.primary_type:
+            return RedReleaseType.UNKNOWN
+        try:
+            return RedReleaseType[self.primary_type.upper()]
+        except KeyError:
+            return RedReleaseType.UNKNOWN
 
     def get_first_release_year(self) -> int:
         return self.first_release_year

@@ -136,3 +136,21 @@ def test_apply_chain_not_processable(
                 mock_processor.assert_not_called(),
                 f"No SearchItemProcessors should be called after the first returns a `None` value.",
             )
+
+
+def test_track_chain_creates_search_record_before_filtering() -> None:
+    """
+    Regression: AttachSearchIdModifier must run before PostResolveOriginTrackFilter in the track chain. Otherwise a
+    track that fails origin-release resolution is dropped with search_id=None, crashing the run via set_result_status.
+
+    Reads the baked dataclass field default rather than an instance attribute, since other tests in this module
+    permanently replace `track_chain` on the class with a PropertyMock (no teardown).
+    """
+    import dataclasses
+
+    from plastered.release_search.processors.filters import PostResolveOriginTrackFilter
+    from plastered.release_search.processors.modifiers import AttachSearchIdModifier
+
+    track_chain = next(f.default for f in dataclasses.fields(SearchItemProcessorChain) if f.name == "track_chain")
+    assert track_chain[0] is AttachSearchIdModifier
+    assert track_chain.index(AttachSearchIdModifier) < track_chain.index(PostResolveOriginTrackFilter)

@@ -53,9 +53,12 @@ class SearchItemProcessorChain:
     )
     track_chain: tuple[type[SearchItemProcessor], ...] = tuple(
         [
+            # Create the SearchRecord first (as in album_chain) so any subsequent filter that drops the item has a
+            # search_id to attach the SKIPPED/FAILED row to. Otherwise a track that fails origin-release resolution
+            # would hit PostResolveOriginTrackFilter with search_id=None and crash the whole run via set_result_status.
+            AttachSearchIdModifier,
             ResolveTrackInfoModifier,
             PostResolveOriginTrackFilter,
-            AttachSearchIdModifier,  # TODO: should the track chain also start with search record creation?
             PreMBIDResolutionFilter,
             AttemptResolveMBReleaseModifier,
             PostMBIDResolutionFilter,

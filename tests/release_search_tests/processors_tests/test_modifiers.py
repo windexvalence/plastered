@@ -221,6 +221,26 @@ def test_resolve_track_info_modifier_lfm_client_exception(
             mock_set_lfm_track_info.assert_not_called
 
 
+def test_resolve_track_info_modifier_malformed_lfm_blob_falls_through_to_mb(
+    mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
+) -> None:
+    """
+    Regression: a malformed LFM track blob (has an 'album' key but is missing fields construct_from_api_response
+    needs) must not crash the modifier — it should be caught and fall through to MusicBrainz resolution.
+    """
+    mock_process_kwargs["lfm"].get_track_info.return_value = {"album": {}}  # missing 'name'/'artist' -> KeyError
+    mock_process_kwargs["mb"].request_release_details_for_track.return_value = {
+        "origin_release_mbid": "mbid",
+        "origin_release_name": "Resolved Release",
+    }
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
+    assert isinstance(actual, SearchItem)
+    # Fell through to MB (artist_mbid is None since the malformed blob's 'artist' is not a dict).
+    mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once_with(si=mock_si, artist_mbid=None)
+    assert actual.release_name == "Resolved Release"
+
+
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])
 def test_attach_search_id_modifier(
