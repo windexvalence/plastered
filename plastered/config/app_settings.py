@@ -177,7 +177,10 @@ class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")  # nosec: B104
     port: int = Field(default=80)
     log_level: str = Field(default="INFO")
-    workers: int = Field(default=4)
+    # Default to a single worker: RED's "<=1 request / red_api_seconds_between_calls" rate limit is enforced per
+    # process (each worker has its own throttle clock), so multiple workers could collectively exceed it. One worker
+    # keeps the limit globally correct; async I/O still handles concurrency fine for this workload.
+    workers: int = Field(default=1)
 
 
 def _default_music_brainz_config() -> MusicBrainzConfig:

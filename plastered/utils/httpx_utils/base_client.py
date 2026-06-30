@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import datetime, timedelta
 from time import perf_counter_ns
 from typing import Any, Final
@@ -84,6 +85,9 @@ class ThrottledAPIBaseClient:
         self._time_of_last_call = datetime(
             year=init_time.year, month=init_time.month, day=init_time.day, hour=0, minute=0
         )
+        # Serializes the throttle across threads so background-task threads can't race the rate limiter and exceed it.
+        # With the server run single-process (server.workers = 1), this makes the per-API rate limit process-global.
+        self._throttle_lock = threading.Lock()
         self._base_domain = base_api_url
         self._client = httpx.Client(
             mounts={
@@ -103,14 +107,18 @@ class ThrottledAPIBaseClient:
     # adopted from https://gist.github.com/johncadengo/0f54a9ff5b53d10024ed
     def _throttle(self) -> None:
         """
-        Helper method which the subclasses will call prior to submitting an API request. Ensures we are throttling each client request.
+        Helper method which the subclasses will call prior to submitting an API request. Ensures we are throttling each
+        client request. The wait + timestamp update are guarded by a lock so concurrent caller threads (FastAPI runs
+        sync endpoints/background tasks in an anyio worker-thread pool) are serialized and can't collectively exceed the
+        configured rate. Callers must run off the event loop (e.g. via run_in_threadpool / a background task) so the
+        busy-wait — and this lock — never block the loop.
         """
-
-        time_since_last_call = datetime.now() - self._time_of_last_call
-        if time_since_last_call < self._throttle_period:
-            wait_seconds = (self._throttle_period - time_since_last_call).seconds
-            precise_delay(sec_delay=wait_seconds)
-        self._time_of_last_call = datetime.now()
+        with self._throttle_lock:
+            time_since_last_call = datetime.now() - self._time_of_last_call
+            if time_since_last_call < self._throttle_period:
+                wait_seconds = (self._throttle_period - time_since_last_call).seconds
+                precise_delay(sec_delay=wait_seconds)
+            self._time_of_last_call = datetime.now()
 
     def _construct_cache_key(self, endpoint: str, params: str) -> tuple[str, str, str]:
         """

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from plastered.actions import scrape_action, show_config_action
 from plastered.actions.api_actions import (
@@ -100,8 +101,12 @@ async def adhoc_result_endpoint(session: SessionDep, search_id: int) -> AdhocSea
 @plastered_api_router.post("/adhoc_snatch")
 async def adhoc_snatch_endpoint(session: SessionDep, request: Request, search_id: int) -> AdhocSearchResult:
     """Snatches the release previously matched (but not downloaded) for an ad-hoc search, and returns the updated result."""
-    result = adhoc_snatch_action(
-        release_searcher=request.state.lifespan_singleton.release_searcher, search_id=search_id, session=session
+    # Run the snatch (which makes a throttled, busy-waiting RED request) off the event loop so it never blocks it.
+    result = await run_in_threadpool(
+        adhoc_snatch_action,
+        release_searcher=request.state.lifespan_singleton.release_searcher,
+        search_id=search_id,
+        session=session,
     )
     if result is None:
         raise HTTPException(

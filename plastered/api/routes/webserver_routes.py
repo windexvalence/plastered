@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse
+from starlette.concurrency import run_in_threadpool
 
 from plastered.actions.api_actions import (
     adhoc_result_action,
@@ -114,8 +115,12 @@ async def adhoc_result_fragment(session: SessionDep, request: Request, search_id
 # POST /adhoc_snatch  (HTMX per-result "Download" button -> snatch the already-matched release, return the result fragment)
 @plastered_web_router.post("/adhoc_snatch")
 async def adhoc_snatch_submit(session: SessionDep, request: Request, search_id: Annotated[int, Form()]) -> HTMLResponse:
-    result = adhoc_snatch_action(
-        release_searcher=request.state.lifespan_singleton.release_searcher, search_id=search_id, session=session
+    # Run the snatch (which makes a throttled, busy-waiting RED request) off the event loop so it never blocks it.
+    result = await run_in_threadpool(
+        adhoc_snatch_action,
+        release_searcher=request.state.lifespan_singleton.release_searcher,
+        search_id=search_id,
+        session=session,
     )
     if result is None:
         raise HTTPException(

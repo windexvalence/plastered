@@ -256,3 +256,42 @@ def test_read_from_run_cache_raises() -> None:
     )
     with pytest.raises(ValueError, match=re.escape("Invalid endpoint provided")):
         _ = client_inst._read_from_run_cache(endpoint="/invalid-endpoint", params="foo=bar")
+
+
+def test_throttle_serializes_concurrent_callers(disabled_api_run_cache: RunCache) -> None:
+    """
+    The throttle lock serializes concurrent caller threads (FastAPI runs sync work in an anyio worker-thread pool), so
+    they can't race the rate limiter. Without the lock two callers would overlap inside the throttle wait.
+    """
+    import threading
+    from time import perf_counter, sleep
+
+    client = ThrottledAPIBaseClient(
+        base_api_url="https://google.com",
+        max_api_call_retries=1,
+        seconds_between_api_calls=2,
+        valid_endpoints=set(),
+        run_cache=disabled_api_run_cache,
+    )
+    # Force every _throttle() call to enter the wait branch (last call "just happened").
+    client._time_of_last_call = datetime.datetime.now()
+
+    events: list[tuple[str, float]] = []
+    events_lock = threading.Lock()
+
+    def _recording_precise_delay(sec_delay: int) -> None:
+        with events_lock:
+            events.append(("enter", perf_counter()))
+        sleep(0.05)  # widen the window in which an unsynchronized second caller could overlap
+        with events_lock:
+            events.append(("exit", perf_counter()))
+
+    with patch("plastered.utils.httpx_utils.base_client.precise_delay", side_effect=_recording_precise_delay):
+        threads = [threading.Thread(target=client._throttle) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    # Serialized critical sections -> enter/exit pairs do not interleave (would be enter,enter,exit,exit if racing).
+    assert [name for name, _ in events] == ["enter", "exit", "enter", "exit"]
