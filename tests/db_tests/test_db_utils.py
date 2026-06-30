@@ -135,3 +135,27 @@ def test_create_and_update_and_get_scraper_run() -> None:
     assert run.rec_types == "album,track"
     assert run.stage == "searching" and run.progress_current == 2 and run.progress_total == 5
     assert run.status == ScraperRunStatus.COMPLETED and run.total_recs == 5
+
+
+def test_rec_download_batch_lifecycle() -> None:
+    """create_rec_download_batch inserts IN_PROGRESS; increment/complete advance it."""
+    from plastered.db.db_models import RecDownloadBatch, RecDownloadBatchStatus
+    from plastered.db.db_utils import (
+        complete_rec_download_batch,
+        create_rec_download_batch,
+        increment_rec_download_batch,
+    )
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        batch_id = create_rec_download_batch(scraper_run_id=7, total=3, submit_timestamp=1759680000)
+        increment_rec_download_batch(batch_id=batch_id)
+        increment_rec_download_batch(batch_id=batch_id)
+        with Session(engine) as session:
+            mid = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
+        assert mid.status == RecDownloadBatchStatus.IN_PROGRESS and mid.completed == 2 and mid.total == 3
+        complete_rec_download_batch(batch_id=batch_id)
+    with Session(engine) as session:
+        final = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
+    assert final.status == RecDownloadBatchStatus.COMPLETED and final.completed == 2

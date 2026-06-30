@@ -53,18 +53,12 @@ def run_lfm_scraper(
             update_scraper_run(run_id=run_id, progress_current=processed_count["n"])
 
         release_searcher.search_for_recs(
-            entity_to_recs_list=entity_to_recs_list,
-            snatch_override=snatch_enabled,
-            progress_callback=_on_rec_processed,
+            entity_to_recs_list=entity_to_recs_list, snatch_override=snatch_enabled, progress_callback=_on_rec_processed
         )
-        update_scraper_run(
-            run_id=run_id, status=ScraperRunStatus.COMPLETED, stage="done", finished_timestamp=_now_ts()
-        )
+        update_scraper_run(run_id=run_id, status=ScraperRunStatus.COMPLETED, stage="done", finished_timestamp=_now_ts())
     except Exception as ex:
         _LOGGER.error(f"LFM scraper run {run_id} failed: ", exc_info=True)
-        update_scraper_run(
-            run_id=run_id, status=ScraperRunStatus.FAILED, error=str(ex), finished_timestamp=_now_ts()
-        )
+        update_scraper_run(run_id=run_id, status=ScraperRunStatus.FAILED, error=str(ex), finished_timestamp=_now_ts())
         raise
 
 

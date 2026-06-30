@@ -11,6 +11,8 @@ from plastered.db.db_models import (
     FailReason,
     Grabbed,
     Matched,
+    RecDownloadBatch,
+    RecDownloadBatchStatus,
     ScraperRun,
     SearchProgress,
     SearchRecord,
@@ -35,6 +37,7 @@ def db_startup() -> None:
         Matched,
         SearchProgress,
         ScraperRun,
+        RecDownloadBatch,
     ]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
@@ -112,9 +115,7 @@ def upsert_search_progress(search_id: int | None, current_pref: int, total_prefs
 
 def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:
     """Creates an `IN_PROGRESS` ScraperRun row and returns its id."""
-    run = ScraperRun(
-        submit_timestamp=submit_timestamp, snatch_enabled=snatch_enabled, rec_types=",".join(rec_types)
-    )
+    run = ScraperRun(submit_timestamp=submit_timestamp, snatch_enabled=snatch_enabled, rec_types=",".join(rec_types))
     with Session(get_engine()) as session:
         session.add(run)
         session.commit()
@@ -133,6 +134,40 @@ def update_scraper_run(run_id: int, **fields: Any) -> None:
         for field_name, value in fields.items():
             setattr(run, field_name, value)
         session.add(run)
+        session.commit()
+
+
+def create_rec_download_batch(scraper_run_id: int, total: int, submit_timestamp: int) -> int:
+    """Creates an IN_PROGRESS RecDownloadBatch row for a scraper run's post-hoc download and returns its id."""
+    batch = RecDownloadBatch(scraper_run_id=scraper_run_id, total=total, submit_timestamp=submit_timestamp)
+    with Session(get_engine()) as session:
+        session.add(batch)
+        session.commit()
+        session.refresh(batch)
+    if batch.id is None:  # pragma: no cover
+        raise MissingDatabaseRecordException(batch.id)
+    return batch.id
+
+
+def increment_rec_download_batch(batch_id: int) -> None:
+    """Increments a RecDownloadBatch's completed counter by one."""
+    with Session(get_engine()) as session:
+        batch = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).first()
+        if batch is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(batch_id)
+        batch.completed += 1
+        session.add(batch)
+        session.commit()
+
+
+def complete_rec_download_batch(batch_id: int) -> None:
+    """Marks a RecDownloadBatch COMPLETED."""
+    with Session(get_engine()) as session:
+        batch = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).first()
+        if batch is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(batch_id)
+        batch.status = RecDownloadBatchStatus.COMPLETED
+        session.add(batch)
         session.commit()
 
 

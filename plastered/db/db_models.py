@@ -167,6 +167,26 @@ class ScraperRun(SQLModel, table=True):
     error: str | None = Field(default=None)
 
 
+class RecDownloadBatchStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+
+class RecDownloadBatch(SQLModel, table=True):
+    """
+    Tracks a post-hoc batch download of a scraper run's matched-but-not-snatched recommendations (initiated from the
+    run-history page). Drives the progress UI; the snatches themselves run sequentially through the shared, throttled
+    RED snatch client. There is at most one active (IN_PROGRESS) batch per scraper run at a time.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    scraper_run_id: int | None = Field(default=None, foreign_key="scraperrun.id")
+    submit_timestamp: int
+    status: RecDownloadBatchStatus = Field(default=RecDownloadBatchStatus.IN_PROGRESS)
+    total: int
+    completed: int = Field(default=0)
+
+
 class SearchProgress(SQLModel, table=True):
     """
     Live progress for an in-flight ad-hoc search: which RED format preference is currently being searched. There is at

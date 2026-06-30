@@ -5,7 +5,17 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from plastered.config.app_settings import RedSearchOverrides
-from plastered.db.db_models import Failed, Grabbed, Matched, ScraperRun, SearchProgress, SearchRecord, Skipped, Status
+from plastered.db.db_models import (
+    Failed,
+    Grabbed,
+    Matched,
+    RecDownloadBatch,
+    ScraperRun,
+    SearchProgress,
+    SearchRecord,
+    Skipped,
+    Status,
+)
 from plastered.models import AdhocSearch
 
 if TYPE_CHECKING:
@@ -84,6 +94,7 @@ class RunHistoryRow(BaseModel):
     adhoc: RunHistoryItem | None = Field(default=None)
     scraper: ScraperRun | None = Field(default=None)
     scraper_recs: list[RunHistoryItem] | None = Field(default=None)
+    download_batch: RecDownloadBatch | None = Field(default=None)
 
 
 class RunHistoryPageResponse(BaseModel):

@@ -13,6 +13,8 @@ from plastered.db.db_models import (
     FailReason,
     Grabbed,
     Matched,
+    RecDownloadBatch,
+    RecDownloadBatchStatus,
     ScraperRun,
     ScraperRunStatus,
     SearchProgress,
@@ -242,8 +244,14 @@ def test_lfm_scraper_run_submit(client: TestClient, form_data: dict[str, str]) -
 def test_lfm_scraper_status_fragment(client: TestClient, found: bool) -> None:
     run = (
         ScraperRun(
-            id=7, submit_timestamp=1759680000, snatch_enabled=True, rec_types="album,track",
-            status=ScraperRunStatus.IN_PROGRESS, stage="searching", progress_current=2, progress_total=5,
+            id=7,
+            submit_timestamp=1759680000,
+            snatch_enabled=True,
+            rec_types="album,track",
+            status=ScraperRunStatus.IN_PROGRESS,
+            stage="searching",
+            progress_current=2,
+            progress_total=5,
         )
         if found
         else None
@@ -259,9 +267,39 @@ def test_lfm_scraper_status_fragment(client: TestClient, found: bool) -> None:
 @pytest.mark.parametrize(
     "run, expected_snippet",
     [
-        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=False, rec_types="album", status=ScraperRunStatus.IN_PROGRESS, stage="scraping"), "Scraping Last.fm"),
-        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=True, rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=12), "Scrape complete"),
-        (ScraperRun(id=1, submit_timestamp=1, snatch_enabled=False, rec_types="album", status=ScraperRunStatus.FAILED, error="boom"), "Scrape failed"),
+        (
+            ScraperRun(
+                id=1,
+                submit_timestamp=1,
+                snatch_enabled=False,
+                rec_types="album",
+                status=ScraperRunStatus.IN_PROGRESS,
+                stage="scraping",
+            ),
+            "Scraping Last.fm",
+        ),
+        (
+            ScraperRun(
+                id=1,
+                submit_timestamp=1,
+                snatch_enabled=True,
+                rec_types="album,track",
+                status=ScraperRunStatus.COMPLETED,
+                total_recs=12,
+            ),
+            "Scrape complete",
+        ),
+        (
+            ScraperRun(
+                id=1,
+                submit_timestamp=1,
+                snatch_enabled=False,
+                rec_types="album",
+                status=ScraperRunStatus.FAILED,
+                error="boom",
+            ),
+            "Scrape failed",
+        ),
     ],
 )
 def test_lfm_scraper_status_fragment_renders_stages(client: TestClient, run: ScraperRun, expected_snippet: str) -> None:
@@ -294,17 +332,23 @@ def _adhoc_row(**rec_kwargs: object) -> RunHistoryRow:
 def test_run_history_list_fragment_renders_accordion(client: TestClient) -> None:
     """The fragment renders one accordion row per run with the summary line and a Next page control."""
     grabbed_rec = SearchRecord(
-        id=1, submit_timestamp=1759680000, is_manual=True, entity_type=EntityType.ALBUM,
-        artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+        id=1,
+        submit_timestamp=1759680000,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Aphex Twin",
+        entity="Drukqs",
+        status=Status.GRABBED,
     )
     rows = [
         RunHistoryRow(
-            kind="adhoc", sort_timestamp=grabbed_rec.submit_timestamp,
+            kind="adhoc",
+            sort_timestamp=grabbed_rec.submit_timestamp,
             adhoc=RunHistoryItem(
                 searchrecord=grabbed_rec,
                 grabbed=Grabbed(g_result_id=1, fl_token_used=True, snatch_path="/d/1.torrent", tid=11),
             ),
-        ),
+        )
     ]
     page = _run_history_page(rows, page=1, page_size=1, total_count=2, total_pages=2)
     with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=page):
@@ -318,16 +362,28 @@ def test_run_history_list_fragment_renders_accordion(client: TestClient) -> None
 def test_run_history_list_fragment_renders_scraper_run_row(client: TestClient) -> None:
     """A scraper run renders as a distinctly-styled accordion row that nests the recs it pulled."""
     scraper_run = ScraperRun(
-        id=3, submit_timestamp=1759680000, finished_timestamp=1759680100, snatch_enabled=True,
-        rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=1,
+        id=3,
+        submit_timestamp=1759680000,
+        finished_timestamp=1759680100,
+        snatch_enabled=True,
+        rec_types="album,track",
+        status=ScraperRunStatus.COMPLETED,
+        total_recs=1,
     )
     nested_rec = SearchRecord(
-        id=9, submit_timestamp=1759680050, is_manual=False, entity_type=EntityType.ALBUM,
-        artist="Scraped Artist", entity="Scraped Album", status=Status.SKIPPED,
+        id=9,
+        submit_timestamp=1759680050,
+        is_manual=False,
+        entity_type=EntityType.ALBUM,
+        artist="Scraped Artist",
+        entity="Scraped Album",
+        status=Status.SKIPPED,
     )
     rows = [
         RunHistoryRow(
-            kind="scraper", sort_timestamp=scraper_run.submit_timestamp, scraper=scraper_run,
+            kind="scraper",
+            sort_timestamp=scraper_run.submit_timestamp,
+            scraper=scraper_run,
             scraper_recs=[RunHistoryItem(searchrecord=nested_rec)],
         )
     ]
@@ -338,6 +394,115 @@ def test_run_history_list_fragment_renders_scraper_run_row(client: TestClient) -
     assert "LFM scraper run" in text
     assert "Recommendations pulled (1)" in text
     assert "Scraped Artist" in text  # nested rec shown on expand
+
+
+def _scraper_recs(snatch_enabled: bool, batch: RecDownloadBatch | None = None):
+    run = ScraperRun(
+        id=5,
+        submit_timestamp=1759680000,
+        finished_timestamp=1759680100,
+        snatch_enabled=snatch_enabled,
+        rec_types="album",
+        status=ScraperRunStatus.COMPLETED,
+        total_recs=2,
+    )
+    matched_rec = RunHistoryItem(
+        searchrecord=SearchRecord(
+            id=10,
+            submit_timestamp=1759680010,
+            is_manual=False,
+            entity_type=EntityType.ALBUM,
+            artist="Matched Artist",
+            entity="Matched Album",
+            status=Status.MATCHED,
+        ),
+        matched=Matched(m_result_id=10, tid=100, red_permalink="https://red/100", size_gb=1.0),
+    )
+    skipped_rec = RunHistoryItem(
+        searchrecord=SearchRecord(
+            id=11,
+            submit_timestamp=1759680011,
+            is_manual=False,
+            entity_type=EntityType.ALBUM,
+            artist="Skipped Artist",
+            entity="Skipped Album",
+            status=Status.SKIPPED,
+        )
+    )
+    return run, [matched_rec, skipped_rec], batch
+
+
+def test_scraper_run_recs_fragment_interactive_for_disabled_downloads(client: TestClient) -> None:
+    """A downloads-disabled run with a matched rec shows the Download Match? column + checkbox + batch controls."""
+    with patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(False)):
+        text = client.get("/scraper_run_recs?run_id=5").text
+    assert "Download Match?" in text
+    assert 'name="search_ids" value="10"' in text  # checkbox for the matched rec
+    assert "Snatch selected recs" in text
+    assert "Download all (1)" in text
+
+
+def test_scraper_run_recs_fragment_readonly_when_downloads_enabled(client: TestClient) -> None:
+    """A downloads-enabled run shows a read-only recs table (no download controls)."""
+    with patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(True)):
+        text = client.get("/scraper_run_recs?run_id=5").text
+    assert "Download Match?" not in text
+    assert "Snatch selected recs" not in text
+
+
+def test_scraper_run_recs_fragment_shows_batch_progress(client: TestClient) -> None:
+    batch = RecDownloadBatch(id=1, scraper_run_id=5, submit_timestamp=1, total=2, completed=1)
+    with patch(
+        "plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(False, batch)
+    ):
+        text = client.get("/scraper_run_recs?run_id=5").text
+    assert "Downloading selected recommendations" in text
+    assert '<progress value="1" max="2">' in text
+
+
+def test_scraper_run_recs_fragment_missing(client: TestClient) -> None:
+    with patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=None):
+        assert client.get("/scraper_run_recs?run_id=999").status_code == 404
+
+
+@pytest.mark.parametrize("download_all", [False, True])
+def test_scraper_run_snatch_submit_schedules_batch(client: TestClient, download_all: bool) -> None:
+    run = _scraper_recs(False)[0]
+    with (
+        patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=run),
+        patch("plastered.api.routes.webserver_routes.scraper_run_matched_rec_ids", return_value=[10]),
+        patch("plastered.api.routes.webserver_routes.get_latest_rec_download_batch", return_value=None),
+        patch("plastered.api.routes.webserver_routes.create_rec_download_batch", return_value=1) as mock_create,
+        patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(False)),
+    ):
+        data = {"run_id": "5"}
+        if download_all:
+            data["download_all"] = "true"
+        else:
+            data["search_ids"] = "10"
+        resp = client.post("/scraper_run_snatch", data=data)
+        assert resp.status_code == 200
+        mock_create.assert_called_once()  # a download batch was created + scheduled
+
+
+def test_scraper_run_snatch_submit_noop_when_nothing_selected(client: TestClient) -> None:
+    run = _scraper_recs(False)[0]
+    with (
+        patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=run),
+        patch("plastered.api.routes.webserver_routes.scraper_run_matched_rec_ids", return_value=[10]),
+        patch("plastered.api.routes.webserver_routes.get_latest_rec_download_batch", return_value=None),
+        patch("plastered.api.routes.webserver_routes.create_rec_download_batch", return_value=1) as mock_create,
+        patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(False)),
+    ):
+        # No checkbox selected and not download_all -> nothing to snatch.
+        resp = client.post("/scraper_run_snatch", data={"run_id": "5"})
+        assert resp.status_code == 200
+        mock_create.assert_not_called()
+
+
+def test_scraper_run_snatch_submit_missing_run(client: TestClient) -> None:
+    with patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=None):
+        assert client.post("/scraper_run_snatch", data={"run_id": "999"}).status_code == 404
 
 
 def test_run_history_list_fragment_empty(client: TestClient) -> None:
@@ -369,7 +534,9 @@ def test_run_history_list_endpoint_ignores_blank_and_invalid_status(client: Test
 
 def test_format_timestamp_filter() -> None:
     assert _format_timestamp(None) == "—"
-    assert isinstance(_format_timestamp(1759680000), str) and len(_format_timestamp(1759680000)) == len("2025-01-01 00:00:00")
+    assert isinstance(_format_timestamp(1759680000), str) and len(_format_timestamp(1759680000)) == len(
+        "2025-01-01 00:00:00"
+    )
 
 
 def test_status_label_filter() -> None:

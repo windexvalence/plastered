@@ -9,15 +9,19 @@ from fastapi.responses import FileResponse, HTMLResponse
 from plastered.actions.api_actions import (
     adhoc_result_action,
     adhoc_snatch_action,
+    get_latest_rec_download_batch,
     get_scraper_run_action,
     run_history_page_action,
+    run_rec_download_batch_action,
+    scraper_run_matched_rec_ids,
+    scraper_run_recs_action,
 )
 from plastered.actions.common_actions import run_lfm_scraper
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
-from plastered.db.db_models import Status
-from plastered.db.db_utils import create_scraper_run
+from plastered.db.db_models import RecDownloadBatchStatus, Status
+from plastered.db.db_utils import create_rec_download_batch, create_scraper_run
 from plastered.models.types import EntityType, RedReleaseType
 
 _LOGGER = logging.getLogger(__name__)
@@ -144,9 +148,7 @@ async def lfm_scraper_run_submit(
         [member.value for member in rec_types_override] if rec_types_override else app_settings.lfm.rec_types_to_scrape
     )
     run_id = create_scraper_run(
-        snatch_enabled=snatch,
-        rec_types=effective_rec_types,
-        submit_timestamp=int(datetime.now(tz=UTC).timestamp()),
+        snatch_enabled=snatch, rec_types=effective_rec_types, submit_timestamp=int(datetime.now(tz=UTC).timestamp())
     )
     background_tasks.add_task(
         func=run_lfm_scraper,
@@ -168,9 +170,7 @@ async def lfm_scraper_run_submit(
 async def lfm_scraper_status_fragment(session: SessionDep, request: Request, run_id: int) -> HTMLResponse:
     run = get_scraper_run_action(run_id=run_id, session=session)
     if run is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}.")
     return TEMPLATES.TemplateResponse(
         request=request, name="fragments/lfm_scraper_status_fragment.html", context={"run": run}
     )
@@ -205,6 +205,57 @@ async def run_history_list_fragment(
     return TEMPLATES.TemplateResponse(
         request=request, name="fragments/run_history_list_fragment.html", context={"page": page_response}
     )
+
+
+def _scraper_recs_response(request: Request, session: SessionDep, run_id: int) -> HTMLResponse:
+    """Renders the scraper-run recs sub-fragment (recs table + download controls + batch progress)."""
+    run_recs = scraper_run_recs_action(session=session, run_id=run_id)
+    if run_recs is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}.")
+    run, recs, batch = run_recs
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="fragments/scraper_run_recs_fragment.html",
+        context={"run": run, "recs": recs, "batch": batch},
+    )
+
+
+# GET /scraper_run_recs?run_id=<int>  (recs sub-fragment; also the HTMX poll target while a download batch runs)
+@plastered_web_router.get("/scraper_run_recs")
+async def scraper_run_recs_fragment(session: SessionDep, request: Request, run_id: int) -> HTMLResponse:
+    return _scraper_recs_response(request=request, session=session, run_id=run_id)
+
+
+# POST /scraper_run_snatch  (download selected/all matched recs of a downloads-disabled scraper run, in the background)
+@plastered_web_router.post("/scraper_run_snatch")
+async def scraper_run_snatch_submit(
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    run_id: Annotated[int, Form()],
+    search_ids: Annotated[list[int] | None, Form()] = None,
+    download_all: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    run = get_scraper_run_action(run_id=run_id, session=session)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}.")
+    # Resolve the recs to download to this run's currently-matched (un-downloaded) recs, honoring the selection.
+    matched_ids = scraper_run_matched_rec_ids(session=session, run=run)
+    selected = matched_ids if download_all else [rec_id for rec_id in (search_ids or []) if rec_id in matched_ids]
+    # Don't start a second batch while one is already running for this run; ignore empty/no-op requests.
+    latest_batch = get_latest_rec_download_batch(session, run_id)
+    already_running = latest_batch is not None and latest_batch.status == RecDownloadBatchStatus.IN_PROGRESS
+    if selected and not already_running:
+        batch_id = create_rec_download_batch(
+            scraper_run_id=run_id, total=len(selected), submit_timestamp=int(datetime.now(tz=UTC).timestamp())
+        )
+        background_tasks.add_task(
+            func=run_rec_download_batch_action,
+            release_searcher=request.state.lifespan_singleton.release_searcher,
+            batch_id=batch_id,
+            search_ids=selected,
+        )
+    return _scraper_recs_response(request=request, session=session, run_id=run_id)
 
 
 @plastered_web_router.get("/user_details")

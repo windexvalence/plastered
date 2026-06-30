@@ -1,0 +1,72 @@
+{#
+  Scraper-run "Recommendations pulled" sub-fragment. Context: run (ScraperRun), recs (list[RunHistoryItem]),
+  batch (RecDownloadBatch | None). Rendered inside the #scraper-recs-<run.id> container in the run-history accordion,
+  and re-served by /scraper_run_recs (for HTMX polling while a download batch runs and after a snatch is submitted).
+
+  For a downloads-disabled run, matched-but-undownloaded recs get a per-rec "Download Match?" checkbox plus
+  "snatch selected" / "download all" controls. The snatches run sequentially through the shared throttled RED client.
+#}
+{% set ns = namespace(matched=0) %}
+{% for item in recs %}{% if item.searchrecord.status == "matched" %}{% set ns.matched = ns.matched + 1 %}{% endif %}{% endfor %}
+{% set batch_running = batch is not none and batch.status == "in_progress" %}
+{% set downloads_disabled = not run.snatch_enabled %}
+
+<div id="scraper-recs-inner"
+    {% if batch_running %}
+        hx-get="/scraper_run_recs?run_id={{ run.id }}"
+        hx-target="#scraper-recs-{{ run.id }}"
+        hx-swap="innerHTML"
+        hx-trigger="load delay:3s"
+    {% endif %}>
+
+    <p><strong>Recommendations pulled ({{ recs | length }})</strong></p>
+
+    {% if batch_running %}
+        <p aria-busy="true">Downloading selected recommendations…
+            <strong>{{ batch.completed }}</strong> of <strong>{{ batch.total }}</strong></p>
+        <progress value="{{ batch.completed }}" max="{{ batch.total }}"></progress>
+    {% endif %}
+
+    {% if downloads_disabled and ns.matched > 0 and not batch_running %}
+        {# Interactive: per-rec download checkboxes + batch controls. #}
+        <form hx-post="/scraper_run_snatch" hx-target="#scraper-recs-{{ run.id }}" hx-swap="innerHTML">
+            <input type="hidden" name="run_id" value="{{ run.id }}">
+            <button type="submit">⬇ Snatch selected recs</button>
+            <button type="button" hx-post="/scraper_run_snatch" hx-vals='{"download_all": true}'
+                    hx-include="closest form" hx-target="#scraper-recs-{{ run.id }}" hx-swap="innerHTML">
+                ⬇ Download all ({{ ns.matched }})
+            </button>
+            <table>
+                <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Download Match?</th></tr>
+                {% for item in recs %}
+                    <tr>
+                        <td>{{ item.searchrecord.entity_type }}</td>
+                        <td>{{ item.searchrecord.artist }}</td>
+                        <td>{{ item.searchrecord.entity }}</td>
+                        <td>{{ item.searchrecord.status | status_label }}</td>
+                        <td>
+                            {% if item.searchrecord.status == "matched" %}
+                                <input type="checkbox" name="search_ids" value="{{ item.searchrecord.id }}">
+                            {% else %}—{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </form>
+    {% elif recs %}
+        {# Read-only: nothing to download (or a batch is in progress). #}
+        <table>
+            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th></tr>
+            {% for item in recs %}
+                <tr>
+                    <td>{{ item.searchrecord.entity_type }}</td>
+                    <td>{{ item.searchrecord.artist }}</td>
+                    <td>{{ item.searchrecord.entity }}</td>
+                    <td>{{ item.searchrecord.status | status_label }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p><em>No recommendations recorded for this run.</em></p>
+    {% endif %}
+</div>

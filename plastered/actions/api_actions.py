@@ -16,10 +16,23 @@ from plastered.api.api_models import (
     RunHistoryPageResponse,
     RunHistoryRow,
 )
-from plastered.db.db_models import Failed, Grabbed, Matched, ScraperRun, SearchProgress, SearchRecord, Skipped, Status
-from plastered.db.db_utils import get_result_by_id
+from plastered.db.db_models import (
+    Failed,
+    Grabbed,
+    Matched,
+    RecDownloadBatch,
+    ScraperRun,
+    SearchProgress,
+    SearchRecord,
+    Skipped,
+    Status,
+    get_engine,
+)
+from plastered.db.db_utils import complete_rec_download_batch, get_result_by_id, increment_rec_download_batch
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from plastered.config.app_settings import RedSearchOverrides
     from plastered.models import AdhocSearch
     from plastered.release_search.release_searcher import ReleaseSearcher
@@ -75,6 +88,54 @@ def inspect_run_action(run_id: int, session: Session) -> SearchRecord | None:
 def get_scraper_run_action(run_id: int, session: Session) -> ScraperRun | None:
     """Returns the `ScraperRun` for `run_id` (used by the scraper-run progress UI), or `None` if it does not exist."""
     return session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).first()
+
+
+def get_latest_rec_download_batch(session: Session, scraper_run_id: int) -> RecDownloadBatch | None:
+    """Returns the most recent post-hoc download batch for a scraper run (drives the recs-section progress UI)."""
+    return session.exec(
+        select(RecDownloadBatch)
+        .where(RecDownloadBatch.scraper_run_id == scraper_run_id)
+        .order_by(desc(RecDownloadBatch.id))
+    ).first()
+
+
+def scraper_run_recs_action(
+    session: Session, run_id: int
+) -> tuple[ScraperRun, list[RunHistoryItem], RecDownloadBatch | None] | None:
+    """
+    Returns (scraper run, its pulled recs, latest download batch) for the run-history scraper recs sub-fragment, or
+    `None` if the run does not exist.
+    """
+    run = session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).first()
+    if run is None:
+        return None
+    return run, _scraper_run_recs(session=session, run=run), get_latest_rec_download_batch(session, run_id)
+
+
+def scraper_run_matched_rec_ids(session: Session, run: ScraperRun) -> list[int]:
+    """Returns the ids of a scraper run's recs that found a match but were not downloaded (status MATCHED)."""
+    return [
+        item.searchrecord.id
+        for item in _scraper_run_recs(session=session, run=run)
+        if item.searchrecord.status == Status.MATCHED and item.searchrecord.id is not None
+    ]
+
+
+def run_rec_download_batch_action(release_searcher: ReleaseSearcher, batch_id: int, search_ids: Sequence[int]) -> None:
+    """
+    Background action: snatch each selected scraper rec's recorded match, sequentially, through the shared throttled
+    RED snatch client (so the per-API rate limit of <=1 request / red_api_seconds_between_calls is preserved). Updates
+    the RecDownloadBatch progress as it goes and marks it COMPLETED at the end.
+    """
+    for search_id in search_ids:
+        with Session(get_engine()) as session:
+            record = session.exec(select(SearchRecord).where(SearchRecord.id == search_id)).first()
+            matched = session.exec(select(Matched).where(Matched.m_result_id == search_id)).first()
+        # Only snatch recs that are still an un-downloaded match (ignore anything already grabbed/changed meanwhile).
+        if record is not None and matched is not None and record.status == Status.MATCHED:
+            release_searcher.snatch_recorded_match(search_id=search_id, matched=matched)
+        increment_rec_download_batch(batch_id=batch_id)
+    complete_rec_download_batch(batch_id=batch_id)
 
 
 def _run_history_item_for_record(session: Session, record: SearchRecord) -> RunHistoryItem:
@@ -159,6 +220,7 @@ def run_history_page_action(
                     sort_timestamp=sort_timestamp,
                     scraper=obj,
                     scraper_recs=_scraper_run_recs(session=session, run=obj),
+                    download_batch=get_latest_rec_download_batch(session, obj.id),
                 )
             )
     return RunHistoryPageResponse(

@@ -15,6 +15,7 @@ from plastered.actions.api_actions import (
     inspect_run_action,
     run_history_action,
     run_history_page_action,
+    scraper_run_recs_action,
 )
 from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse, RunHistoryPageResponse
 from plastered.config.app_settings import AppSettings
@@ -245,28 +246,50 @@ def seeded_run_history(mock_session: Session) -> Session:
     """Seeds 4 ad-hoc SearchRecords (one per terminal status) with distinct timestamps + status rows."""
     base_ts = _MOCK_SINCE_TIMESTAMP
     grabbed_rec = SearchRecord(
-        id=1, submit_timestamp=base_ts + 1, is_manual=True, entity_type=EntityType.ALBUM,
-        artist="Aphex Twin", entity="Drukqs", status=Status.GRABBED,
+        id=1,
+        submit_timestamp=base_ts + 1,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Aphex Twin",
+        entity="Drukqs",
+        status=Status.GRABBED,
     )
     matched_rec = SearchRecord(
-        id=2, submit_timestamp=base_ts + 2, is_manual=True, entity_type=EntityType.ALBUM,
-        artist="Boards of Canada", entity="Geogaddi", status=Status.MATCHED,
+        id=2,
+        submit_timestamp=base_ts + 2,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Boards of Canada",
+        entity="Geogaddi",
+        status=Status.MATCHED,
     )
     skipped_rec = SearchRecord(
-        id=3, submit_timestamp=base_ts + 3, is_manual=True, entity_type=EntityType.TRACK,
-        artist="Autechre", entity="Gantz Graf", status=Status.SKIPPED,
+        id=3,
+        submit_timestamp=base_ts + 3,
+        is_manual=True,
+        entity_type=EntityType.TRACK,
+        artist="Autechre",
+        entity="Gantz Graf",
+        status=Status.SKIPPED,
     )
     failed_rec = SearchRecord(
-        id=4, submit_timestamp=base_ts + 4, is_manual=True, entity_type=EntityType.ALBUM,
-        artist="Squarepusher", entity="Feed Me Weird Things", status=Status.FAILED,
+        id=4,
+        submit_timestamp=base_ts + 4,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Squarepusher",
+        entity="Feed Me Weird Things",
+        status=Status.FAILED,
     )
     mock_session.add_all([grabbed_rec, matched_rec, skipped_rec, failed_rec])
-    mock_session.add_all([
-        Grabbed(g_result_id=1, fl_token_used=False, snatch_path="/d/1.torrent", tid=11),
-        Matched(m_result_id=2, tid=22, red_permalink="https://red/2", size_gb=1.0),
-        Skipped(s_result_id=3, skip_reason=SkipReason.NO_MATCH_FOUND),
-        Failed(f_result_id=4, fail_reason=FailReason.OTHER),
-    ])
+    mock_session.add_all(
+        [
+            Grabbed(g_result_id=1, fl_token_used=False, snatch_path="/d/1.torrent", tid=11),
+            Matched(m_result_id=2, tid=22, red_permalink="https://red/2", size_gb=1.0),
+            Skipped(s_result_id=3, skip_reason=SkipReason.NO_MATCH_FOUND),
+            Failed(f_result_id=4, fail_reason=FailReason.OTHER),
+        ]
+    )
     mock_session.commit()
     return mock_session
 
@@ -329,16 +352,31 @@ def test_run_history_page_action_includes_scraper_runs_with_nested_recs(mock_ses
 
     base_ts = _MOCK_SINCE_TIMESTAMP
     adhoc_rec = SearchRecord(
-        id=1, submit_timestamp=base_ts + 100, is_manual=True, entity_type=EntityType.ALBUM,
-        artist="Adhoc Artist", entity="Adhoc Album", status=Status.GRABBED,
+        id=1,
+        submit_timestamp=base_ts + 100,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Adhoc Artist",
+        entity="Adhoc Album",
+        status=Status.GRABBED,
     )
     scraper_run = ScraperRun(
-        id=1, submit_timestamp=base_ts + 10, finished_timestamp=base_ts + 20, snatch_enabled=True,
-        rec_types="album,track", status=ScraperRunStatus.COMPLETED, total_recs=1,
+        id=1,
+        submit_timestamp=base_ts + 10,
+        finished_timestamp=base_ts + 20,
+        snatch_enabled=True,
+        rec_types="album,track",
+        status=ScraperRunStatus.COMPLETED,
+        total_recs=1,
     )
     scraper_rec = SearchRecord(
-        id=2, submit_timestamp=base_ts + 15, is_manual=False, entity_type=EntityType.ALBUM,
-        artist="Scraped Artist", entity="Scraped Album", status=Status.SKIPPED,
+        id=2,
+        submit_timestamp=base_ts + 15,
+        is_manual=False,
+        entity_type=EntityType.ALBUM,
+        artist="Scraped Artist",
+        entity="Scraped Album",
+        status=Status.SKIPPED,
     )
     mock_session.add_all([adhoc_rec, scraper_run, scraper_rec])
     mock_session.add(Skipped(s_result_id=2, skip_reason=SkipReason.NO_MATCH_FOUND))
@@ -374,3 +412,102 @@ def test_get_scraper_run_action(mock_session: Session) -> None:
     mock_session.commit()
     assert get_scraper_run_action(run_id=5, session=mock_session).id == 5
     assert get_scraper_run_action(run_id=999, session=mock_session) is None
+
+
+def _scraper_run_with_matched_recs(session: Session) -> int:
+    """Seeds a downloads-disabled scraper run with one MATCHED rec (+ Matched row) and one SKIPPED rec. Returns run id."""
+    from plastered.db.db_models import ScraperRun, ScraperRunStatus
+
+    base = _MOCK_SINCE_TIMESTAMP
+    run = ScraperRun(
+        id=1,
+        submit_timestamp=base,
+        finished_timestamp=base + 100,
+        snatch_enabled=False,
+        rec_types="album",
+        status=ScraperRunStatus.COMPLETED,
+        total_recs=2,
+    )
+    matched_rec = SearchRecord(
+        id=10,
+        submit_timestamp=base + 10,
+        is_manual=False,
+        entity_type=EntityType.ALBUM,
+        artist="A",
+        entity="Matched Album",
+        status=Status.MATCHED,
+    )
+    skipped_rec = SearchRecord(
+        id=11,
+        submit_timestamp=base + 11,
+        is_manual=False,
+        entity_type=EntityType.ALBUM,
+        artist="B",
+        entity="Skipped Album",
+        status=Status.SKIPPED,
+    )
+    session.add_all([run, matched_rec, skipped_rec])
+    session.add_all(
+        [
+            Matched(m_result_id=10, tid=100, red_permalink="https://red/100", size_gb=1.0),
+            Skipped(s_result_id=11, skip_reason=SkipReason.NO_MATCH_FOUND),
+        ]
+    )
+    session.commit()
+    return 1
+
+
+def test_scraper_run_recs_action(mock_session: Session) -> None:
+    run_id = _scraper_run_with_matched_recs(mock_session)
+    result = scraper_run_recs_action(session=mock_session, run_id=run_id)
+    assert result is not None
+    run, recs, batch = result
+    assert run.id == run_id and len(recs) == 2 and batch is None
+    assert scraper_run_recs_action(session=mock_session, run_id=999) is None
+
+
+def test_scraper_run_matched_rec_ids(mock_session: Session) -> None:
+    from plastered.actions.api_actions import scraper_run_matched_rec_ids
+    from plastered.db.db_models import ScraperRun
+
+    _scraper_run_with_matched_recs(mock_session)
+    run = mock_session.exec(select(ScraperRun).where(ScraperRun.id == 1)).one()
+    assert scraper_run_matched_rec_ids(session=mock_session, run=run) == [10]  # only the MATCHED rec
+
+
+def test_get_latest_rec_download_batch(mock_session: Session) -> None:
+    from plastered.actions.api_actions import get_latest_rec_download_batch
+    from plastered.db.db_models import RecDownloadBatch
+
+    assert get_latest_rec_download_batch(mock_session, scraper_run_id=1) is None
+    mock_session.add_all(
+        [
+            RecDownloadBatch(id=1, scraper_run_id=1, submit_timestamp=1, total=1),
+            RecDownloadBatch(id=2, scraper_run_id=1, submit_timestamp=2, total=2),
+        ]
+    )
+    mock_session.commit()
+    assert get_latest_rec_download_batch(mock_session, scraper_run_id=1).id == 2  # most recent
+
+
+def test_run_rec_download_batch_action_snatches_matched_only(mock_session: Session) -> None:
+    """The batch snatches each still-MATCHED rec sequentially and marks the batch completed."""
+    from plastered.actions.api_actions import run_rec_download_batch_action
+    from plastered.db.db_models import RecDownloadBatch, RecDownloadBatchStatus
+
+    _scraper_run_with_matched_recs(mock_session)
+    mock_session.add(RecDownloadBatch(id=1, scraper_run_id=1, submit_timestamp=1, total=2))
+    mock_session.commit()
+    release_searcher = MagicMock(spec=ReleaseSearcher)
+    engine = mock_session.get_bind()
+    with (
+        patch("plastered.actions.api_actions.get_engine", return_value=engine),
+        patch("plastered.db.db_utils.get_engine", return_value=engine),
+    ):
+        run_rec_download_batch_action(release_searcher=release_searcher, batch_id=1, search_ids=[10, 11])
+    # Only rec 10 (MATCHED with a Matched row) is snatched; rec 11 (SKIPPED) is skipped.
+    release_searcher.snatch_recorded_match.assert_called_once()
+    assert release_searcher.snatch_recorded_match.call_args.kwargs["search_id"] == 10
+    batch = mock_session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == 1)).one()
+    mock_session.refresh(batch)
+    assert batch.completed == 2 and batch.status == RecDownloadBatchStatus.COMPLETED

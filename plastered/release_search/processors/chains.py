@@ -70,9 +70,7 @@ class SearchItemProcessorChain:
     )
 
     def batch_process(
-        self,
-        entity_to_si_list: dict[EntityType, list[SearchItem]],
-        progress_callback: Callable[[], None] | None = None,
+        self, entity_to_si_list: dict[EntityType, list[SearchItem]], progress_callback: Callable[[], None] | None = None
     ) -> list[SearchItem]:
         """
         Processes the list of `SearchItems` and returns the resulting list of processed `SearchItems`. `progress_callback`,

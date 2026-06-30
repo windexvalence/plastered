@@ -84,22 +84,13 @@
                         {% if run.error %}<tr><td>Error</td><td><code>{{ run.error }}</code></td></tr>{% endif %}
                     </table>
 
-                    <p><strong>Recommendations pulled ({{ row.scraper_recs | length }})</strong></p>
-                    {% if row.scraper_recs %}
-                        <table>
-                            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th></tr>
-                            {% for item in row.scraper_recs %}
-                                <tr>
-                                    <td>{{ item.searchrecord.entity_type }}</td>
-                                    <td>{{ item.searchrecord.artist }}</td>
-                                    <td>{{ item.searchrecord.entity }}</td>
-                                    <td>{{ item.searchrecord.status | status_label }}</td>
-                                </tr>
-                            {% endfor %}
-                        </table>
-                    {% else %}
-                        <p><em>No recommendations recorded for this run.</em></p>
-                    {% endif %}
+                    {# The recs section (with per-rec download controls for downloads-disabled runs) is served by
+                       /scraper_run_recs so it can be re-rendered by HTMX during/after a batch download. #}
+                    {% set recs = row.scraper_recs %}
+                    {% set batch = row.download_batch %}
+                    <div id="scraper-recs-{{ run.id }}">
+                        {% include "fragments/scraper_run_recs_fragment.html" %}
+                    </div>
                 </details>
             {% endif %}
         {% endfor %}
