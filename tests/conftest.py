@@ -98,6 +98,16 @@ def pytest_collection_modifyitems(config, items):
         item.add_marker(pytest.mark.httpx_mock(assert_all_responses_were_requested=False))
 
 
+@pytest.fixture
+def anyio_backend() -> str:
+    """
+    Backend selector for anyio's pytest plugin: any `@pytest.mark.anyio` async test runs on the asyncio backend.
+    This is our standard for async tests — we use anyio (not pytest-asyncio). See
+    https://anyio.readthedocs.io/en/stable/testing.html
+    """
+    return "asyncio"
+
+
 def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
     """Utility function to load and return the mock API json blob located at the specified json_filepath."""
     with open(json_filepath) as f:

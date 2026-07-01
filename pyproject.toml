@@ -31,7 +31,6 @@ test = [
     "mypy==1.18.2",
     "jsonschema-markdown==2025.10.1",
     "pytest==8.4.2",
-    "pytest-asyncio==1.2.0",
     "pytest-cov[toml]==6.1.1",
     "pytest-httpx==0.35.0",
     "pytest-mock>=3.15.1",
@@ -188,6 +187,7 @@ markers = [
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
     "no_autouse_mock_lifespan_singleton_inst: mark a test to not use the auto-use fixture for the fastapi lifespan singleton.",
     "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+    "anyio: mark an async test to be run via anyio's pytest plugin (see the `anyio_backend` fixture in tests/conftest.py).",
 ]
 filterwarnings = [
     "error:pytest.PytestWarning.*",
