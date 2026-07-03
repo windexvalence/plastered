@@ -60,7 +60,6 @@ class SearchState:
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
         self._max_download_allowed_gb = 0.0
         self._red_user_details = red_user_details
-        self._run_download_total_gb = 0.0
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
@@ -177,11 +176,6 @@ class SearchState:
         if not si.torrent_entry:  # pragma: no cover
             raise MissingTorrentEntryException("SearchItem missing torrent entry")
         self._add_grabbed_row(si=si, snatch_path=snatch_path, snatched_with_fl=snatched_with_fl)
-        if te := si.torrent_entry:
-            self._update_run_dl_total(te=te)
-
-    def _update_run_dl_total(self, te: TorrentEntry) -> None:  # pragma: no cover
-        self._run_download_total_gb += te.get_size(unit="GB")
 
     def add_search_item_to_snatch(self, si: SearchItem) -> None:
         if not si.torrent_entry:  # pragma: no cover

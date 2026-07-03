@@ -65,25 +65,11 @@ def test_construct_from_api(mock_musicbrainz_release_json: dict[str, Any], expec
     assert actual_red_release_type == expected_red_release_type, (
         f"Expected red release type set to '{expected_red_release_type}' but got '{actual_red_release_type}' instead."
     )
-    expected_first_release_year = 1996
-    actual_first_release_year = actual.get_first_release_year()
-    assert actual_first_release_year == expected_first_release_year
-    expected_label = "Get On Down"
-    actual_label = actual.get_label()
-    assert actual_label == expected_label
-    expected_catalog_number = "58010"
-    actual_catalog_number = actual.get_catalog_number()
-    assert actual_catalog_number == expected_catalog_number
-    expected_release_url = "https://musicbrainz.org/release/d211379d-3203-47ed-a0c5-e564815bb45a"
-    actual_release_url = actual.get_musicbrainz_release_url()
-    assert actual_release_url == expected_release_url, (
-        f"Unexpected mb release url: '{actual_release_url}'. Expected: '{expected_release_url}'"
-    )
-    expected_release_group_url = "https://musicbrainz.org/release-group/b38e21f6-8f76-3f87-a021-e91afad9e7e5"
-    actual_release_group_url = actual.get_musicbrainz_release_group_url()
-    assert actual_release_group_url == expected_release_group_url, (
-        f"Unexpected mb release group url: '{actual_release_group_url}'. Expected: '{expected_release_group_url}'"
-    )
+    assert actual.first_release_year == 1996
+    assert actual.label == "Get On Down"
+    assert actual.catalog_number == "58010"
+    assert actual.mbid == "d211379d-3203-47ed-a0c5-e564815bb45a"
+    assert actual.release_group_mbid == "b38e21f6-8f76-3f87-a021-e91afad9e7e5"
 
 
 @pytest.mark.parametrize(
@@ -104,7 +90,7 @@ def test_release_year_non_match(raw_field_present: bool, raw_field_value: str, e
             "label-info": [{"label": {"name": "Some fake label"}, "catalog-number": "1234"}],
         }
     )
-    actual_release_year = mbr.get_first_release_year()
+    actual_release_year = mbr.first_release_year
     assert actual_release_year == expected_year, (
         f"Expected first_release_year of {expected_year}, but got {actual_release_year} instead."
     )

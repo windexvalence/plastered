@@ -8,7 +8,6 @@ RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
 CACHE_DIRNAME: Final[str] = "cache"
 DB_FILENAME: Final[str] = "plastered.db"
-SUMMARIES_DIRNAME: Final[str] = "summaries"
 CACHE_TYPE_API: Final[str] = "api"
 CACHE_TYPE_SCRAPER: Final[str] = "scraper"
 
@@ -45,8 +44,6 @@ LOGIN_USERNAME_FORM_LOCATOR: Final[str] = "[name='username_or_email']"
 LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"
 LOGIN_BUTTON_LOCATOR: Final[str] = "[name='submit']"
 LOGOUT_URL: Final[str] = "https://www.last.fm/logout"
-
-RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
 
 STORAGE_UNIT_IDENTIFIERS: Final[frozenset[str]] = frozenset(["B", "MB", "GB"])
 BYTES_IN_GB: Final[float] = 1e9

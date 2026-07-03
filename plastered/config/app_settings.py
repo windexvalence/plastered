@@ -1,14 +1,11 @@
 import json
 import logging
 import os
-import sys
 from collections import Counter
-from datetime import datetime
 from functools import reduce
 from pathlib import Path
 from typing import Any, Self
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
@@ -22,7 +19,7 @@ from plastered.models.field_validators import (
 )
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
-from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
+from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
@@ -208,10 +205,8 @@ class AppSettings(BaseSettings):
     cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
     server: ServerConfig = Field(title="server", default_factory=_default_server_config)
     # Private, post-init attributes below
-    _run_datestr: str
     _config_directory_path: Path
     _base_cache_directory_path: Path
-    _root_summary_directory_path: Path
     _db_filepath: Path
 
     def model_post_init(self, context: Any) -> None:
@@ -219,10 +214,8 @@ class AppSettings(BaseSettings):
         Assign derived, private instance attributes.
         https://docs.pydantic.dev/latest/concepts/models/#private-model-attributes
         """
-        self._run_datestr = datetime.now().strftime(RUN_DATE_STR_FORMAT)
         self._config_directory_path = Path(os.path.dirname(os.path.abspath(self.src_yaml_filepath)))
         self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
-        self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
         self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
     def get_db_filepath(self) -> str:
@@ -268,9 +261,6 @@ class AppSettings(BaseSettings):
         if cache_type == "scraper":
             return self.cache.scraper_cache_enabled
         return self.cache.api_cache_enabled
-
-    def pretty_print_config(self) -> None:  # pragma: no cover
-        yaml.dump(self.model_dump(), sys.stdout)
 
 
 def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:

@@ -71,3 +71,21 @@ preference*, on top of the LFM/MusicBrainz calls). Four changes cut that down wi
 Additionally, every RED `browse` request now carries a constant `filter_cat[1]=1` (restrict to the Music category).
 
 Verified: `make mypy`, `make fmt-check`, and `SLOW_TESTS=1 make test` all pass — **734 passed, 100% coverage**.
+
+## Holistic dead-code sweep
+
+Removed code with no live callers (verified via `vulture` + reference grep across source, tests, and templates;
+excluding framework-dispatched hooks like FastAPI routes, click commands, and pydantic validators):
+
+- **Dead "run summaries" feature** — the `AppSettings._run_datestr` / `_root_summary_directory_path` private attrs
+  (set in `model_post_init`, never read) plus the `SUMMARIES_DIRNAME` / `RUN_DATE_STR_FORMAT` constants and stale
+  test leftovers.
+- **Write-only download accumulator** — `SearchState._run_download_total_gb` + `_update_run_dl_total` (accumulated a
+  total nothing ever read).
+- **Unread attributes** — `LFMRec._track_origin_release_mbid`, `LFMScraper._login_success_url`.
+- **Test-only passthrough methods** (no production caller; construction-validation coverage preserved by asserting on
+  fields directly): the five `MBRelease.get_*` accessors, `RedFormat.get_cd_only_extras_str` +
+  `CdOnlyExtras.red_api_string`, `ReleaseEntry.get_red_formats`, `LifespanSingleton.get_all_client_kwargs`, and
+  `AppSettings.pretty_print_config`.
+
+Net: 33 fewer statements; `make mypy`, `make fmt-check`, and `SLOW_TESTS=1 make test` all pass (732 passed, 100%).

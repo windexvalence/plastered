@@ -63,21 +63,6 @@ class MBRelease:
         except KeyError:
             return RedReleaseType.UNKNOWN
 
-    def get_first_release_year(self) -> int:
-        return self.first_release_year
-
-    def get_label(self) -> str | None:
-        return self.label
-
-    def get_catalog_number(self) -> str | None:
-        return self.catalog_number
-
-    def get_musicbrainz_release_url(self) -> str:
-        return f"https://musicbrainz.org/release/{self.mbid}"
-
-    def get_musicbrainz_release_group_url(self) -> str:
-        return f"https://musicbrainz.org/release-group/{self.release_group_mbid}"
-
     def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
         """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""
         return OrderedDict(

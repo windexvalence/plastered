@@ -34,11 +34,6 @@ class CdOnlyExtras(BaseModel):
         validate_cd_extras_log_value(self.log)
         return self
 
-    @property
-    def red_api_string(self) -> str:
-        """Returns the stringified cd_only_extras, formatted for RED's API."""
-        return f"haslog={self.log}&hascue={int(self.has_cue)}"
-
 
 def _red_format_field_title_generator(field_name: str, field_info: Any) -> str:  # pragma: no cover
     """
@@ -74,10 +69,6 @@ class RedFormat(BaseModel):
     @classmethod
     def _coerce_media_str_to_enum(cls, raw_value: str) -> MediaEnum:
         return MediaEnum(raw_value) if isinstance(raw_value, str) else raw_value
-
-    def get_cd_only_extras_str(self) -> str | None:
-        """Returns the stringified cd_only_extras, formatted for RED's API. Empty string if has no extras."""
-        return "" if self.cd_only_extras is None else self.cd_only_extras.red_api_string
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, RedFormat):
@@ -238,11 +229,6 @@ class ReleaseEntry:
             release_type=_red_release_type_str_to_enum(release_type_str=json_blob["releaseType"]),
             torrent_entries=torrent_entries,
         )
-
-    def get_red_formats(self) -> list[RedFormat]:
-        return [
-            torrent_entry.red_format for torrent_entry in self.torrent_entries if torrent_entry.red_format is not None
-        ]
 
     def get_torrent_entries(self) -> list[TorrentEntry]:
         return self.torrent_entries

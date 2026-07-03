@@ -51,7 +51,7 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
 
 
 @pytest.mark.parametrize(
-    "te, expected_cd_only_extras_str",
+    "te, expected_cd_only_extras",
     [
         (
             TorrentEntry(
@@ -71,7 +71,7 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
                 lossy_web=None,
                 lossy_master=None,
             ),
-            "",
+            None,
         ),
         (
             TorrentEntry(
@@ -91,14 +91,16 @@ def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleas
                 lossy_web=None,
                 lossy_master=None,
             ),
-            "haslog=100&hascue=1",
+            CdOnlyExtras(log=100, has_cue=True),
         ),
     ],
 )
-def test_torrent_entry_cd_only_extras_constructor(te: TorrentEntry, expected_cd_only_extras_str: str) -> None:
-    actual_cd_only_extras_str = te.red_format.get_cd_only_extras_str()
-    assert actual_cd_only_extras_str == expected_cd_only_extras_str, (
-        f"Expected cd_only_extras to be '{expected_cd_only_extras_str}', but got '{actual_cd_only_extras_str}'"
+def test_torrent_entry_cd_only_extras_constructor(
+    te: TorrentEntry, expected_cd_only_extras: "CdOnlyExtras | None"
+) -> None:
+    actual_cd_only_extras = te.red_format.cd_only_extras
+    assert actual_cd_only_extras == expected_cd_only_extras, (
+        f"Expected cd_only_extras to be '{expected_cd_only_extras}', but got '{actual_cd_only_extras}'"
     )
 
 
@@ -269,50 +271,6 @@ def test_release_entry_from_torrent_search_json_blob(mock_red_browse_non_empty_r
     actual = ReleaseEntry.from_torrent_search_json_blob(json_blob=mock_json)
     assert isinstance(actual, ReleaseEntry)
     assert actual.group_id == expected_group_id
-
-
-def test_release_entry_get_red_formats(mock_red_group_response: dict[str, Any]) -> None:
-    test_release_entry = ReleaseEntry(
-        group_id=463161,
-        media=MediaEnum.CD.value,
-        remastered=True,
-        remaster_year=2000,
-        remaster_title="Promo",
-        remaster_catalogue_number="CSK 48775",
-        release_type=RedReleaseType.SINGLE,
-        remaster_record_label="Track Masters &lrm;/ Columbia",
-        torrent_entries=[
-            TorrentEntry(
-                torrent_id=949473,
-                media=MediaEnum.CD.value,
-                format=FormatEnum.FLAC.value,
-                encoding=EncodingEnum.LOSSLESS.value,
-                size=110902818,
-                scene=False,
-                trumpable=False,
-                has_snatched=False,
-                has_log=True,
-                log_score=100,
-                has_cue=True,
-                can_use_token=False,
-                reported=False,
-                lossy_web=False,
-                lossy_master=False,
-            )
-        ],
-    )
-    expected_red_format_list = [
-        RedFormat(
-            format=FormatEnum.FLAC,
-            encoding=EncodingEnum.LOSSLESS,
-            media=MediaEnum.CD,
-            cd_only_extras=CdOnlyExtras(log=100, has_cue=True),
-        )
-    ]
-    actual_red_format_list = test_release_entry.get_red_formats()
-    assert actual_red_format_list == expected_red_format_list, (
-        f"Expected test_release_entry.get_red_formats() to return {expected_red_format_list}, but got {actual_red_format_list}"
-    )
 
 
 @pytest.mark.parametrize(

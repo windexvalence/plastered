@@ -68,7 +68,6 @@ class LFMRecsScraper:
         ]
         self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
         self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}
-        self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
         self._is_logged_in = False
         self._playwright: Playwright | None = None
         self._browser: BrowserType | None = None

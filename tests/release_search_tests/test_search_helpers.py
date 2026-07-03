@@ -503,7 +503,6 @@ def test_add_snatch_final_status_row(
     with (
         patch.object(SearchState, "_add_failed_snatch_row") as mock_add_failed_snatch_row,
         patch.object(SearchState, "_add_grabbed_row") as mock_add_grabbed_row,
-        patch.object(SearchState, "_update_run_dl_total") as mock_update_run_dl_total,
     ):
         search_state = SearchState(app_settings=valid_app_settings)
         search_state.add_snatch_final_status_row(
@@ -512,11 +511,9 @@ def test_add_snatch_final_status_row(
         if mock_exc_name:
             mock_add_failed_snatch_row.assert_called_once_with(si=si, exc_name=mock_exc_name)
             mock_add_grabbed_row.assert_not_called()
-            mock_update_run_dl_total.assert_not_called()
         else:
             mock_add_failed_snatch_row.assert_not_called()
             mock_add_grabbed_row.assert_called_once_with(si=si, snatch_path="/fake/path", snatched_with_fl=True)
-            mock_update_run_dl_total.assert_called_once_with(te=si.torrent_entry)
 
 
 def test_add_search_item_to_snatch(valid_app_settings: AppSettings, mock_torrent_entry: TorrentEntry) -> None:
