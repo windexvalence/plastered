@@ -50,14 +50,14 @@ flowchart TD
     NEW_STATE -.->|"already initialized"| APPLY
     GRUD --> APPLY
 
-    APPLY -->|"EntityType.ALBUM"| ATTACH
-    APPLY -->|"EntityType.TRACK"| RESOLVE_TRACK
+    APPLY --> ATTACH
+    ATTACH -->|"EntityType.ALBUM"| PREMBID
+    ATTACH -->|"EntityType.TRACK"| RESOLVE_TRACK
 
     RESOLVE_TRACK --> POST_TRACK
-    POST_TRACK -->|pass| ATTACH
+    POST_TRACK -->|pass| PREMBID
     POST_TRACK -->|reject| DROP
 
-    ATTACH --> PREMBID
     PREMBID -->|"pass (album)"| RESOLVE_ALBUM
     PREMBID -->|"pass (track)"| ATTEMPT_MB
     PREMBID -->|reject| DROP
@@ -123,8 +123,8 @@ flowchart TD
     NEW_STATE -.->|"already initialized"| APPLY
     GRUD --> APPLY
 
-    APPLY -->|"EntityType.ALBUM"| ATTACH
-    APPLY -->|"EntityType.TRACK"| RESOLVE_TRACK
+    APPLY --> ATTACH
+    ATTACH -->|"EntityType.TRACK"| RESOLVE_TRACK
 
     %% ── PostResolveOriginTrackFilter (track only, inline rule) ──
     subgraph TF0["PostResolveOriginTrackFilter"]
@@ -132,7 +132,6 @@ flowchart TD
         TS_in["inline: si._lfm_track_info present?"]
     end
     RESOLVE_TRACK --> TS_in
-    TS_in -->|present| ATTACH
     TS_in -->|NO_SOURCE_RELEASE_FOUND| DROP
 
     %% ── PreMBIDResolutionFilter ──
@@ -142,7 +141,8 @@ flowchart TD
         S_context["state._pre_mbid_reso_rule_allowed_rec_context()"]
         S_snatched -->|None| S_context
     end
-    ATTACH --> S_snatched
+    ATTACH -->|"EntityType.ALBUM"| S_snatched
+    TS_in -->|present| S_snatched
     S_context -->|"None (album)"| RESOLVE_ALBUM
     S_context -->|"None (track)"| ATTEMPT_MB
     RESOLVE_ALBUM --> ATTEMPT_MB
@@ -199,11 +199,14 @@ The chains are defined on `SearchItemProcessorChain` in
 
 | Order | `album_chain` | `track_chain` |
 | ----- | ------------- | ------------- |
-| 1 | `AttachSearchIdModifier` | `ResolveTrackInfoModifier` |
-| 2 | `PreMBIDResolutionFilter` | `PostResolveOriginTrackFilter` |
-| 3 | `ResolveAlbumInfoModifier` | `AttachSearchIdModifier` |
+| 1 | `AttachSearchIdModifier` | `AttachSearchIdModifier` |
+| 2 | `PreMBIDResolutionFilter` | `ResolveTrackInfoModifier` |
+| 3 | `ResolveAlbumInfoModifier` | `PostResolveOriginTrackFilter` |
 | 4 | `AttemptResolveMBReleaseModifier` | `PreMBIDResolutionFilter` |
 | 5 | `PostMBIDResolutionFilter` | `AttemptResolveMBReleaseModifier` |
 | 6 | `SearchRedReleaseByPrefsModifier` | `PostMBIDResolutionFilter` |
 | 7 | `PostRedSearchFilter` | `SearchRedReleaseByPrefsModifier` |
 | 8 | — | `PostRedSearchFilter` |
+
+Both chains create the `SearchRecord` first (via `AttachSearchIdModifier`) so that any filter which later
+drops the item has a `search_id` to attach the `SKIPPED`/`FAILED` status row to.
