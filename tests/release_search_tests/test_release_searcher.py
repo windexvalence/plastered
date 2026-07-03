@@ -146,6 +146,19 @@ def test_search_for_recs_with_snatch_override_and_progress_callback(mock_kwargs:
             mock_snatch.assert_called_once()
 
 
+def test_search_for_recs_records_matches_when_downloads_disabled(mock_kwargs: _MockRsKwargs) -> None:
+    """With snatching disabled, matches are recorded as MATCHED rows (for later download) instead of being snatched."""
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with (
+            patch.object(rs, "_apply_si_processor_chain"),
+            patch.object(Snatcher, "snatch_matches") as mock_snatch,
+            patch.object(SearchState, "record_matched_result_rows") as mock_record,
+        ):
+            rs.search_for_recs({et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)]}, snatch_override=False)
+        mock_snatch.assert_not_called()
+        mock_record.assert_called_once_with()
+
+
 def test_dedupe_recs_preserves_order_and_drops_dupes() -> None:
     """`_dedupe_recs` drops recs equal by `LFMRec.__eq__` while preserving first-seen order."""
     r1 = LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)

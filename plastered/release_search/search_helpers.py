@@ -192,10 +192,24 @@ class SearchState:
         if any, as a `MATCHED` result row so the matched release can be returned to the client. A no-op when no match
         was found (the post-RED-search filter has already written the appropriate SKIPPED row in that case).
         """
-        si = self._manual_search_item_to_snatch
-        if si is None or not si.torrent_entry:
-            return
+        if (si := self._manual_search_item_to_snatch) is not None:
+            self._record_matched_row(si=si)
+
+    def record_matched_result_rows(self) -> None:
+        """
+        For a scraper run with downloads disabled: record every RED match found this run as a `MATCHED` result row, so
+        the matches can be reviewed and selectively downloaded later from the run-history page. No ratio/size cap is
+        applied here — the per-torrent `max_size_gb` cap was already applied during matching, and the cumulative
+        ratio-based cap only governs automatic snatching, not the user's explicit retroactive selection.
+        """
+        for si in self._search_items_to_snatch:
+            self._record_matched_row(si=si)
+
+    def _record_matched_row(self, si: SearchItem) -> None:
+        """Writes the `MATCHED` status row for a single matched `SearchItem`."""
         te = si.torrent_entry
+        if te is None:
+            return
         set_result_status(
             search_id=si.search_id,
             status=Status.MATCHED,

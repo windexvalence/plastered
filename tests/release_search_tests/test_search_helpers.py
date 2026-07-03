@@ -779,3 +779,23 @@ def test_record_matched_result_row_noop_when_no_match(
     with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
         state.record_matched_result_row()
     mock_set_result_status.assert_not_called()
+
+
+def test_record_matched_result_rows_writes_one_per_matched_item(valid_app_settings: AppSettings) -> None:
+    """The scraper (downloads-disabled) flow records a MATCHED row for every matched search item."""
+    state = SearchState(app_settings=valid_app_settings)
+    for tid in (10, 20, 30):
+        si = SearchItem(initial_info=LFMRec("a", "e", rt.ALBUM, rc.SIMILAR_ARTIST))
+        mock_te = MagicMock(spec=TorrentEntry)
+        mock_te.torrent_id = tid
+        mock_te.get_permalink_url.return_value = f"https://red/{tid}"
+        mock_te.get_size.return_value = 1.0
+        mock_te.media, mock_te.format, mock_te.encoding = "WEB", "FLAC", "Lossless"
+        si.torrent_entry = mock_te
+        si.search_id = tid
+        state._search_items_to_snatch.append(si)
+    with patch("plastered.release_search.search_helpers.set_result_status") as mock_set_result_status:
+        state.record_matched_result_rows()
+    assert mock_set_result_status.call_count == 3
+    assert {call.kwargs["status_model_kwargs"]["tid"] for call in mock_set_result_status.call_args_list} == {10, 20, 30}
+    assert all(call.kwargs["status"] == Status.MATCHED for call in mock_set_result_status.call_args_list)

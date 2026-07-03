@@ -97,9 +97,10 @@ class ReleaseSearcher:
         progress_callback: Callable[[], None] | None = None,
     ) -> None:
         """
-        Search for all enabled rec_types scraped from LFM. Then snatch the recs if snatching is enabled. `snatch_override`
-        overrides the configured snatch behavior for this run; `progress_callback` is invoked once per processed rec
-        (used by the scraper-run UI to report progress).
+        Search for all enabled rec_types scraped from LFM. Then, if snatching is enabled, snatch the matched recs;
+        otherwise record them as `MATCHED` rows so they can be selectively downloaded later from the run-history page.
+        `snatch_override` overrides the configured snatch behavior for this run; `progress_callback` is invoked once per
+        processed rec (used by the scraper-run UI to report progress).
         """
         enable_snatches = self._enable_snatches if snatch_override is None else snatch_override
         search_state, snatcher = self._new_search_state_and_snatcher(enable_snatches=enable_snatches)
@@ -110,7 +111,12 @@ class ReleaseSearcher:
         self._apply_si_processor_chain(
             entity_to_si_list=entity_to_si_list, search_state=search_state, progress_callback=progress_callback
         )
-        snatcher.snatch_matches()
+        # When snatching is disabled, record the matches as MATCHED rows instead so they can be selectively downloaded
+        # later from the run-history page (rather than silently discarded).
+        if enable_snatches:
+            snatcher.snatch_matches()
+        else:
+            search_state.record_matched_result_rows()
 
     def adhoc_search(
         self, adhoc_search: AdhocSearch, search_id: int, overrides: RedSearchOverrides | None = None
