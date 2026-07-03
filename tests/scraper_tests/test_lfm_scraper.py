@@ -3,13 +3,18 @@ from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from rebrowser_playwright.sync_api import PlaywrightContextManager
+from rebrowser_playwright.sync_api import Error, PlaywrightContextManager
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext, EntityType
 from plastered.run_cache.run_cache import RunCache
-from plastered.scraper.lfm_scraper import LFMRecsScraper, _sleep_random, cached_lfm_recs_validator
+from plastered.scraper.lfm_scraper import (
+    _CONTENT_READ_MAX_ATTEMPTS,
+    LFMRecsScraper,
+    _sleep_random,
+    cached_lfm_recs_validator,
+)
 from plastered.utils.constants import (
     ALBUM_RECS_BASE_URL,
     LOGIN_BUTTON_LOCATOR,
@@ -555,6 +560,40 @@ def test_navigate_to_page_and_get_page_source(
             ]
         )
         mock_sleep_random.assert_called_once()
+
+
+def test_read_page_content_retries_on_navigating_error() -> None:
+    """A transient 'page is navigating' error is retried after waiting for the load state to settle."""
+    mock_page = MagicMock()
+    mock_page.content.side_effect = [
+        Error("Unable to retrieve content because the page is navigating and changing the content"),
+        "<html>ok</html>",
+    ]
+    assert LFMRecsScraper._read_page_content(page=mock_page) == "<html>ok</html>"
+    assert mock_page.content.call_count == 2
+    mock_page.wait_for_load_state.assert_called_once_with()
+
+
+def test_read_page_content_reraises_non_navigating_error() -> None:
+    """A non-navigation Playwright error is not retried; it propagates immediately."""
+    mock_page = MagicMock()
+    mock_page.content.side_effect = Error("some other playwright failure")
+    with pytest.raises(Error, match="some other playwright failure"):
+        LFMRecsScraper._read_page_content(page=mock_page)
+    mock_page.content.assert_called_once()
+    mock_page.wait_for_load_state.assert_not_called()
+
+
+def test_read_page_content_reraises_when_still_navigating_after_all_attempts() -> None:
+    """If the page keeps navigating through every attempt, the final navigation error is re-raised."""
+    mock_page = MagicMock()
+    mock_page.content.side_effect = Error(
+        "Unable to retrieve content because the page is navigating and changing the content"
+    )
+    with pytest.raises(Error, match="navigating and changing the content"):
+        LFMRecsScraper._read_page_content(page=mock_page)
+    assert mock_page.content.call_count == _CONTENT_READ_MAX_ATTEMPTS
+    assert mock_page.wait_for_load_state.call_count == _CONTENT_READ_MAX_ATTEMPTS - 1
 
 
 @pytest.mark.parametrize(
