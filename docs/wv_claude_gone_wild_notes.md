@@ -47,3 +47,27 @@ Overrides only rebuild the search / snatch *settings* via `model_copy` — the s
 - `plastered/db` was treated as the prototype layer it is and the existing `SearchRecord` + status tables were
   reused/extended rather than introducing Alembic, since the async-poll persistence need was satisfied by the existing
   SQLModel/SQLite setup.
+
+## Search performance optimizations (single-browse + dedup + skip-MB)
+
+The per-rec RED search was the dominant cost (it serialized up to one throttled `browse` call *per format
+preference*, on top of the LFM/MusicBrainz calls). Four changes cut that down without touching any API rate limit:
+
+1. **One browse per rec (client-side ranking).** `create_red_browse_params` no longer constrains
+   `format`/`encoding`/`media`; a single format-agnostic `browse` is issued per rec and the returned torrents are
+   ranked against the configured `red.format_preferences` client-side in `SearchState.select_best_torrent` (highest-
+   priority preference with a size-acceptable match wins; matching is by format/encoding/media, ignoring `cd_only_extras`,
+   preserving the prior semantics). This replaces N throttled browse calls with 1.
+   - Consequence: the per-format-preference ad-hoc progress bar (`SearchProgress` table + `upsert_search_progress`) is
+     obsolete — there's no longer a per-preference loop to visualize — so it was removed. The in-flight ad-hoc UI falls
+     back to the existing indeterminate "Searching RED…" spinner.
+3. **Rec dedup.** `search_for_recs` drops duplicate recs (by `LFMRec` identity) before the processor chain, so the same
+   release isn't processed — or recorded as a separate `SearchRecord` — twice. (Identical *API queries* within a run
+   were already free via the disk cache; this removes redundant processing and duplicate result rows.)
+4. **Skip MusicBrainz when unused.** The scraper flow only needs the MB release to populate optional RED search fields,
+   so `AttemptResolveMBReleaseModifier` now skips the lookup entirely when no optional fields are enabled
+   (`SearchState.mb_resolution_would_be_used`). Ad-hoc searches still resolve MB (best-effort enrichment).
+
+Additionally, every RED `browse` request now carries a constant `filter_cat[1]=1` (restrict to the Music category).
+
+Verified: `make mypy`, `make fmt-check`, and `SLOW_TESTS=1 make test` all pass — **734 passed, 100% coverage**.

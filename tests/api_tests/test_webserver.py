@@ -17,7 +17,6 @@ from plastered.db.db_models import (
     RecDownloadBatchStatus,
     ScraperRun,
     ScraperRunStatus,
-    SearchProgress,
     SearchRecord,
     Skipped,
     SkipReason,
@@ -162,21 +161,6 @@ def test_adhoc_result_fragment_renders(client: TestClient, result: AdhocSearchRe
         resp = client.get("/adhoc_result?search_id=69")
         assert resp.status_code == 200
         assert expected_snippet in resp.text
-
-
-def test_adhoc_result_fragment_shows_progress_bar(client: TestClient) -> None:
-    """An in-flight search with recorded progress renders a determinate progress bar + the format-preference suffix."""
-    result = _adhoc_result(
-        Status.IN_PROGRESS,
-        progress=SearchProgress(
-            sp_result_id=69, current_pref=1, total_prefs=2, current_pref_label="FLAC / 24bit Lossless / SACD"
-        ),
-    )
-    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
-        text = client.get("/adhoc_result?search_id=69").text
-    assert "searching format preference:" in text
-    assert "FLAC / 24bit Lossless / SACD" in text
-    assert '<progress value="1" max="2">' in text
 
 
 def test_adhoc_result_fragment_matched_shows_download_button(client: TestClient) -> None:

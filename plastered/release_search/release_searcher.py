@@ -25,6 +25,24 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _dedupe_recs(recs: list[LFMRec]) -> list[LFMRec]:
+    """
+    Drops duplicate recs (order-preserving) that map to the same release, so the same query isn't processed — and
+    recorded as a separate `SearchRecord` — more than once. Recs are deduped by the same identity as `LFMRec.__eq__`
+    (artist, entity, album-vs-track, rec context).
+    """
+    seen: set[tuple[str, str, bool, str]] = set()
+    deduped: list[LFMRec] = []
+    for rec in recs:
+        key = (rec.encoded_artist_str, rec.encoded_entity_str, rec.is_album_rec(), rec.rec_context.value)
+        if key in seen:
+            _LOGGER.debug(f"Dropping duplicate rec: {rec}")
+            continue
+        seen.add(key)
+        deduped.append(rec)
+    return deduped
+
+
 class ReleaseSearcher:
     """
     General 'brains' for searching for a collection of LFM-recommended releases.
@@ -86,7 +104,7 @@ class ReleaseSearcher:
         enable_snatches = self._enable_snatches if snatch_override is None else snatch_override
         search_state, snatcher = self._new_search_state_and_snatcher(enable_snatches=enable_snatches)
         entity_to_si_list = {
-            entity_type: [SearchItem(initial_info=rec) for rec in rec_list]
+            entity_type: [SearchItem(initial_info=rec) for rec in _dedupe_recs(rec_list)]
             for entity_type, rec_list in entity_to_recs_list.items()
         }
         self._apply_si_processor_chain(

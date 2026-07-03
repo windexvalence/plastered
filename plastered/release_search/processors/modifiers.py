@@ -6,13 +6,13 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import SearchRecord
-from plastered.db.db_utils import add_record, upsert_search_progress
-from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease, TorrentMatch
+from plastered.db.db_utils import add_record
+from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
 
 if TYPE_CHECKING:
-    from plastered.models import ReleaseEntry, SearchItem, TorrentEntry
+    from plastered.models import SearchItem
     from plastered.release_search.search_helpers import SearchState
     from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
@@ -85,6 +85,11 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
+        # Skip the MusicBrainz release lookup entirely when its result would never be used: the scraper flow only needs
+        # the MB release details to populate optional RED search fields, so when none are enabled we save the call.
+        if not state.mb_resolution_would_be_used(si=si):
+            _LOGGER.debug("MusicBrainz release resolution not required by config; skipping the lookup.")
+            return si
         if not (mbid := si.get_matched_mbid()):
             _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
             return si
@@ -102,51 +107,17 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
-        matched_entry: TorrentEntry | None = None
-        above_max_size_found = False
-        total_prefs = len(state.red_format_preferences)
-        for index, pref in enumerate(state.red_format_preferences):
-            # For an ad-hoc search, record which format preference is being searched so the result UI can show a
-            # live progress bar as it polls. Guarded on search_id so it's a no-op outside the persisted ad-hoc flow.
-            if si.is_manual and si.search_id is not None:
-                upsert_search_progress(
-                    search_id=si.search_id,
-                    current_pref=index + 1,
-                    total_prefs=total_prefs,
-                    current_pref_label=f"{pref.get_format()} / {pref.get_encoding().replace('+', ' ')} / {pref.get_media()}",
-                )
-            # Build params outside the try so a browse failure's log line can't hit an unassigned `req_params`.
-            req_params = state.create_red_browse_params(red_format=pref, si=si)
-            try:
-                release_entries = red.browse(request_params=req_params)
-            except Exception:
-                _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
-                continue
-            match = SearchRedReleaseByPrefsModifier._torrent_match_from_browse_results(
-                browse_results=release_entries, state=state
-            )
-            if match.torrent_entry is not None:
-                matched_entry = match.torrent_entry
-                break
-            # No usable match for this preference (empty results, or all candidates above max size). Remember whether
-            # we saw an oversized candidate and keep trying the remaining (lower) preferences before giving up.
-            above_max_size_found = above_max_size_found or match.above_max_size_found
-
-        if matched_entry is None:
+        # Issue a single, format-agnostic browse per rec and rank the returned torrents against the format preferences
+        # client-side (see `SearchState.select_best_torrent`). Build params outside the try so a browse failure's log
+        # line can't hit an unassigned `req_params`.
+        req_params = state.create_red_browse_params(si=si)
+        try:
+            release_entries = red.browse(request_params=req_params)
+        except Exception:
+            _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
+            release_entries = []
+        torrent_match = state.select_best_torrent(release_entries=release_entries)
+        if torrent_match.torrent_entry is None:
             _LOGGER.debug(f"No torrent match found for si: {si.initial_info}")
-        torrent_match = TorrentMatch(
-            torrent_entry=matched_entry, above_max_size_found=(matched_entry is None and above_max_size_found)
-        )
         si.set_torrent_match_fields(torrent_match=torrent_match)
         return si
-
-    @staticmethod
-    def _torrent_match_from_browse_results(browse_results: list[ReleaseEntry], state: SearchState) -> TorrentMatch:
-        above_max_size_found = False
-        for release_entry in browse_results:
-            for torrent_entry in release_entry.get_torrent_entries():
-                if torrent_entry.get_size(unit="GB") <= state.max_size_gb:
-                    return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
-                else:
-                    above_max_size_found = True
-        return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)

@@ -2,7 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 import re
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from sqlmodel import Session
@@ -11,7 +11,7 @@ from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import SearchRecord, Status, SkipReason
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.red_models import RedFormat, TorrentEntry
+from plastered.models.red_models import RedFormat, ReleaseEntry, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
 from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
@@ -55,11 +55,17 @@ def mock_torrent_entry() -> TorrentEntry:
     )
 
 
+# A single, format-agnostic browse is issued per rec (see `SearchRedReleaseByPrefsModifier`), so the params no longer
+# carry format/encoding/media; the constant `filter_cat[1]=1` restricts the browse to the Music category.
+_BROWSE_PARAMS_BASE = (
+    "artistname=Some+Artist&groupname=Some+Bad+Album&filter_cat[1]=1&group_results=1&order_by=seeders&order_way=desc"
+)
+
+
 @pytest.mark.parametrize(
-    "rf, mock_kwargs_user_settings, mock_search_kwargs, expected_browse_params",
+    "mock_kwargs_user_settings, mock_search_kwargs, expected_browse_params",
     [
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
             {
                 "use_release_type": False,
                 "use_first_release_year": False,
@@ -67,11 +73,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": False,
             },
             {},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            _BROWSE_PARAMS_BASE,
             id="disabled-all-empty-kwargs",
         ),
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.WEB),
             {
                 "use_release_type": False,
                 "use_first_release_year": False,
@@ -84,11 +89,11 @@ def mock_torrent_entry() -> TorrentEntry:
                 RED_PARAM_RECORD_LABEL: "fake",
                 RED_PARAM_CATALOG_NUMBER: "bar",
             },
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            # Non-manual search: optional params are omitted because none are enabled by `red.search`.
+            _BROWSE_PARAMS_BASE,
             id="disabled-all-full-kwargs",
         ),
         pytest.param(
-            RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.WEB),
             {
                 "use_release_type": True,
                 "use_first_release_year": True,
@@ -96,11 +101,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": True,
             },
             {},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=WEB&group_results=1&order_by=seeders&order_way=desc",
+            _BROWSE_PARAMS_BASE,
             id="enabled-all-empty-kwargs",
         ),
         pytest.param(
-            RedFormat(format=fe.MP3, encoding=ee.MP3_V0, media=me.CD),
             {
                 "use_release_type": False,
                 "use_first_release_year": True,
@@ -108,11 +112,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": False,
             },
             {RED_PARAM_RELEASE_YEAR: 1969},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=MP3&encoding=V0+(VBR)&media=CD&group_results=1&order_by=seeders&order_way=desc&year=1969",
+            f"{_BROWSE_PARAMS_BASE}&year=1969",
             id="use-release-year-valid",
         ),
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
             {
                 "use_release_type": True,
                 "use_first_release_year": False,
@@ -120,11 +123,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": False,
             },
             {RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1",
+            f"{_BROWSE_PARAMS_BASE}&releasetype=1",
             id="use-release-type-valid",
         ),
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
             {
                 "use_release_type": False,
                 "use_first_release_year": False,
@@ -132,11 +134,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": False,
             },
             {RED_PARAM_RECORD_LABEL: "Fake+Label"},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&recordlabel=Fake+Label",
+            f"{_BROWSE_PARAMS_BASE}&recordlabel=Fake+Label",
             id="use-record-label-valid",
         ),
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
             {
                 "use_release_type": False,
                 "use_first_release_year": False,
@@ -144,11 +145,10 @@ def mock_torrent_entry() -> TorrentEntry:
                 "use_catalog_number": True,
             },
             {RED_PARAM_CATALOG_NUMBER: "FL+69420"},
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&cataloguenumber=FL+69420",
+            f"{_BROWSE_PARAMS_BASE}&cataloguenumber=FL+69420",
             id="use-catalog-num-valid",
         ),
         pytest.param(
-            RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB),
             {
                 "use_release_type": True,
                 "use_first_release_year": True,
@@ -161,7 +161,7 @@ def mock_torrent_entry() -> TorrentEntry:
                 RED_PARAM_RECORD_LABEL: "Fake+Label",
                 RED_PARAM_CATALOG_NUMBER: "FL+69420",
             },
-            "artistname=Some+Artist&groupname=Some+Bad+Album&format=FLAC&encoding=24bit+Lossless&media=WEB&group_results=1&order_by=seeders&order_way=desc&releasetype=1&year=1969&recordlabel=Fake+Label&cataloguenumber=FL+69420",
+            f"{_BROWSE_PARAMS_BASE}&releasetype=1&year=1969&recordlabel=Fake+Label&cataloguenumber=FL+69420",
             id="use-all-kwargs-valid",
         ),
     ],
@@ -169,7 +169,6 @@ def mock_torrent_entry() -> TorrentEntry:
 def test_create_browse_params(
     valid_config_raw_data: dict[str, Any],
     valid_config_filepath: str,
-    rf: RedFormat,
     mock_kwargs_user_settings: dict[str, bool],
     mock_search_kwargs: dict[str, Any],
     expected_browse_params: str,
@@ -190,10 +189,134 @@ def test_create_browse_params(
             ),
             _search_kwargs=mock_search_kwargs,
         )
-        actual_browse_params = search_state.create_red_browse_params(red_format=rf, si=si)
+        actual_browse_params = search_state.create_red_browse_params(si=si)
         assert actual_browse_params == expected_browse_params, (
             f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
         )
+
+
+def _make_te(fmt: str, encoding: str, media: str, size_gb: float, tid: int = 1) -> TorrentEntry:
+    """Build a `TorrentEntry` (with its derived `red_format`) of a given format/encoding/media and size (GB)."""
+    return TorrentEntry(
+        torrent_id=tid,
+        media=media,
+        format=fmt,
+        encoding=encoding,
+        size=size_gb * 1e9,
+        scene=False,
+        trumpable=False,
+        has_snatched=False,
+        has_log=False,
+        log_score=0,
+        has_cue=False,
+        can_use_token=False,
+    )
+
+
+def _release_entry(torrent_entries: list[TorrentEntry]) -> ReleaseEntry:
+    return ReleaseEntry(
+        group_id=69, media="CD", release_type=RedReleaseType.ALBUM, torrent_entries=torrent_entries, remastered=False
+    )
+
+
+# Preferences: highest priority first.
+_FLAC_24_WEB = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB)
+_FLAC_LL_CD = RedFormat(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.CD)
+_FLAC_24_SACD = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
+
+
+@pytest.mark.parametrize(
+    "prefs, release_entries_factory, max_size_gb, expected_tid, expected_above_max",
+    [
+        # Highest-priority preference wins even when its torrent isn't first in the browse results.
+        pytest.param(
+            [_FLAC_24_WEB, _FLAC_LL_CD],
+            lambda: [_release_entry([_make_te("FLAC", "Lossless", "CD", 10.0, tid=1)])]
+            + [_release_entry([_make_te("FLAC", "24bit Lossless", "WEB", 5.0, tid=2)])],
+            50.0,
+            2,
+            False,
+            id="highest-priority-pref-wins",
+        ),
+        # Top preference absent -> fall through to a lower preference's match.
+        pytest.param(
+            [_FLAC_24_SACD, _FLAC_LL_CD],
+            lambda: [_release_entry([_make_te("FLAC", "Lossless", "CD", 10.0, tid=3)])],
+            50.0,
+            3,
+            False,
+            id="falls-through-to-lower-pref",
+        ),
+        # A format-matching torrent exists but is above the size limit -> no match, above_max flagged.
+        pytest.param(
+            [_FLAC_24_WEB],
+            lambda: [_release_entry([_make_te("FLAC", "24bit Lossless", "WEB", 100.0, tid=4)])],
+            50.0,
+            None,
+            True,
+            id="format-match-above-max-size",
+        ),
+        # No torrent matches any preference's format -> no match, above_max not flagged.
+        pytest.param(
+            [_FLAC_24_WEB],
+            lambda: [_release_entry([_make_te("MP3", "320", "WEB", 1.0, tid=5)])],
+            50.0,
+            None,
+            False,
+            id="no-format-match",
+        ),
+        # Within one preference, an oversized candidate is skipped in favor of a later size-acceptable one.
+        pytest.param(
+            [_FLAC_24_WEB],
+            lambda: [
+                _release_entry(
+                    [
+                        _make_te("FLAC", "24bit Lossless", "WEB", 100.0, tid=6),
+                        _make_te("FLAC", "24bit Lossless", "WEB", 5.0, tid=7),
+                    ]
+                )
+            ],
+            50.0,
+            7,
+            False,
+            id="prefers-size-acceptable-within-pref",
+        ),
+        # No browse results at all.
+        pytest.param([_FLAC_24_WEB], list, 50.0, None, False, id="empty-results"),
+    ],
+)
+def test_select_best_torrent(
+    valid_app_settings: AppSettings,
+    prefs: list[RedFormat],
+    release_entries_factory: Any,
+    max_size_gb: float,
+    expected_tid: int | None,
+    expected_above_max: bool,
+) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_format_preferences = prefs
+    search_state._max_size_gb = max_size_gb
+    match = search_state.select_best_torrent(release_entries=release_entries_factory())
+    if expected_tid is None:
+        assert match.torrent_entry is None
+    else:
+        assert match.torrent_entry is not None
+        assert match.torrent_entry.torrent_id == expected_tid
+    assert match.above_max_size_found is expected_above_max
+
+
+@pytest.mark.parametrize(
+    "is_manual, require_mbid, expected",
+    [(False, False, False), (False, True, True), (True, False, True), (True, True, True)],
+)
+def test_mb_resolution_would_be_used(
+    valid_app_settings: AppSettings, is_manual: bool, require_mbid: bool, expected: bool
+) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._require_mbid_resolution = require_mbid
+    si = MagicMock(spec=SearchItem)
+    type(si).is_manual = PropertyMock(return_value=is_manual)
+    assert search_state.mb_resolution_would_be_used(si=si) is expected
 
 
 @pytest.mark.parametrize(

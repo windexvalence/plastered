@@ -52,6 +52,9 @@ STORAGE_UNIT_IDENTIFIERS: Final[frozenset[str]] = frozenset(["B", "MB", "GB"])
 BYTES_IN_GB: Final[float] = 1e9
 BYTES_IN_MB: Final[float] = 1e6
 
+# Constant query params appended to every RED browse request. `filter_cat[1]=1` restricts results to the Music category.
+RED_BROWSE_CONSTANT_PARAMS: Final[str] = "filter_cat[1]=1&group_results=1&order_by=seeders&order_way=desc"
+
 # User-specified params to optionally append to the RED browse requests
 RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"
 RED_PARAM_RELEASE_YEAR: Final[str] = "year"

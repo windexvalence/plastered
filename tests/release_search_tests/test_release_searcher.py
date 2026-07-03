@@ -15,7 +15,7 @@ from plastered.models import (
     TorrentEntry as te,
 )
 from plastered.release_search.processors import SearchItemProcessorChain
-from plastered.release_search.release_searcher import ReleaseSearcher
+from plastered.release_search.release_searcher import ReleaseSearcher, _dedupe_recs
 from plastered.release_search.search_helpers import SearchState
 from plastered.run_cache.run_cache import RunCache
 from plastered.snatch import Snatcher
@@ -144,6 +144,30 @@ def test_search_for_recs_with_snatch_override_and_progress_callback(mock_kwargs:
             mock_apply.assert_called_once()
             assert mock_apply.call_args.kwargs["progress_callback"] is _callback
             mock_snatch.assert_called_once()
+
+
+def test_dedupe_recs_preserves_order_and_drops_dupes() -> None:
+    """`_dedupe_recs` drops recs equal by `LFMRec.__eq__` while preserving first-seen order."""
+    r1 = LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)
+    r2 = LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)  # duplicate of r1
+    r3 = LFMRec("a", "e", et.TRACK, rc.IN_LIBRARY)  # distinct: track vs album
+    r4 = LFMRec("b", "e", et.ALBUM, rc.IN_LIBRARY)  # distinct artist
+    deduped = _dedupe_recs([r1, r2, r3, r4])
+    assert deduped == [r1, r3, r4]
+
+
+def test_search_for_recs_dedupes_identical_recs(mock_kwargs: _MockRsKwargs) -> None:
+    """Duplicate recs mapping to the same release are collapsed before the processor chain runs."""
+    recs = [
+        LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY),
+        LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY),  # duplicate
+        LFMRec("b", "e2", et.ALBUM, rc.IN_LIBRARY),
+    ]
+    with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
+        with patch.object(rs, "_apply_si_processor_chain") as mock_apply, patch.object(Snatcher, "snatch_matches"):
+            rs.search_for_recs(entity_to_recs_list={et.ALBUM: recs})
+        si_list = mock_apply.call_args.kwargs["entity_to_si_list"][et.ALBUM]
+    assert len(si_list) == 2
 
 
 @pytest.mark.parametrize("snatch_enabled", [True, False])

@@ -22,7 +22,6 @@ from plastered.db.db_models import (
     Matched,
     RecDownloadBatch,
     ScraperRun,
-    SearchProgress,
     SearchRecord,
     Skipped,
     Status,
@@ -291,7 +290,6 @@ def adhoc_result_action(search_id: int, session: Session) -> AdhocSearchResult |
         grabbed=session.exec(select(Grabbed).where(Grabbed.g_result_id == search_id)).first(),
         failed=session.exec(select(Failed).where(Failed.f_result_id == search_id)).first(),
         skipped=session.exec(select(Skipped).where(Skipped.s_result_id == search_id)).first(),
-        progress=session.exec(select(SearchProgress).where(SearchProgress.sp_result_id == search_id)).first(),
     )
 
 

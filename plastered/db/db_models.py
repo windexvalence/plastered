@@ -187,20 +187,6 @@ class RecDownloadBatch(SQLModel, table=True):
     completed: int = Field(default=0)
 
 
-class SearchProgress(SQLModel, table=True):
-    """
-    Live progress for an in-flight ad-hoc search: which RED format preference is currently being searched. There is at
-    most one row per `SearchRecord`, upserted as the RED browse loop advances, and polled by the ad-hoc result UI to
-    render a progress bar. Purely informational — not part of the final result.
-    """
-
-    id: int | None = Field(default=None, primary_key=True)
-    sp_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
-    current_pref: int | None = Field(default=None)
-    total_prefs: int | None = Field(default=None)
-    current_pref_label: str | None = Field(default=None)
-
-
 @cache
 def get_engine() -> Engine:
     from plastered.config.app_settings import get_app_settings

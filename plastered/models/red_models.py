@@ -75,15 +75,6 @@ class RedFormat(BaseModel):
     def _coerce_media_str_to_enum(cls, raw_value: str) -> MediaEnum:
         return MediaEnum(raw_value) if isinstance(raw_value, str) else raw_value
 
-    def get_format(self) -> str:
-        return self.format.value
-
-    def get_encoding(self) -> str:
-        return self.encoding.value
-
-    def get_media(self) -> str:
-        return self.media.value
-
     def get_cd_only_extras_str(self) -> str | None:
         """Returns the stringified cd_only_extras, formatted for RED's API. Empty string if has no extras."""
         return "" if self.cd_only_extras is None else self.cd_only_extras.red_api_string

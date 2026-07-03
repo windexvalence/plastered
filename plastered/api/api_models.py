@@ -5,17 +5,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from plastered.config.app_settings import RedSearchOverrides
-from plastered.db.db_models import (
-    Failed,
-    Grabbed,
-    Matched,
-    RecDownloadBatch,
-    ScraperRun,
-    SearchProgress,
-    SearchRecord,
-    Skipped,
-    Status,
-)
+from plastered.db.db_models import Failed, Grabbed, Matched, RecDownloadBatch, ScraperRun, SearchRecord, Skipped, Status
 from plastered.models import AdhocSearch
 
 if TYPE_CHECKING:
@@ -53,8 +43,6 @@ class AdhocSearchResult(BaseModel):
     grabbed: Grabbed | None = Field(default=None)
     failed: Failed | None = Field(default=None)
     skipped: Skipped | None = Field(default=None)
-    # Live progress for an in-flight search (which format preference is currently being searched). None once complete.
-    progress: SearchProgress | None = Field(default=None)
 
     @property
     def is_complete(self) -> bool:

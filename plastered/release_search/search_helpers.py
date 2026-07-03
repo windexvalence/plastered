@@ -4,9 +4,10 @@ from urllib.parse import quote_plus
 from plastered.config.app_settings import AppSettings, FormatPreference
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
-from plastered.models import RecContext, RedFormat, RedUserDetails, SearchItem, TorrentEntry
+from plastered.models import RecContext, RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
+    RED_BROWSE_CONSTANT_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_RELEASE_TYPE,
@@ -77,16 +78,17 @@ class SearchState:
         )
         self._red_user_details = red_user_details
 
-    # pylint: disable=redefined-builtin
-    def create_red_browse_params(self, red_format: RedFormat, si: SearchItem) -> str:
-        """Utility method for creating the RED browse API params string"""
+    def create_red_browse_params(self, si: SearchItem) -> str:
+        """
+        Builds the RED browse API params string for a search item. A single broad browse is issued per rec (by
+        artist + group, with no format/encoding/media constraints); the returned torrents are then ranked against the
+        configured format preferences client-side (see `select_best_torrent`). This replaces issuing one throttled
+        browse per format preference.
+        """
         artist_name = si.initial_info.encoded_artist_str
         album_name = quote_plus(si.release_name)
-        format = red_format.get_format()
-        encoding = red_format.get_encoding()
-        media = red_format.get_media()
         # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
-        browse_request_params = f"artistname={artist_name}&groupname={album_name}&format={format}&encoding={encoding}&media={media}&group_results=1&order_by=seeders&order_way=desc"
+        browse_request_params = f"artistname={artist_name}&groupname={album_name}&{RED_BROWSE_CONSTANT_PARAMS}"
         for red_param in OPTIONAL_RED_PARAMS:
             # For ad-hoc searches, include every optional param the request actually supplied (all such fields are
             # optional in the ad-hoc flow). For the scraper flow, only include params enabled by `red.search`.
@@ -94,6 +96,14 @@ class SearchState:
             if include_param and (red_param_val := si.get_search_kwargs().get(red_param)):
                 browse_request_params += f"&{red_param}={red_param_val}"
         return browse_request_params
+
+    def mb_resolution_would_be_used(self, si: SearchItem) -> bool:
+        """
+        Whether the MusicBrainz release lookup is worth performing for this item. The scraper flow only consults the MB
+        release to populate optional RED search fields, so it's needed only when at least one such field is enabled. The
+        ad-hoc flow always resolves it (best-effort enrichment of the returned match / optional params).
+        """
+        return si.is_manual or self._require_mbid_resolution
 
     def _pre_mbid_reso_rule_not_previously_snatched(self, si: SearchItem) -> SkipReason | None:
         """Return `True` if si has already been snatched, return `False` otherwise."""
@@ -279,10 +289,31 @@ class SearchState:
             status_model_kwargs={"fl_token_used": snatched_with_fl, "snatch_path": snatch_path, "tid": te.torrent_id},
         )
 
-    @property
-    def red_format_preferences(self) -> list[FormatPreference]:  # pragma: no cover
-        return self._red_format_preferences
+    def select_best_torrent(self, release_entries: list[ReleaseEntry]) -> TorrentMatch:
+        """
+        Ranks the torrents returned by a single (format-agnostic) RED browse against the configured format preferences,
+        client-side. The highest-priority preference that has a size-acceptable matching torrent wins; among matches for
+        a preference the first (highest-seeded, since the browse is seeder-ordered) within `max_size_gb` is chosen.
 
-    @property
-    def max_size_gb(self) -> float:  # pragma: no cover
-        return self._max_size_gb
+        `above_max_size_found` is reported when a format-matching torrent existed but every candidate exceeded the size
+        limit — mirroring the prior per-preference browse behavior. Matching is by format/encoding/media only (log/cue
+        `cd_only_extras` are intentionally ignored, preserving the semantics of the previous browse-query filtering).
+        """
+        above_max_size_found = False
+        for pref in self._red_format_preferences:
+            for release_entry in release_entries:
+                for torrent_entry in release_entry.get_torrent_entries():
+                    if not self._torrent_matches_format(torrent_entry=torrent_entry, pref=pref):
+                        continue
+                    if torrent_entry.get_size(unit="GB") <= self._max_size_gb:
+                        return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
+                    above_max_size_found = True
+        return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
+
+    @staticmethod
+    def _torrent_matches_format(torrent_entry: TorrentEntry, pref: FormatPreference) -> bool:
+        """Whether a torrent's format/encoding/media matches a format preference (ignoring `cd_only_extras`)."""
+        te_format = torrent_entry.red_format
+        return te_format is not None and (
+            te_format.format == pref.format and te_format.encoding == pref.encoding and te_format.media == pref.media
+        )

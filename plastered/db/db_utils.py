@@ -14,7 +14,6 @@ from plastered.db.db_models import (
     RecDownloadBatch,
     RecDownloadBatchStatus,
     ScraperRun,
-    SearchProgress,
     SearchRecord,
     Skipped,
     SkipReason,
@@ -35,7 +34,6 @@ def db_startup() -> None:
         Grabbed,
         Failed,
         Matched,
-        SearchProgress,
         ScraperRun,
         RecDownloadBatch,
     ]
@@ -93,24 +91,6 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
         session.add(status_record)
         session.commit()
         _LOGGER.debug(f"Finished updating status of SearchRecord record (id={search_id}) ...")
-
-
-def upsert_search_progress(search_id: int | None, current_pref: int, total_prefs: int, current_pref_label: str) -> None:
-    """
-    Records (insert-or-update) the live progress of an in-flight ad-hoc search — the RED format preference currently
-    being searched — so the result UI can render a progress bar. A no-op when `search_id` is None.
-    """
-    if search_id is None:  # pragma: no cover
-        return
-    with Session(get_engine()) as session:
-        progress = session.exec(select(SearchProgress).where(SearchProgress.sp_result_id == search_id)).first()
-        if progress is None:
-            progress = SearchProgress(sp_result_id=search_id)
-        progress.current_pref = current_pref
-        progress.total_prefs = total_prefs
-        progress.current_pref_label = current_pref_label
-        session.add(progress)
-        session.commit()
 
 
 def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:
