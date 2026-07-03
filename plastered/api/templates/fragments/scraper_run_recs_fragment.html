@@ -54,15 +54,17 @@
             </table>
         </form>
     {% elif recs %}
-        {# Read-only: nothing to download (or a batch is in progress). #}
+        {# Read-only: nothing to download (or a batch is in progress). The Reason column surfaces why non-matched
+           recs were skipped/failed, to aid diagnosis. #}
         <table>
-            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th></tr>
+            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Reason</th></tr>
             {% for item in recs %}
                 <tr>
                     <td>{{ item.searchrecord.entity_type }}</td>
                     <td>{{ item.searchrecord.artist }}</td>
                     <td>{{ item.searchrecord.entity }}</td>
                     <td>{{ item.searchrecord.status | status_label }}</td>
+                    <td>{% if item.skipped %}<code>{{ item.skipped.skip_reason }}</code>{% elif item.failed %}<code>{{ item.failed.fail_reason }}</code>{% else %}—{% endif %}</td>
                 </tr>
             {% endfor %}
         </table>
