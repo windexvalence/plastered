@@ -41,6 +41,9 @@ _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
 # for the in-flight navigation to settle and retry a bounded number of times.
 _PAGE_NAVIGATING_ERR_FRAGMENT = "navigating and changing the content"
 _CONTENT_READ_MAX_ATTEMPTS = 3
+# How long to wait for the page's network to go idle (i.e. an in-flight navigation to finish) between content-read
+# attempts. Bounded so a page with persistent connections that never reaches networkidle doesn't hang the scrape.
+_PAGE_SETTLE_TIMEOUT_MS = 5000
 
 
 def _sleep_random() -> None:
@@ -160,8 +163,10 @@ class LFMRecsScraper:
         """
         Returns the page's HTML, retrying if Last.fm triggers a navigation while the content is being read.
         `page.content()` raises "Unable to retrieve content because the page is navigating and changing the content"
-        in that window; waiting for the in-flight navigation's load event and retrying resolves it. Non-navigation
-        errors (and a still-navigating page after the final attempt) are re-raised.
+        in that window (the tracks recommendations page in particular kicks off a client-side navigation shortly after
+        it loads). Between attempts we wait for the network to go idle so the in-flight navigation actually finishes
+        before retrying — a plain `wait_for_load_state()` returns immediately here because the original document already
+        fired its load event. Non-navigation errors (and a still-navigating page after the final attempt) are re-raised.
         """
         for attempt in range(_CONTENT_READ_MAX_ATTEMPTS):
             try:
@@ -171,9 +176,15 @@ class LFMRecsScraper:
                 if _PAGE_NAVIGATING_ERR_FRAGMENT not in str(err) or is_last_attempt:
                     raise
                 _LOGGER.warning(
-                    f"Page navigating while reading content (attempt {attempt + 1}); waiting for load and retrying ..."
+                    f"Page navigating while reading content (attempt {attempt + 1}); "
+                    "waiting for network idle and retrying ..."
                 )
-                page.wait_for_load_state()
+                try:
+                    page.wait_for_load_state("networkidle", timeout=_PAGE_SETTLE_TIMEOUT_MS)
+                except Error:
+                    # networkidle may never be reached (persistent connections) or the page may still be churning;
+                    # proceed anyway and let the next content() attempt try again.
+                    _LOGGER.debug("Page did not reach network idle before timeout; retrying content read anyway.")
         raise ScraperException("Exhausted page-content read attempts")  # pragma: no cover
 
     def _extract_recs_from_page_source(self, page_source: str, rec_type: EntityType) -> list[LFMRec]:

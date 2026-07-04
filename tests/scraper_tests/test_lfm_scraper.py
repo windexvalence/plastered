@@ -11,6 +11,7 @@ from plastered.models.types import RecContext, EntityType
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import (
     _CONTENT_READ_MAX_ATTEMPTS,
+    _PAGE_SETTLE_TIMEOUT_MS,
     LFMRecsScraper,
     _sleep_random,
     cached_lfm_recs_validator,
@@ -563,7 +564,7 @@ def test_navigate_to_page_and_get_page_source(
 
 
 def test_read_page_content_retries_on_navigating_error() -> None:
-    """A transient 'page is navigating' error is retried after waiting for the load state to settle."""
+    """A transient 'page is navigating' error is retried after waiting for the network to go idle."""
     mock_page = MagicMock()
     mock_page.content.side_effect = [
         Error("Unable to retrieve content because the page is navigating and changing the content"),
@@ -571,7 +572,20 @@ def test_read_page_content_retries_on_navigating_error() -> None:
     ]
     assert LFMRecsScraper._read_page_content(page=mock_page) == "<html>ok</html>"
     assert mock_page.content.call_count == 2
-    mock_page.wait_for_load_state.assert_called_once_with()
+    mock_page.wait_for_load_state.assert_called_once_with("networkidle", timeout=_PAGE_SETTLE_TIMEOUT_MS)
+
+
+def test_read_page_content_proceeds_when_settle_wait_times_out() -> None:
+    """If the network-idle wait itself errors/times out, it's swallowed and the content read is retried anyway."""
+    mock_page = MagicMock()
+    mock_page.content.side_effect = [
+        Error("Unable to retrieve content because the page is navigating and changing the content"),
+        "<html>ok</html>",
+    ]
+    mock_page.wait_for_load_state.side_effect = Error("Timeout exceeded while waiting for network idle")
+    assert LFMRecsScraper._read_page_content(page=mock_page) == "<html>ok</html>"
+    assert mock_page.content.call_count == 2
+    mock_page.wait_for_load_state.assert_called_once_with("networkidle", timeout=_PAGE_SETTLE_TIMEOUT_MS)
 
 
 def test_read_page_content_reraises_non_navigating_error() -> None:
