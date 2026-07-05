@@ -56,15 +56,6 @@ class RunCache:
     def enabled(self) -> bool:
         return self._enabled
 
-    def clear(self) -> None:
-        """
-        Clear all entries in the RunCache. Raises a RunCacheDisabledException if instance is not enabled.
-        """
-        if not self._enabled:
-            raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        num_entries_removed = self._cache.clear()
-        LOGGER.info(f"{self._cache_type} emptied: {num_entries_removed} entries removed.")
-
     def close(self) -> None:  # pragma: no cover
         """
         Closes the underlying diskcache.Cache instance if the RunCache is enabled, otherwise is a no-op.
@@ -73,19 +64,6 @@ class RunCache:
             self._cache.close()
             return
         LOGGER.warning(f"close() call on disabled {self._cache_type} cache has no effect.")
-
-    def check(self) -> None:
-        """
-        Runs disckcache.Cache's check() method if enabled.
-        diskcache.Cache's check() call verifies cache consistency.
-        It can also fix inconsistencies and reclaim unused space. Logs any discovered warnings.
-        """
-        if not self._enabled:
-            raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        diskcache_warnings = self._cache.check()
-        if diskcache_warnings:
-            LOGGER.warning(f"{self._cache_type} diskcache warnings: ")
-            LOGGER.warning("\n".join(diskcache_warnings))
 
     def load_data_if_valid(self, cache_key: Any, data_validator_fn: Callable) -> Any:
         if not self._enabled:
@@ -112,26 +90,3 @@ class RunCache:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         return self._cache.set(cache_key, data, expire=self._seconds_to_expiry())
-
-    def cli_list_cache_keys(self) -> None:
-        """
-        Convenience method exclusively for use by the cache CLI command.
-        Prints the list of string representations of all currently available cache keys.
-        """
-        if not self._enabled:
-            raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        for str_key in [str(raw_key) for raw_key in list(self._cache)]:
-            print(str_key)
-
-    def cli_print_cached_value(self, key: str) -> None:
-        """
-        Convenience method exclusively for use by the cache CLI command.
-        Prints the string representation of the cached value assigned to the given cache key.
-        """
-        if not self._enabled:
-            raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        value = self._cache.get(key)
-        print("[")
-        for rec in value:
-            print(f"\t{str(rec)},")
-        print("]")

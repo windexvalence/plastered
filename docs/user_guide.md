@@ -1,16 +1,20 @@
 # `plastered` User Guide
 
+`plastered` runs as a web application: you launch its Docker container as a server and interact with it entirely
+through your browser.
+
 ## 1: Pre-requisites
+
 Make sure you have completed the following before installing or using `plastered`:
 
 1. Setup a RED API key with `Torrents` and `Users` scoped permissions granted.
-2. Setup a Last.fm API key (see their instructions page [here](https://www.last.fm/api))
+2. Setup a Last.fm API key (see their instructions page [here](https://www.last.fm/api)).
 3. Have [Docker](https://docs.docker.com/get-started/get-docker/) installed on the host machine you intend to run this from.
-4. Have at least 1.5GB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies)
+4. Have at least 1.5GB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies).
 
 ## 2: Configure the App
 
-1. Create a dedicated config directory on your host machine. This will hold your app config file, and any summary output files from the app runs.
+1. Create a dedicated config directory on your host machine. This holds your app config file and the app's SQLite DB.
     ```shell
     mkdir -p /your/host/path/to/plastered_dir
     ```
@@ -20,50 +24,43 @@ Make sure you have completed the following before installing or using `plastered
     docker pull ghcr.io/windexvalence/plastered:latest
     ```
 
-3. Initialize a config.yaml file in the directory you just created by running:
+3. Write a starter `config.yaml` into that directory by copying the bundled skeleton out of the image:
     ```shell
-    docker run \
-      --rm ghcr.io/windexvalence/plastered:latest init-conf > /your/host/path/to/plastered_dir/config.yaml
+    docker run --rm --entrypoint cat ghcr.io/windexvalence/plastered:latest \
+      /app/plastered/config/init_conf.yaml > /your/host/path/to/plastered_dir/config.yaml
     ```
 
-4. Fill in the required config values in the file skeleton created from step 2. Refer to the [Configuration Reference](./config_reference.md) for additional details and information on non-required config settings.
+4. Fill in the required config values in the skeleton from step 3. Refer to the
+   [Configuration Reference](./config_reference.md) for details and the non-required settings.
 
-5. Set alias in your host shell profile (`.zshrc`, `.bash_profile`, etc.) to the the Docker command which executes the `plastered` CLI, as follows. Make sure to replace the paths on the left for both `-v` flags with your host paths:
-  ```shell
-  alias plastered='docker run -it --rm --name=plastered \
-    -e PLASTERED_CONFIG=/config/config.yaml \
-    -e COLUMNS="$(tput cols)" \
-    -e LINES="$(tput lines)" \
-    -v /your/host/path/to/plastered_dir/:/config \
-    -v /host/path/to/downloads/:/downloads ghcr.io/windexvalence/plastered:latest'
-  ```
+## 3: Run the Server
 
-6. Open a new terminal tab, and verify that you're able to view the plastered help output with the following command. If this works, then you're ready to run the app:
-  ```shell
-  plastered --help
-  ```
-
-## 3: Run the App
-
-You can either immediately try snatching your LFM recs with the current default config you just created, or you can explore the [configuration reference](./config_reference.md) and fine-tune your config before snatching your LFM recs.
-
-Once you're happy with your config settings, simply run the following to kick off the LFM scraping / snatching. If you want to run the scraper without snatching anything from red, add the `--no-snatch` flag to the command below:
+Launch the container as a server, mapping a host port to the container's port 80, and mounting your config and
+downloads directories:
 
 ```shell
-plastered scrape
+docker run -it --rm --name plastered \
+  -p 8000:80 \
+  -e PLASTERED_CONFIG=/config/config.yaml \
+  -v /your/host/path/to/plastered_dir/:/config \
+  -v /host/path/to/downloads/:/downloads \
+  ghcr.io/windexvalence/plastered:latest
 ```
 
-### Additional Commands
+Then open <http://localhost:8000/> in your browser.
 
-For the exhaustive list of `plastered` CLI commands and options, refer to the [Plastered CLI Reference](./CLI_reference.md)
+> The container serves the app on port 80 internally; the `-p 8000:80` above exposes it as `localhost:8000` on your
+> host — change the left-hand `8000` if that port is taken.
 
-Along with `scrape`, plastered offers a few other helpful commands. You can find the full list of commands by running `plastered --help`.
+## 4: Use the App
 
-Further command-specific details are accessible by running the command of interest with the help flag, for example to see more details about the `plastered cache` command, run the following:
-```
-plastered cache --help
-```
+Everything is driven from the web UI:
 
-### Inpsecting Prior Run Results
+- **Scrape & snatch your Last.fm recs** — the LFM recommendations scraper page pulls your album/track recs and searches
+  RED for matches (downloading them when snatching is enabled).
+- **Ad-hoc search** — search RED for a specific artist + album/track on demand, optionally downloading the top match.
+- **Run history** — review past scraper and ad-hoc runs, see per-rec results/skip reasons, and (for downloads-disabled
+  scraper runs) retroactively download matched releases.
+- **Config** — inspect the effective app config the server loaded.
 
-TODO: update this section
+Snatched `.torrent` files are written to the mounted downloads directory; point your download client at it.

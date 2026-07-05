@@ -2,7 +2,6 @@ import json
 import logging
 import os
 from collections import Counter
-from functools import reduce
 from pathlib import Path
 from typing import Any, Self
 
@@ -10,29 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, m
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
-from plastered.models.field_validators import (
-    APIRetries,
-    CLIOverrideSetting,
-    NonRedCallWait,
-    RedCallWait,
-    validate_rec_types_to_scrape,
-)
+from plastered.models.field_validators import APIRetries, NonRedCallWait, RedCallWait, validate_rec_types_to_scrape
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
 from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def load_init_config_template() -> str:  # pragma: no cover
-    """
-    Utility function to aid new users in initializing a minimal config.yaml skeleton via the CLI's init_config command.
-    """
-    init_conf_filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_conf.yaml")
-    with open(init_conf_filepath) as f:
-        raw_init_conf_lines = f.readlines()
-    return "".join(raw_init_conf_lines)
 
 
 class SearchConfig(BaseModel):
@@ -261,36 +244,24 @@ class AppSettings(BaseSettings):
         return cache_type == "scraper" and self.cache.scraper_cache_enabled
 
 
-def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
-    """
-    Returns the read-only `plastered` application settings configured by the yaml config plus any settings provided
-    as options to the CLI. CLI options take precedence over the associated YAML settings.
-    """
+def get_app_settings(src_yaml_filepath: Path | None = None) -> AppSettings:
+    """Returns the read-only `plastered` application settings configured by the yaml config."""
     if not src_yaml_filepath:
         src_yaml_filepath = Path(os.environ["PLASTERED_CONFIG"])
-    settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath, cli_overrides=cli_overrides)
+    settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath)
     try:
         app_settings = AppSettings(**settings_data)
-    except (ValidationError, ValueError) as ve:  # pragma: no cover
-        if isinstance(ve, ValidationError):
-            formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
-            _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
-            raise AppConfigException(
-                f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
-            ) from ve
-        _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
+    except ValidationError as ve:  # pragma: no cover
+        formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
+        _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
         raise AppConfigException(
-            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
+            f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
         ) from ve
     return app_settings
 
 
-def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+def _get_settings_data(src_yaml_filepath: Path) -> dict[str, Any]:
     yaml_source = YamlConfigSettingsSource(AppSettings, yaml_file=src_yaml_filepath)
     yaml_data = yaml_source()
     yaml_data["src_yaml_filepath"] = src_yaml_filepath
-    if cli_overrides:
-        for raw_k, raw_v in cli_overrides.items():
-            attr_path = CLIOverrideSetting[raw_k.upper()].value.split(".")
-            reduce(lambda sd, k: sd[k], attr_path[:-1], yaml_data)[attr_path[-1]] = raw_v
     return yaml_data

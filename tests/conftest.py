@@ -394,7 +394,7 @@ def valid_app_settings_sesh_scoped(valid_config_filepath: str, cache_root_dir_pa
     Session-scoped valid `AppSettings` fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
+    app_settings = get_app_settings(valid_config_filepath)
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
 
@@ -480,7 +480,7 @@ def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) ->
     Function-scoped valid `AppSettings` fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
+    app_settings = get_app_settings(valid_config_filepath)
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
 

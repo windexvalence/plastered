@@ -52,5 +52,3 @@ OPTIONAL_RED_PARAMS: Final[list[str]] = [
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_CATALOG_NUMBER,
 ]
-
-CLI_ALL_CACHE_TYPES: Final[str] = "@all"

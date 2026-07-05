@@ -1,5 +1,5 @@
 from enum import IntEnum, StrEnum
-from typing import Annotated, Final
+from typing import Annotated
 
 from pydantic import BeforeValidator
 
@@ -80,9 +80,6 @@ class EntityType(StrEnum):
 
     ALBUM = "album"
     TRACK = "track"
-
-
-ALL_ENTITY_TYPES: Final[tuple[str, ...]] = tuple([et.value for et in EntityType])
 
 
 class RecContext(StrEnum):

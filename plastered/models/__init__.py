@@ -3,15 +3,7 @@ from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry, TorrentMatch
 from plastered.models.search_item import InitialInfo, SearchItem
-from plastered.models.types import (
-    ALL_ENTITY_TYPES,
-    EncodingEnum,
-    EntityType,
-    FormatEnum,
-    MediaEnum,
-    RecContext,
-    RedReleaseType,
-)
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum, RecContext, RedReleaseType
 
 __all__ = [
     "AdhocSearch",
@@ -28,7 +20,6 @@ __all__ = [
     "SearchItem",
     "EncodingEnum",
     "EntityType",
-    "ALL_ENTITY_TYPES",
     "FormatEnum",
     "MediaEnum",
     "RecContext",

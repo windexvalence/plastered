@@ -1,54 +1,14 @@
 from typing import Any
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from plastered.actions.common_actions import cache_action, run_lfm_scraper, scrape_action, show_config_action
+from plastered.actions.common_actions import run_lfm_scraper, scrape_action, show_config_action
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import ScraperRunStatus
 from plastered.models.types import EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
-
-
-# Only the scraper cache remains, so "@all" resolves to the single scraper cache (same as "scraper").
-@pytest.mark.parametrize("target_cache", ["scraper", "@all"])
-@pytest.mark.parametrize(
-    "test_kwargs, run_cache_method_name",
-    [
-        ({"empty": True}, "clear"),
-        ({"check": True}, "check"),
-        ({"list_keys": True}, "cli_list_cache_keys"),
-        ({"read_value": "fake-key"}, "cli_print_cached_value"),
-    ],
-)
-def test_cache_action(
-    valid_app_settings: AppSettings,
-    target_cache: str,
-    test_kwargs: dict[str, bool | str | None],
-    run_cache_method_name: str,
-) -> None:
-    with patch("plastered.actions.common_actions.RunCache") as mock_rc_new:
-        mock_rc = mock_rc_new.return_value
-        cache_action(app_settings=valid_app_settings, target_cache=target_cache, **test_kwargs)
-        getattr(mock_rc, run_cache_method_name).assert_called_once()
-        mock_rc.close.assert_called_once()
-
-
-@pytest.mark.parametrize("target_cache", ["scraper", "@all"])
-@pytest.mark.parametrize(
-    "test_kwargs", [{"empty": True}, {"check": True}, {"list_keys": True}, {"read_value": "fake-key"}]
-)
-def test_cache_action_disabled_raises(
-    valid_app_settings: AppSettings, target_cache: str, test_kwargs: dict[str, bool | str | None]
-) -> None:
-    """Ensures calls to cache_action exit with a non-zero exit code when the cache is disabled."""
-    with patch.object(AppSettings, "is_cache_enabled", return_value=False):
-        with pytest.raises(SystemExit) as excinfo:
-            cache_action(app_settings=valid_app_settings, target_cache=target_cache, **test_kwargs)
-        assert excinfo.type == SystemExit
-        assert excinfo.value.code == 2
 
 
 def test_show_config_action(valid_app_settings: AppSettings) -> None:
