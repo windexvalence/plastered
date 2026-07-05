@@ -12,7 +12,8 @@ from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
 
 
-@pytest.mark.parametrize("target_cache", ["api", "scraper", "all"])
+# Only the scraper cache remains, so "@all" resolves to the single scraper cache (same as "scraper").
+@pytest.mark.parametrize("target_cache", ["scraper", "@all"])
 @pytest.mark.parametrize(
     "test_kwargs, run_cache_method_name",
     [
@@ -28,20 +29,14 @@ def test_cache_action(
     test_kwargs: dict[str, bool | str | None],
     run_cache_method_name: str,
 ) -> None:
-    mock_rc = MagicMock(spec=RunCache)
-    type(mock_rc)._cache_type = PropertyMock(return_value=target_cache)
     with patch("plastered.actions.common_actions.RunCache") as mock_rc_new:
         mock_rc = mock_rc_new.return_value
         cache_action(app_settings=valid_app_settings, target_cache=target_cache, **test_kwargs)
-        if target_cache != "all":
-            getattr(mock_rc, run_cache_method_name).assert_called_once()
-            mock_rc.close.assert_called_once()
-        else:
-            assert len(getattr(mock_rc, run_cache_method_name).mock_calls) == 2
-            assert len(mock_rc.close.mock_calls) == 2
+        getattr(mock_rc, run_cache_method_name).assert_called_once()
+        mock_rc.close.assert_called_once()
 
 
-@pytest.mark.parametrize("target_cache", ["api", "scraper"])
+@pytest.mark.parametrize("target_cache", ["scraper", "@all"])
 @pytest.mark.parametrize(
     "test_kwargs", [{"empty": True}, {"check": True}, {"list_keys": True}, {"read_value": "fake-key"}]
 )

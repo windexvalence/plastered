@@ -55,7 +55,6 @@ musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1
 cache:
-  api_cache_enabled: true
   scraper_cache_enabled: true
 server:
   host: "0.0.0.0"

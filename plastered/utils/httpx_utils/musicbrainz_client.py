@@ -4,8 +4,7 @@ from urllib.parse import quote
 
 from plastered.config.app_settings import AppSettings
 from plastered.models import SearchItem
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, PERMITTED_MUSICBRAINZ_API_ENDPOINTS
+from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL
 from plastered.utils.exceptions import MusicBrainzClientException
 from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
 
@@ -19,13 +18,11 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
+    def __init__(self, app_settings: AppSettings):
         super().__init__(
             base_api_url=MUSICBRAINZ_API_BASE_URL,
             max_api_call_retries=app_settings.musicbrainz.musicbrainz_api_max_retries,
             seconds_between_api_calls=app_settings.musicbrainz.musicbrainz_api_seconds_between_calls,
-            run_cache=run_cache,
-            valid_endpoints=set(PERMITTED_MUSICBRAINZ_API_ENDPOINTS),
         )
         self._recording_endpoint = "recording"
         self._release_endpoint = "release"
@@ -37,13 +34,8 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         Throws an Exception after `self._max_api_call_retries` consecutive failures.
         """
         _LOGGER.debug(f"Searching musicbrainz for release-mbid: '{mbid}' ...")
-        # Sanity check endpoint then attempt reading from cache
-        loaded_from_cache = self._read_from_run_cache(endpoint=self._release_endpoint, params=mbid)
-        if loaded_from_cache:
-            return loaded_from_cache
-        # Enforce request throttling
+        # Enforce request throttling before building and submitting the request.
         self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
         inc_params = "inc=artist-credits+media+labels+release-groups"
         request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}/{mbid}?{inc_params}"
         mb_response = self._client.get(url=request_url, headers={"Accept": "application/json"})
@@ -51,12 +43,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             raise MusicBrainzClientException(
                 f"Unexpected Musicbrainz API error encountered for URL '{request_url}'. Status code: {mb_response.status_code}"
             )
-        json_data = mb_response.json()
-        cache_write_success = self._write_cache_if_enabled(
-            endpoint=self._release_endpoint, params=mbid, result_json=json_data
-        )
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
-        return json_data
+        return mb_response.json()
 
     def _get_track_search_query_str(
         self,
@@ -94,13 +81,8 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         )
         if not search_query_str:  # pragma: no cover
             return None
-        # Sanity check endpoint then attempt reading from cache
-        loaded_from_cache = self._read_from_run_cache(endpoint=self._recording_endpoint, params=search_query_str)
-        if loaded_from_cache:
-            return loaded_from_cache
-        # Enforce request throttling
+        # Enforce request throttling before building and submitting the request.
         self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
         request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json"
         mb_response = self._client.get(url=request_url, headers={"Accept": "application/json"})
         if mb_response.is_error:
@@ -118,9 +100,4 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         if not rel_name:
             LOGGER.debug(f"Unable to resolve origin release title for track: '{track_name}' by '{artist_name}'")
             return None
-        release_details = {"origin_release_mbid": rel_mbid, "origin_release_name": rel_name}
-        cache_write_success = self._write_cache_if_enabled(
-            endpoint=self._recording_endpoint, params=search_query_str, result_json=release_details
-        )
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
-        return release_details
+        return {"origin_release_mbid": rel_mbid, "origin_release_name": rel_name}

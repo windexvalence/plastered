@@ -1,6 +1,4 @@
-import json
 import logging
-from ast import literal_eval as make_tuple
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -134,12 +132,7 @@ class RunCache:
         """
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
-        if self._cache_type == CacheType.API:
-            key = make_tuple(key)
         value = self._cache.get(key)
-        if self._cache_type == CacheType.API:
-            print(json.dumps(str(value)))
-            return
         print("[")
         for rec in value:
             print(f"\t{str(rec)},")

@@ -44,7 +44,6 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | musicbrainz.musicbrainz_api_max_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | musicbrainz.musicbrainz_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | cache | `object` |  | object |  |  |  |  |
-| cache.api_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | cache.scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | server | `object` |  | object |  |  | Config section for the plastered API server. |  |
 | server.host | `string` |  | string |  | `"0.0.0.0"` |  |  |
@@ -65,7 +64,6 @@ No description provided for this model.
 
 | Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
-| api_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 
 ## CdOnlyExtras

@@ -3,12 +3,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from plastered.config.app_settings import AppSettings
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import (
-    NON_CACHED_RED_SNATCH_API_ENDPOINTS,
-    PERMITTED_RED_SNATCH_API_ENDPOINTS,
-    RED_API_BASE_URL,
-)
+from plastered.utils.constants import RED_API_BASE_URL
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
@@ -25,15 +20,12 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
     Also contains some specialized logic for intelligently estimating the FL tokens available.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
+    def __init__(self, app_settings: AppSettings):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
             # NOTE: the RedSnatchAPIClient doesn't use retries, so this is ignored
             max_api_call_retries=app_settings.red.red_api_retries,
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
-            valid_endpoints=set(PERMITTED_RED_SNATCH_API_ENDPOINTS),
-            run_cache=run_cache,
-            non_cached_endpoints=set(NON_CACHED_RED_SNATCH_API_ENDPOINTS),
             # This class overrides the internal default super class routing, to make sure
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},

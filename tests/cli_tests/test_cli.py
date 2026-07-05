@@ -9,24 +9,6 @@ from plastered.config.app_settings import AppSettings
 
 
 @pytest.fixture(scope="function")
-def mock_api_run_cache_instance() -> MagicMock:
-    mock_api_instance = MagicMock()
-    mock_api_instance.clear.return_value = 69
-    mock_api_instance.check.return_value = "fake warning"
-    mock_api_instance.close.return_value = None
-    return mock_api_instance
-
-
-@pytest.fixture(scope="function")
-def mock_scraper_run_cache_instance() -> MagicMock:
-    mock_scraper_instance = MagicMock()
-    mock_scraper_instance.clear.return_value = 420
-    mock_scraper_instance.check.return_value = "fake warning"
-    mock_scraper_instance.close.return_value = None
-    return mock_scraper_instance
-
-
-@pytest.fixture(scope="function")
 def mock_logger_set_level() -> Generator[MagicMock, None, None]:
     with patch("plastered.cli._LOGGER.setLevel") as mock_logger_set_level:
         mock_logger_set_level.return_value = None
@@ -68,22 +50,12 @@ def test_cli_scrape_command(valid_config_filepath: str, valid_app_settings: AppS
 @pytest.mark.parametrize(
     "cache_arg, empty_flag_present, check_flag_present, list_flag_present, read_value",
     [
-        ("api", False, False, False, None),
-        ("api", True, False, False, None),
-        ("api", False, False, False, None),
-        ("api", True, False, False, None),
         ("scraper", False, False, False, None),
         ("scraper", True, False, False, None),
-        ("scraper", False, False, False, None),
-        ("scraper", True, False, False, None),
-        ("@all", False, False, False, None),
-        ("@all", True, False, False, None),
         ("@all", False, False, False, None),
         ("@all", True, False, False, None),
         ("@all", False, True, False, None),
-        ("api", False, False, True, None),
         ("scraper", False, False, True, None),
-        ("api", False, False, False, "false-key"),
         ("scraper", False, False, False, "false-key"),
     ],
 )

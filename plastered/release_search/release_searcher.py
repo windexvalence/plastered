@@ -7,10 +7,9 @@ from typing import TYPE_CHECKING
 
 from plastered.db.db_models import FailReason, Status
 from plastered.db.db_utils import set_result_status
-from plastered.models import AdhocSearch, CacheType, EntityType, LFMRec, RedUserDetails, SearchItem
+from plastered.models import AdhocSearch, EntityType, LFMRec, RedUserDetails, SearchItem
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.search_helpers import SearchState
-from plastered.run_cache.run_cache import RunCache
 from plastered.snatch import Snatcher
 from plastered.utils.exceptions import ReleaseSearcherException
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
@@ -61,17 +60,10 @@ class ReleaseSearcher:
         lfm_client: LFMAPIClient | None = None,
         musicbrainz_client: MusicBrainzAPIClient | None = None,
     ):
-        # Only own a RunCache when we have to build our own clients; injected clients already carry their own cache.
-        clients_provided = all((red_api_client, red_snatch_client, lfm_client, musicbrainz_client))
-        self._run_cache = None if clients_provided else RunCache(app_settings=app_settings, cache_type=CacheType.API)
-        self._red_client = red_api_client or RedAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._red_snatch_client = red_snatch_client or RedSnatchAPIClient(
-            app_settings=app_settings, run_cache=self._run_cache
-        )
-        self._lfm_client = lfm_client or LFMAPIClient(app_settings=app_settings, run_cache=self._run_cache)
-        self._musicbrainz_client = musicbrainz_client or MusicBrainzAPIClient(
-            app_settings=app_settings, run_cache=self._run_cache
-        )
+        self._red_client = red_api_client or RedAPIClient(app_settings=app_settings)
+        self._red_snatch_client = red_snatch_client or RedSnatchAPIClient(app_settings=app_settings)
+        self._lfm_client = lfm_client or LFMAPIClient(app_settings=app_settings)
+        self._musicbrainz_client = musicbrainz_client or MusicBrainzAPIClient(app_settings=app_settings)
         self._app_settings = app_settings
         self._red_user_details = red_user_details
         self._enable_snatches = (
@@ -84,8 +76,6 @@ class ReleaseSearcher:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:  # pragma: no cover
             _LOGGER.error(f"ReleaseSearcher encountered an uncaught exception: {exc_val}")
-        if self._run_cache:
-            self._run_cache.close()
         for client in (self._red_client, self._red_snatch_client, self._lfm_client, self._musicbrainz_client):
             if client:
                 client.close_client()

@@ -8,19 +8,7 @@ RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
 CACHE_DIRNAME: Final[str] = "cache"
 DB_FILENAME: Final[str] = "plastered.db"
-CACHE_TYPE_API: Final[str] = "api"
 CACHE_TYPE_SCRAPER: Final[str] = "scraper"
-
-PERMITTED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(
-    ["browse", "torrentgroup", "community_stats", "user_torrents", "user"]
-)
-NON_CACHED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["community_stats", "user_torrents", "user"])
-
-PERMITTED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
-NON_CACHED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
-
-PERMITTED_LFM_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["album.getinfo", "track.getinfo"])
-PERMITTED_MUSICBRAINZ_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["release", "recording"])
 
 RENDER_WAIT_SEC_MIN: Final[int] = 3
 RENDER_WAIT_SEC_MAX: Final[int] = 7
@@ -66,4 +54,3 @@ OPTIONAL_RED_PARAMS: Final[list[str]] = [
 ]
 
 CLI_ALL_CACHE_TYPES: Final[str] = "@all"
-API_ALL_CACHE_TYPES: Final[str] = "all"

@@ -3,7 +3,7 @@ from typing import Annotated, Final
 
 from pydantic import BeforeValidator
 
-from plastered.utils.constants import BYTES_IN_GB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.constants import BYTES_IN_GB, CACHE_TYPE_SCRAPER
 
 
 class RedReleaseType(IntEnum):
@@ -101,8 +101,8 @@ class RecContext(StrEnum):
 
 class CacheType(StrEnum):
     """
-    Helper enum class used for indicating what type of caching behavior a RunCache instance is meant for.
+    Helper enum class used for indicating what type of caching behavior a RunCache instance is meant for. Only the
+    scraper cache remains — the API clients no longer cache their responses.
     """
 
-    API = CACHE_TYPE_API
     SCRAPER = CACHE_TYPE_SCRAPER

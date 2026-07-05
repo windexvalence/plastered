@@ -7,18 +7,15 @@ from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
-from plastered.run_cache.run_cache import RunCache
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
 
 
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("mock_response_code", [200, 404])
-def test_snatch_red_api_no_fl(
-    httpx_mock: HTTPXMock, disabled_api_run_cache: RunCache, valid_app_settings: AppSettings, mock_response_code: int
-) -> None:
+def test_snatch_red_api_no_fl(httpx_mock: HTTPXMock, valid_app_settings: AppSettings, mock_response_code: int) -> None:
     httpx_mock.add_response(status_code=mock_response_code)
-    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
+    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings)
     red_snatch_client._throttle = Mock(name="_throttle")
     red_snatch_client._throttle.return_value = None
     with pytest.raises(RedClientSnatchException) if mock_response_code != 200 else nullcontext():
@@ -39,7 +36,6 @@ def test_snatch_red_api_no_fl(
 )
 def test_snatch_red_api_use_token(
     httpx_mock: HTTPXMock,
-    disabled_api_run_cache: RunCache,
     valid_app_settings: AppSettings,
     mock_red_user_details: RedUserDetails,
     mock_response_codes: list[int],
@@ -50,7 +46,7 @@ def test_snatch_red_api_use_token(
     for mock_response_code in mock_response_codes:
         httpx_mock.add_response(status_code=mock_response_code)
     expected_throttle_calls = len(expected_get_urls)
-    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
+    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings)
     red_snatch_client._red_user_details = mock_red_user_details
     red_snatch_client._use_fl_tokens = True
     red_snatch_client._throttle = Mock(name="_throttle")
@@ -78,13 +74,9 @@ def test_snatch_red_api_use_token(
     ],
 )
 def test_tid_snatched_with_fl_token(
-    disabled_api_run_cache: RunCache,
-    valid_app_settings: AppSettings,
-    mock_snatched_tids: set[str],
-    tid_arg: str,
-    expected: bool,
+    valid_app_settings: AppSettings, mock_snatched_tids: set[str], tid_arg: str, expected: bool
 ) -> None:
-    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
+    red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings)
     red_snatch_client._tids_snatched_with_fl_tokens = mock_snatched_tids
     actual = red_snatch_client.tid_snatched_with_fl_token(tid=tid_arg)
     assert actual == expected

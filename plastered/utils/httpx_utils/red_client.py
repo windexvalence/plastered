@@ -4,15 +4,9 @@ from typing import Any
 from plastered.config.app_settings import AppSettings
 from plastered.models import RedUserDetails
 from plastered.models.red_models import ReleaseEntry
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import (
-    NON_CACHED_RED_API_ENDPOINTS,
-    PERMITTED_RED_API_ENDPOINTS,
-    RED_API_BASE_URL,
-    RED_JSON_RESPONSE_KEY,
-)
+from plastered.utils.constants import RED_API_BASE_URL, RED_JSON_RESPONSE_KEY
 from plastered.utils.exceptions import RedUserDetailsInitError
-from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,14 +17,11 @@ class RedAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
+    def __init__(self, app_settings: AppSettings):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
             max_api_call_retries=app_settings.red.red_api_retries,
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
-            valid_endpoints=set(PERMITTED_RED_API_ENDPOINTS),
-            run_cache=run_cache,
-            non_cached_endpoints=set(NON_CACHED_RED_API_ENDPOINTS),
         )
         self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
         self._red_user_id = app_settings.red.red_user_id
@@ -43,21 +34,13 @@ class RedAPIClient(ThrottledAPIBaseClient):
         Successful requests to the 'download' endpoint will have a return type of `bytes`.
         Throws an Exception after `self.max_api_call_retries` consecutive failures.
         """
-        # Sanity check endpoint then attempt reading from cache
-        loaded_from_cache = self._read_from_run_cache(endpoint=action, params=params)
-        if loaded_from_cache:
-            return loaded_from_cache
-        # Enforce request throttling
+        # Enforce request throttling before building and submitting the request.
         self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
         url = f"{RED_API_BASE_URL}?action={action}&{params}"
         json_data = self._client.get(url=url).json()
         if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
             raise KeyError(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
-        result_json = json_data[RED_JSON_RESPONSE_KEY]
-        cache_write_success = self._write_cache_if_enabled(endpoint=action, params=params, result_json=result_json)
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
-        return result_json
+        return json_data[RED_JSON_RESPONSE_KEY]
 
     def browse(self, request_params: str) -> list[ReleaseEntry]:
         raw_browse_resp = self.request_api(action="browse", params=request_params)

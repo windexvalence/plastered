@@ -464,16 +464,6 @@ def cache_root_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
 
 
 @pytest.fixture(scope="session")
-def api_cache_dir_path(cache_root_dir_path: Path) -> Path:
-    """
-    Fixture which creates a session-scoped API cache directory and returns the pathlib.Path object for it.
-    """
-    api_cache_path = cache_root_dir_path / "api"
-    api_cache_path.mkdir()
-    return api_cache_path
-
-
-@pytest.fixture(scope="session")
 def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     """
     Fixture which creates a session-scoped Scraper cache directory and returns the pathlib.Path object for it.
@@ -492,23 +482,6 @@ def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) ->
     app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
-
-
-@pytest.fixture(scope="session")
-def api_run_cache(valid_config_filepath: str) -> RunCache:
-    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    return RunCache(app_settings=app_settings, cache_type=CacheType.API)
-
-
-@pytest.fixture(scope="function")
-def enabled_api_run_cache(api_run_cache: RunCache) -> RunCache:
-    """
-    Function-scoped fixture which consumes the session-scoped api_run_cache fixture, and
-    clears the state to ensure the cache is not altered by unrelated tests.
-    """
-    api_run_cache._enabled = True
-    api_run_cache.clear()
-    return api_run_cache
 
 
 @pytest.fixture(scope="session")

@@ -16,7 +16,7 @@ from plastered.config.app_settings import get_app_settings, load_init_config_tem
 from plastered.models import ALL_ENTITY_TYPES
 from plastered.models.field_validators import CLIOverrideSetting
 from plastered.utils.cli_utils import DEFAULT_VERBOSITY, config_path_option, subcommand_flag
-from plastered.utils.constants import CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES
+from plastered.utils.constants import CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES
 from plastered.utils.log_utils import DATE_FORMAT, FORMAT, create_rich_log_handler
 from plastered.version import get_project_version
 
@@ -128,9 +128,7 @@ def conf(ctx, config: str) -> None:
     envvar=None,
     help="Retrieves the string representation of the value for the specified cache key.",
 )
-@click.argument(
-    "target_cache", envvar=None, type=click.Choice([CACHE_TYPE_API, CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES])
-)
+@click.argument("target_cache", envvar=None, type=click.Choice([CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES]))
 @click.pass_context
 def cache(
     ctx,

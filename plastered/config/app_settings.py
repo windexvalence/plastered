@@ -163,7 +163,6 @@ class MusicBrainzConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     model_config = ConfigDict(title="cache")
-    api_cache_enabled: bool = Field(default=True)
     scraper_cache_enabled: bool = Field(default=True)
 
 
@@ -258,9 +257,8 @@ class AppSettings(BaseSettings):
         return self.model_copy(update={"red": red})
 
     def is_cache_enabled(self, cache_type: str) -> bool:
-        if cache_type == "scraper":
-            return self.cache.scraper_cache_enabled
-        return self.cache.api_cache_enabled
+        # Only the scraper cache remains; the API clients no longer cache their responses.
+        return cache_type == "scraper" and self.cache.scraper_cache_enabled
 
 
 def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:

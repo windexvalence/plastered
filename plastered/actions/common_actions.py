@@ -13,7 +13,7 @@ from plastered.models import CacheType, EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
-from plastered.utils.constants import API_ALL_CACHE_TYPES, CLI_ALL_CACHE_TYPES
+from plastered.utils.constants import CLI_ALL_CACHE_TYPES
 from plastered.utils.exceptions import RunCacheDisabledException
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def cache_action(
     read_value: str | None = None,
 ) -> None:
     """Wrapper function for entrypoint of cache-related actions."""
-    if target_cache in (API_ALL_CACHE_TYPES, CLI_ALL_CACHE_TYPES):
+    if target_cache == CLI_ALL_CACHE_TYPES:
         target_cache_types = [cache_type for cache_type in CacheType]
     else:
         target_cache_types = [CacheType(target_cache)]

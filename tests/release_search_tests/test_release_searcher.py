@@ -1,4 +1,4 @@
-from typing import Generator, NamedTuple
+from typing import NamedTuple
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +17,6 @@ from plastered.models import (
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.release_searcher import ReleaseSearcher, _dedupe_recs
 from plastered.release_search.search_helpers import SearchState
-from plastered.run_cache.run_cache import RunCache
 from plastered.snatch import Snatcher
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 
@@ -68,14 +67,6 @@ def mock_best_te() -> te:
     )
 
 
-@pytest.fixture(scope="function")
-def mock_run_cache() -> Generator[None, None, None]:
-    mock_rc = MagicMock(spec=RunCache)
-    with patch("plastered.release_search.release_searcher.RunCache") as mock_rc_new:
-        mock_rc = mock_rc_new.return_value
-        yield mock_rc
-
-
 class _MockRsKwargs(NamedTuple):
     """Collection of ReleaseSearcher mock instance attr classes which are expensive to generate."""
 
@@ -87,7 +78,7 @@ class _MockRsKwargs(NamedTuple):
 
 
 @pytest.fixture(scope="function")
-def mock_kwargs(valid_app_settings: AppSettings, mock_run_cache: MagicMock) -> _MockRsKwargs:
+def mock_kwargs(valid_app_settings: AppSettings) -> _MockRsKwargs:
     """Fixture for mocking the ReleaseSeacher instance attr classes which are expensive to generate."""
     return _MockRsKwargs(
         app_settings=valid_app_settings,
@@ -282,8 +273,12 @@ def test_apply_si_processor_chain(
             assert actual == mock_processed
 
 
-def test_exit_closes_owned_run_cache(valid_app_settings: AppSettings, mock_run_cache: MagicMock) -> None:
-    """When ReleaseSearcher builds its own clients it owns the RunCache and closes it on __exit__."""
-    with ReleaseSearcher(app_settings=valid_app_settings) as rs:
-        assert rs._run_cache is mock_run_cache
-    mock_run_cache.close.assert_called_once()
+def test_exit_closes_clients(valid_app_settings: AppSettings) -> None:
+    """On __exit__ the ReleaseSearcher closes each of its API clients."""
+    rs = ReleaseSearcher(app_settings=valid_app_settings)
+    for attr in ("_red_client", "_red_snatch_client", "_lfm_client", "_musicbrainz_client"):
+        setattr(getattr(rs, attr), "close_client", MagicMock())
+    with rs:
+        pass
+    for attr in ("_red_client", "_red_snatch_client", "_lfm_client", "_musicbrainz_client"):
+        getattr(rs, attr).close_client.assert_called_once()
