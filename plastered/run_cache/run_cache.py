@@ -25,11 +25,11 @@ def _tomorrow_midnight_datetime() -> datetime:
     return datetime.combine(now_dt.date() + timedelta(days=days_increment), datetime.min.time())
 
 
-# TODO (later) define __enter__ and __exit__ methods for cleaner shutdown, and invoke the ctx mgr from calling ReleaseSearcher / API ctx mgrs.
+# TODO (later) define __enter__ and __exit__ methods for cleaner shutdown, and invoke the ctx mgr from the LFMRecsScraper.
 class RunCache:
     """
-    Wrapper class around a diskcache.Cache instance. Used by both
-    the LFMRecsScraper and the ReleaseSearcher by default for caching the data they pull from the web.
+    Wrapper class around a diskcache.Cache instance. Used by the LFMRecsScraper to cache the recommendations it
+    scrapes from Last.fm. (The API clients no longer cache their responses.)
     """
 
     def __init__(self, app_settings: AppSettings, cache_type: str):
@@ -39,7 +39,6 @@ class RunCache:
         LOGGER.debug(f"RunCache of type {self._cache_type} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_settings.get_cache_directory_path(cache_type=self._cache_type)
         LOGGER.debug(f"RunCache of type {self._cache_type} directory path: {self._cache_dir_path}")
-        # self._cache: Cache | None = None
         if self._enabled:
             LOGGER.debug(f"Enabling diskcache for {self._cache_type} ...")
             self._cache = Cache(self._cache_dir_path)

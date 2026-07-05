@@ -62,8 +62,8 @@ preference*, on top of the LFM/MusicBrainz calls). Four changes cut that down wi
      obsolete — there's no longer a per-preference loop to visualize — so it was removed. The in-flight ad-hoc UI falls
      back to the existing indeterminate "Searching RED…" spinner.
 3. **Rec dedup.** `search_for_recs` drops duplicate recs (by `LFMRec` identity) before the processor chain, so the same
-   release isn't processed — or recorded as a separate `SearchRecord` — twice. (Identical *API queries* within a run
-   were already free via the disk cache; this removes redundant processing and duplicate result rows.)
+   release isn't processed — or recorded as a separate `SearchRecord` — twice. (This also avoids the redundant,
+   throttled API calls those duplicates would otherwise make, since the API clients no longer cache their responses.)
 4. **Skip MusicBrainz when unused.** The scraper flow only needs the MB release to populate optional RED search fields,
    so `AttemptResolveMBReleaseModifier` now skips the lookup entirely when no optional fields are enabled
    (`SearchState.mb_resolution_would_be_used`). Ad-hoc searches still resolve MB (best-effort enrichment).
@@ -89,3 +89,16 @@ excluding framework-dispatched hooks like FastAPI routes, click commands, and py
   `AppSettings.pretty_print_config`.
 
 Net: 33 fewer statements; `make mypy`, `make fmt-check`, and `SLOW_TESTS=1 make test` all pass (732 passed, 100%).
+
+## Removed API-client response caching
+
+The API clients (RED, RED-snatch, LFM, MusicBrainz) no longer cache their responses via `RunCache` — every call now
+just throttles and hits the network. `RunCache` (diskcache) remains only for the LFM **scraper** cache.
+
+- Stripped the cache layer out of `ThrottledAPIBaseClient` and the four subclasses, so they're pure throttled httpx
+  wrappers (this also dropped the endpoint-validation `ValueError`, which only ever lived inside the cache-read path).
+- `ReleaseSearcher` no longer owns/creates an API cache.
+- Removed the now-dead `cache.api_cache_enabled` config field, the `CacheType` enum (its last member was `SCRAPER`;
+  callers use the `CACHE_TYPE_SCRAPER` string), and the associated constants
+  (`PERMITTED_*`/`NON_CACHED_*`/`CACHE_TYPE_API`/`API_ALL_CACHE_TYPES`). `RunCache.cli_print_cached_value` was
+  simplified to the scraper (list) output format.

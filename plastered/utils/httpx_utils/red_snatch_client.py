@@ -43,8 +43,8 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
         """
         Dedicated method specifically for snatching from red and returning the
         response contents' bytes which may be written to a .torrent file.
-        This is separated from the `request_api` method since there's addition logic for FL tokens, and since we
-        don't want to enable response caching for download requests.
+        This is separated into its own client since download requests have additional FL-token logic and must not use
+        the base client's request retries (which would mask errors when spending FL tokens).
         """
         self._throttle()
         params = f"id={tid}"
