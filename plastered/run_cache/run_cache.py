@@ -6,7 +6,6 @@ from typing import Any
 from diskcache import Cache
 
 from plastered.config.app_settings import AppSettings
-from plastered.models import CacheType
 from plastered.utils.exceptions import RunCacheDisabledException
 
 LOGGER = logging.getLogger(__name__)
@@ -33,26 +32,26 @@ class RunCache:
     the LFMRecsScraper and the ReleaseSearcher by default for caching the data they pull from the web.
     """
 
-    def __init__(self, app_settings: AppSettings, cache_type: CacheType):
+    def __init__(self, app_settings: AppSettings, cache_type: str):
         self._expiration_datetime = _tomorrow_midnight_datetime()
         self._cache_type = cache_type
         self._enabled = app_settings.is_cache_enabled(cache_type=self._cache_type)
-        LOGGER.debug(f"RunCache of type {self._cache_type.value} instantiated and enabled set to: {self._enabled}")
+        LOGGER.debug(f"RunCache of type {self._cache_type} instantiated and enabled set to: {self._enabled}")
         self._cache_dir_path = app_settings.get_cache_directory_path(cache_type=self._cache_type)
-        LOGGER.debug(f"RunCache of type {self._cache_type.value} directory path: {self._cache_dir_path}")
+        LOGGER.debug(f"RunCache of type {self._cache_type} directory path: {self._cache_dir_path}")
         # self._cache: Cache | None = None
         if self._enabled:
-            LOGGER.debug(f"Enabling diskcache for {self._cache_type.value} ...")
+            LOGGER.debug(f"Enabling diskcache for {self._cache_type} ...")
             self._cache = Cache(self._cache_dir_path)
-            LOGGER.debug(f"diskcache instantiated for {self._cache_type.value} ...")
+            LOGGER.debug(f"diskcache instantiated for {self._cache_type} ...")
             self._cache.stats(enable=True, reset=True)
             # TODO: make sure that this doesn't need to be called in each load call or more frequently than on construction
             num_expired = self._cache.expire()
-            LOGGER.debug(f"{num_expired} expired entries detected in {self._cache_type.value} cache.")
+            LOGGER.debug(f"{num_expired} expired entries detected in {self._cache_type} cache.")
             LOGGER.info(
-                f"Any newly added {self._cache_type.value} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
+                f"Any newly added {self._cache_type} cache entries will expire on {self._expiration_datetime.strftime('%Y_%m_%d %H:%M:%S')}"
             )
-        self._default_disabled_exception_msg = f"{self._cache_type} cache is not enabled. To enable it, set {self._cache_type.value}_cache_enabled to true in config.yaml."
+        self._default_disabled_exception_msg = f"{self._cache_type} cache is not enabled. To enable it, set {self._cache_type}_cache_enabled to true in config.yaml."
 
     @property
     def enabled(self) -> bool:
@@ -65,7 +64,7 @@ class RunCache:
         if not self._enabled:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         num_entries_removed = self._cache.clear()
-        LOGGER.info(f"{self._cache_type.value} emptied: {num_entries_removed} entries removed.")
+        LOGGER.info(f"{self._cache_type} emptied: {num_entries_removed} entries removed.")
 
     def close(self) -> None:  # pragma: no cover
         """
@@ -86,7 +85,7 @@ class RunCache:
             raise RunCacheDisabledException(self._default_disabled_exception_msg)
         diskcache_warnings = self._cache.check()
         if diskcache_warnings:
-            LOGGER.warning(f"{self._cache_type.value} diskcache warnings: ")
+            LOGGER.warning(f"{self._cache_type} diskcache warnings: ")
             LOGGER.warning("\n".join(diskcache_warnings))
 
     def load_data_if_valid(self, cache_key: Any, data_validator_fn: Callable) -> Any:

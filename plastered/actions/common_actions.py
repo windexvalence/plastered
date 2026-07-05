@@ -9,11 +9,11 @@ from sqlmodel import Session
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import ScraperRunStatus
 from plastered.db.db_utils import create_scraper_run, update_scraper_run
-from plastered.models import CacheType, EntityType
+from plastered.models import EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper
-from plastered.utils.constants import CLI_ALL_CACHE_TYPES
+from plastered.utils.constants import CACHE_TYPE_SCRAPER, CLI_ALL_CACHE_TYPES
 from plastered.utils.exceptions import RunCacheDisabledException
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,10 +101,7 @@ def cache_action(
     read_value: str | None = None,
 ) -> None:
     """Wrapper function for entrypoint of cache-related actions."""
-    if target_cache == CLI_ALL_CACHE_TYPES:
-        target_cache_types = [cache_type for cache_type in CacheType]
-    else:
-        target_cache_types = [CacheType(target_cache)]
+    target_cache_types = [CACHE_TYPE_SCRAPER] if target_cache == CLI_ALL_CACHE_TYPES else [target_cache]
     for target_cache_type in target_cache_types:
         target_run_cache = RunCache(app_settings=app_settings, cache_type=target_cache_type)
         try:

@@ -5,7 +5,6 @@ from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry,
 from plastered.models.search_item import InitialInfo, SearchItem
 from plastered.models.types import (
     ALL_ENTITY_TYPES,
-    CacheType,
     EncodingEnum,
     EntityType,
     FormatEnum,
@@ -27,7 +26,6 @@ __all__ = [
     "TorrentMatch",
     "InitialInfo",
     "SearchItem",
-    "CacheType",
     "EncodingEnum",
     "EntityType",
     "ALL_ENTITY_TYPES",

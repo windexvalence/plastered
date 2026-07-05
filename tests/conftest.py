@@ -22,8 +22,9 @@ from pytest_httpx import HTTPXMock
 from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import FailReason, SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
-from plastered.models.types import CacheType, EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import RunCache
+from plastered.utils.constants import CACHE_TYPE_SCRAPER
 from plastered.db.db_models import SkipReason
 from plastered.models.lfm_models import LFMRec, RecContext
 from plastered.models.search_item import SearchItem
@@ -487,7 +488,7 @@ def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) ->
 @pytest.fixture(scope="session")
 def scraper_run_cache(valid_config_filepath: str) -> RunCache:
     app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    return RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
+    return RunCache(app_settings=app_settings, cache_type=CACHE_TYPE_SCRAPER)
 
 
 def mock_red_snatch_get_side_effect() -> bytes:

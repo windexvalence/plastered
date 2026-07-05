@@ -8,13 +8,14 @@ from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
 
 from plastered.config.app_settings import AppSettings
-from plastered.models import CacheType, EntityType, LFMRec, RecContext
+from plastered.models import EntityType, LFMRec, RecContext
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR,
     ALBUM_RECS_BASE_URL,
+    CACHE_TYPE_SCRAPER,
     LOGIN_BUTTON_LOCATOR,
     LOGIN_PASSWORD_FORM_LOCATOR,
     LOGIN_URL,
@@ -75,7 +76,7 @@ class LFMRecsScraper:
         self._rec_types_to_scrape = rec_types_to_scrape_override or [
             EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape
         ]
-        self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
+        self._run_cache = RunCache(app_settings=app_settings, cache_type=CACHE_TYPE_SCRAPER)
         self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}
         self._is_logged_in = False
         self._playwright: Playwright | None = None

@@ -6,7 +6,7 @@ import pytest
 from plastered.actions.common_actions import cache_action, run_lfm_scraper, scrape_action, show_config_action
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import ScraperRunStatus
-from plastered.models.types import CacheType, EntityType
+from plastered.models.types import EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import LFMRecsScraper

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings
-from plastered.models.types import CacheType
+from plastered.utils.constants import CACHE_TYPE_SCRAPER
 from plastered.run_cache.run_cache import RunCache, _tomorrow_midnight_datetime
 from plastered.utils.exceptions import RunCacheDisabledException
 
@@ -55,8 +55,8 @@ def test_tomorrow_midnight_datetime(function_invoked_datetime: datetime, expecte
         assert actual == expected, f"Expected {str(expected)}, but got {str(actual)}"
 
 
-@pytest.mark.parametrize("enabled, cache_type", [(False, CacheType.SCRAPER), (True, CacheType.SCRAPER)])
-def test_run_cache_init(valid_app_settings: AppSettings, enabled: bool, cache_type: CacheType) -> None:
+@pytest.mark.parametrize("enabled, cache_type", [(False, CACHE_TYPE_SCRAPER), (True, CACHE_TYPE_SCRAPER)])
+def test_run_cache_init(valid_app_settings: AppSettings, enabled: bool, cache_type: str) -> None:
     with patch.object(AppSettings, "is_cache_enabled", return_value=enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache:
             run_cache = RunCache(app_settings=valid_app_settings, cache_type=cache_type)
@@ -139,12 +139,12 @@ def test_run_cache_init(valid_app_settings: AppSettings, enabled: bool, cache_ty
                 {"my": "dict", "value": "here"},
             ),
         ]
-        for cache_type_val in list(CacheType)
+        for cache_type_val in [CACHE_TYPE_SCRAPER]
     ],
 )
 def test_run_cache_load_data_if_valid(
     valid_app_settings: AppSettings,
-    cache_type: CacheType,
+    cache_type: str,
     enabled: bool,
     cache_key: Any,
     data_validator_fn: Callable,
@@ -167,13 +167,13 @@ def test_run_cache_load_data_if_valid(
     "cache_type, expire_datetime, fake_now_datetime, expected_seconds",
     [
         (
-            CacheType.SCRAPER,
+            CACHE_TYPE_SCRAPER,
             datetime.strptime("2025-11-01 00:00:00", _DT_STR_FORMAT),
             datetime.strptime("2025-10-31 23:59:30", _DT_STR_FORMAT),
             30,
         ),
         (
-            CacheType.SCRAPER,
+            CACHE_TYPE_SCRAPER,
             datetime.strptime("2025-11-01 00:00:00", _DT_STR_FORMAT),
             datetime.strptime("2025-10-31 23:00:00", _DT_STR_FORMAT),
             3600,
@@ -182,7 +182,7 @@ def test_run_cache_load_data_if_valid(
 )
 def test_seconds_to_expiry(
     valid_app_settings: AppSettings,
-    cache_type: CacheType,
+    cache_type: str,
     expire_datetime: datetime,
     fake_now_datetime: datetime,
     expected_seconds: int,
@@ -203,9 +203,9 @@ def test_seconds_to_expiry(
                 assert actual == expected_seconds, f"Expected {expected_seconds}, but got {actual}"
 
 
-@pytest.mark.parametrize("cache_type, test_key, test_data", [(CacheType.SCRAPER, "my-fake-key", "my-fake-value")])
+@pytest.mark.parametrize("cache_type, test_key, test_data", [(CACHE_TYPE_SCRAPER, "my-fake-key", "my-fake-value")])
 def test_run_cache_write_data_valid(
-    valid_app_settings: AppSettings, cache_type: CacheType, test_key: Any, test_data: Any
+    valid_app_settings: AppSettings, cache_type: str, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppSettings, "is_cache_enabled", return_value=True):
@@ -222,9 +222,9 @@ def test_run_cache_write_data_valid(
                 mock_diskcache.set.assert_called_once_with(test_key, test_data, expire=600)
 
 
-@pytest.mark.parametrize("cache_type, test_key, test_data", [(CacheType.SCRAPER, "my-fake-key", "my-fake-value")])
+@pytest.mark.parametrize("cache_type, test_key, test_data", [(CACHE_TYPE_SCRAPER, "my-fake-key", "my-fake-value")])
 def test_run_cache_write_data_invalid(
-    valid_app_settings: AppSettings, cache_type: CacheType, test_key: Any, test_data: Any
+    valid_app_settings: AppSettings, cache_type: str, test_key: Any, test_data: Any
 ) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppSettings, "is_cache_enabled", return_value=False):
@@ -235,8 +235,8 @@ def test_run_cache_write_data_invalid(
                 actual = run_cache.write_data(cache_key=test_key, data=test_data)
 
 
-@pytest.mark.parametrize("cache_type, run_cache_enabled", [(CacheType.SCRAPER, False), (CacheType.SCRAPER, True)])
-def test_run_cache_clear(valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool) -> None:
+@pytest.mark.parametrize("cache_type, run_cache_enabled", [(CACHE_TYPE_SCRAPER, False), (CACHE_TYPE_SCRAPER, True)])
+def test_run_cache_clear(valid_app_settings: AppSettings, cache_type: str, run_cache_enabled: bool) -> None:
     mock_diskcache = MagicMock()
     with patch.object(AppSettings, "is_cache_enabled", return_value=run_cache_enabled):
         with patch("plastered.run_cache.run_cache.Cache") as mock_diskcache_constructor:
@@ -254,10 +254,10 @@ def test_run_cache_clear(valid_app_settings: AppSettings, cache_type: CacheType,
 
 
 @pytest.mark.parametrize(
-    "cache_type, run_cache_enabled, should_fail", [(CacheType.SCRAPER, False, True), (CacheType.SCRAPER, True, False)]
+    "cache_type, run_cache_enabled, should_fail", [(CACHE_TYPE_SCRAPER, False, True), (CACHE_TYPE_SCRAPER, True, False)]
 )
 def test_run_cache_check(
-    valid_app_settings: AppSettings, cache_type: CacheType, run_cache_enabled: bool, should_fail: bool
+    valid_app_settings: AppSettings, cache_type: str, run_cache_enabled: bool, should_fail: bool
 ) -> None:
     mock_diskcache = MagicMock()
     expected_check_result_no_fail = ["fake warning"]
@@ -281,11 +281,11 @@ def test_run_cache_check(
 
 @pytest.mark.parametrize(
     "cache_type, run_cache_enabled, mock_cache_entries, expected_print_call_cnt",
-    [(CacheType.SCRAPER, False, {}, 0), (CacheType.SCRAPER, True, {"some-key": 420, "some-other-key": 69}, 2)],
+    [(CACHE_TYPE_SCRAPER, False, {}, 0), (CACHE_TYPE_SCRAPER, True, {"some-key": 420, "some-other-key": 69}, 2)],
 )
 def test_cli_list_cache_keys(
     valid_app_settings: AppSettings,
-    cache_type: CacheType,
+    cache_type: str,
     run_cache_enabled: bool,
     mock_cache_entries,
     expected_print_call_cnt: int,
@@ -312,13 +312,13 @@ def test_cli_list_cache_keys(
 @pytest.mark.parametrize(
     "cache_type, run_cache_enabled, key, mock_cache_entries, expected_print_call_cnt",
     [
-        (CacheType.SCRAPER, False, "key", {}, 0),
-        (CacheType.SCRAPER, True, "some-key", {"some-key": [420, 69], "some-other-key": 69}, 4),
+        (CACHE_TYPE_SCRAPER, False, "key", {}, 0),
+        (CACHE_TYPE_SCRAPER, True, "some-key", {"some-key": [420, 69], "some-other-key": 69}, 4),
     ],
 )
 def test_cli_print_cached_value(
     valid_app_settings: AppSettings,
-    cache_type: CacheType,
+    cache_type: str,
     run_cache_enabled: bool,
     key: str,
     mock_cache_entries,
