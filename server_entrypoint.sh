@@ -4,4 +4,5 @@ set -exuo pipefail
 echo "Attempting to initialize plastered API server ..."
 export PYTHONPATH="${APP_DIR}/"
 
-uvicorn plastered.api.main:fastapi_app --host 0.0.0.0 --port 80 --log-level debug
+# main.py's __main__ launches uvicorn with the host / port / log level / workers from the app config.
+python "${APP_DIR}/plastered/api/main.py"

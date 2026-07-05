@@ -48,16 +48,13 @@ fastapi_app.include_router(plastered_web_router)
 
 
 if __name__ == "__main__":
-    app_settings = get_app_settings()
-    root_logger = logging.getLogger()
-    root_logger.setLevel(app_settings.server.log_level)
+    server_config = get_app_settings().server
     uvicorn.run(
         "plastered.api.main:fastapi_app",
-        host=app_settings.server.host,
-        port=app_settings.server.port,
-        reload=True,
-        reload_dirs=["./static", "./templates"],
-        reload_includes=["*.css", "*.js", "*.html", "*.template", "*.j2"],
-        log_level=app_settings.server.log_level.lower(),
-        workers=app_settings.server.workers,
+        host=server_config.host,
+        port=server_config.port,
+        log_level=server_config.log_level.lower(),
+        # Keep the worker count config-driven: RED's per-process rate limit stays globally correct only when this is 1
+        # (see ServerConfig). Note uvicorn ignores `workers` when `reload=True`, so this launch path does not reload.
+        workers=server_config.workers,
     )
