@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`plastered` pulls a user's Last.fm (LFM) album/track recommendations and automatically snatches the matching releases from RED (a private music tracker). It runs as a FastAPI web server (driven entirely through the browser UI). It is download-client- and library-agnostic — it only writes `.torrent` files to a configured directory.
+`plastered` pulls a user's Last.fm (LFM) album/track recommendations and automatically snatches the matching releases from RED (a private music tracker). It runs as a FastAPI web server (driven entirely through the browser UI), launched via a slim click CLI: `plastered run --config <path-to-config.yaml>` (`plastered/main.py`). It is download-client- and library-agnostic — it only writes `.torrent` files to a configured directory.
 
 ## Common commands
 
@@ -16,7 +16,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for t
 - `make test PDB=1` — run serially (no `xdist`) and drop into pdb on failure.
 - `make fmt` — auto-format + lint (ruff format, `ruff check --fix`, bandit). `make fmt-check` is the check-only variant used in CI.
 - `make mypy` — type-check (`mypy --config-file pyproject.toml .`).
-- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000 (the container's default entrypoint is `server_entrypoint.sh` → uvicorn). Playwright deps make host-only runs impractical; see `docs/contributing/development_guide.md`.
+- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000 (the container's default entrypoint is `server_entrypoint.sh` → `plastered/main.py run` → uvicorn). Playwright deps make host-only runs impractical; see `docs/contributing/development_guide.md`.
 
 ### Test details
 
@@ -59,7 +59,7 @@ All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `h
 
 NOTE: the web server is experimental and not all features are fully implemnented.
 
-`api/main.py` is the FastAPI entrypoint. A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The manual-search endpoint calls `ReleaseSearcher.manual_search()`.
+`api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
 
 ### Persistence (`plastered/db/`)
 

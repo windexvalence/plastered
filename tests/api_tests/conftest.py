@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from plastered.api.lifespan_resources import LifespanSingleton
-from plastered.api.main import fastapi_app
+from plastered.api.app import create_fastapi_app
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
 from plastered.release_search.release_searcher import ReleaseSearcher
@@ -34,7 +34,7 @@ def mock_LifespanSingleton_inst(
     # `LifespanSingleton.__post_init__` (the only caller of `RedAPIClient.get_red_user_details`) never runs because of
     # this patch, so there is no need to patch the RED client itself — doing so at session scope previously leaked the
     # mock onto unrelated tests sharing the xdist worker (e.g. test_create_red_user_details).
-    with patch("plastered.api.main.get_lifespan_singleton", return_value=singleton_inst):
+    with patch("plastered.api.app.get_lifespan_singleton", return_value=singleton_inst):
         yield singleton_inst
 
 
@@ -53,5 +53,5 @@ def _stub_background_tasks_add_task(request: pytest.FixtureRequest) -> Generator
 
 @pytest.fixture(scope="session")
 def client() -> Generator[TestClient, None, None]:
-    with TestClient(app=fastapi_app) as test_client:
+    with TestClient(app=create_fastapi_app()) as test_client:
         yield test_client

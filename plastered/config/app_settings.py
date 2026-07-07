@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettin
 from plastered.models.field_validators import APIRetries, NonRedCallWait, RedCallWait, validate_rec_types_to_scrape
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
-from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME
+from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, PLASTERED_CONFIG_ENVVAR
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ class AppSettings(BaseSettings):
 def get_app_settings(src_yaml_filepath: Path | None = None) -> AppSettings:
     """Returns the read-only `plastered` application settings configured by the yaml config."""
     if not src_yaml_filepath:
-        src_yaml_filepath = Path(os.environ["PLASTERED_CONFIG"])
+        src_yaml_filepath = Path(os.environ[PLASTERED_CONFIG_ENVVAR])
     settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath)
     try:
         app_settings = AppSettings(**settings_data)
