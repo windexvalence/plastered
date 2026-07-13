@@ -10,9 +10,11 @@ from typing import TYPE_CHECKING, cast
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from plastered.api.auth_sessions import SessionTokenStore
 from plastered.api.constants import STATIC_DIRPATH
 from plastered.api.lifespan_resources import LifespanSingleton, get_lifespan_singleton
-from plastered.api.routes import plastered_api_router, plastered_web_router
+from plastered.api.middleware import LoginProtectionMiddleware
+from plastered.api.routes import auth_router, plastered_api_router, plastered_web_router
 from plastered.db.db_utils import db_startup
 from plastered.version import get_project_version
 
@@ -27,6 +29,10 @@ def create_fastapi_app() -> FastAPI:
     # https://fastapi.tiangolo.com/tutorial/sql-databases/#create-models
     fastapi_app = FastAPI(version=get_project_version(), lifespan=_app_lifespan)
     fastapi_app.mount("/static", StaticFiles(directory=os.fspath(STATIC_DIRPATH)), name="static")
+    # The token store lives on `app.state` (not the lifespan singleton) so each app instance gets a fresh registry.
+    fastapi_app.state.token_store = SessionTokenStore()
+    fastapi_app.add_middleware(LoginProtectionMiddleware)
+    fastapi_app.include_router(auth_router)
     fastapi_app.include_router(plastered_api_router)
     fastapi_app.include_router(plastered_web_router)
     return fastapi_app

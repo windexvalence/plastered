@@ -21,6 +21,11 @@
                 <a href="/user_details">User Details</a>
             </nav>
             <button id="header-help-btn" hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+            {% if auth_enabled %}
+            <form id="logout-form" method="post" action="/logout">
+                <button id="header-logout-btn" type="submit">Log out</button>
+            </form>
+            {% endif %}
         </div>
     </header>
     <main>

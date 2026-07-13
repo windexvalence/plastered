@@ -60,3 +60,9 @@ server:
   host: "0.0.0.0"
   port: 80
   log_level: "DEBUG"
+  # Optional: require a login (browser or `Authorization: Bearer` header) for all routes.
+  # auth:
+  #   enable_login_protection: true
+  #   username: "admin"
+  #   password: "change-me"
+  #   session_ttl_hours: 168

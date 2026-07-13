@@ -3,8 +3,8 @@ import os
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
 from plastered.actions.api_actions import (
@@ -19,6 +19,7 @@ from plastered.actions.api_actions import (
 )
 from plastered.actions.common_actions import run_lfm_scraper
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
+from plastered.api.auth_sessions import SESSION_COOKIE_NAME, credentials_valid, set_session_cookie
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import SessionDep
 from plastered.db.db_models import RecDownloadBatchStatus, Status
@@ -32,6 +33,52 @@ plastered_web_router = APIRouter(prefix="")
 @plastered_web_router.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
     return FileResponse(os.fspath(STATIC_DIRPATH / "images" / "favicon.ico"))
+
+
+def _safe_next_url(next_url: str) -> str:
+    """Only same-site absolute paths are allowed as post-login redirect targets (no `//host` or external URLs)."""
+    return next_url if next_url.startswith("/") and not next_url.startswith("//") else "/"
+
+
+# /login?next=<path>  (browser login page; unauthenticated HTML requests are redirected here by the middleware)
+@plastered_web_router.get("/login")
+async def login_page(request: Request, next_url: Annotated[str, Query(alias="next")] = "/") -> HTMLResponse:
+    return TEMPLATES.TemplateResponse(
+        request=request, name="login.html", context={"next_url": _safe_next_url(next_url), "error": None}
+    )
+
+
+# POST /login  (browser login form submission -> sets the session cookie and redirects to the requested page)
+@plastered_web_router.post("/login")
+async def login_submit(
+    request: Request,
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    next_url: Annotated[str, Form(alias="next")] = "/",
+) -> Response:
+    auth_config = request.state.lifespan_singleton.app_settings.server.auth
+    if not credentials_valid(auth_config=auth_config, username=username, password=password):
+        return TEMPLATES.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"next_url": _safe_next_url(next_url), "error": "Invalid username or password."},
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    token = request.app.state.token_store.issue_token(session_ttl_hours=auth_config.session_ttl_hours)
+    redirect = RedirectResponse(url=_safe_next_url(next_url), status_code=status.HTTP_303_SEE_OTHER)
+    set_session_cookie(response=redirect, raw_token=token, auth_config=auth_config)
+    return redirect
+
+
+# POST /logout  (nav-bar logout control -> revokes the session cookie's token and redirects to the login page)
+@plastered_web_router.post("/logout")
+async def logout_submit(request: Request) -> RedirectResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if token is not None:
+        request.app.state.token_store.revoke_token(token)
+    redirect = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    redirect.delete_cookie(key=SESSION_COOKIE_NAME)
+    return redirect
 
 
 # https://fastapi.tiangolo.com/async/#in-a-hurry

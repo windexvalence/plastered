@@ -140,13 +140,50 @@ class MusicBrainzConfig(BaseModel):
         ge=NonRedCallWait.MIN.value, le=NonRedCallWait.MAX.value, default=NonRedCallWait.DEFAULT.value
     )
 
-    # model_config = ConfigDict(validate_default=True)
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="musicbrainz")
 
 
 class CacheConfig(BaseModel):
     model_config = ConfigDict(title="cache")
     scraper_cache_enabled: bool = Field(default=True)
+
+
+class AuthConfig(BaseModel):
+    """
+    Optional config section for the plastered API server's authentication setup.
+
+    plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+    set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+    browser `/login` page) using the `username`/`password` configured here.
+    """
+
+    model_config = ConfigDict(title="auth", frozen=True, extra="forbid")
+    enable_login_protection: bool = Field(
+        default=False,
+        description="Opt-in: when true, all routes require a session token from a successful `/api/auth/login`.",
+    )
+    username: SecretStr | None = Field(default=None)
+    password: SecretStr | None = Field(default=None)
+    session_ttl_hours: int = Field(
+        default=24 * 7,
+        ge=0,
+        description="How long a login token stays valid before a new login is required. "
+        "Setting to zero disables expiration. Not recommended.",
+    )
+
+    @model_validator(mode="after")
+    def credentials_required_when_protected(self) -> Self:
+        if self.enable_login_protection and (self.username is None or self.password is None):
+            raise AppConfigException(
+                "`server.auth.enable_login_protection` is on, so `server.auth.username` and "
+                "`server.auth.password` must both be set."
+            )
+        return self
+
+    @classmethod
+    def default_factory(cls) -> Self:
+        """Returns the default config section model instance if the entire section is left unset."""
+        return cls()
 
 
 class ServerConfig(BaseModel):
@@ -156,6 +193,7 @@ class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")  # nosec: B104
     port: int = Field(default=80)
     log_level: str = Field(default="INFO")
+    auth: AuthConfig = Field(title="auth", default_factory=AuthConfig.default_factory)
     # Default to a single worker: RED's "<=1 request / red_api_seconds_between_calls" rate limit is enforced per
     # process (each worker has its own throttle clock), so multiple workers could collectively exceed it. One worker
     # keeps the limit globally correct; async I/O still handles concurrency fine for this workload.

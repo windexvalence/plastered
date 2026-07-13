@@ -49,12 +49,40 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | server.host | `string` |  | string |  | `"0.0.0.0"` |  |  |
 | server.port | `integer` |  | integer |  | `80` |  |  |
 | server.log_level | `string` |  | string |  | `"INFO"` |  |  |
+| server.auth | `object` |  | object |  |  | Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here. |  |
+| server.auth.enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| server.auth.username | `string` or `null` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| server.auth.password | `string` or `null` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| server.auth.session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
 | server.workers | `integer` |  | integer |  | `1` |  |  |
 
 
 ---
 
 # Definitions
+
+## AuthConfig
+
+Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here.
+
+#### Type: `object`
+
+> ⚠️ Additional properties are not allowed.
+
+| Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
+| -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
+| enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| username | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| password | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
 
 ## CacheConfig
 
@@ -196,6 +224,15 @@ Config section for the plastered API server.
 | host | `string` |  | string |  | `"0.0.0.0"` |  |  |
 | port | `integer` |  | integer |  | `80` |  |  |
 | log_level | `string` |  | string |  | `"INFO"` |  |  |
+| auth | `object` |  | object |  |  | Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here. |  |
+| auth.enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| auth.username | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| auth.password | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| auth.session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
 | workers | `integer` |  | integer |  | `1` |  |  |
 
 ## SnatchesConfig

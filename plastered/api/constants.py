@@ -4,10 +4,13 @@ import os
 from datetime import datetime
 from enum import StrEnum, unique
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 from urllib.parse import urlencode
 
 from fastapi.templating import Jinja2Templates
+
+if TYPE_CHECKING:
+    from fastapi import Request
 
 # User-facing labels for a run's terminal status, used by the run-history accordion summary line.
 _STATUS_DISPLAY_LABELS: Final[dict[str, str]] = {
@@ -34,6 +37,13 @@ def _status_label(status: object) -> str:
     return _STATUS_DISPLAY_LABELS.get(str(status), str(status))
 
 
+def _auth_template_context(request: Request) -> dict[str, bool]:
+    """Template context processor: exposes `auth_enabled` to every page so shared chrome (e.g. the nav-bar logout
+    control in `base_template.html`) can render conditionally on `server.auth.enable_login_protection`."""
+    auth_config = request.app.state.lifespan_singleton.app_settings.server.auth
+    return {"auth_enabled": auth_config.enable_login_protection}
+
+
 @unique
 class RouterPrefix(StrEnum):
     API = "/api"
@@ -43,7 +53,9 @@ _API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered"
 _TEMPLATES_DIRPATH: Final[Path] = _API_DIRPATH / "templates"
 
 STATIC_DIRPATH: Final[Path] = _API_DIRPATH / "static"
-TEMPLATES: Final[Jinja2Templates] = Jinja2Templates(directory=_TEMPLATES_DIRPATH)
+TEMPLATES: Final[Jinja2Templates] = Jinja2Templates(
+    directory=_TEMPLATES_DIRPATH, context_processors=[_auth_template_context]
+)
 TEMPLATES.env.filters["dict_to_query_params"] = urlencode
 TEMPLATES.env.filters["format_timestamp"] = _format_timestamp
 TEMPLATES.env.filters["status_label"] = _status_label

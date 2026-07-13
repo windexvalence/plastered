@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from plastered.config.app_settings import RedSearchOverrides
 from plastered.db.db_models import Failed, Grabbed, Matched, RecDownloadBatch, ScraperRun, SearchRecord, Skipped, Status
@@ -97,3 +97,20 @@ class RunHistoryPageResponse(BaseModel):
     query: str | None = Field(default=None)
     sort_desc: bool = Field(default=True)
     search_id: int | None = Field(default=None)
+
+
+class LoginRequestBody(BaseModel):
+    username: SecretStr
+    password: SecretStr
+
+
+class LoginResponseBody(BaseModel):
+    """The raw bearer token the client must send back as `Authorization: Bearer <token>` (`str`, not
+    `SecretStr` — this response is the one place the token is intentionally revealed)."""
+
+    token: str
+    token_type: Literal["bearer"] = "bearer"
+
+
+class LogoutResponseBody(BaseModel):
+    detail: str = "Logged out."
