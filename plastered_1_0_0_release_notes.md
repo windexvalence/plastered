@@ -15,6 +15,8 @@
 * Reduced RED API usage: one format-agnostic browse call per recommendation (torrents are ranked against format preferences client-side instead of one browse per preference), input recs are deduped before processing, and unneeded musicbrainz lookups are skipped in the scraper flow.
 * Enforce the RED rate limit globally: server defaults to 1 worker and the client throttle is thread-safe, so concurrent requests can never collectively exceed 1 request per `red_api_seconds_between_calls`.
 * Made the scraper resilient to LFM client-side navigations mid-scrape (bounded retries waiting for network idle instead of a hard failure).
+* Docker images are now published for both `linux/amd64` and `linux/arm64` platforms.
+* Reduced the Docker image size: `uv`/`uvx` are no longer shipped in the app image (bind-mounted at build time only), runtime bytecode writes are disabled (`PYTHONDONTWRITEBYTECODE=1`), and the font cleanup during the image build now actually deletes `.ttc`/`.ttf` files (a `find` precedence bug meant only `.otf` files were removed).
 
 ## Bug Fixes
 
@@ -46,5 +48,6 @@
 * Added an FAQ doc; the config reference is now auto-generated from the pydantic models (`make render-config-doc`).
 * Consolidated all styles into a single `classless.css`; HTMX + CSS are pulled at image build time instead of from CDNs.
 * Bumped production + development dependency groups (uv lockfile verified via `uv lock --check` in the Docker build).
+* Fixed the `.dockerignore` whitelist excluding `hooks/` from the image build (breaking the containerized CI code-check scripts) and removed stale entries for deleted files.
 
 **Full Changelog**: https://github.com/windexvalence/plastered/compare/v0.2.2...v1.0.0
