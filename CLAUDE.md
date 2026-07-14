@@ -16,7 +16,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for t
 - `make test PDB=1` — run serially (no `xdist`) and drop into pdb on failure.
 - `make fmt` — auto-format + lint (ruff format, `ruff check --fix`, bandit). `make fmt-check` is the check-only variant used in CI.
 - `make mypy` — type-check (`mypy --config-file pyproject.toml .`).
-- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000 (the container's default entrypoint is `server_entrypoint.sh` → `plastered/main.py run` → uvicorn). Playwright deps make host-only runs impractical; see `docs/contributing/development_guide.md`.
+- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000 (the container's default entrypoint is the app's single-file PEX: `/app/plastered.pex run` → uvicorn; app sources + static/templates are baked into the PEX, so UI changes require an image rebuild). Playwright deps make host-only runs impractical; see `docs/contributing/development_guide.md`.
 
 ### Test details
 

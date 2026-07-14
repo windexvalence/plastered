@@ -45,20 +45,19 @@ docker-build:  ## Build the plastered docker app and test images locally
 	docker build --target plastered-test -t wv/plastered-test:$$(date +%s) -t wv/plastered-test:latest .
 
 docker-build-no-test:  ## Build the plastered docker image locally without test-requirements installed
-	docker build --target plastered-app --build-arg BUILD_ENV=non-test -t wv/plastered:non-test .
+	docker build --target plastered-app -t wv/plastered:non-test .
 
 docker-shell:  docker-build  ## Execs a local shell inside a locally built plastered docker container for testing and debugging
 	docker run -it --rm --entrypoint /bin/bash wv/plastered-test:latest
 
+# NOTE: static assets + templates are baked into the app's PEX file, so UI changes require an image
+# rebuild (no live-mounting of static/template dirs).
 docker-server:  docker-build-no-test  ## Execs a local container running the server on localhost port 8000
 	@echo "\n $(RED) Enter http://localhost:8000/ into your browser. $(NC) \n"
-	./build_scripts/pull_static_assets_for_local_server.sh
 	docker run -it --rm --name plastered-api \
 		-p 8000:80 \
 		-v $(APP_CONFIG_DIR):/config \
 		-v $(DOWNLOADS_DIR):/downloads \
-		-v $(PROJECT_DIR_PATH)/plastered/api/static:/app/plastered/api/static \
-		-v $(PROJECT_DIR_PATH)/plastered/api/templates:/app/plastered/api/templates \
 		-e PLASTERED_CONFIG=/config/config.yaml \
 		-e DB_TEST_MODE=$(DB_TEST_MODE) \
 		wv/plastered:non-test

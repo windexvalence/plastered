@@ -1,4 +1,4 @@
-# `plastered` 0.2.2 config reference
+# `plastered` 1.0.0 config reference
 
 This doc is Auto-generated. If in doubt, refer to `examples/config.yaml`
 # config

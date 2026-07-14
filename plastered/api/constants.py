@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+import importlib.resources
 from datetime import datetime
 from enum import StrEnum, unique
 from pathlib import Path
@@ -49,7 +49,10 @@ class RouterPrefix(StrEnum):
     API = "/api"
 
 
-_API_DIRPATH: Final[Path] = Path(os.path.join(os.environ["APP_DIR"], "plastered", "api"))
+# Resolved from the package itself (not APP_DIR), so the api assets ship inside any packaged form of the
+# app (e.g. the PEX image). Assumes the package is materialized on disk (true for a source checkout, a
+# venv install, and a `--venv`-mode PEX), since StaticFiles/Jinja2Templates need real directories.
+_API_DIRPATH: Final[Path] = Path(str(importlib.resources.files("plastered.api")))
 _TEMPLATES_DIRPATH: Final[Path] = _API_DIRPATH / "templates"
 
 STATIC_DIRPATH: Final[Path] = _API_DIRPATH / "static"

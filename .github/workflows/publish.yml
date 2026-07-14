@@ -1,0 +1,133 @@
+name: Publish
+run-name: Publish ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+
+# Builds and publishes the multi-arch Docker image from a `vMAJOR.MINOR.PATCH` tag. Normally dispatched by
+# the Release workflow right after it creates the tag (`workflow_dispatch` is the one trigger the built-in
+# GITHUB_TOKEN may fire — it cannot fire `push`). The `push` trigger covers manually pushed release tags.
+#
+# The per-arch images build in parallel on native runners (no QEMU) and are handed to `publish-image` as
+# tarballs, so nothing touches the registry until every build has succeeded.
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release semver (MAJOR.MINOR.PATCH, no leading v); the tag vVERSION must already exist.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never let two publishes of the same version run concurrently.
+concurrency:
+  group: publish-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_REF: ghcr.io/${{ github.repository }}
+
+jobs:
+  setup:
+    name: Resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Validate the release version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${version}' is not an exact MAJOR.MINOR.PATCH release version - nothing to \
+          publish. Release tags must be created via the Release workflow."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  # Build each arch's app image on a native runner (no QEMU) and hand it to `publish-image` as a tarball,
+  # so nothing touches the registry until the publication phase.
+  build-image:
+    name: Build image (${{ matrix.arch }})
+    needs: setup
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      # Checking out the tag is what versions the image: the PEX and PLASTERED_RELEASE_TAG come from the
+      # tagged commit's sources.
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.setup.outputs.version }}
+      - name: Build app image (native ${{ matrix.arch }})
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          docker build \
+            --target plastered-app \
+            --build-arg PLASTERED_RELEASE_TAG="v${VERSION}" \
+            -t "${IMAGE_REF}:${VERSION}-${ARCH}" \
+            .
+      - name: Export image tarball
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          docker save "${IMAGE_REF}:${VERSION}-${ARCH}" -o "image-${ARCH}.tar"
+      - name: Upload image tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.arch }}
+          path: image-${{ matrix.arch }}.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  # Push the per-arch tags then stitch them into the multi-arch manifest list (`:<version>` + `:latest`).
+  publish-image:
+    name: Publish image to GHCR
+    needs: [setup, build-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download image tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          merge-multiple: true
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push per-arch tags + manifest list
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          docker load -i image-amd64.tar
+          docker load -i image-arm64.tar
+          docker push "${IMAGE_REF}:${VERSION}-amd64"
+          docker push "${IMAGE_REF}:${VERSION}-arm64"
+          docker buildx imagetools create \
+            -t "${IMAGE_REF}:${VERSION}" \
+            -t "${IMAGE_REF}:latest" \
+            "${IMAGE_REF}:${VERSION}-amd64" \
+            "${IMAGE_REF}:${VERSION}-arm64"
+      - name: Inspect published image
+        env:
+          VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "${IMAGE_REF}:${VERSION}"

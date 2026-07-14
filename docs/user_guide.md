@@ -27,7 +27,7 @@ Make sure you have completed the following before installing or using `plastered
 3. Write a starter `config.yaml` into that directory by copying the bundled skeleton out of the image:
     ```shell
     docker run --rm --entrypoint cat ghcr.io/windexvalence/plastered:latest \
-      /app/plastered/config/init_conf.yaml > /your/host/path/to/plastered_dir/config.yaml
+      /app/init_conf.yaml > /your/host/path/to/plastered_dir/config.yaml
     ```
 
 4. Fill in the required config values in the skeleton from step 3. Refer to the

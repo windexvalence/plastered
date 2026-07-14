@@ -16,7 +16,7 @@
 * Enforce the RED rate limit globally: server defaults to 1 worker and the client throttle is thread-safe, so concurrent requests can never collectively exceed 1 request per `red_api_seconds_between_calls`.
 * Made the scraper resilient to LFM client-side navigations mid-scrape (bounded retries waiting for network idle instead of a hard failure).
 * Docker images are now published for both `linux/amd64` and `linux/arm64` platforms.
-* Reduced the Docker image size: `uv`/`uvx` are no longer shipped in the app image (bind-mounted at build time only), runtime bytecode writes are disabled (`PYTHONDONTWRITEBYTECODE=1`), and the font cleanup during the image build now actually deletes `.ttc`/`.ttf` files (a `find` precedence bug meant only `.otf` files were removed).
+* Cut the Docker image size ~45% (1.03GB -> 573MB): the app now ships as a single [PEX file](https://docs.pex-tool.org/) (all deps + sources in one compressed archive; no uv, pyc files, or unpacked site-packages in the image), and the browser install now purges packages headless scraping never uses (the software-GL/LLVM stack, xvfb, CJK/emoji font packs).
 
 ## Bug Fixes
 
@@ -35,7 +35,7 @@
 * Moved server launch params (host, port, log level, workers) into the `server` config section. `workers` defaults to 1 — raising it risks exceeding RED's rate limit.
 * Removed the `plastered.stats` module.
 * Replaced the manual-search flow with the generalized ad-hoc search (`ManualSearch` -> `AdhocSearch`).
-* The Docker image's default entrypoint is now the server; the config path is provided via `PLASTERED_CONFIG`.
+* The Docker image's default entrypoint is now the server (the app's PEX file); the config path is provided via `PLASTERED_CONFIG`. The bundled config skeleton moved from `/app/plastered/config/init_conf.yaml` to `/app/init_conf.yaml` (see the user guide).
 
 ## Development Improvements
 
@@ -49,5 +49,6 @@
 * Consolidated all styles into a single `classless.css`; HTMX + CSS are pulled at image build time instead of from CDNs.
 * Bumped production + development dependency groups (uv lockfile verified via `uv lock --check` in the Docker build).
 * Fixed the `.dockerignore` whitelist excluding `hooks/` from the image build (breaking the containerized CI code-check scripts) and removed stale entries for deleted files.
+* Reworked the release flow: releases now start from a semver draft GitHub release. The `Release` workflow validates + tests on both architectures, then (after an environment approval) tags the commit and publishes the draft; the dispatched `Publish` workflow builds the per-arch images from the tag on native runners and pushes the multi-arch manifest.
 
 **Full Changelog**: https://github.com/windexvalence/plastered/compare/v0.2.2...v1.0.0

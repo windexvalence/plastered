@@ -62,3 +62,9 @@ Then open http://localhost:8000 in your browser.
 ## Other testing commands
 
 Run `make` to list the other available targets and their descriptions.
+
+## Cutting a release
+
+1. Fill out the GitHub "new release" form: title = `MAJOR.MINOR.PATCH` (matching the `version` in `pyproject.toml`), the release notes, and **Save as draft**.
+2. Run the `Release` workflow (Actions -> Release -> Run workflow, from `main`). It locates the draft, runs the full check/test suite on both release architectures, and build-validates the app image without publishing anything.
+3. Approve the `release` environment prompt. The workflow tags the validated commit `vX.Y.Z`, publishes the draft release, and dispatches the `Publish` workflow, which builds the per-arch images from the tag and pushes the multi-arch manifest (`:X.Y.Z` + `:latest`) to GHCR.
