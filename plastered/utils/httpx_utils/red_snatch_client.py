@@ -1,15 +1,9 @@
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import httpx
 
 from plastered.config.app_settings import AppSettings
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import (
-    NON_CACHED_RED_SNATCH_API_ENDPOINTS,
-    PERMITTED_RED_SNATCH_API_ENDPOINTS,
-    RED_API_BASE_URL,
-)
+from plastered.utils.constants import RED_API_BASE_URL
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
@@ -26,15 +20,12 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
     Also contains some specialized logic for intelligently estimating the FL tokens available.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
+    def __init__(self, app_settings: AppSettings):
         super().__init__(
             base_api_url=RED_API_BASE_URL,
             # NOTE: the RedSnatchAPIClient doesn't use retries, so this is ignored
             max_api_call_retries=app_settings.red.red_api_retries,
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
-            valid_endpoints=set(PERMITTED_RED_SNATCH_API_ENDPOINTS),
-            run_cache=run_cache,
-            non_cached_endpoints=set(NON_CACHED_RED_SNATCH_API_ENDPOINTS),
             # This class overrides the internal default super class routing, to make sure
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
             extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
@@ -52,8 +43,8 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
         """
         Dedicated method specifically for snatching from red and returning the
         response contents' bytes which may be written to a .torrent file.
-        This is separated from the `request_api` method since there's addition logic for FL tokens, and since we
-        don't want to enable response caching for download requests.
+        This is separated into its own client since download requests have additional FL-token logic and must not use
+        the base client's request retries (which would mask errors when spending FL tokens).
         """
         self._throttle()
         params = f"id={tid}"
@@ -81,21 +72,3 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
 
     def tid_snatched_with_fl_token(self, tid: str | int) -> bool:
         return str(tid) in self._tids_snatched_with_fl_tokens
-
-
-class AsyncSnatchClient(httpx.AsyncClient):  # pragma: no cover
-    """Subclass of `httpx.AsyncClient` specifically for async snatch request submission and resoonse handling."""
-
-    def __init__(self, **kwargs: Any):
-        super().__init__(**kwargs)
-
-    async def snatch(self, tid: str, can_use_token: bool) -> Path | None:
-        """
-        Async RED snatch request submission, and response handling.
-        Returns: Path object pointg to the downloaded file on success. `None` on failure.
-        """
-        # TODO: use https://anyio.readthedocs.io/en/stable/fileio.html
-        # bytes(f"tid: {tid}, can_use_token: {can_use_token}")  # TODO: implement
-        if not tid:
-            return None
-        return Path(".")

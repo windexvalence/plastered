@@ -1,41 +1,21 @@
 import json
 import logging
 import os
-import sys
 from collections import Counter
-from datetime import datetime
-from functools import reduce
 from pathlib import Path
 from typing import Any, Self
 
-import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
-from plastered.models.field_validators import (
-    APIRetries,
-    CLIOverrideSetting,
-    NonRedCallWait,
-    RedCallWait,
-    validate_rec_types_to_scrape,
-)
+from plastered.models.field_validators import APIRetries, NonRedCallWait, RedCallWait, validate_rec_types_to_scrape
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
-from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, RUN_DATE_STR_FORMAT, SUMMARIES_DIRNAME
+from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, PLASTERED_CONFIG_ENVVAR
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def load_init_config_template() -> str:  # pragma: no cover
-    """
-    Utility function to aid new users in initializing a minimal config.yaml skeleton via the CLI's init_config command.
-    """
-    init_conf_filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "init_conf.yaml")
-    with open(init_conf_filepath) as f:
-        raw_init_conf_lines = f.readlines()
-    return "".join(raw_init_conf_lines)
 
 
 class SearchConfig(BaseModel):
@@ -72,6 +52,33 @@ class FormatPreference(RedFormat):
                 f"preference with media set to {MediaEnum.CD.value} must have a non-empty cd_only_extras field."
             )
         return self
+
+
+class RedSearchOverrides(BaseModel):
+    """
+    Per-request overrides for the ad-hoc release search flow. Every field is optional; any field left unset falls back
+    to the corresponding value from the user's `red` config. These let an ad-hoc API request tune the RED search /
+    snatch behavior (`red.format_preferences`, `red.search`, `red.snatches`) without mutating the global config or
+    touching the shared, throttled API clients.
+
+    Note: `snatch_directory` is intentionally NOT overridable — the download location is a server-side concern and must
+    not be settable by a client.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", title="red_search_overrides")
+    # red.format_preferences
+    format_preferences: list[FormatPreference] | None = Field(default=None)
+    # red.search
+    use_release_type: bool | None = Field(default=None)
+    use_first_release_year: bool | None = Field(default=None)
+    use_record_label: bool | None = Field(default=None)
+    use_catalog_number: bool | None = Field(default=None)
+    # red.snatches
+    snatch: bool | None = Field(default=None)
+    max_size_gb: float | None = Field(default=None, ge=0.02, le=100.0)
+    skip_prior_snatches: bool | None = Field(default=None)
+    use_fl_tokens: bool | None = Field(default=None)
+    min_allowed_ratio: float | None = Field(default=None)
 
 
 def _default_red_search_config() -> SearchConfig:  # pragma: no cover
@@ -133,14 +140,50 @@ class MusicBrainzConfig(BaseModel):
         ge=NonRedCallWait.MIN.value, le=NonRedCallWait.MAX.value, default=NonRedCallWait.DEFAULT.value
     )
 
-    # model_config = ConfigDict(validate_default=True)
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="musicbrainz")
 
 
 class CacheConfig(BaseModel):
     model_config = ConfigDict(title="cache")
-    api_cache_enabled: bool = Field(default=True)
     scraper_cache_enabled: bool = Field(default=True)
+
+
+class AuthConfig(BaseModel):
+    """
+    Optional config section for the plastered API server's authentication setup.
+
+    plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+    set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+    browser `/login` page) using the `username`/`password` configured here.
+    """
+
+    model_config = ConfigDict(title="auth", frozen=True, extra="forbid")
+    enable_login_protection: bool = Field(
+        default=False,
+        description="Opt-in: when true, all routes require a session token from a successful `/api/auth/login`.",
+    )
+    username: SecretStr | None = Field(default=None)
+    password: SecretStr | None = Field(default=None)
+    session_ttl_hours: int = Field(
+        default=24 * 7,
+        ge=0,
+        description="How long a login token stays valid before a new login is required. "
+        "Setting to zero disables expiration. Not recommended.",
+    )
+
+    @model_validator(mode="after")
+    def credentials_required_when_protected(self) -> Self:
+        if self.enable_login_protection and (self.username is None or self.password is None):
+            raise AppConfigException(
+                "`server.auth.enable_login_protection` is on, so `server.auth.username` and "
+                "`server.auth.password` must both be set."
+            )
+        return self
+
+    @classmethod
+    def default_factory(cls) -> Self:
+        """Returns the default config section model instance if the entire section is left unset."""
+        return cls()
 
 
 class ServerConfig(BaseModel):
@@ -150,7 +193,11 @@ class ServerConfig(BaseModel):
     host: str = Field(default="0.0.0.0")  # nosec: B104
     port: int = Field(default=80)
     log_level: str = Field(default="INFO")
-    workers: int = Field(default=4)
+    auth: AuthConfig = Field(title="auth", default_factory=AuthConfig.default_factory)
+    # Default to a single worker: RED's "<=1 request / red_api_seconds_between_calls" rate limit is enforced per
+    # process (each worker has its own throttle clock), so multiple workers could collectively exceed it. One worker
+    # keeps the limit globally correct; async I/O still handles concurrency fine for this workload.
+    workers: int = Field(default=1)
 
 
 def _default_music_brainz_config() -> MusicBrainzConfig:
@@ -178,10 +225,8 @@ class AppSettings(BaseSettings):
     cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
     server: ServerConfig = Field(title="server", default_factory=_default_server_config)
     # Private, post-init attributes below
-    _run_datestr: str
     _config_directory_path: Path
     _base_cache_directory_path: Path
-    _root_summary_directory_path: Path
     _db_filepath: Path
 
     def model_post_init(self, context: Any) -> None:
@@ -189,10 +234,8 @@ class AppSettings(BaseSettings):
         Assign derived, private instance attributes.
         https://docs.pydantic.dev/latest/concepts/models/#private-model-attributes
         """
-        self._run_datestr = datetime.now().strftime(RUN_DATE_STR_FORMAT)
         self._config_directory_path = Path(os.path.dirname(os.path.abspath(self.src_yaml_filepath)))
         self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
-        self._root_summary_directory_path = Path(os.path.join(self._config_directory_path, SUMMARIES_DIRNAME))
         self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
     def get_db_filepath(self) -> str:
@@ -204,45 +247,59 @@ class AppSettings(BaseSettings):
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
 
+    def with_red_overrides(self, overrides: "RedSearchOverrides | None") -> "AppSettings":
+        """
+        Returns a copy of these settings with the provided ad-hoc `RedSearchOverrides` merged onto the `red.search`,
+        `red.snatches`, and `red.format_preferences` settings. Returns `self` unchanged when `overrides` is `None` or
+        carries no set fields. Only the search/snatch parameters change — the shared, throttled API clients are never
+        rebuilt, so all per-API rate-limit invariants are preserved.
+        """
+        if overrides is None:
+            return self
+        search_updates = {
+            "use_release_type": overrides.use_release_type,
+            "use_first_release_year": overrides.use_first_release_year,
+            "use_record_label": overrides.use_record_label,
+            "use_catalog_number": overrides.use_catalog_number,
+        }
+        search = self.red.search.model_copy(update={k: v for k, v in search_updates.items() if v is not None})
+        snatch_updates = {
+            "snatch_recs": overrides.snatch,
+            "max_size_gb": overrides.max_size_gb,
+            "skip_prior_snatches": overrides.skip_prior_snatches,
+            "use_fl_tokens": overrides.use_fl_tokens,
+            "min_allowed_ratio": overrides.min_allowed_ratio,
+        }
+        snatches = self.red.snatches.model_copy(update={k: v for k, v in snatch_updates.items() if v is not None})
+        red_updates: dict[str, Any] = {"search": search, "snatches": snatches}
+        if overrides.format_preferences is not None:
+            red_updates["format_preferences"] = overrides.format_preferences
+        red = self.red.model_copy(update=red_updates)
+        return self.model_copy(update={"red": red})
+
     def is_cache_enabled(self, cache_type: str) -> bool:
-        if cache_type == "scraper":
-            return self.cache.scraper_cache_enabled
-        return self.cache.api_cache_enabled
-
-    def pretty_print_config(self) -> None:  # pragma: no cover
-        yaml.dump(self.model_dump(), sys.stdout)
+        # Only the scraper cache remains; the API clients no longer cache their responses.
+        return cache_type == "scraper" and self.cache.scraper_cache_enabled
 
 
-def get_app_settings(src_yaml_filepath: Path | None = None, cli_overrides: dict[str, Any] | None = None) -> AppSettings:
-    """
-    Returns the read-only `plastered` application settings configured by the yaml config plus any settings provided
-    as options to the CLI. CLI options take precedence over the associated YAML settings.
-    """
+def get_app_settings(src_yaml_filepath: Path | None = None) -> AppSettings:
+    """Returns the read-only `plastered` application settings configured by the yaml config."""
     if not src_yaml_filepath:
-        src_yaml_filepath = Path(os.environ["PLASTERED_CONFIG"])
-    settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath, cli_overrides=cli_overrides)
+        src_yaml_filepath = Path(os.environ[PLASTERED_CONFIG_ENVVAR])
+    settings_data = _get_settings_data(src_yaml_filepath=src_yaml_filepath)
     try:
         app_settings = AppSettings(**settings_data)
-    except (ValidationError, ValueError) as ve:  # pragma: no cover
-        if isinstance(ve, ValidationError):
-            formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
-            _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
-            raise AppConfigException(
-                f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
-            ) from ve
-        _LOGGER.error("Invalid CLI overrides provided to app config.", exc_info=True)
+    except ValidationError as ve:  # pragma: no cover
+        formatted_validation_errors = json.dumps(json.loads(ve.json()), indent=2)
+        _LOGGER.error(f"Invalid app config. Validation errors: {formatted_validation_errors}")
         raise AppConfigException(
-            "Invalid CLI overrides provided to app config. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md"
+            f"Invalid app config settings. See https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md\n\n{formatted_validation_errors}"
         ) from ve
     return app_settings
 
 
-def _get_settings_data(src_yaml_filepath: Path, cli_overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+def _get_settings_data(src_yaml_filepath: Path) -> dict[str, Any]:
     yaml_source = YamlConfigSettingsSource(AppSettings, yaml_file=src_yaml_filepath)
     yaml_data = yaml_source()
     yaml_data["src_yaml_filepath"] = src_yaml_filepath
-    if cli_overrides:
-        for raw_k, raw_v in cli_overrides.items():
-            attr_path = CLIOverrideSetting[raw_k.upper()].value.split(".")
-            reduce(lambda sd, k: sd[k], attr_path[:-1], yaml_data)[attr_path[-1]] = raw_v
     return yaml_data

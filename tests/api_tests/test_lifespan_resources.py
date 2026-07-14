@@ -25,29 +25,18 @@ def test_get_lifespan_singleton(reset_imports_and_instances: pytest.FixtureReque
     """Ensures the function returns the same instance on each call."""
     from plastered.api.lifespan_resources import get_lifespan_singleton
 
-    first_actual = get_lifespan_singleton()
-    assert first_actual is not None
-    assert first_actual.__class__.__name__ == "LifespanSingleton"
-    second_actual = get_lifespan_singleton()
-    assert id(second_actual) == id(first_actual)
-
-
-@pytest.mark.no_autouse_mock_lifespan_singleton_inst
-def test_get_all_client_kwargs(reset_imports_and_instances: pytest.FixtureRequest) -> None:
-    """Ensures the LifespanSingleton.get_all_client_kwargs() method works as intended."""
-    from plastered.api.lifespan_resources import get_lifespan_singleton
-
+    # Patch the API clients so __post_init__ doesn't make real RED API calls (e.g. get_red_user_details).
     with (
         patch("plastered.api.lifespan_resources.RedAPIClient"),
         patch("plastered.api.lifespan_resources.RedSnatchAPIClient"),
         patch("plastered.api.lifespan_resources.LFMAPIClient"),
         patch("plastered.api.lifespan_resources.MusicBrainzAPIClient"),
     ):
-        lsi = get_lifespan_singleton()
-        actual = lsi.get_all_client_kwargs()
-        assert isinstance(actual, dict)
-        assert len(actual) == 4
-        assert set(actual.keys()) == {"red_api_client", "red_snatch_client", "lfm_client", "musicbrainz_client"}
+        first_actual = get_lifespan_singleton()
+        assert first_actual is not None
+        assert first_actual.__class__.__name__ == "LifespanSingleton"
+        second_actual = get_lifespan_singleton()
+        assert id(second_actual) == id(first_actual)
 
 
 @pytest.mark.no_autouse_mock_lifespan_singleton_inst

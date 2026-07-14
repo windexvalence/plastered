@@ -1,9 +1,9 @@
 from enum import IntEnum, StrEnum
-from typing import Annotated, Final
+from typing import Annotated
 
 from pydantic import BeforeValidator
 
-from plastered.utils.constants import BYTES_IN_GB, CACHE_TYPE_API, CACHE_TYPE_SCRAPER
+from plastered.utils.constants import BYTES_IN_GB
 
 
 class RedReleaseType(IntEnum):
@@ -82,9 +82,6 @@ class EntityType(StrEnum):
     TRACK = "track"
 
 
-ALL_ENTITY_TYPES: Final[tuple[str, ...]] = tuple([et.value for et in EntityType])
-
-
 class RecContext(StrEnum):
     """
     Enum representing the recommendation's context, as stated by LFM's recommendation page.
@@ -97,12 +94,3 @@ class RecContext(StrEnum):
     IN_LIBRARY = "in-library"
     SIMILAR_ARTIST = "similar-artist"
     NOT_SET = "not-set"  # For manual runs only, where the concept of a "rec" isn't relevant
-
-
-class CacheType(StrEnum):
-    """
-    Helper enum class used for indicating what type of caching behavior a RunCache instance is meant for.
-    """
-
-    API = CACHE_TYPE_API
-    SCRAPER = CACHE_TYPE_SCRAPER

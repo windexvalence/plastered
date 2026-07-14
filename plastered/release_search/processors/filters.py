@@ -24,15 +24,16 @@ class BaseFilter(SearchItemFilter):
     def process(cls, si: SearchItem, state: SearchState, **kwargs: Any) -> SearchItem | None:
         for func in cls.funcs:
             if skip_reason := func(si, state):
-                cls._add_skipped_snatch(si=si, skip_reason=skip_reason)
+                cls._mark_skipped(si=si, skip_reason=skip_reason)
+                _LOGGER.debug(f"Skipped snatch:\n{skip_reason=}\n{si=}")
                 return None
-        _LOGGER.debug(f"{si.initial_info} passed all {cls.__class__.__name__} filters.")
+        _LOGGER.debug(f"{si.initial_info} passed all {cls.__name__} filters.")
         return si
 
     @classmethod
-    def _add_skipped_snatch(cls, si: SearchItem, skip_reason: SkipReason) -> None:
+    def _mark_skipped(cls, si: SearchItem, skip_reason: SkipReason) -> None:
         """Adds a Skipped db record for the given `SearchItem` and `SkipReason`."""
-        _LOGGER.debug(f"{si.initial_info} filtered by {cls.__class__.__name__} for reason {skip_reason.name}.")
+        _LOGGER.debug(f"{si.initial_info} filtered by {cls.__name__} for reason {skip_reason.name}.")
         set_result_status(
             search_id=si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": skip_reason}
         )

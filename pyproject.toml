@@ -1,45 +1,43 @@
 [project]
 name = "plastered"
-version = "0.2.2"
+version = "1.0.0"
 requires-python = ">= 3.12"
 dependencies = [
+	"click==8.3.1",
 	"anyio==4.9.0",
-    "beautifulsoup4==4.14.3",
-    "click==8.3.1",
-    "diskcache==5.6.3",
-    "fastapi[all]==0.134.0",
-    "httpx==0.28.1",
-    "jinja2-fragments==1.11.0",
-    "jsonschema==4.26.0",
-    "pydantic==2.12.5",
-    "pydantic-settings>=2.10.1",
-    "PyYAML==6.0.3",
-    "rebrowser-playwright==1.52.0",
-    "rich==14.3.3",
-    "sqlmodel==0.0.37",
-    "tenacity==9.1.4",
-    "urllib3==2.6.3",
+	"beautifulsoup4==4.14.3",
+	"diskcache==5.6.3",
+	"fastapi[all]==0.134.0",
+	"httpx==0.28.1",
+	"jinja2-fragments==1.11.0",
+	"jsonschema==4.26.0",
+	"pydantic==2.12.5",
+	"pydantic-settings>=2.10.1",
+	"PyYAML==6.0.3",
+	"rebrowser-playwright==1.52.0",
+	"rich==14.3.3",
+	"sqlmodel==0.0.37",
+	"tenacity==9.1.4",
+	"urllib3==2.6.3",
 ]
 
 [dependency-groups]
 test = [
-    "bandit==1.8.0",
-    "coverage-badge==1.1.2",
-    "fastapi[standard]",
-    "ipython>=9.3.0",
-    "mkdocs-click==0.8.1",
-    "mypy==1.18.2",
-    "jsonschema-markdown==2025.10.1",
-    "pytest==8.4.2",
-    "pytest-asyncio==1.2.0",
-    "pytest-cov[toml]==6.1.1",
-    "pytest-httpx==0.35.0",
-    "pytest-mock>=3.15.1",
-    "pytest-socket>=0.7.0",
-    "pytest-xdist==3.8.0",
-    "ruff==0.14.11",
-    "types-pyyaml>=6.0.12.20250516",
-    "jsonref==1.1.0",
+	"bandit==1.8.0",
+	"coverage-badge==1.1.2",
+	"fastapi[standard]",
+	"ipython>=9.3.0",
+	"mypy==1.18.2",
+	"jsonschema-markdown==2025.10.1",
+	"pytest==8.4.2",
+	"pytest-cov[toml]==6.1.1",
+	"pytest-httpx==0.35.0",
+	"pytest-mock>=3.15.1",
+	"pytest-socket>=0.7.0",
+	"pytest-xdist==3.8.0",
+	"ruff==0.14.11",
+	"types-pyyaml>=6.0.12.20250516",
+	"jsonref==1.1.0",
 ]
 
 # UV
@@ -49,32 +47,32 @@ package = false
 
 [tool.ruff]
 exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "site-packages",
-    "venv",
+	".bzr",
+	".direnv",
+	".eggs",
+	".git",
+	".git-rewrite",
+	".hg",
+	".ipynb_checkpoints",
+	".mypy_cache",
+	".nox",
+	".pants.d",
+	".pyenv",
+	".pytest_cache",
+	".pytype",
+	".ruff_cache",
+	".svn",
+	".tox",
+	".venv",
+	".vscode",
+	"__pypackages__",
+	"_build",
+	"buck-out",
+	"build",
+	"dist",
+	"node_modules",
+	"site-packages",
+	"venv",
 ]
 line-length = 120
 indent-width = 4
@@ -84,35 +82,35 @@ indent-width = 4
 [tool.ruff.lint]
 exclude = ["tests/**/*.py"]
 select = [
-    # pycodestyle
-    "E",
-    # Pyflakes
-    "F",
-    # pyupgrade
-    "UP",
-    # flake8-bugbear
-    "B",
-    # flake8-simplify
-    "SIM",
-    # isort
-    "I",
+	# pycodestyle
+	"E",
+	# Pyflakes
+	"F",
+	# pyupgrade
+	"UP",
+	# flake8-bugbear
+	"B",
+	# flake8-simplify
+	"SIM",
+	# isort
+	"I",
 ]
 extend-select = [
-    # Async ruff rules: https://docs.astral.sh/ruff/rules/#flake8-async-async
-    "ASYNC",
-    "PYI045",  # https://docs.astral.sh/ruff/rules/iter-method-return-iterable/
-    "PT024",  # https://docs.astral.sh/ruff/rules/pytest-unnecessary-asyncio-mark-on-fixture/
-    "PLE1142",  # https://docs.astral.sh/ruff/rules/await-outside-async/
-    "PLE1700",  # https://docs.astral.sh/ruff/rules/yield-from-in-async-function/
-    "RUF006",  # https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
-    # FastAPI ruff rules: https://docs.astral.sh/ruff/rules/#fastapi-fast
-    "FAST",
-    # Logging ruff rules: https://docs.astral.sh/ruff/rules/#flake8-logging-log
-    "LOG",
-    # Type-checking runtime imports and other sanity checks: https://docs.astral.sh/ruff/rules/#flake8-type-checking-tc
-    "TC",
-    # Don't allow raising generic `Exception`: https://docs.astral.sh/ruff/rules/raise-vanilla-class/
-    "TRY002",
+	# Async ruff rules: https://docs.astral.sh/ruff/rules/#flake8-async-async
+	"ASYNC",
+	"PYI045",  # https://docs.astral.sh/ruff/rules/iter-method-return-iterable/
+	"PT024",  # https://docs.astral.sh/ruff/rules/pytest-unnecessary-asyncio-mark-on-fixture/
+	"PLE1142",  # https://docs.astral.sh/ruff/rules/await-outside-async/
+	"PLE1700",  # https://docs.astral.sh/ruff/rules/yield-from-in-async-function/
+	"RUF006",  # https://docs.astral.sh/ruff/rules/asyncio-dangling-task/
+	# FastAPI ruff rules: https://docs.astral.sh/ruff/rules/#fastapi-fast
+	"FAST",
+	# Logging ruff rules: https://docs.astral.sh/ruff/rules/#flake8-logging-log
+	"LOG",
+	# Type-checking runtime imports and other sanity checks: https://docs.astral.sh/ruff/rules/#flake8-type-checking-tc
+	"TC",
+	# Don't allow raising generic `Exception`: https://docs.astral.sh/ruff/rules/raise-vanilla-class/
+	"TRY002",
 ]
 # This is to get the line length auto-formatting mostly handled https://stackoverflow.com/a/77796620
 ignore = ["E203", "E501"]
@@ -163,22 +161,22 @@ skip_empty = true
 skip_covered = true
 # Regexes for lines to exclude from consideration
 exclude_also = [
-    # Don't complain about missing debug-only code:
-    "def __repr__",
-    "if self\\.debug",
+	# Don't complain about missing debug-only code:
+	"def __repr__",
+	"if self\\.debug",
 
-    # Don't complain if tests don't hit defensive assertion code:
-    "raise AssertionError",
-    "raise NotImplementedError",
+	# Don't complain if tests don't hit defensive assertion code:
+	"raise AssertionError",
+	"raise NotImplementedError",
 
-    # Don't complain if non-runnable code isn't run:
-    "if 0:",
-    "if __name__ == .__main__.:",
+	# Don't complain if non-runnable code isn't run:
+	"if 0:",
+	"if __name__ == .__main__.:",
 
-    # Don't complain about abstract methods, they aren't run:
-    "@(abc\\.)?abstractmethod",
+	# Don't complain about abstract methods, they aren't run:
+	"@(abc\\.)?abstractmethod",
 
-    "if TYPE_CHECKING:",
+	"if TYPE_CHECKING:",
 ]
 
 [tool.pytest.ini_options]
@@ -188,6 +186,7 @@ markers = [
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
     "no_autouse_mock_lifespan_singleton_inst: mark a test to not use the auto-use fixture for the fastapi lifespan singleton.",
     "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+    "anyio: mark an async test to be run via anyio's pytest plugin (see the `anyio_backend` fixture in tests/conftest.py).",
 ]
 filterwarnings = [
     "error:pytest.PytestWarning.*",
@@ -210,9 +209,9 @@ ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = [
-    ".github",
-    "docs",
-    "examples",
-    "tests",
-    ".venv",
+	".github",
+	"docs",
+	"examples",
+	"tests",
+	".venv",
 ]

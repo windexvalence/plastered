@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import SearchRecord
 from plastered.db.db_utils import add_record
-from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease, TorrentMatch
+from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
 
 if TYPE_CHECKING:
-    from plastered.models import ReleaseEntry, SearchItem
+    from plastered.models import SearchItem
     from plastered.release_search.search_helpers import SearchState
     from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
@@ -49,9 +49,12 @@ class ResolveTrackInfoModifier(SearchItemModifier):
             if (lfm_resp := lfm.get_track_info(si=si)) and "album" in lfm_resp:
                 si.set_lfm_track_info(LFMTrackInfo.construct_from_api_response(json_blob=lfm_resp))
                 return si
-        except LFMClientException as ex:
+        except (LFMClientException, KeyError, TypeError) as ex:
+            # KeyError/TypeError guard against a malformed LFM `album` blob; fall through to MusicBrainz resolution.
             _LOGGER.debug(f"{ex.__class__.__name__} during track origin release resolution: {si}")
-        artist_mbid = None if not lfm_resp else lfm_resp.get("artist", {}).get("mbid")
+        artist_mbid = None
+        if isinstance(lfm_resp, dict) and isinstance(lfm_resp.get("artist"), dict):
+            artist_mbid = lfm_resp["artist"].get("mbid")
         if origin_info := mb.request_release_details_for_track(si=si, artist_mbid=artist_mbid):
             si.set_lfm_track_info(lfmti=LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=origin_info))
         return si
@@ -82,6 +85,11 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
+        # Skip the MusicBrainz release lookup entirely when its result would never be used: the scraper flow only needs
+        # the MB release details to populate optional RED search fields, so when none are enabled we save the call.
+        if not state.mb_resolution_would_be_used(si=si):
+            _LOGGER.debug("MusicBrainz release resolution not required by config; skipping the lookup.")
+            return si
         if not (mbid := si.get_matched_mbid()):
             _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
             return si
@@ -99,35 +107,17 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
-        torrent_match: TorrentMatch | None = None
-        for pref in state.red_format_preferences:
-            try:
-                req_params = state.create_red_browse_params(red_format=pref, si=si)
-                release_entries = red.browse(request_params=req_params)
-            except Exception:
-                _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
-                continue
-            if not (
-                torrent_match := SearchRedReleaseByPrefsModifier._torrent_match_from_browse_results(
-                    browse_results=release_entries, state=state
-                )
-            ).above_max_size_found:
-                break
-
-        if not torrent_match:
+        # Issue a single, format-agnostic browse per rec and rank the returned torrents against the format preferences
+        # client-side (see `SearchState.select_best_torrent`). Build params outside the try so a browse failure's log
+        # line can't hit an unassigned `req_params`.
+        req_params = state.create_red_browse_params(si=si)
+        try:
+            release_entries = red.browse(request_params=req_params)
+        except Exception:
+            _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
+            release_entries = []
+        torrent_match = state.select_best_torrent(release_entries=release_entries)
+        if torrent_match.torrent_entry is None:
             _LOGGER.debug(f"No torrent match found for si: {si.initial_info}")
-            torrent_match = TorrentMatch(torrent_entry=None, above_max_size_found=False)
-
         si.set_torrent_match_fields(torrent_match=torrent_match)
         return si
-
-    @staticmethod
-    def _torrent_match_from_browse_results(browse_results: list[ReleaseEntry], state: SearchState) -> TorrentMatch:
-        above_max_size_found = False
-        for release_entry in browse_results:
-            for torrent_entry in release_entry.get_torrent_entries():
-                if torrent_entry.get_size(unit="GB") <= state.max_size_gb:
-                    return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
-                else:
-                    above_max_size_found = True
-        return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)

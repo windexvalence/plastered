@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Plastered{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
+    <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header id="site-header">
+        <div class="bar">
+            <a class="brand" href="/">plastered</a>
+            <nav id="nav-links">
+                <a href="/">Home</a>
+                <a href="/lfm_recommendations_scraper">LFM Scraper</a>
+                <a href="/adhoc">Ad-hoc Search</a>
+                <a href="/run_history">Run History</a>
+                <a href="/config">Config</a>
+                <a href="/user_details">User Details</a>
+            </nav>
+            <button id="header-help-btn" hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+            {% if auth_enabled %}
+            <form id="logout-form" method="post" action="/logout">
+                <button id="header-logout-btn" type="submit">Log out</button>
+            </form>
+            {% endif %}
+        </div>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

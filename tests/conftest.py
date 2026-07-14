@@ -22,12 +22,13 @@ from pytest_httpx import HTTPXMock
 from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import FailReason, SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
-from plastered.models.types import CacheType, EncodingEnum, EntityType, FormatEnum, MediaEnum
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.run_cache.run_cache import RunCache
+from plastered.utils.constants import CACHE_TYPE_SCRAPER
 from plastered.db.db_models import SkipReason
 from plastered.models.lfm_models import LFMRec, RecContext
 from plastered.models.search_item import SearchItem
-from plastered.models.manual_search_models import ManualSearch
+from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.red_models import RedUserDetails
 
@@ -96,6 +97,16 @@ def pytest_collection_modifyitems(config, items):
         # https://pypi.org/project/pytest-httpx/#for-the-whole-test-suite
         # TODO: see if this can be removed
         item.add_marker(pytest.mark.httpx_mock(assert_all_responses_were_requested=False))
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    """
+    Backend selector for anyio's pytest plugin: any `@pytest.mark.anyio` async test runs on the asyncio backend.
+    This is our standard for async tests — we use anyio (not pytest-asyncio). See
+    https://anyio.readthedocs.io/en/stable/testing.html
+    """
+    return "asyncio"
 
 
 def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
@@ -383,7 +394,7 @@ def valid_app_settings_sesh_scoped(valid_config_filepath: str, cache_root_dir_pa
     Session-scoped valid `AppSettings` fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
+    app_settings = get_app_settings(valid_config_filepath)
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
 
@@ -454,16 +465,6 @@ def cache_root_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
 
 
 @pytest.fixture(scope="session")
-def api_cache_dir_path(cache_root_dir_path: Path) -> Path:
-    """
-    Fixture which creates a session-scoped API cache directory and returns the pathlib.Path object for it.
-    """
-    api_cache_path = cache_root_dir_path / "api"
-    api_cache_path.mkdir()
-    return api_cache_path
-
-
-@pytest.fixture(scope="session")
 def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     """
     Fixture which creates a session-scoped Scraper cache directory and returns the pathlib.Path object for it.
@@ -473,51 +474,21 @@ def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
     return scraper_cache_path
 
 
-# @pytest.fixture(scope="function")
-# def valid_app_settings(valid_config_filepath: str, valid_config_envvar, cache_root_dir_path: Path) -> AppSettings:
-#     """
-#     Function-scoped valid AppConfig fixture, with cache root dir
-#     overridden to use the session-scoped tmp cache root dir fixture
-#     """
-#     valid_path = Path(valid_config_filepath)
-#     with patch("plastered.config.app_settings.get_config_path", return_value=valid_path):
-#         app_settings = get_app_settings(src_yaml_filepath=valid_path)
-#         # app_config._base_cache_directory_path = str(cache_root_dir_path)
-#         yield app_settings
-
-
 @pytest.fixture(scope="function")
 def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
     """
     Function-scoped valid `AppSettings` fixture, with cache root dir
     overridden to use the session-scoped tmp cache root dir fixture
     """
-    app_settings = get_app_settings(valid_config_filepath, cli_overrides=dict())
+    app_settings = get_app_settings(valid_config_filepath)
     app_settings._base_cache_directory_path = str(cache_root_dir_path)
     return app_settings
 
 
 @pytest.fixture(scope="session")
-def api_run_cache(valid_config_filepath: str) -> RunCache:
-    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    return RunCache(app_settings=app_settings, cache_type=CacheType.API)
-
-
-@pytest.fixture(scope="function")
-def enabled_api_run_cache(api_run_cache: RunCache) -> RunCache:
-    """
-    Function-scoped fixture which consumes the session-scoped api_run_cache fixture, and
-    clears the state to ensure the cache is not altered by unrelated tests.
-    """
-    api_run_cache._enabled = True
-    api_run_cache.clear()
-    return api_run_cache
-
-
-@pytest.fixture(scope="session")
 def scraper_run_cache(valid_config_filepath: str) -> RunCache:
     app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    return RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
+    return RunCache(app_settings=app_settings, cache_type=CACHE_TYPE_SCRAPER)
 
 
 def mock_red_snatch_get_side_effect() -> bytes:
@@ -525,55 +496,6 @@ def mock_red_snatch_get_side_effect() -> bytes:
     resp_mock.content.return_value = bytes("fakebytes", encoding="utf-8")
     resp_mock.status_code.return_value = 200
     return resp_mock
-
-
-# -def mock_lfm_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
-# -    """
-# -    Helper test function to pass as the value for any
-# -    patch('requests.Session.get', ...) mocks on a LFMAPIClient test case.
-# -    This ensures that the subsequent response's json() value is properly overridden with the desired data.
-# -    """
-# -    url_val = kwargs["url"]
-# -    # resp_mock = MagicMock(name="json")
-# -    mock_json = None
-# -    if "album.getinfo" in url_val:
-# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH)
-# -    elif "track.getinfo" in url_val:
-# -        mock_json = load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH)
-# -    resp_mock = MagicMock()
-# -    resp_mock.json.return_value = mock_json
-# -    # nonsense mock magic to work with mocking properties AND methods: https://stackoverflow.com/a/42637101
-# -    type(resp_mock).status_code = PropertyMock(return_value=200)
-# -    return resp_mock
-
-
-# -def mock_red_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
-# -    """
-# -    Helper test function to pass as the value for any
-# -    patch('requests.Session.get', ...) mocks on a RedAPIClient test case.
-# -    This ensures that the subsequent response's json()/content value is properly overridden with the desired data.
-# -    """
-# -    _red_actions_to_mock_json = {
-# -        "browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH),
-# -        "torrentgroup": load_mock_response_json(json_filepath=_RED_MOCK_GROUP_JSON_FILEPATH),
-# -        "community_stats": load_mock_response_json(json_filepath=_RED_MOCK_USER_STATS_JSON_FILEPATH),
-# -        "user_torrents": {
-# -            "snatched": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH),
-# -            "seeding": load_mock_response_json(json_filepath=_RED_MOCK_USER_TORRENTS_SEEDING_JSON_FILEPATH),
-# -        },
-# -    }
-# -    url_val = kwargs["url"]
-# -    m = re.match(r"^.*\?action=([^&]+)&.*", url_val)
-# -    red_action = m.groups()[0]
-# -    if red_action == "user_torrents":
-# -        key = "snatched" if "type=snatched" in kwargs["url"] else "seeding"
-# -        mock_json = _red_actions_to_mock_json[red_action][key]
-# -    else:
-# -        mock_json = _red_actions_to_mock_json[red_action]
-# -    resp_mock = MagicMock(name="json")
-# -    resp_mock.json.return_value = mock_json
-# -    resp_mock.status_code.return_value = 200
-# -    return resp_mock
 
 
 def mock_mb_session_get_side_effect(*args, **kwargs) -> dict[str, Any]:
@@ -763,7 +685,7 @@ def make_album_search_item() -> Callable[[bool, str | None, str | None, RecConte
     ) -> SearchItem:
         if is_lfm_rec:
             return SearchItem(initial_info=LFMRec(artist, album, EntityType.ALBUM, rc))
-        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.ALBUM, artist=artist, entity=album))
+        return SearchItem(initial_info=AdhocSearch(artist=artist, release=album))
 
     return _make_album_search_item
 
@@ -783,6 +705,6 @@ def make_track_search_item() -> Callable[[bool, str | None, str | None, RecConte
     ) -> SearchItem:
         if is_lfm_rec:
             return SearchItem(initial_info=LFMRec(artist, track, EntityType.TRACK, rc))
-        return SearchItem(initial_info=ManualSearch(entity_type=EntityType.TRACK, artist=artist, entity=track))
+        return SearchItem(initial_info=AdhocSearch(artist=artist, track=track))
 
     return _make_track_search_item

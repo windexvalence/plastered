@@ -2,10 +2,9 @@ from typing import Any
 
 from plastered.config.app_settings import AppSettings
 from plastered.release_search.search_helpers import SearchItem
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import LFM_API_BASE_URL, PERMITTED_LFM_API_ENDPOINTS
+from plastered.utils.constants import LFM_API_BASE_URL
 from plastered.utils.exceptions import LFMClientException
-from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
@@ -15,13 +14,11 @@ class LFMAPIClient(ThrottledAPIBaseClient):
     Retries limit and throttling period are configured from user config.
     """
 
-    def __init__(self, app_settings: AppSettings, run_cache: RunCache | None = None):
+    def __init__(self, app_settings: AppSettings):
         super().__init__(
             base_api_url=LFM_API_BASE_URL,
             max_api_call_retries=app_settings.lfm.lfm_api_retries,
             seconds_between_api_calls=app_settings.lfm.lfm_api_seconds_between_calls,
-            run_cache=run_cache,
-            valid_endpoints=set(PERMITTED_LFM_API_ENDPOINTS),
         )
         self._api_key = app_settings.lfm.lfm_api_key.get_secret_value()
 
@@ -30,13 +27,8 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         Helper function to hit the LFM API with retries and rate-limits.
         Returns the JSON response payload on success, and throws an Exception after max allowed consecutive failures.
         """
-        # Sanity check endpoint then attempt reading from cache
-        loaded_from_cache = self._read_from_run_cache(endpoint=method, params=params)
-        if loaded_from_cache:
-            return loaded_from_cache
-        # Enforce request throttling
+        # Enforce request throttling before building and submitting the request.
         self._throttle()
-        # Once throttling requirements are met, continue with building and submitting the request
         lfm_response = self._client.get(
             url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
             headers={"Accept": "application/json"},
@@ -50,10 +42,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         if "error" in json_data:
             raise LFMClientException(f"LFM API error encounterd. LFM error code: '{json_data['error']}'")
         top_key = method.split(".")[0]
-        result_json = json_data[top_key]
-        cache_write_success = self._write_cache_if_enabled(endpoint=method, params=params, result_json=result_json)
-        LOGGER.debug(f"{self.__class__.__name__}: api cache write status: {cache_write_success}")
-        return result_json
+        return json_data[top_key]
 
     def get_album_info(self, si: SearchItem) -> dict[str, Any]:
         request_params = f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}"

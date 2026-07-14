@@ -105,7 +105,6 @@ class LFMRec:
         self._lfm_entity_str = lfm_entity_str
         self._entity_type = EntityType(recommendation_type)
         self._rec_context = RecContext(rec_context)
-        self._track_origin_release_mbid: str | None = None
 
     def __str__(self) -> str:
         return f"artist={self._lfm_artist_str}, {self._entity_type.value}={self._lfm_entity_str}, context={self._rec_context.value}"

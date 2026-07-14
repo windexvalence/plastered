@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Self
 
 from sqlmodel import Field, SQLModel, create_engine
 
-from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum, RecContext
+from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import RedClientSnatchException
 
 if TYPE_CHECKING:
@@ -27,6 +27,8 @@ class Status(StrEnum):
     IN_PROGRESS = "in_progress"
     GRABBED = "grabbed"
     SKIPPED = "skipped"
+    # A RED match was found but not snatched (ad-hoc search-only request, i.e. the user did not request a download).
+    MATCHED = "matched"
 
 
 class SkipReason(StrEnum):
@@ -119,25 +121,70 @@ class Grabbed(SQLModel, table=True):
     tid: int | None = Field(default=None)
 
 
-class LFMSourceDetails(SQLModel, table=True):
-    """Model for the extra source data related to an LFM rec."""
+class Matched(SQLModel, table=True):
+    """
+    Model for the `matched` table. Populated for an ad-hoc search that found a RED match the user did NOT request to
+    snatch. Captures the matched release's details so the ad-hoc result endpoint can return the matched release(s)
+    without a download having taken place.
+    """
 
     id: int | None = Field(default=None, primary_key=True)
-    search_id: int | None = Field(default=None, foreign_key="searchrecord.id")
-    rec_context: RecContext
-    lfm_artist_str: str | None = Field(default=None)
-    lfm_entity_str: str | None = Field(default=None)
+    m_result_id: int | None = Field(default=None, foreign_key="searchrecord.id")
+    tid: int | None = Field(default=None)
+    red_permalink: str | None = Field(default=None)
+    matched_mbid: str | None = Field(default=None)
+    size_gb: float | None = Field(default=None)
+    media: str | None = Field(default=None)
+    format: str | None = Field(default=None)
+    encoding: str | None = Field(default=None)
 
 
-# TODO [later]: create this, and a "run" record, which encapsulates all searchrecord entries for a given scraper/manual run
-# class RunCacheSummary(SQLModel, table=True):
-#     """Model for tracking the RunCache stats for a given scraper / manual run."""
-#     id: int | None = Field(default=None, primary_key=True)
-#     run_id: int | None = Field(default=None, foreign_key="runs.id")
-#     cache_type: CacheType
-#     hits: int
-#     misses: int
-#     dir_path: str | None = Field(default=None)
+class ScraperRunStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ScraperRun(SQLModel, table=True):
+    """
+    Represents a single LFM-recommendations scraper run (one invocation: scrape pages, then search/snatch each rec).
+    Holds the run's options, live progress (stage + processed/total recs), and a summary. The individual per-rec
+    `SearchRecord`s a run produces are associated by their `submit_timestamp` falling within the run's window.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    submit_timestamp: int
+    finished_timestamp: int | None = Field(default=None)
+    snatch_enabled: bool
+    rec_types: str  # comma-joined EntityType values, e.g. "album,track"
+    status: ScraperRunStatus = Field(default=ScraperRunStatus.IN_PROGRESS)
+    # Live progress.
+    stage: str | None = Field(default=None)  # "scraping" | "searching"
+    progress_current: int | None = Field(default=None)
+    progress_total: int | None = Field(default=None)
+    # Summary, populated once the run completes.
+    total_recs: int | None = Field(default=None)
+    error: str | None = Field(default=None)
+
+
+class RecDownloadBatchStatus(StrEnum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+
+class RecDownloadBatch(SQLModel, table=True):
+    """
+    Tracks a post-hoc batch download of a scraper run's matched-but-not-snatched recommendations (initiated from the
+    run-history page). Drives the progress UI; the snatches themselves run sequentially through the shared, throttled
+    RED snatch client. There is at most one active (IN_PROGRESS) batch per scraper run at a time.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    scraper_run_id: int | None = Field(default=None, foreign_key="scraperrun.id")
+    submit_timestamp: int
+    status: RecDownloadBatchStatus = Field(default=RecDownloadBatchStatus.IN_PROGRESS)
+    total: int
+    completed: int = Field(default=0)
 
 
 @cache

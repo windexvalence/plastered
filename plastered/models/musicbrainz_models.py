@@ -54,22 +54,14 @@ class MBRelease:
         )
 
     def get_red_release_type(self) -> RedReleaseType:
-        return RedReleaseType[self.primary_type.upper()]
-
-    def get_first_release_year(self) -> int:
-        return self.first_release_year
-
-    def get_label(self) -> str | None:
-        return self.label
-
-    def get_catalog_number(self) -> str | None:
-        return self.catalog_number
-
-    def get_musicbrainz_release_url(self) -> str:
-        return f"https://musicbrainz.org/release/{self.mbid}"
-
-    def get_musicbrainz_release_group_url(self) -> str:
-        return f"https://musicbrainz.org/release-group/{self.release_group_mbid}"
+        # MusicBrainz may return a null primary-type, or a value RED has no enum for (e.g. "Broadcast", "Other").
+        # Fall back to UNKNOWN rather than raising AttributeError/KeyError, which would otherwise abort the search run.
+        if not self.primary_type:
+            return RedReleaseType.UNKNOWN
+        try:
+            return RedReleaseType[self.primary_type.upper()]
+        except KeyError:
+            return RedReleaseType.UNKNOWN
 
     def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
         """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""

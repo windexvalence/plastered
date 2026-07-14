@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`plastered` pulls a user's Last.fm (LFM) album/track recommendations and automatically snatches the matching releases from RED (a private music tracker). It runs both as a CLI (`scrape`/`conf`/`cache`/`init_conf`) and as a FastAPI web server. It is download-client- and library-agnostic — it only writes `.torrent` files to a configured directory.
+`plastered` pulls a user's Last.fm (LFM) album/track recommendations and automatically snatches the matching releases from RED (a private music tracker). It runs as a FastAPI web server (driven entirely through the browser UI), launched via a slim click CLI: `plastered run --config <path-to-config.yaml>` (`plastered/main.py`). It is download-client- and library-agnostic — it only writes `.torrent` files to a configured directory.
 
 ## Common commands
 
@@ -16,8 +16,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for t
 - `make test PDB=1` — run serially (no `xdist`) and drop into pdb on failure.
 - `make fmt` — auto-format + lint (ruff format, `ruff check --fix`, bandit). `make fmt-check` is the check-only variant used in CI.
 - `make mypy` — type-check (`mypy --config-file pyproject.toml .`).
-- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000.
-- `make docker-build-no-test` then `docker run …` — run the CLI locally (Playwright deps make host-only CLI runs impractical; see `docs/contributing/development_guide.md`).
+- `make docker-server APP_CONFIG_DIR=<dir>` — run the web server locally at http://localhost:8000 (the container's default entrypoint is the app's single-file PEX: `/app/plastered.pex run` → uvicorn; app sources + static/templates are baked into the PEX, so UI changes require an image rebuild). Playwright deps make host-only runs impractical; see `docs/contributing/development_guide.md`.
 
 ### Test details
 
@@ -28,11 +27,11 @@ All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for t
 
 ## Architecture
 
-### Request → snatch flow (CLI `scrape`)
+### Request → snatch flow (scraper run)
 
-1. `cli.py` builds an `AppSettings` via `get_app_settings()`, merging `config.yaml` + env vars (`PLASTERED_*`) + CLI overrides, then calls `scrape_action` (`plastered/actions/common_actions.py`).
+1. The server (a scraper-page submission or `POST /api/scrape`) builds an `AppSettings` via `get_app_settings()` (merging `config.yaml` + env vars `PLASTERED_*`) and calls `scrape_action` / `run_lfm_scraper` (`plastered/actions/common_actions.py`).
 2. `LFMRecsScraper` (`plastered/scraper/lfm_scraper.py`) uses Playwright (rebrowser-playwright) to scrape recommendation pages into `dict[EntityType, list[LFMRec]]`.
-3. `ReleaseSearcher` (`plastered/release_search/release_searcher.py`) is the orchestrator. It owns four httpx API clients (LFM, MusicBrainz, RED, RED-snatch), a `RunCache`, and a `SearchState`. It wraps each `LFMRec` in a `SearchItem` and runs them through the processor chain, then snatches matches.
+3. `ReleaseSearcher` (`plastered/release_search/release_searcher.py`) is the orchestrator. It owns four httpx API clients (LFM, MusicBrainz, RED, RED-snatch) and builds a per-run `SearchState`. It wraps each `LFMRec` in a `SearchItem` and runs them through the processor chain, then snatches matches.
 
 ### The processor chain (core of release_search)
 
@@ -50,17 +49,15 @@ When adding/reordering search logic, edit the chain tuples in `chains.py` and ad
 
 ### Config (`plastered/config/app_settings.py`)
 
-`AppSettings` is a pydantic-settings `BaseSettings` composed of frozen pydantic sub-models (`SearchConfig`, `SnatchesConfig`, `FormatPreference`, etc.). Sources merge in this precedence: CLI overrides > env (`PLASTERED_*`) > YAML. The config doc at `docs/config_reference.md` is **auto-generated** from these models — after changing config fields, regenerate via `make render-config-doc` (a `deploy_tests` test asserts the docs are fresh).
+`AppSettings` is a pydantic-settings `BaseSettings` composed of frozen pydantic sub-models (`SearchConfig`, `SnatchesConfig`, `FormatPreference`, etc.). Sources merge in this precedence: env (`PLASTERED_*`) > YAML. The config doc at `docs/config_reference.md` is **auto-generated** from these models — after changing config fields, regenerate via `make render-config-doc`.
 
 ### API clients (`plastered/utils/httpx_utils/`)
 
-All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. Each client takes a shared `RunCache`. Responses are optionally cached on disk via diskcache (`plastered/run_cache/run_cache.py`); cache types are `API` and `SCRAPER`, managed by the CLI `cache` command.
+All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. The API clients do **not** cache their responses. `RunCache` (diskcache, `plastered/run_cache/run_cache.py`) is used only by the LFM scraper to cache the recommendation pages it scrapes.
 
 ### Web server (`plastered/api/`)
 
-NOTE: the web server is experimental and not all features are fully implemnented.
-
-`api/main.py` is the FastAPI entrypoint. A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The manual-search endpoint calls `ReleaseSearcher.manual_search()`.
+`api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
 
 ### Persistence (`plastered/db/`)
 
@@ -73,3 +70,4 @@ SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail
 - Raising bare `Exception` is banned (`TRY002`); use the typed exceptions in `plastered/utils/exceptions.py`.
 - Domain models are re-exported from `plastered/models/__init__.py` and clients from `plastered/utils/httpx_utils/__init__.py` — import from the package, not the submodule.
 - `mypy` runs with the pydantic plugin; tests and `build_scripts` are excluded from type-checking.
+- **Prefer `anyio` over `asyncio`.** FastAPI/Starlette run on anyio, so avoid the `asyncio` stdlib module (event loop, `asyncio.Lock`/`sleep`/`create_task`, etc.) whenever an anyio equivalent fits — e.g. offload blocking sync work with `starlette.concurrency.run_in_threadpool` (anyio's `to_thread`), use `anyio` sync primitives in async code, and use plain `threading` primitives only for coordinating sync worker-thread code. For async tests, use `@pytest.mark.anyio` with the `anyio_backend` fixture (`tests/conftest.py`), not `pytest-asyncio`.

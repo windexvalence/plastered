@@ -6,7 +6,20 @@ from typing import Any, Final
 
 from sqlmodel import Session, SQLModel, select
 
-from plastered.db.db_models import Failed, FailReason, Grabbed, SearchRecord, Skipped, SkipReason, Status, get_engine
+from plastered.db.db_models import (
+    Failed,
+    FailReason,
+    Grabbed,
+    Matched,
+    RecDownloadBatch,
+    RecDownloadBatchStatus,
+    ScraperRun,
+    SearchRecord,
+    Skipped,
+    SkipReason,
+    Status,
+    get_engine,
+)
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
@@ -15,7 +28,15 @@ _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true
 
 
 def db_startup() -> None:
-    table_classes: list[type[SQLModel]] = [SearchRecord, Skipped, Grabbed, Failed]
+    table_classes: list[type[SQLModel]] = [
+        SearchRecord,
+        Skipped,
+        Grabbed,
+        Failed,
+        Matched,
+        ScraperRun,
+        RecDownloadBatch,
+    ]
     _LOGGER.info("Creating metadata for DB tables ...")
     for tbl_cls in table_classes:
         tbl_cls.metadata.create_all(get_engine())
@@ -53,20 +74,81 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
         result_record.status = status
         session.add(result_record)
         _LOGGER.debug(f"Creating associated Status record for SearchRecord record (id={search_id}) ...")
-        status_record: Failed | Grabbed | Skipped | None = None
+        status_record: Failed | Grabbed | Skipped | Matched | None = None
         if status == status.FAILED:
             status_record = Failed(f_result_id=search_id, **status_model_kwargs)
         elif status == status.GRABBED:
             status_record = Grabbed(g_result_id=search_id, **status_model_kwargs)
         elif status == status.SKIPPED:
             status_record = Skipped(s_result_id=search_id, **status_model_kwargs)
+        elif status == status.MATCHED:
+            status_record = Matched(m_result_id=search_id, **status_model_kwargs)
         else:
             raise ValueError(  # pragma: no cover
-                f"Unexpected status: '{str(status)}'. Should be one of {[Status.FAILED, Status.GRABBED, Status.SKIPPED]}"
+                f"Unexpected status: '{str(status)}'. Should be one of "
+                f"{[Status.FAILED, Status.GRABBED, Status.SKIPPED, Status.MATCHED]}"
             )
         session.add(status_record)
         session.commit()
         _LOGGER.debug(f"Finished updating status of SearchRecord record (id={search_id}) ...")
+
+
+def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:
+    """Creates an `IN_PROGRESS` ScraperRun row and returns its id."""
+    run = ScraperRun(submit_timestamp=submit_timestamp, snatch_enabled=snatch_enabled, rec_types=",".join(rec_types))
+    with Session(get_engine()) as session:
+        session.add(run)
+        session.commit()
+        session.refresh(run)
+    if run.id is None:  # pragma: no cover
+        raise MissingDatabaseRecordException(run.id)
+    return run.id
+
+
+def update_scraper_run(run_id: int, **fields: Any) -> None:
+    """Updates the given fields on the ScraperRun row identified by `run_id`."""
+    with Session(get_engine()) as session:
+        run = session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).first()
+        if run is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(run_id)
+        for field_name, value in fields.items():
+            setattr(run, field_name, value)
+        session.add(run)
+        session.commit()
+
+
+def create_rec_download_batch(scraper_run_id: int, total: int, submit_timestamp: int) -> int:
+    """Creates an IN_PROGRESS RecDownloadBatch row for a scraper run's post-hoc download and returns its id."""
+    batch = RecDownloadBatch(scraper_run_id=scraper_run_id, total=total, submit_timestamp=submit_timestamp)
+    with Session(get_engine()) as session:
+        session.add(batch)
+        session.commit()
+        session.refresh(batch)
+    if batch.id is None:  # pragma: no cover
+        raise MissingDatabaseRecordException(batch.id)
+    return batch.id
+
+
+def increment_rec_download_batch(batch_id: int) -> None:
+    """Increments a RecDownloadBatch's completed counter by one."""
+    with Session(get_engine()) as session:
+        batch = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).first()
+        if batch is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(batch_id)
+        batch.completed += 1
+        session.add(batch)
+        session.commit()
+
+
+def complete_rec_download_batch(batch_id: int) -> None:
+    """Marks a RecDownloadBatch COMPLETED."""
+    with Session(get_engine()) as session:
+        batch = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).first()
+        if batch is None:  # pragma: no cover
+            raise MissingDatabaseRecordException(batch_id)
+        batch.status = RecDownloadBatchStatus.COMPLETED
+        session.add(batch)
+        session.commit()
 
 
 def get_result_by_id(search_id: int | None, session: Session | None = None) -> SearchRecord:

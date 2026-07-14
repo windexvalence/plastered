@@ -1,12 +1,10 @@
 import datetime
-import re
 from time import time
 from unittest.mock import call, patch
 
 import pytest
 
 from plastered.config.app_settings import AppSettings
-from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import LFM_API_BASE_URL, MUSICBRAINZ_API_BASE_URL, RED_API_BASE_URL
 from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient, precise_delay
 from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
@@ -81,18 +79,9 @@ def test_precise_delay(sec_delay: int) -> None:
         ),
     ],
 )
-def test_throttle(
-    disabled_api_run_cache: RunCache,
-    client_throttle_sec: int,
-    raw_now_timestamps: list[int],
-    expected_sleep_call_args: list[int],
-) -> None:
+def test_throttle(client_throttle_sec: int, raw_now_timestamps: list[int], expected_sleep_call_args: list[int]) -> None:
     api_base_client = ThrottledAPIBaseClient(
-        base_api_url="https://google.com",
-        max_api_call_retries=3,
-        seconds_between_api_calls=client_throttle_sec,
-        valid_endpoints=set(["fake-endpoint1"]),
-        run_cache=disabled_api_run_cache,
+        base_api_url="https://google.com", max_api_call_retries=3, seconds_between_api_calls=client_throttle_sec
     )
     dt_now_call_timestamps = [datetime.datetime.fromtimestamp(raw_ts) for raw_ts in raw_now_timestamps]
     api_base_client._time_of_last_call = dt_now_call_timestamps[0] - datetime.timedelta(hours=1)
@@ -113,61 +102,6 @@ def test_throttle(
 
 
 @pytest.mark.parametrize(
-    "subclass, endpoint, params",
-    [
-        (RedAPIClient, "browse", "something=otherthing"),
-        (LFMAPIClient, "album.getinfo", "something=otherthing"),
-        (MusicBrainzAPIClient, "release", "mbid=69420"),
-    ],
-)
-def test_throttled_api_client_write_cache_valid(
-    valid_app_settings: AppSettings,
-    enabled_api_run_cache: RunCache,
-    subclass: ThrottledAPIBaseClient,
-    endpoint: str,
-    params: str,
-) -> None:
-    with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
-        mock_run_cache_write_method.return_value = True
-        test_client = subclass(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
-        actual = test_client._write_cache_if_enabled(endpoint=endpoint, params=params, result_json={"fake": "value"})
-        expected_cache_key = (test_client._base_domain, endpoint, params)
-        mock_run_cache_write_method.assert_called_once_with(cache_key=expected_cache_key, data={"fake": "value"})
-        assert actual == True
-
-
-@pytest.mark.parametrize(
-    "subclass, cache_enabled, endpoint, params",
-    [
-        (RedAPIClient, False, "browse", "&something=otherthing"),
-        (RedAPIClient, True, "community_stats", "&non-cached-endpoint=nothing&no=cache"),
-        (RedAPIClient, True, "user_torrents", "&non-cached-endpoint=nothing&no=cache"),
-        (RedSnatchAPIClient, True, "download", "&id=blah"),
-        (LFMAPIClient, False, "album.getinfo", "&something=otherthing"),
-        (MusicBrainzAPIClient, False, "release", "&something=otherthing"),
-    ],
-)
-def test_throttled_api_client_write_cache_not_valid(
-    valid_app_settings: AppSettings,
-    enabled_api_run_cache: RunCache,
-    subclass: ThrottledAPIBaseClient,
-    cache_enabled: bool,
-    endpoint: str,
-    params: str,
-) -> None:
-    with patch.object(RunCache, "write_data") as mock_run_cache_write_method:
-        with patch.object(RunCache, "write_data") as mock_run_cache_enabled:
-            mock_run_cache_write_method.return_value = None
-            mock_run_cache_enabled.return_value = cache_enabled
-            test_client = subclass(app_settings=valid_app_settings, run_cache=enabled_api_run_cache)
-            actual = test_client._write_cache_if_enabled(
-                endpoint=endpoint, params=params, result_json={"fake": "value"}
-            )
-            mock_run_cache_write_method.assert_not_called()
-            assert actual == False
-
-
-@pytest.mark.parametrize(
     "subclass, expected_base_domain",
     [
         (RedAPIClient, RED_API_BASE_URL),
@@ -176,12 +110,9 @@ def test_throttled_api_client_write_cache_not_valid(
     ],
 )
 def test_init_throttled_api_client(
-    disabled_api_run_cache: RunCache,
-    valid_app_settings: AppSettings,
-    subclass: ThrottledAPIBaseClient,
-    expected_base_domain: str,
+    valid_app_settings: AppSettings, subclass: ThrottledAPIBaseClient, expected_base_domain: str
 ) -> None:
-    test_instance = subclass(app_settings=valid_app_settings, run_cache=disabled_api_run_cache)
+    test_instance = subclass(app_settings=valid_app_settings)
     assert issubclass(test_instance.__class__, ThrottledAPIBaseClient)
     actual_base_domain = test_instance._base_domain
     assert actual_base_domain == expected_base_domain, (
@@ -213,46 +144,36 @@ def test_init_throttled_api_client(
     )
 
 
-@pytest.mark.parametrize(
-    "endpoint, valid_endpoints, non_cached_endpoints, run_cache_exists, load_data_call_expected",
-    [
-        ("/foo", {"/foo", "/bar"}, {}, False, False),
-        ("/foo", {"/foo", "/bar"}, {}, True, True),
-        ("/foo", {"/foo", "/bar", "/fubar"}, {"/fubar"}, True, True),
-        ("/fubar", {"/foo", "/bar", "/fubar"}, {"/fubar"}, True, False),
-    ],
-)
-def test_read_from_run_cache(
-    enabled_api_run_cache: RunCache,
-    endpoint: str,
-    valid_endpoints: set[str],
-    non_cached_endpoints: set[str] | None,
-    run_cache_exists: bool,
-    load_data_call_expected: bool,
-) -> None:
-    mock_cached = {"fake": "data"}
-    expected_result = mock_cached if load_data_call_expected else None
-    with patch.object(RunCache, "load_data_if_valid", return_value=mock_cached) as mock_run_cache_load_data:
-        client_inst = ThrottledAPIBaseClient(
-            base_api_url="http://localhost",
-            max_api_call_retries=3,
-            seconds_between_api_calls=4,
-            valid_endpoints=valid_endpoints,
-            run_cache=enabled_api_run_cache if run_cache_exists else None,
-            non_cached_endpoints=non_cached_endpoints,
-        )
-        actual = client_inst._read_from_run_cache(endpoint=endpoint, params="fake=param&other=also-fake")
-        assert actual == expected_result
-        if load_data_call_expected:
-            mock_run_cache_load_data.assert_called_once()
+def test_throttle_serializes_concurrent_callers() -> None:
+    """
+    The throttle lock serializes concurrent caller threads (FastAPI runs sync work in an anyio worker-thread pool), so
+    they can't race the rate limiter. Without the lock two callers would overlap inside the throttle wait.
+    """
+    import threading
+    from time import perf_counter, sleep
 
-
-def test_read_from_run_cache_raises() -> None:
-    client_inst = ThrottledAPIBaseClient(
-        base_api_url="http://localhost",
-        max_api_call_retries=3,
-        seconds_between_api_calls=4,
-        valid_endpoints={"/foo", "/bar"},
+    client = ThrottledAPIBaseClient(
+        base_api_url="https://google.com", max_api_call_retries=1, seconds_between_api_calls=2
     )
-    with pytest.raises(ValueError, match=re.escape("Invalid endpoint provided")):
-        _ = client_inst._read_from_run_cache(endpoint="/invalid-endpoint", params="foo=bar")
+    # Force every _throttle() call to enter the wait branch (last call "just happened").
+    client._time_of_last_call = datetime.datetime.now()
+
+    events: list[tuple[str, float]] = []
+    events_lock = threading.Lock()
+
+    def _recording_precise_delay(sec_delay: int) -> None:
+        with events_lock:
+            events.append(("enter", perf_counter()))
+        sleep(0.05)  # widen the window in which an unsynchronized second caller could overlap
+        with events_lock:
+            events.append(("exit", perf_counter()))
+
+    with patch("plastered.utils.httpx_utils.base_client.precise_delay", side_effect=_recording_precise_delay):
+        threads = [threading.Thread(target=client._throttle) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    # Serialized critical sections -> enter/exit pairs do not interleave (would be enter,enter,exit,exit if racing).
+    assert [name for name, _ in events] == ["enter", "exit", "enter", "exit"]

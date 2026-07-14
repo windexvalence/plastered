@@ -8,22 +8,7 @@ RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
 CACHE_DIRNAME: Final[str] = "cache"
 DB_FILENAME: Final[str] = "plastered.db"
-SUMMARIES_DIRNAME: Final[str] = "summaries"
-API_CACHE_DIRNAME: Final[str] = "api_cache"
-SCRAPER_CACHE_DIRNAME: Final[str] = "scraper_cache"
-CACHE_TYPE_API: Final[str] = "api"
 CACHE_TYPE_SCRAPER: Final[str] = "scraper"
-
-PERMITTED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(
-    ["browse", "torrentgroup", "community_stats", "user_torrents", "user"]
-)
-NON_CACHED_RED_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["community_stats", "user_torrents", "user"])
-
-PERMITTED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
-NON_CACHED_RED_SNATCH_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["download"])
-
-PERMITTED_LFM_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["album.getinfo", "track.getinfo"])
-PERMITTED_MUSICBRAINZ_API_ENDPOINTS: Final[frozenset[str]] = frozenset(["release", "recording"])
 
 RENDER_WAIT_SEC_MIN: Final[int] = 3
 RENDER_WAIT_SEC_MAX: Final[int] = 7
@@ -48,15 +33,14 @@ LOGIN_PASSWORD_FORM_LOCATOR: Final[str] = "[name='password']"
 LOGIN_BUTTON_LOCATOR: Final[str] = "[name='submit']"
 LOGOUT_URL: Final[str] = "https://www.last.fm/logout"
 
-RUN_DATE_STR_FORMAT = "%Y-%m-%d__%H-%M-%S"
-
 STORAGE_UNIT_IDENTIFIERS: Final[frozenset[str]] = frozenset(["B", "MB", "GB"])
 BYTES_IN_GB: Final[float] = 1e9
 BYTES_IN_MB: Final[float] = 1e6
 
-# TODO: consolidate these
-STATS_TRACK_REC_NONE: Final[str] = "N/A"
-STATS_NONE: Final[str] = "N/A"
+PLASTERED_CONFIG_ENVVAR: Final[str] = "PLASTERED_CONFIG"
+
+# Constant query params appended to every RED browse request. `filter_cat[1]=1` restricts results to the Music category.
+RED_BROWSE_CONSTANT_PARAMS: Final[str] = "filter_cat[1]=1&group_results=1&order_by=seeders&order_way=desc"
 
 # User-specified params to optionally append to the RED browse requests
 RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"
@@ -70,6 +54,3 @@ OPTIONAL_RED_PARAMS: Final[list[str]] = [
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_CATALOG_NUMBER,
 ]
-
-CLI_ALL_CACHE_TYPES: Final[str] = "@all"
-API_ALL_CACHE_TYPES: Final[str] = "all"

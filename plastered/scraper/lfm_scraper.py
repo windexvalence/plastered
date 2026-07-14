@@ -5,16 +5,17 @@ from time import sleep
 from typing import Any
 
 from bs4 import BeautifulSoup
-from rebrowser_playwright.sync_api import BrowserType, Page, Playwright, sync_playwright
+from rebrowser_playwright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
 
 from plastered.config.app_settings import AppSettings
-from plastered.models import CacheType, EntityType, LFMRec, RecContext
+from plastered.models import EntityType, LFMRec, RecContext
 from plastered.run_cache.run_cache import RunCache
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR,
     ALBUM_RECS_BASE_URL,
+    CACHE_TYPE_SCRAPER,
     LOGIN_BUTTON_LOCATOR,
     LOGIN_PASSWORD_FORM_LOCATOR,
     LOGIN_URL,
@@ -35,6 +36,15 @@ _LOGGER = logging.getLogger(__name__)
 
 _ARTIST_ALBUM_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/(.+)$")
 _ARTIST_TRACK_REGEX_PATTERN = re.compile(r"^\/music\/([^\/]+)\/_\/(.+)$")
+
+# Last.fm can trigger a client-side navigation between the rec list appearing and the page-source read, which makes
+# `page.content()` raise "Unable to retrieve content because the page is navigating and changing the content". We wait
+# for the in-flight navigation to settle and retry a bounded number of times.
+_PAGE_NAVIGATING_ERR_FRAGMENT = "navigating and changing the content"
+_CONTENT_READ_MAX_ATTEMPTS = 3
+# How long to wait for the page's network to go idle (i.e. an in-flight navigation to finish) between content-read
+# attempts. Bounded so a page with persistent connections that never reaches networkidle doesn't hang the scrape.
+_PAGE_SETTLE_TIMEOUT_MS = 5000
 
 
 def _sleep_random() -> None:
@@ -66,9 +76,8 @@ class LFMRecsScraper:
         self._rec_types_to_scrape = rec_types_to_scrape_override or [
             EntityType(rec_type) for rec_type in app_settings.lfm.rec_types_to_scrape
         ]
-        self._run_cache = RunCache(app_settings=app_settings, cache_type=CacheType.SCRAPER)
+        self._run_cache = RunCache(app_settings=app_settings, cache_type=CACHE_TYPE_SCRAPER)
         self._loaded_from_run_cache: dict[EntityType, list[LFMRec] | None] = {rec_type: None for rec_type in EntityType}
-        self._login_success_url = f"https://www.last.fm/user/{self._lfm_username}"
         self._is_logged_in = False
         self._playwright: Playwright | None = None
         self._browser: BrowserType | None = None
@@ -148,7 +157,36 @@ class LFMRecsScraper:
         recs_page_locator = self._page.locator(wait_css_selector)  # pylint: disable=unused-variable
         recs_page_locator.first.wait_for()
         _sleep_random()
-        return self._page.content()
+        return self._read_page_content(page=self._page)
+
+    @staticmethod
+    def _read_page_content(page: Page) -> str:
+        """
+        Returns the page's HTML, retrying if Last.fm triggers a navigation while the content is being read.
+        `page.content()` raises "Unable to retrieve content because the page is navigating and changing the content"
+        in that window (the tracks recommendations page in particular kicks off a client-side navigation shortly after
+        it loads). Between attempts we wait for the network to go idle so the in-flight navigation actually finishes
+        before retrying — a plain `wait_for_load_state()` returns immediately here because the original document already
+        fired its load event. Non-navigation errors (and a still-navigating page after the final attempt) are re-raised.
+        """
+        for attempt in range(_CONTENT_READ_MAX_ATTEMPTS):
+            try:
+                return page.content()
+            except Error as err:
+                is_last_attempt = attempt == _CONTENT_READ_MAX_ATTEMPTS - 1
+                if _PAGE_NAVIGATING_ERR_FRAGMENT not in str(err) or is_last_attempt:
+                    raise
+                _LOGGER.warning(
+                    f"Page navigating while reading content (attempt {attempt + 1}); "
+                    "waiting for network idle and retrying ..."
+                )
+                try:
+                    page.wait_for_load_state("networkidle", timeout=_PAGE_SETTLE_TIMEOUT_MS)
+                except Error:
+                    # networkidle may never be reached (persistent connections) or the page may still be churning;
+                    # proceed anyway and let the next content() attempt try again.
+                    _LOGGER.debug("Page did not reach network idle before timeout; retrying content read anyway.")
+        raise ScraperException("Exhausted page-content read attempts")  # pragma: no cover
 
     def _extract_recs_from_page_source(self, page_source: str, rec_type: EntityType) -> list[LFMRec]:
         soup = BeautifulSoup(page_source, "html.parser")

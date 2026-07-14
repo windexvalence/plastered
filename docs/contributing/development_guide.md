@@ -43,26 +43,10 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
         make test TEST_TARGET=tests/utils_tests/test_http_utils.py
         ```
     
-    * To run only a specfici test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test files's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
+    * To run only a specific test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test file's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
         ```shell
         make test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle
         ``` 
-
-
-### Testing the CLI
-
-Currently, locally testing the CLI works best in docker since the playwright dependencies are not straightforward to run directly on host.
-As such, you can run the CLI with the local state of the code  by running the following:
-
-```shell
-make docker-build-no-test
-docker run -it --rm --name=plastered \
-    -e PLASTERED_CONFIG=/config/config.yaml \
-    -e COLUMNS="$(tput cols)" \
-    -e LINES="$(tput lines)" \
-    -v <path to host plastered config directory>:/config \
-    -v <path to host downloads directory>:/downloads wv/plastered:non-test
-```
 
 
 ### Testing the Server
@@ -73,8 +57,14 @@ Run the following:
 make docker-server APP_CONFIG_DIR=<path to host plastered config directory>
 ```
 
-Then open http://localhost:8000 in your
+Then open http://localhost:8000 in your browser.
 
 ## Other testing commands
 
-Run `make` to list the other available targets and their desciptions.
+Run `make` to list the other available targets and their descriptions.
+
+## Cutting a release
+
+1. Fill out the GitHub "new release" form: title = `MAJOR.MINOR.PATCH` (matching the `version` in `pyproject.toml`), the release notes, and **Save as draft**.
+2. Run the `Release` workflow (Actions -> Release -> Run workflow, from `main`). It locates the draft, runs the full check/test suite on both release architectures, and build-validates the app image without publishing anything.
+3. Approve the `release` environment prompt. The workflow tags the validated commit `vX.Y.Z`, publishes the draft release, and dispatches the `Publish` workflow, which builds the per-arch images from the tag and pushes the multi-arch manifest (`:X.Y.Z` + `:latest`) to GHCR.

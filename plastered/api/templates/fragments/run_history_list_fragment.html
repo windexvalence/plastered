@@ -1,53 +1,116 @@
+{#
+  Run-history results fragment: one expandable accordion row per run (ad-hoc search or LFM scraper run), plus
+  pagination controls. `page` is a RunHistoryPageResponse.
+#}
 <div id="run-history-list">
-    <p>
-        {% if records | length > 0 %}
-            <table>
-                <tr>
-                    <th>Search Type</th>
-                    <th>Entity Type</th>
-                    <th>Artist</th>
-                    <th>Entity</th>
+    {% if page.rows %}
+        <p><small>{{ page.total_count }} run(s) — page {{ page.page }} of {{ page.total_pages }}</small></p>
 
-                    <th>Media</th>
-                    <th>Encoding</th>
-                    <th>Format</th>
+        {% for row in page.rows %}
+            {% if row.kind == "adhoc" %}
+                {% set rec = row.adhoc.searchrecord %}
+                <details data-persist-key="adhoc-{{ rec.id }}">
+                    <summary>
+                        {{ rec.submit_timestamp | format_timestamp }} &nbsp;·&nbsp;
+                        Artist: <strong>{{ rec.artist }}</strong> &nbsp;·&nbsp;
+                        Entity: <strong>{{ rec.entity }}</strong> &nbsp;·&nbsp;
+                        Status: <strong>{{ rec.status | status_label }}</strong>
+                    </summary>
 
-                    <th>Submit Date</th>
-                    <th>Status</th>
-                </tr>
-                {% for r in records.runs %}
-                    <tr>
-                        <td>{{ "Manual" if r.result.is_manual else "Scraper" }}</td>
-                        <td>{{ r.result.entity_type }}</td>
-                        <td>{{ r.result.artist }}</td>
-                        <td>{{ r.result.entity }}</td>
-
-                        <td><code>{{ r.result.media }}</code></td>
-                        <td><code>{{ r.result.encoding }}</code></td>
-                        <td><code>{{ r.result.format }}</code></td>
-
-                        {% set submit_dt = sr_ids_to_submit_dates[r.result.id] %}
-                        <td>{{ submit_dt }}</td>
-                        {% if r.result.status == 'in_progress' %}
-                            <td>In progress </td>
-                        {% else %}
-                            {% if r.result.status == 'skipped' %}
-                                {% set modal_params = {"skip_reason": r.skipped.skip_reason} %}
-                            {% elif r.result.status == 'success' %}
-                                {% set modal_params = {"fl_token_used": r.grabbed.fl_token_used, "snatch_path": r.grabbed.snatch_path, "tid": r.grabbed.tid} %}
-                            {% else %}
-                                {% set modal_params = {"red_permalink": r.failed.red_permalink, "matched_mbid": r.failed.matched_mbid, "fail_reason": r.failed.fail_reason} %}
-                            {% endif %}
-                            <!-- https://stackoverflow.com/a/75472158 -->
-                            {% set general_params = {"status": r.result.status} %}
-                            {% set noop = modal_params.update(general_params) %}
-                            <td><a hx-get="/result_modal?{{ modal_params | dict_to_query_params }}" hx-target="body" hx-swap="beforeend">{{r.result.status}}</a></td>
+                    <table>
+                        <tr><th>Field</th><th>Value</th></tr>
+                        <tr><td>Search type</td><td>Ad-hoc</td></tr>
+                        <tr><td>Entity type</td><td>{{ rec.entity_type }}</td></tr>
+                        <tr><td>Artist</td><td>{{ rec.artist }}</td></tr>
+                        <tr><td>Entity</td><td>{{ rec.entity }}</td></tr>
+                        <tr><td>Submitted</td><td>{{ rec.submit_timestamp | format_timestamp }}</td></tr>
+                        <tr><td>Status</td><td>{{ rec.status | status_label }}</td></tr>
+                        {% if rec.media or rec.format or rec.encoding %}
+                            <tr><td>Media / Format / Encoding</td><td><code>{{ rec.media or "—" }} / {{ rec.format or "—" }} / {{ rec.encoding or "—" }}</code></td></tr>
                         {% endif %}
-                    </tr>
-                {% endfor %}
-            </table>
-        {% else %}
-            No records of searches found
-        {% endif %}
-    </p>
+                    </table>
+
+                    {% if row.adhoc.grabbed %}
+                        <p><strong>Snatched</strong></p>
+                        <table>
+                            <tr><th>Field</th><th>Value</th></tr>
+                            <tr><td>RED torrent</td><td><a href="https://redacted.sh/torrents.php?torrentid={{ row.adhoc.grabbed.tid }}" target="_blank">{{ row.adhoc.grabbed.tid }}</a></td></tr>
+                            <tr><td>Freeleech token used</td><td>{{ "yes" if row.adhoc.grabbed.fl_token_used else "no" }}</td></tr>
+                            <tr><td>Saved .torrent to</td><td><code>{{ row.adhoc.grabbed.snatch_path }}</code></td></tr>
+                        </table>
+                    {% elif row.adhoc.matched %}
+                        <p><strong>Matched release (not downloaded)</strong></p>
+                        <table>
+                            <tr><th>Field</th><th>Value</th></tr>
+                            <tr><td>RED torrent</td><td><a href="{{ row.adhoc.matched.red_permalink }}" target="_blank">{{ row.adhoc.matched.tid }}</a></td></tr>
+                            <tr><td>Format</td><td><code>{{ row.adhoc.matched.media }} / {{ row.adhoc.matched.format }} / {{ row.adhoc.matched.encoding }}</code></td></tr>
+                            <tr><td>Size (GB)</td><td>{{ "%.2f"|format(row.adhoc.matched.size_gb) if row.adhoc.matched.size_gb is not none else "?" }}</td></tr>
+                            <tr><td>Matched MBID</td><td><code>{{ row.adhoc.matched.matched_mbid or "—" }}</code></td></tr>
+                        </table>
+                    {% elif row.adhoc.failed %}
+                        <p><strong>Failed</strong></p>
+                        <table>
+                            <tr><th>Field</th><th>Value</th></tr>
+                            <tr><td>Reason</td><td>{{ row.adhoc.failed.fail_reason }}</td></tr>
+                            <tr><td>RED permalink</td><td>{{ row.adhoc.failed.red_permalink or "—" }}</td></tr>
+                            <tr><td>Matched MBID</td><td><code>{{ row.adhoc.failed.matched_mbid or "—" }}</code></td></tr>
+                        </table>
+                    {% elif row.adhoc.skipped %}
+                        <p><strong>Skipped</strong> — {{ row.adhoc.skipped.skip_reason }}</p>
+                    {% else %}
+                        <p><em>In progress…</em></p>
+                    {% endif %}
+                </details>
+            {% else %}
+                {% set run = row.scraper %}
+                <details class="scraper-run" data-persist-key="scraper-{{ run.id }}">
+                    <summary>
+                        {{ run.submit_timestamp | format_timestamp }} &nbsp;·&nbsp;
+                        <strong>LFM scraper run</strong> &nbsp;·&nbsp;
+                        Types: <strong>{{ run.rec_types }}</strong> &nbsp;·&nbsp;
+                        Recs: <strong>{{ run.total_recs if run.total_recs is not none else "?" }}</strong> &nbsp;·&nbsp;
+                        Status: <strong>{{ run.status | status_label }}</strong>
+                    </summary>
+
+                    <table>
+                        <tr><th>Field</th><th>Value</th></tr>
+                        <tr><td>Run type</td><td>LFM recommendations scraper</td></tr>
+                        <tr><td>Started</td><td>{{ run.submit_timestamp | format_timestamp }}</td></tr>
+                        <tr><td>Finished</td><td>{{ run.finished_timestamp | format_timestamp }}</td></tr>
+                        <tr><td>Recommendation types</td><td><code>{{ run.rec_types }}</code></td></tr>
+                        <tr><td>Recommendations processed</td><td>{{ run.total_recs if run.total_recs is not none else "?" }}</td></tr>
+                        <tr><td>Downloads</td><td>{{ "enabled" if run.snatch_enabled else "disabled" }}</td></tr>
+                        <tr><td>Status</td><td>{{ run.status | status_label }}</td></tr>
+                        {% if run.error %}<tr><td>Error</td><td><code>{{ run.error }}</code></td></tr>{% endif %}
+                    </table>
+
+                    {# The recs section (with per-rec download controls for downloads-disabled runs) is served by
+                       /scraper_run_recs so it can be re-rendered by HTMX during/after a batch download. #}
+                    {% set recs = row.scraper_recs %}
+                    {% set batch = row.download_batch %}
+                    <div id="scraper-recs-{{ run.id }}">
+                        {% include "fragments/scraper_run_recs_fragment.html" %}
+                    </div>
+                </details>
+            {% endif %}
+        {% endfor %}
+
+        {# Pagination — preserve the active filters/sort across pages. #}
+        {% set filters = {} %}
+        {% if page.status_filter is not none %}{% set _ = filters.update({"status": page.status_filter.value}) %}{% endif %}
+        {% if page.query %}{% set _ = filters.update({"q": page.query}) %}{% endif %}
+        {% set _ = filters.update({"sort": "desc" if page.sort_desc else "asc"}) %}
+        {% if page.search_id is not none %}{% set _ = filters.update({"search_id": page.search_id}) %}{% endif %}
+        {% set filter_qs = filters | dict_to_query_params %}
+        <nav id="run-history-pagination">
+            {% if page.page > 1 %}
+                <button hx-get="/run_history_list?page={{ page.page - 1 }}&{{ filter_qs }}" hx-target="#run-history-list" hx-swap="innerHTML">← Prev</button>
+            {% endif %}
+            {% if page.page < page.total_pages %}
+                <button hx-get="/run_history_list?page={{ page.page + 1 }}&{{ filter_qs }}" hx-target="#run-history-list" hx-swap="innerHTML">Next →</button>
+            {% endif %}
+        </nav>
+    {% else %}
+        <p>No runs found.</p>
+    {% endif %}
 </div>

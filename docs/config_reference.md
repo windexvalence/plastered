@@ -1,4 +1,4 @@
-# `plastered` 0.2.2 config reference
+# `plastered` 1.0.0 config reference
 
 This doc is Auto-generated. If in doubt, refer to `examples/config.yaml`
 # config
@@ -11,7 +11,7 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
 | red | `object` | ✅ | object |  |  | App settings defined under the plastered yaml config's top-level `red` key. |  |
 | red.red_user_id | `integer` | ✅ | `0 < x ` |  |  |  |  |
-| red.red_api_key | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| red.red_api_key | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | red.red_api_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | red.red_api_seconds_between_calls | `integer` |  | `2 <= x <= 10` |  | `5` |  |  |
 | red.format_preferences | `array` | ✅ | object |  |  |  |  |
@@ -32,9 +32,9 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | red.search.use_record_label | `boolean` |  | boolean |  | `false` |  |  |
 | red.search.use_catalog_number | `boolean` |  | boolean |  | `false` |  |  |
 | lfm | `object` | ✅ | object |  |  |  |  |
-| lfm.lfm_api_key | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| lfm.lfm_api_key | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | lfm.lfm_username | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
-| lfm.lfm_password | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| lfm.lfm_password | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | lfm.lfm_api_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | lfm.lfm_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | lfm.rec_types_to_scrape | `array` |  | string |  |  |  |  |
@@ -44,16 +44,45 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | musicbrainz.musicbrainz_api_max_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | musicbrainz.musicbrainz_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | cache | `object` |  | object |  |  |  |  |
-| cache.api_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | cache.scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | server | `object` |  | object |  |  | Config section for the plastered API server. |  |
 | server.host | `string` |  | string |  | `"0.0.0.0"` |  |  |
 | server.port | `integer` |  | integer |  | `80` |  |  |
+| server.log_level | `string` |  | string |  | `"INFO"` |  |  |
+| server.auth | `object` |  | object |  |  | Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here. |  |
+| server.auth.enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| server.auth.username | `string` or `null` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| server.auth.password | `string` or `null` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| server.auth.session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
+| server.workers | `integer` |  | integer |  | `1` |  |  |
 
 
 ---
 
 # Definitions
+
+## AuthConfig
+
+Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here.
+
+#### Type: `object`
+
+> ⚠️ Additional properties are not allowed.
+
+| Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
+| -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
+| enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| username | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| password | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
 
 ## CacheConfig
 
@@ -63,7 +92,6 @@ No description provided for this model.
 
 | Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
-| api_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 
 ## CdOnlyExtras
@@ -114,9 +142,9 @@ No description provided for this model.
 
 | Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
-| lfm_api_key | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| lfm_api_key | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | lfm_username | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
-| lfm_password | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| lfm_password | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | lfm_api_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | lfm_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | rec_types_to_scrape | `array` |  | string |  |  |  |  |
@@ -151,7 +179,7 @@ App settings defined under the plastered yaml config's top-level `red` key.
 | Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
 | red_user_id | `integer` | ✅ | `0 < x ` |  |  |  |  |
-| red_api_key | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
+| red_api_key | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | format_preferences | `array` | ✅ | object |  |  |  |  |
 | format_preferences[].format | `string` | ✅ | `FLAC` `MP3` |  |  | Enum class to map to the supported file format search fields on the RED API |  |
 | format_preferences[].encoding | `string` | ✅ | `24bit+Lossless` `Lossless` `320` `V0+(VBR)` |  |  | Enum class to map to the supported encoding search fields on the RED API |  |
@@ -195,6 +223,17 @@ Config section for the plastered API server.
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
 | host | `string` |  | string |  | `"0.0.0.0"` |  |  |
 | port | `integer` |  | integer |  | `80` |  |  |
+| log_level | `string` |  | string |  | `"INFO"` |  |  |
+| auth | `object` |  | object |  |  | Optional config section for the plastered API server's authentication setup.
+
+plastered supports a single user: when `enable_login_protection` is on, every request (outside a small exempt
+set — see `plastered.api.middleware`) must carry a session token obtained from `POST /api/auth/login` (or the
+browser `/login` page) using the `username`/`password` configured here. |  |
+| auth.enable_login_protection | `boolean` |  | boolean |  | `false` | Opt-in: when true, all routes require a session token from a successful `/api/auth/login`. |  |
+| auth.username | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| auth.password | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
+| auth.session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
+| workers | `integer` |  | integer |  | `1` |  |  |
 
 ## SnatchesConfig
 

@@ -2,7 +2,7 @@
 
 ## What is `plastered`?
 
-`plastered` is a tool for automatically collecting your LFM recommendations from RED.
+`plastered` is a self-hosted web app for automatically collecting your LFM recommendations from RED. It runs as a Docker container and is driven entirely from your browser. The web UI also supports ad-hoc RED searches and reviewing past run history.
 
 ## How does `plastered` work?
 

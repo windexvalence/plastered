@@ -2,7 +2,8 @@ from typing import Any
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
-from sqlmodel import Field, Session, SQLModel, select
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel.pool import StaticPool
 
 from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status
 from plastered.db.db_utils import add_record, get_result_by_id, set_result_status
@@ -50,6 +51,7 @@ def test_add_record_no_session() -> None:
         (Status.FAILED, {"red_permalink": None, "matched_mbid": None, "fail_reason": FailReason.OTHER}),
         (Status.GRABBED, {"fl_token_used": None, "snatch_path": None, "tid": None}),
         (Status.SKIPPED, {"skip_reason": SkipReason.NO_SOURCE_RELEASE_FOUND}),
+        (Status.MATCHED, {"tid": 420, "red_permalink": "https://red/x", "size_gb": 1.0}),
     ],
 )
 def test_set_result_status(
@@ -97,3 +99,46 @@ def test_get_result_by_id(
                 mock_sesh_ctx.assert_not_called()
             else:
                 mock_sesh_ctx.assert_called_once()
+
+
+def test_create_and_update_and_get_scraper_run() -> None:
+    """create_scraper_run inserts an IN_PROGRESS run; update_scraper_run mutates fields by id."""
+    from plastered.db.db_models import ScraperRun, ScraperRunStatus
+    from plastered.db.db_utils import create_scraper_run, update_scraper_run
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        run_id = create_scraper_run(snatch_enabled=True, rec_types=["album", "track"], submit_timestamp=1759680000)
+        update_scraper_run(run_id=run_id, stage="searching", progress_current=2, progress_total=5)
+        update_scraper_run(run_id=run_id, status=ScraperRunStatus.COMPLETED, total_recs=5)
+    with Session(engine) as session:
+        run = session.exec(select(ScraperRun).where(ScraperRun.id == run_id)).one()
+    assert run.snatch_enabled is True
+    assert run.rec_types == "album,track"
+    assert run.stage == "searching" and run.progress_current == 2 and run.progress_total == 5
+    assert run.status == ScraperRunStatus.COMPLETED and run.total_recs == 5
+
+
+def test_rec_download_batch_lifecycle() -> None:
+    """create_rec_download_batch inserts IN_PROGRESS; increment/complete advance it."""
+    from plastered.db.db_models import RecDownloadBatch, RecDownloadBatchStatus
+    from plastered.db.db_utils import (
+        complete_rec_download_batch,
+        create_rec_download_batch,
+        increment_rec_download_batch,
+    )
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        batch_id = create_rec_download_batch(scraper_run_id=7, total=3, submit_timestamp=1759680000)
+        increment_rec_download_batch(batch_id=batch_id)
+        increment_rec_download_batch(batch_id=batch_id)
+        with Session(engine) as session:
+            mid = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
+        assert mid.status == RecDownloadBatchStatus.IN_PROGRESS and mid.completed == 2 and mid.total == 3
+        complete_rec_download_batch(batch_id=batch_id)
+    with Session(engine) as session:
+        final = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
+    assert final.status == RecDownloadBatchStatus.COMPLETED and final.completed == 2

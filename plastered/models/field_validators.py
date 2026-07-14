@@ -4,7 +4,7 @@ the `plastered` application config. For more on Pydantic field validators, see t
 https://docs.pydantic.dev/latest/concepts/validators/#field-validators
 """
 
-from enum import IntEnum, StrEnum, unique
+from enum import IntEnum, unique
 
 
 @unique
@@ -32,24 +32,6 @@ class RedCallWait(IntEnum):
     DEFAULT = 5
     MIN = 2
     MAX = 10
-
-
-@unique
-class CLIOverrideSetting(StrEnum):
-    """
-    Enum of CLI param names which can override their equivalent AppSettings fields.
-    Values should reference the settings class' full nested attr name.
-    """
-
-    # RED OVERRIDES
-    RED_USER_ID = "red.red_user_id"
-    RED_API_KEY = "red.red_api_key"
-    SNATCH_ENABLED = "red.snatches.snatch_recs"
-    # LFM OVERRIDES
-    LFM_API_KEY = "lfm.lfm_api_key"
-    LFM_USERNAME = "lfm.lfm_username"
-    LFM_PASSWORD = "lfm.lfm_password"  # nosec B105
-    REC_TYPES = "lfm.rec_types_to_scrape"
 
 
 def validate_cd_extras_log_value(value: int) -> int:

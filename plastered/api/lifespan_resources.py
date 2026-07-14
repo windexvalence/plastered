@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
     from plastered.config.app_settings import AppSettings
     from plastered.models import RedUserDetails
-    from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
 
 
 def get_lifespan_singleton() -> LifespanSingleton:
@@ -71,15 +70,6 @@ class LifespanSingleton:
             ),
         )
         object.__setattr__(self, "project_version", get_project_version())
-
-    def get_all_client_kwargs(self) -> dict[str, ThrottledAPIBaseClient]:
-        """Returns all the base client subclass instances as a kwarg-compatible dict."""
-        return {
-            "red_api_client": self.red_api_client,
-            "red_snatch_client": self.red_snatch_client,
-            "lfm_client": self.lfm_client,
-            "musicbrainz_client": self.musicbrainz_client,
-        }
 
     def shutdown(self) -> None:
         """Called at the end of the FastAPI app during the cleanup phase of the lifespan function."""

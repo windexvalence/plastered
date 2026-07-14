@@ -1,29 +1,88 @@
 name: Release
-run-name: Release ${{ github.ref }}
-env:
-  IMAGE_REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  TEST_IMAGE_NAME: ${{ github.repository }}-test
+run-name: Release validation for draft by ${{ github.actor }}
+
+# One-click release flow:
+#   1. Fill out the GitHub "new release" form: title = `MAJOR.MINOR.PATCH`, the release notes, and SAVE AS
+#      DRAFT (a draft creates no tag and fires no workflow events).
+#   2. Run this workflow (Actions -> Release -> Run workflow, from the default branch). It locates the
+#      draft, validates + tests the repo on both release architectures, and build-validates the app image
+#      WITHOUT publishing anything.
+#   3. Approve the `release` environment prompt. The workflow then tags the validated commit `vX.Y.Z`,
+#      flips the draft release to published, and dispatches the Publish workflow (see the `publish` job
+#      below for why it is dispatched rather than `push`-triggered).
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never validate/tag two releases concurrently.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  TEST_IMAGE_NAME: ${{ github.repository }}-test
 
 jobs:
-  build-and-test-image:
+  prepare:
+    name: Locate draft release
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-  release:
-    runs-on: ubuntu-latest
-    needs: build-and-test-image
     permissions:
-      contents: read
-      packages: write
-      attestations: write
-      id-token: write
+      # The list-releases endpoint silently omits DRAFT releases unless the token has push access
+      # ("only users with push access will receive listings for draft releases"), which for the built-in
+      # GITHUB_TOKEN means `contents: write` — read-only tokens see 0 drafts. This job only reads.
+      contents: write
+    outputs:
+      version: ${{ steps.draft.outputs.version }}
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      - name: Find the draft release and validate its title
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "::error::Releases must be run from '${DEFAULT_BRANCH}' (got '${GITHUB_REF_NAME}')."
+            exit 1
+          fi
+          drafts="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '[.[] | select(.draft)]')"
+          count="$(jq length <<<"${drafts}")"
+          if [[ "${count}" -ne 1 ]]; then
+            echo "::error::Expected exactly one draft release, found ${count}. Create one via the GitHub \
+          release form (title MAJOR.MINOR.PATCH, 'Save draft')."
+            exit 1
+          fi
+          version="$(jq -r '.[0].name' <<<"${drafts}")"
+          release_id="$(jq -r '.[0].id' <<<"${drafts}")"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Draft release title '${version}' is not of the form MAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v${version}" >/dev/null 2>&1; then
+            echo "::error::Tag v${version} already exists; bump the draft's title."
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Validating ${GITHUB_SHA} for release v${version} (draft id ${release_id})."
+
+  # Validation only, on a native runner per release architecture (no QEMU): full containerized check +
+  # test pass in the test image (PLASTERED_RELEASE_TAG=v<draft title> makes the release-only test assert
+  # the draft title matches pyproject.toml's version), then a build of the app image. Nothing is pushed.
+  validate:
+    name: Validate + test (${{ matrix.arch }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,8 +91,9 @@ jobs:
         with:
           tags: ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }}
           target: plastered-test
+          load: true
           build-args: |
-            PLASTERED_RELEASE_TAG=${{ github.ref_name }}
+            PLASTERED_RELEASE_TAG=v${{ needs.prepare.outputs.version }}
       - name: UV lockfile check
         run: |
           docker run -t --rm --entrypoint bash ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} -c 'uv lock --check'
@@ -43,32 +103,53 @@ jobs:
       - name: Run unit tests
         run: |
           docker run -t -e GITHUB_ACTIONS=1 -e RELEASE_TESTS=1 --rm --entrypoint /app/tests/tests_entrypoint.sh ${{ env.TEST_IMAGE_NAME }}:${{ github.run_number }} tests
-      # - name: Tag Release  # TODO: after initial main tag, use https://github.com/marketplace/actions/get-latest-tag for tag calculation
-      #   run: echo "TODO implement in followup PR"
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/windexvalence/plastered
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-      - name: Login to container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.IMAGE_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push app image
-        id: push
+      - name: Build app image (validation only)
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          build-args: |
-            PLASTERED_RELEASE_TAG=${{ github.ref_name }}
           target: plastered-app
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PLASTERED_RELEASE_TAG=v${{ needs.prepare.outputs.version }}
+
+  # The single manual gate: approving the `release` environment tags the validated commit and publishes
+  # the draft release in one API call (publishing a draft whose tag doesn't exist yet creates the tag at
+  # `target_commitish`). Configure required reviewers on the `release` environment in repo settings.
+  approve-and-tag:
+    name: Approve, tag, and publish release
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Tag ${{ github.sha }} as v${{ needs.prepare.outputs.version }} and publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        run: |
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -f tag_name="v${VERSION}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            -F draft=false
+          echo "::notice::Tagged ${GITHUB_SHA} as v${VERSION} and published the GitHub release."
+
+  # Dispatch (not `push`-triggered): the tag above is created with the built-in GITHUB_TOKEN, and GitHub's
+  # recursion guard means GITHUB_TOKEN-created refs never fire `push` workflows. `workflow_dispatch` is
+  # exempt, so the Release workflow hands off to Publish explicitly.
+  publish:
+    name: Dispatch publish workflow
+    needs: [prepare, approve-and-tag]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger publish.yml for v${{ needs.prepare.outputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh workflow run publish.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "v${VERSION}" \
+            -f version="${VERSION}"
