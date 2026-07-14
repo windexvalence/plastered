@@ -57,8 +57,6 @@ All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `h
 
 ### Web server (`plastered/api/`)
 
-NOTE: the web server is experimental and not all features are fully implemnented.
-
 `api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
 
 ### Persistence (`plastered/db/`)

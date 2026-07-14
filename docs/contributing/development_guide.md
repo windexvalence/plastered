@@ -43,7 +43,7 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
         make test TEST_TARGET=tests/utils_tests/test_http_utils.py
         ```
     
-    * To run only a specfici test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test files's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
+    * To run only a specific test function within a specific test file, run the make command with `TEST_TARGET` set to the relative test file's path followed by `::<target-test-function-name-here>`. For example, the following will only run the `test_throttle` test function in `test_http_utils.py`:
         ```shell
         make test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle
         ``` 
@@ -57,8 +57,8 @@ Run the following:
 make docker-server APP_CONFIG_DIR=<path to host plastered config directory>
 ```
 
-Then open http://localhost:8000 in your
+Then open http://localhost:8000 in your browser.
 
 ## Other testing commands
 
-Run `make` to list the other available targets and their desciptions.
+Run `make` to list the other available targets and their descriptions.

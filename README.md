@@ -7,7 +7,7 @@
 
 ## `Python + Last + RED = plastered`
 
-`plastered` is a standalone tool for automatically pulling your LFM album/track recommendations and snatching those recommended releases from RED.
+`plastered` is a self-hosted web app for automatically pulling your LFM album/track recommendations and snatching those recommended releases from RED. It runs as a Docker container and is driven entirely from your browser.
 
 The idea behind `plastered` is similar to L*darr's "import lists", but instead of automatically snatching from an LFM playlist, `plastered` will automatically snatch based on your recommendations.
 
@@ -33,5 +33,5 @@ Refer to this repo's [issues page](https://github.com/windexvalence/plastered/is
 
 ## Developing / Contributing
 
-Refer to the [Development Guide](./docs/development_guide.md) for details on development environment setup instructions, and code contribution details for this repo.
+Refer to the [Development Guide](./docs/contributing/development_guide.md) for details on development environment setup instructions, and code contribution details for this repo.
 
