@@ -11,7 +11,7 @@ from plastered.config.app_settings import AppSettings, FormatPreference, get_app
 from plastered.db.db_models import SearchRecord, Status, SkipReason
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.red_models import RedFormat, ReleaseEntry, TorrentEntry
+from plastered.models.red_models import CdOnlyExtras, RedFormat, ReleaseEntry, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
 from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
@@ -221,7 +221,9 @@ def _release_entry(torrent_entries: list[TorrentEntry]) -> ReleaseEntry:
 
 # Preferences: highest priority first.
 _FLAC_24_WEB = FormatPreference(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB)
-_FLAC_LL_CD = FormatPreference(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.CD)
+_FLAC_LL_CD = FormatPreference(
+    format=fe.FLAC, encoding=ee.LOSSLESS, media=me.CD, cd_only_extras=CdOnlyExtras(log=100, has_cue=True)
+)
 _FLAC_24_SACD = FormatPreference(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
 
 
