@@ -27,15 +27,15 @@ test = [
 	"coverage-badge==1.1.2",
 	"fastapi[standard]",
 	"ipython>=9.3.0",
-	"mypy==1.18.2",
+	"mypy==1.19.1",
 	"jsonschema-markdown==2025.10.1",
-	"pytest==8.4.2",
-	"pytest-cov[toml]==6.1.1",
-	"pytest-httpx==0.35.0",
+	"pytest==9.1.1",
+	"pytest-cov[toml]==7.1.0",
+	"pytest-httpx==0.36.2",
 	"pytest-mock>=3.15.1",
 	"pytest-socket>=0.7.0",
 	"pytest-xdist==3.8.0",
-	"ruff==0.14.11",
+	"ruff==0.15.20",
 	"types-pyyaml>=6.0.12.20250516",
 	"jsonref==1.1.0",
 ]
@@ -44,6 +44,9 @@ test = [
 [tool.uv]
 # https://docs.astral.sh/uv/reference/settings/#package
 package = false
+constraint-dependencies = [
+	"soupsieve>=2.8.4",
+]
 
 [tool.ruff]
 exclude = [
