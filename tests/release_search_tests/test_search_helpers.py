@@ -7,11 +7,11 @@ from unittest.mock import MagicMock, PropertyMock, patch
 import pytest
 from sqlmodel import Session
 
-from plastered.config.app_settings import AppSettings, get_app_settings
+from plastered.config.app_settings import AppSettings, FormatPreference, get_app_settings
 from plastered.db.db_models import SearchRecord, Status, SkipReason
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.red_models import RedFormat, ReleaseEntry, TorrentEntry
+from plastered.models.red_models import CdOnlyExtras, RedFormat, ReleaseEntry, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
 from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
@@ -178,7 +178,7 @@ def test_create_browse_params(
         mock_settings_data["red"]["search"][raw_k] = raw_v
     mock_settings_data["src_yaml_filepath"] = Path(valid_config_filepath)
     with patch("plastered.config.app_settings._get_settings_data", return_value=mock_settings_data):
-        app_settings = get_app_settings(src_yaml_filepath=valid_config_filepath)
+        app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
         search_state = SearchState(app_settings=app_settings)
         si = SearchItem(
             initial_info=LFMRec(
@@ -187,7 +187,7 @@ def test_create_browse_params(
                 recommendation_type=rt.ALBUM,
                 rec_context=rc.SIMILAR_ARTIST,
             ),
-            _search_kwargs=mock_search_kwargs,
+            _search_kwargs=mock_search_kwargs,  # type: ignore[arg-type]
         )
         actual_browse_params = search_state.create_red_browse_params(si=si)
         assert actual_browse_params == expected_browse_params, (
@@ -220,9 +220,11 @@ def _release_entry(torrent_entries: list[TorrentEntry]) -> ReleaseEntry:
 
 
 # Preferences: highest priority first.
-_FLAC_24_WEB = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB)
-_FLAC_LL_CD = RedFormat(format=fe.FLAC, encoding=ee.LOSSLESS, media=me.CD)
-_FLAC_24_SACD = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
+_FLAC_24_WEB = FormatPreference(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.WEB)
+_FLAC_LL_CD = FormatPreference(
+    format=fe.FLAC, encoding=ee.LOSSLESS, media=me.CD, cd_only_extras=CdOnlyExtras(log=100, has_cue=True)
+)
+_FLAC_24_SACD = FormatPreference(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, media=me.SACD)
 
 
 @pytest.mark.parametrize(
@@ -231,8 +233,10 @@ _FLAC_24_SACD = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, med
         # Highest-priority preference wins even when its torrent isn't first in the browse results.
         pytest.param(
             [_FLAC_24_WEB, _FLAC_LL_CD],
-            lambda: [_release_entry([_make_te("FLAC", "Lossless", "CD", 10.0, tid=1)])]
-            + [_release_entry([_make_te("FLAC", "24bit Lossless", "WEB", 5.0, tid=2)])],
+            lambda: (
+                [_release_entry([_make_te("FLAC", "Lossless", "CD", 10.0, tid=1)])]
+                + [_release_entry([_make_te("FLAC", "24bit Lossless", "WEB", 5.0, tid=2)])]
+            ),
             50.0,
             2,
             False,
@@ -287,7 +291,7 @@ _FLAC_24_SACD = RedFormat(format=fe.FLAC, encoding=ee.TWO_FOUR_BIT_LOSSLESS, med
 )
 def test_select_best_torrent(
     valid_app_settings: AppSettings,
-    prefs: list[RedFormat],
+    prefs: list[FormatPreference],
     release_entries_factory: Any,
     max_size_gb: float,
     expected_tid: int | None,
@@ -529,7 +533,7 @@ def test_add_search_item_to_snatch(valid_app_settings: AppSettings, mock_torrent
     assert len(search_state._tids_to_snatch) == 0, "Expect initial search state to have 0 items in _tids_to_snatch"
     search_state.add_search_item_to_snatch(si=si)
     assert search_state._search_items_to_snatch == [si]
-    assert search_state._tids_to_snatch == set([si.torrent_entry.torrent_id])
+    assert search_state._tids_to_snatch == set([si.torrent_entry.torrent_id])  # type: ignore[union-attr]
 
 
 def test_get_search_items_to_snatch_hit_size_limit(
@@ -542,13 +546,12 @@ def test_get_search_items_to_snatch_hit_size_limit(
             torrent_entry=mock_torrent_entry,
         )
     ]
-    expected = []
     with patch.object(SearchState, "_add_skipped_snatch_row") as mock_add_skipped_snatch_row_fn:
         search_state = SearchState(app_settings=valid_app_settings)
         search_state._max_download_allowed_gb = mock_torrent_entry.get_size("GB") / 2.0
         search_state._search_items_to_snatch = mock_items_to_snatch
         actual = search_state.get_search_items_to_snatch()
-        assert actual == expected
+        assert actual == []
         mock_add_skipped_snatch_row_fn.assert_called_once_with(
             si=mock_items_to_snatch[0], reason=SkipReason.MIN_RATIO_LIMIT
         )
@@ -660,7 +663,8 @@ def test_search_kwargs_has_all_required_fields(
     mock_search_kwargs: dict[str, Any], required_kwargs: set[str], expected: bool
 ) -> None:
     test_si = SearchItem(
-        initial_info=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST), _search_kwargs=mock_search_kwargs
+        initial_info=LFMRec("artist", "Title", rt.ALBUM, rc.SIMILAR_ARTIST),
+        _search_kwargs=mock_search_kwargs,  # type: ignore[arg-type]
     )
     actual = test_si.search_kwargs_has_all_required_fields(required_kwargs=required_kwargs)
     assert actual == expected
