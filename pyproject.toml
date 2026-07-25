@@ -1,6 +1,8 @@
 [project]
 name = "plastered"
-version = "1.0.0"
+# The version is derived from the latest `vX.Y.Z` git tag by setuptools-scm (see
+# [tool.setuptools_scm] below); it is never maintained by hand.
+dynamic = ["version"]
 requires-python = ">= 3.12"
 dependencies = [
 	"click==8.3.1",
@@ -40,10 +42,28 @@ test = [
 	"jsonref==1.1.0",
 ]
 
+[build-system]
+requires = ["setuptools>=80", "setuptools-scm>=9"]
+build-backend = "setuptools.build_meta"
+
+# https://setuptools-scm.readthedocs.io/en/latest/
+[tool.setuptools_scm]
+# Without a git checkout (e.g. Docker builds, where .git is not in the build context) the version
+# comes from $SETUPTOOLS_SCM_PRETEND_VERSION (set from the release tag in the Dockerfile) or, when
+# that is unset (non-release builds), this fallback.
+fallback_version = "0.0.0"
+
+[tool.setuptools.packages.find]
+include = ["plastered*"]
+
+# Explicit patterns (rather than relying on setuptools-scm's git-tracked file finder): Docker builds
+# have no .git in the build context, and htmx.min.js is gitignored (fetched at image build time), so
+# both would be dropped from the wheel without this.
+[tool.setuptools.package-data]
+plastered = ["api/static/**/*", "api/templates/**/*.html", "config/*.yaml", "release_search/*.md"]
+
 # UV
 [tool.uv]
-# https://docs.astral.sh/uv/reference/settings/#package
-package = false
 constraint-dependencies = [
 	"soupsieve>=2.8.4",
 ]

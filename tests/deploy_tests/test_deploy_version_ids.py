@@ -1,46 +1,35 @@
 """
-This file contains unit tests to ensure that the
-git release tag and the semver id in pyproject.toml are in alignment and both valid.
+This file contains unit tests to ensure that release builds are stamped with a valid `vX.Y.Z`
+release tag and that the runtime-reported version matches it. The version is derived from the git
+tag by setuptools-scm (see pyproject.toml) — there is no hand-maintained version to check.
 """
 
 import os
-from tomllib import load as toml_load
-from typing import Any
+import re
 
 import pytest
 
-from tests.conftest import PROJECT_ABS_PATH
+from plastered.version import get_project_version
 
-_PYPROJECT_TOML_FILEPATH = os.path.join(PROJECT_ABS_PATH, "pyproject.toml")
 _GITHUB_RELEASE_TAG_ENV_VAR = "PLASTERED_RELEASE_TAG"
+_RELEASE_TAG_PATTERN = re.compile(r"^v\d+\.\d+\.\d+$")
 
 
 @pytest.fixture(scope="session")
-def pyproject_toml_data() -> dict[str, Any]:
-    with open(_PYPROJECT_TOML_FILEPATH, "rb") as f:
-        toml_data = toml_load(f)
-    return toml_data
-
-
-@pytest.fixture(scope="session")
-def github_release_tag() -> str:
+def github_release_tag() -> str | None:
     return os.getenv(_GITHUB_RELEASE_TAG_ENV_VAR)
 
 
-# TODO: add unit test to check that the `plastered --version` output is also in sync (maybe in the test_cli.py file ?)
 @pytest.mark.releasetest
-def test_version_id_and_git_tag_match(pyproject_toml_data: dict[str, Any], github_release_tag: str | None) -> None:
+def test_release_tag_is_valid_and_matches_runtime_version(github_release_tag: str | None) -> None:
     assert github_release_tag is not None, (
         f"Expected a non-empty string value for '{_GITHUB_RELEASE_TAG_ENV_VAR}' environment variable, but got None."
     )
-    assert len(github_release_tag) > 0, (
-        f"Expected a non-empty string value for '{_GITHUB_RELEASE_TAG_ENV_VAR}' environment variable"
+    assert _RELEASE_TAG_PATTERN.match(github_release_tag), (
+        f"Expected '{_GITHUB_RELEASE_TAG_ENV_VAR}' to be of the form vMAJOR.MINOR.PATCH, but got '{github_release_tag}'."
     )
-    assert "project" in pyproject_toml_data, "Missing expected top-level 'project' key in pyproject.toml file."
-    project_data = pyproject_toml_data["project"]
-    assert "version" in project_data, "Missing expected 'version' key in the 'project' section of pyproject.toml file."
-    pyproject_version_id = project_data["version"]
-    github_release_semver = github_release_tag.removeprefix("v")
-    assert pyproject_version_id == github_release_semver, (
-        f"Version mismatch detected between pyproject.toml value ({pyproject_version_id}) and GitHub release tag semver ({github_release_semver}). Did you forget to update the version in pyproject.toml?"
+    release_semver = github_release_tag.removeprefix("v")
+    runtime_version = get_project_version()
+    assert runtime_version == release_semver, (
+        f"Version mismatch detected between the runtime-reported version ({runtime_version}) and the GitHub release tag semver ({release_semver})."
     )
