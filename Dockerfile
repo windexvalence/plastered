@@ -2,21 +2,25 @@
 FROM python:3.12.8-slim-bookworm AS pex-builder
 WORKDIR /build
 ENV HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js
+# The wheel's version comes from setuptools-scm: there is no .git in the build context, so it is
+# stamped from the release tag via SETUPTOOLS_SCM_PRETEND_VERSION (0.0.0 for non-release builds,
+# matching pyproject.toml's fallback_version). get_project_version() reads it back at runtime from
+# the installed distribution's metadata.
+ARG PLASTERED_RELEASE_TAG=""
 COPY ./pyproject.toml ./uv.lock ./
-COPY ./plastered ./src/plastered
-# Pack pyproject.toml inside the package: get_project_version() resolves it via importlib.resources.
-COPY ./pyproject.toml ./src/plastered/pyproject.toml
+COPY ./plastered ./plastered
 # Bake htmx into the static dir as a real file (resolved at runtime via importlib.resources).
-ADD "https://raw.githubusercontent.com/bigskysoftware/htmx/refs/tags/v${HTMX_VERSION}/dist/${HTMX_FILENAME}" ./src/plastered/api/static/js/${HTMX_FILENAME}
-# Export the locked runtime deps and build one PEX containing deps + the plastered sources.
+ADD "https://raw.githubusercontent.com/bigskysoftware/htmx/refs/tags/v${HTMX_VERSION}/dist/${HTMX_FILENAME}" ./plastered/api/static/js/${HTMX_FILENAME}
+# Export the locked runtime deps, build the plastered wheel, and build one PEX containing both.
 # --venv: install into a real venv under PEX_ROOT on first boot (fast imports, real on-disk
 #         static/template files for FastAPI). --sh-boot: cheap re-boot via a shell shim.
 RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
     uv lock --check \
     && uv export --locked --no-group test --no-emit-project --no-hashes -o requirements.txt \
+    && SETUPTOOLS_SCM_PRETEND_VERSION="${PLASTERED_RELEASE_TAG:-0.0.0}" uv build --wheel --out-dir ./dist \
     && uv tool run pex \
         -r requirements.txt \
-        -D ./src \
+        ./dist/plastered-*.whl \
         -m plastered.main \
         --venv --sh-boot \
         -o /plastered.pex
@@ -67,7 +71,10 @@ WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/usr/local/ HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js PYTHONDONTWRITEBYTECODE=1
 COPY ./pyproject.toml uv.lock .
 ARG PLASTERED_RELEASE_TAG=""
-RUN uv lock --check && uv sync --locked --all-groups --no-cache
+# --no-install-project: the sources aren't copied yet (dependency layer caching), and the test image
+# deliberately runs plastered from sources on PYTHONPATH rather than as an installed distribution
+# (get_project_version() falls back to $PLASTERED_RELEASE_TAG here).
+RUN uv lock --check && uv sync --locked --all-groups --no-install-project --no-cache
 RUN rebrowser_playwright install --with-deps chromium-headless-shell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

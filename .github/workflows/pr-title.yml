@@ -1,0 +1,41 @@
+name: PR title
+run-name: Conventional commit check for "${{ github.event.pull_request.title }}"
+
+# Squash merging makes the PR title the conventional commit that lands on `main` (the branch's own
+# commits are discarded), so the title is exactly what `cog check` / `cog bump --auto` parse at release
+# time. Verify it up front; the `edited` trigger re-runs the check whenever the title changes, and
+# `synchronize` keeps the check attached to the latest head commit so it can be a required status check.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-title:
+    name: Verify the PR title is a conventional commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        # cog verify reads cog.toml (e.g. custom [commit_types]) from the working directory.
+        uses: actions/checkout@v4
+      - name: Install cog
+        # v4.2.0 pins cog 7.0.0 (the floating v4 tag lags behind and ships an older cog that may not
+        # parse this repo's cog.toml).
+        uses: cocogitto/cocogitto-action@v4.2.0
+        with:
+          install-only: true
+      - name: Run cog verify on the PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        # cog verify panics without a git identity; install-only skips the action's git config step.
+        run: |
+          git config --global user.name github-actions
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if ! cog verify "${PR_TITLE}"; then
+            echo "::error::PR title '${PR_TITLE}' is not a conventional commit message. It becomes the \
+          squash commit on the default branch, so it must parse (e.g. 'feat(scope): ...', 'fix: ...', \
+          'feat!: ...' for breaking changes)."
+            exit 1
+          fi
