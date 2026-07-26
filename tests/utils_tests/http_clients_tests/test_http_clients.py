@@ -6,8 +6,8 @@ import pytest
 
 from plastered.config.app_settings import AppSettings
 from plastered.utils.constants import LFM_API_BASE_URL, MUSICBRAINZ_API_BASE_URL, RED_API_BASE_URL
-from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient, precise_delay
-from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
+from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient, precise_delay
+from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 
 
 @pytest.mark.slow
@@ -88,9 +88,9 @@ def test_throttle(client_throttle_sec: int, raw_now_timestamps: list[int], expec
     expected_num_throttle_calls = len(dt_now_call_timestamps) // 2
     expected_datetime_now_call_cnt = len(dt_now_call_timestamps)
     # NOTE: mocking datetime is funky. Had to follow this advice: https://stackoverflow.com/a/70598060
-    with patch("plastered.utils.httpx_utils.base_client.datetime", wraps=datetime.datetime) as mock_dt:
+    with patch("plastered.utils.http_clients.base_client.datetime", wraps=datetime.datetime) as mock_dt:
         mock_dt.now.side_effect = dt_now_call_timestamps
-        with patch("plastered.utils.httpx_utils.base_client.precise_delay") as mock_precise_delay:
+        with patch("plastered.utils.http_clients.base_client.precise_delay") as mock_precise_delay:
             mock_precise_delay.return_value = None
             assert api_base_client._throttle_period == datetime.timedelta(seconds=client_throttle_sec)
             for _ in range(expected_num_throttle_calls):
@@ -168,7 +168,7 @@ def test_throttle_serializes_concurrent_callers() -> None:
         with events_lock:
             events.append(("exit", perf_counter()))
 
-    with patch("plastered.utils.httpx_utils.base_client.precise_delay", side_effect=_recording_precise_delay):
+    with patch("plastered.utils.http_clients.base_client.precise_delay", side_effect=_recording_precise_delay):
         threads = [threading.Thread(target=client._throttle) for _ in range(2)]
         for thread in threads:
             thread.start()

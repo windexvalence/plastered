@@ -6,7 +6,7 @@ from plastered.models import RedUserDetails
 from plastered.models.red_models import ReleaseEntry
 from plastered.utils.constants import RED_API_BASE_URL, RED_JSON_RESPONSE_KEY
 from plastered.utils.exceptions import RedUserDetailsInitError
-from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
+from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from plastered.db.db_models import SkipReason
     from plastered.models import SearchItem
     from plastered.release_search.search_helpers import SearchState
-    from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+    from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
 
 class SearchItemModifier(ABC):

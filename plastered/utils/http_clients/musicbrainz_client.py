@@ -6,7 +6,7 @@ from plastered.config.app_settings import AppSettings
 from plastered.models import SearchItem
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL
 from plastered.utils.exceptions import MusicBrainzClientException
-from plastered.utils.httpx_utils.base_client import LOGGER, ThrottledAPIBaseClient
+from plastered.utils.http_clients.base_client import LOGGER, ThrottledAPIBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 

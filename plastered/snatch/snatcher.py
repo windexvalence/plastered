@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from plastered.models import SearchItem
     from plastered.release_search.search_helpers import SearchState
-    from plastered.utils.httpx_utils import RedSnatchAPIClient
+    from plastered.utils.http_clients import RedSnatchAPIClient
 
 _LOGGER = logging.getLogger(__name__)
 

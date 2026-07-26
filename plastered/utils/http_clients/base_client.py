@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from time import perf_counter_ns
 from typing import Final
 
-import httpx
+import httpx2
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 LOGGER = logging.getLogger(__name__)
@@ -23,24 +23,24 @@ def precise_delay(sec_delay: int) -> None:
         pass
 
 
-# TODO: implement, and keep in mind the differences from requests library and httpx listed in  the link below:
+# TODO: implement, and keep in mind the differences from requests library and httpx2 listed in  the link below:
 # https://www.python-httpx.org/compatibility/
 
 
-class HTTPXRetryTransport(httpx.BaseTransport):
+class HTTPXRetryTransport(httpx2.BaseTransport):
     """
-    Custom implementation of the `httpx.BaseTransport` class specifically for handling rate-limited request retries.
-    This class is used as the underlying httpx transport for all the `ThrottledAPIBaseClient` classes.
+    Custom implementation of the `httpx2.BaseTransport` class specifically for handling rate-limited request retries.
+    This class is used as the underlying httpx2 transport for all the `ThrottledAPIBaseClient` classes.
     """
 
     def __init__(self, max_retries: int, min_wait_seconds: int):
         self._max_retries = max_retries
         self._min_wait_seconds = min_wait_seconds
-        self._transport = httpx.HTTPTransport()
+        self._transport = httpx2.HTTPTransport()
 
     # NOTE: non-decorated tenacity retry logic which resets per-call to handle_request was adopted
     # from this SO answer: https://stackoverflow.com/a/62238110
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
+    def handle_request(self, request: httpx2.Request) -> httpx2.Response:
         for attempt in Retrying(
             wait=wait_fixed(self._min_wait_seconds), stop=stop_after_attempt(self._max_retries), reraise=True
         ):
@@ -52,7 +52,7 @@ class HTTPXRetryTransport(httpx.BaseTransport):
 
 class ThrottledAPIBaseClient:
     """
-    Base class that wraps a distinct httpx.Client instance with retries and throttling.
+    Base class that wraps a distinct httpx2.Client instance with retries and throttling.
     Subclasses for the various rest APIs are implemented with their own request construction
     and uniquely configurable retry and throttling parameters.
     """
@@ -62,7 +62,7 @@ class ThrottledAPIBaseClient:
         base_api_url: str,
         max_api_call_retries: int,
         seconds_between_api_calls: int,
-        extra_client_transport_mount_entries: dict[str, httpx.BaseTransport] | None = None,
+        extra_client_transport_mount_entries: dict[str, httpx2.BaseTransport] | None = None,
     ):
         self._max_api_call_retries = max_api_call_retries
         self._throttle_period = timedelta(seconds=seconds_between_api_calls)
@@ -77,7 +77,7 @@ class ThrottledAPIBaseClient:
         # With the server run single-process (server.workers = 1), this makes the per-API rate limit process-global.
         self._throttle_lock = threading.Lock()
         self._base_domain = base_api_url
-        self._client = httpx.Client(
+        self._client = httpx2.Client(
             mounts={
                 self._base_domain: HTTPXRetryTransport(
                     max_retries=self._max_api_call_retries, min_wait_seconds=self._throttle_period.seconds

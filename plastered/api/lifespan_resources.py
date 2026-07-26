@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Self
 
 from plastered.config.app_settings import get_app_settings
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
+from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.version import get_project_version
 
 if TYPE_CHECKING:
