@@ -27,8 +27,13 @@ RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
 
 ########## Stage 2: the app image (the published end-user product) ##########
 FROM python:3.12.8-slim-bookworm AS plastered-app
-WORKDIR /app
 ARG PLASTERED_RELEASE_TAG=""
+LABEL org.opencontainers.image.source="https://github.com/windexvalence/plastered"
+# Publish builds pass PLASTERED_RELEASE_TAG=vMAJOR.MINOR.PATCH, so the label carries the bare
+# release semver; local/dev builds leave it unset and the label stays empty.
+LABEL org.opencontainers.image.version="${PLASTERED_RELEASE_TAG#v}"
+
+WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 # The single PEX is the entire application: 1st-party sources (incl. static/templates/pyproject.toml,
 # all resolved at runtime via importlib.resources) + all locked 3rd-party deps.
