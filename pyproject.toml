@@ -15,6 +15,8 @@ dependencies = [
 	"jsonschema==4.26.0",
 	"pydantic==2.13.4",
 	"pydantic-settings>=2.14.2",
+	"Pygments>=2.20.0",
+	"python-dotenv>=1.2.2",
 	"python-multipart>=0.0.31",
 	"PyYAML==6.0.3",
 	"rebrowser-playwright==1.52.0",
@@ -46,7 +48,7 @@ test = [
 ]
 
 [build-system]
-requires = ["setuptools>=80", "setuptools-scm>=9"]
+requires = ["setuptools>=83.0.0", "setuptools-scm>=9"]
 build-backend = "setuptools.build_meta"
 
 # https://setuptools-scm.readthedocs.io/en/latest/
