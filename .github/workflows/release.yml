@@ -143,6 +143,15 @@ jobs:
           VERSION_TAG: ${{ steps.bump.outputs.version }}
         run: |
           cog changelog --at "${VERSION_TAG}" > GITHUB_CHANGELOG.md
+          cat >> GITHUB_CHANGELOG.md <<EOF
+
+          ### Container Image
+          * Pull the latest release from GHCR:
+              \`\`\`shell
+              docker pull ghcr.io/${GITHUB_REPOSITORY}:${VERSION_TAG#v}
+              \`\`\`
+          * View package details on the [plastered packages page](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/plastered)
+          EOF
           gh release create "${VERSION_TAG}" \
             --title "${VERSION_TAG#v}" \
             --notes-file GITHUB_CHANGELOG.md \
