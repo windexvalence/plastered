@@ -8,7 +8,7 @@ from plastered.models import EntityType, SearchItem
 from plastered.release_search.search_helpers import SearchState
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.processors.bases import SearchItemProcessor
-from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
 
 # Function-scoped: each test gets a fresh chain so no test can leak mutated state (e.g. a patched

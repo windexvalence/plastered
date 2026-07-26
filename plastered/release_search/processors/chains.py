@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from plastered.models import SearchItem
     from plastered.release_search.processors.bases import SearchItemProcessor
     from plastered.release_search.search_helpers import SearchState
-    from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+    from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
 
 _LOGGER = logging.getLogger(__name__)

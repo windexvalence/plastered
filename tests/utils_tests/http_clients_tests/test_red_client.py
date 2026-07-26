@@ -4,16 +4,14 @@ from typing import Any
 from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pytest
-from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails, ReleaseEntry
 from plastered.models.types import RedReleaseType
 from plastered.utils.exceptions import RedUserDetailsInitError
-from plastered.utils.httpx_utils.red_client import RedAPIClient
+from plastered.utils.http_clients.red_client import RedAPIClient
 
 
-@pytest.mark.httpx_mock(assert_all_requests_were_expected=False)
 @pytest.mark.parametrize(
     "action, expected_top_keys",
     [

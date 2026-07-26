@@ -12,7 +12,7 @@ from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.search_helpers import SearchState
 from plastered.snatch import Snatcher
 from plastered.utils.exceptions import ReleaseSearcherException
-from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
+from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
 from plastered.utils.log_utils import CONSOLE, SPINNER
 
 if TYPE_CHECKING:

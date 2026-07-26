@@ -29,4 +29,7 @@ repos:
         name: mypy
         entry: hooks/mypy.sh
         language: script
-        files: '^(plastered/.*\.py|tests/.*\.py)$'
+        # plastered/ only: tests are excluded from type-checking (see [tool.mypy] in pyproject.toml), but
+        # mypy's `exclude` config does not apply to files passed explicitly as CLI args, so the hook must
+        # not pass them.
+        files: '^plastered/.*\.py$'

@@ -10,7 +10,7 @@ dependencies = [
 	"beautifulsoup4==4.15.0",
 	"diskcache==5.6.3",
 	"fastapi[all]==0.140.0",
-	"httpx==0.28.1",
+	"httpx2>=2.9.0",
 	"jinja2-fragments==1.12.0",
 	"jsonschema==4.26.0",
 	"pydantic==2.13.4",
@@ -36,7 +36,7 @@ test = [
 	"jsonschema-markdown==2025.10.1",
 	"pytest==9.1.1",
 	"pytest-cov[toml]==7.1.0",
-	"pytest-httpx==0.36.2",
+	"pytest-httpx2>=1.0.0",
 	"pytest-mock>=3.15.1",
 	"pytest-socket>=0.8.0",
 	"pytest-xdist==3.8.0",
@@ -205,7 +205,10 @@ markers = [
     "releasetest: mark test as a release-only test which should be skipped on non-release builds.",
     "slow: mark test as a slow test which should be skipped by default in non-CI builds unless `--slowtests` is provided.",
     "no_autouse_mock_lifespan_singleton_inst: mark a test to not use the auto-use fixture for the fastapi lifespan singleton.",
-    "override_global_httpx_mock: mark a test to override the configured httpx global fixture in favor of its own.",
+    "override_global_httpx_mock: mark a test to override the configured httpx2 global fixture in favor of its own.",
+    # pytest-httpx2 1.0.0 defines this marker but its entry point doesn't expose the plugin's pytest_configure,
+    # so register it here to avoid PytestUnknownMarkWarning.
+    "httpx2(assert_all_called=False, assert_all_mocked=True, base_url=None): configure the httpx2_mock fixture (see https://lundberg.github.io/respx/api/#configuration).",
     "anyio: mark an async test to be run via anyio's pytest plugin (see the `anyio_backend` fixture in tests/conftest.py).",
 ]
 filterwarnings = [

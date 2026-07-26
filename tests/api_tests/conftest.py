@@ -10,7 +10,7 @@ from plastered.api.app import create_fastapi_app
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
 from plastered.release_search.release_searcher import ReleaseSearcher
-from plastered.utils.httpx_utils.red_client import RedAPIClient
+from plastered.utils.http_clients.red_client import RedAPIClient
 from plastered.version import get_project_version
 
 

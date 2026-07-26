@@ -4,7 +4,6 @@ from typing import Any, TypedDict
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
-from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import SearchRecord, SkipReason
@@ -34,8 +33,8 @@ from plastered.release_search.processors.modifiers import (
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.release_search.search_helpers import SearchState
 from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
-from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
-from plastered.utils.httpx_utils import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
+from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
 
 class _MockProcKwargs(TypedDict):

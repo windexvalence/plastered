@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING
 
-import httpx
+import httpx2
 
 from plastered.config.app_settings import AppSettings
 from plastered.utils.constants import RED_API_BASE_URL
 from plastered.utils.exceptions import RedClientSnatchException
-from plastered.utils.httpx_utils.base_client import ThrottledAPIBaseClient
+from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
     from plastered.models import RedUserDetails
@@ -28,7 +28,7 @@ class RedSnatchAPIClient(ThrottledAPIBaseClient):
             seconds_between_api_calls=app_settings.red.red_api_seconds_between_calls,
             # This class overrides the internal default super class routing, to make sure
             # there are no built-in request retries for snatching to prevent masking errors when using FL tokens.
-            extra_client_transport_mount_entries={RED_API_BASE_URL: httpx.HTTPTransport()},
+            extra_client_transport_mount_entries={RED_API_BASE_URL: httpx2.HTTPTransport()},
         )
         self._client.headers.update({"Authorization": app_settings.red.red_api_key.get_secret_value()})
         self._red_user_details: RedUserDetails | None = None

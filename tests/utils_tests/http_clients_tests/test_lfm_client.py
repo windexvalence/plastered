@@ -2,12 +2,12 @@ from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 import pytest
-from pytest_httpx import HTTPXMock
+import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.search_item import SearchItem
 from plastered.utils.exceptions import LFMClientException
-from plastered.utils.httpx_utils import LFMAPIClient
+from plastered.utils.http_clients import LFMAPIClient
 
 
 @pytest.fixture(scope="session")
@@ -41,8 +41,10 @@ def test_request_lfm_api(
 
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
-def test_request_lfm_api_non_200_status(httpx_mock: HTTPXMock, valid_app_settings: AppSettings, method: str) -> None:
-    httpx_mock.add_response(status_code=404)
+def test_request_lfm_api_non_200_status(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, method: str
+) -> None:
+    httpx2_mock.route().respond(status_code=404)
     lfm_client = LFMAPIClient(app_settings=valid_app_settings)
     lfm_client._throttle = Mock(name="_throttle")
     lfm_client._throttle.return_value = None
@@ -53,8 +55,10 @@ def test_request_lfm_api_non_200_status(httpx_mock: HTTPXMock, valid_app_setting
 
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("method", ["album.getinfo", "track.getinfo"])
-def test_request_lfm_api_bad_json_response(httpx_mock: HTTPXMock, valid_app_settings: AppSettings, method: str) -> None:
-    httpx_mock.add_response(
+def test_request_lfm_api_bad_json_response(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, method: str
+) -> None:
+    httpx2_mock.route().respond(
         status_code=200, json={"error": 123, "message": "LFM API handles errors like this sometimes"}
     )
     lfm_client = LFMAPIClient(app_settings=valid_app_settings)

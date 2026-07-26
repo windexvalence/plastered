@@ -7,7 +7,7 @@ import pytest
 from plastered.models import EntityType as et, LFMRec, RecContext as rc, SearchItem, TorrentEntry as te
 from plastered.release_search.search_helpers import SearchState
 from plastered.snatch import Snatcher
-from plastered.utils.httpx_utils import RedSnatchAPIClient
+from plastered.utils.http_clients import RedSnatchAPIClient
 
 SnatcherFactory = Callable[..., tuple[Snatcher, MagicMock, MagicMock]]
 
@@ -48,7 +48,7 @@ def make_snatcher() -> Generator[SnatcherFactory, None, None]:
     context managers so their lifecycle is cleaned up automatically once the consuming test completes.
     """
     with (
-        patch("plastered.utils.httpx_utils.RedSnatchAPIClient", spec=RedSnatchAPIClient) as mock_red_snatch_client,
+        patch("plastered.utils.http_clients.RedSnatchAPIClient", spec=RedSnatchAPIClient) as mock_red_snatch_client,
         patch("plastered.release_search.search_helpers.SearchState", spec=SearchState) as mock_search_state,
     ):
 

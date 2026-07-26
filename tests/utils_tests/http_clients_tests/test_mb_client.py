@@ -3,11 +3,11 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from pytest_httpx import HTTPXMock
+import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.utils.exceptions import MusicBrainzClientException
-from plastered.utils.httpx_utils.musicbrainz_client import MusicBrainzAPIClient
+from plastered.utils.http_clients.musicbrainz_client import MusicBrainzAPIClient
 
 
 @pytest.fixture(scope="session")
@@ -109,7 +109,7 @@ def test_mb_get_track_search_query_str(
     ],
 )
 def test_request_release_details_for_track(
-    httpx_mock: HTTPXMock,
+    httpx2_mock: respx.Router,
     request: pytest.FixtureRequest,
     valid_app_settings: AppSettings,
     make_track_search_item: pytest.FixtureRequest,
@@ -121,7 +121,7 @@ def test_request_release_details_for_track(
     expected: dict[str, str | None] | None,
 ) -> None:
     mock_json_resp = request.getfixturevalue(mock_mb_json_response_fixture_name)
-    httpx_mock.add_response(json=mock_json_resp)
+    httpx2_mock.route().respond(json=mock_json_resp)
     mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
@@ -131,8 +131,8 @@ def test_request_release_details_for_track(
 
 
 @pytest.mark.override_global_httpx_mock
-def test_request_release_details_error_handling(httpx_mock: HTTPXMock, valid_app_settings: AppSettings) -> None:
-    httpx_mock.add_response(status_code=404)
+def test_request_release_details_error_handling(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    httpx2_mock.route().respond(status_code=404)
     mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None
@@ -145,12 +145,12 @@ def test_request_release_details_error_handling(httpx_mock: HTTPXMock, valid_app
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
 def test_request_release_details_for_track_error_handling(
-    httpx_mock: HTTPXMock,
+    httpx2_mock: respx.Router,
     valid_app_settings: AppSettings,
     make_track_search_item: pytest.FixtureRequest,
     is_lfm_rec: bool,
 ) -> None:
-    httpx_mock.add_response(status_code=404)
+    httpx2_mock.route().respond(status_code=404)
     mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings)
     mb_client._throttle = Mock(name="_throttle")
     mb_client._throttle.return_value = None

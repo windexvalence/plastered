@@ -3,18 +3,20 @@ from contextlib import nullcontext
 from unittest.mock import Mock
 
 import pytest
-from pytest_httpx import HTTPXMock
+import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails
 from plastered.utils.exceptions import RedClientSnatchException
-from plastered.utils.httpx_utils.red_snatch_client import RedSnatchAPIClient
+from plastered.utils.http_clients.red_snatch_client import RedSnatchAPIClient
 
 
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("mock_response_code", [200, 404])
-def test_snatch_red_api_no_fl(httpx_mock: HTTPXMock, valid_app_settings: AppSettings, mock_response_code: int) -> None:
-    httpx_mock.add_response(status_code=mock_response_code)
+def test_snatch_red_api_no_fl(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, mock_response_code: int
+) -> None:
+    httpx2_mock.route().respond(status_code=mock_response_code)
     red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings)
     red_snatch_client._throttle = Mock(name="_throttle")
     red_snatch_client._throttle.return_value = None
@@ -35,7 +37,7 @@ def test_snatch_red_api_no_fl(httpx_mock: HTTPXMock, valid_app_settings: AppSett
     ids=["200_first_try", "200_second_try", "404_all", "500_404"],
 )
 def test_snatch_red_api_use_token(
-    httpx_mock: HTTPXMock,
+    httpx2_mock: respx.Router,
     valid_app_settings: AppSettings,
     mock_red_user_details: RedUserDetails,
     mock_response_codes: list[int],
@@ -43,8 +45,7 @@ def test_snatch_red_api_use_token(
     raise_client_exc: bool,
 ) -> None:
     expected_get_urls = [f"https://redacted.sh/ajax.php?action=download&{params}" for params in expected_get_params]
-    for mock_response_code in mock_response_codes:
-        httpx_mock.add_response(status_code=mock_response_code)
+    httpx2_mock.route().mock(side_effect=[respx.MockResponse(code) for code in mock_response_codes])
     expected_throttle_calls = len(expected_get_urls)
     red_snatch_client = RedSnatchAPIClient(app_settings=valid_app_settings)
     red_snatch_client._red_user_details = mock_red_user_details
@@ -53,7 +54,7 @@ def test_snatch_red_api_use_token(
     red_snatch_client._throttle.return_value = None
     with pytest.raises(RedClientSnatchException) if raise_client_exc else nullcontext():
         result = red_snatch_client.snatch(tid="69", can_use_token=True)
-    actual_requests = httpx_mock.get_requests()
+    actual_requests = [mock_call.request for mock_call in httpx2_mock.calls]
     assert len(actual_requests) == len(expected_get_urls)
     for i, expected_get_url in enumerate(expected_get_urls):
         assert str(actual_requests[i].url) == expected_get_url

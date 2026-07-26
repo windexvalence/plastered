@@ -8,16 +8,14 @@ import os
 os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
 from sqlmodel import SQLModel, Session, StaticPool, create_engine
 
-import re
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import httpx
 import pytest
+import respx
 import yaml
-from pytest_httpx import HTTPXMock
 
 from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import FailReason, SearchRecord
@@ -94,9 +92,9 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_release)
         if "slow" in item.keywords and not include_slow_tests:
             item.add_marker(skip_slow)
-        # https://pypi.org/project/pytest-httpx/#for-the-whole-test-suite
+        # https://lundberg.github.io/respx/api/#configuration
         # TODO: see if this can be removed
-        item.add_marker(pytest.mark.httpx_mock(assert_all_responses_were_requested=False))
+        item.add_marker(pytest.mark.httpx2(assert_all_called=False))
 
 
 @pytest.fixture
@@ -537,38 +535,6 @@ def expected_red_format_list() -> list[RedFormat]:
     ]
 
 
-def mock_lfm_client_callback(request: httpx.Request) -> httpx.Response:
-    """
-    Callback function used by the global_httpx_mock fixture (defined below) for any
-    unit tests which run HTTP calls to the LFM api.
-    """
-    lfm_actions_to_mock_json = {
-        "album.getinfo": load_mock_response_json(json_filepath=_LFM_MOCK_ALBUM_INFO_JSON_FILEPATH),
-        "track.getinfo": load_mock_response_json(json_filepath=_LFM_MOCK_TRACK_INFO_JSON_FILEPATH),
-    }
-    m = re.match(r"^.*\?.*method=(album\.getinfo|track\.getinfo).*$", str(request.url))
-    lfm_action = m.groups()[0]
-    mock_json = lfm_actions_to_mock_json[lfm_action]
-    return httpx.Response(status_code=200, json=mock_json)
-
-
-def mock_musicbrainz_client_callback(request: httpx.Request) -> httpx.Response:
-    """
-    Callback function used by the global_httpx_mock fixture (defined below) for any
-    unit tests which run HTTP calls to the musicbrainz api.
-    """
-    mb_endpoints_to_mock_json = {
-        "release": load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH),
-        "recording": load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH),
-    }
-    # "https://musicbrainz.org/ws/2/" + "(release|recording)/.*"
-    url_val = str(request.url)
-    m = re.match(r"^.*musicbrainz\.org/ws/2/(release|recording)/.*", url_val)
-    mb_endpoint = m.groups()[0]
-    mock_json = mb_endpoints_to_mock_json[mb_endpoint]
-    return httpx.Response(status_code=200, json=mock_json)
-
-
 @pytest.fixture(scope="session")
 def red_url_regex_to_mock_json(
     mock_red_browse_non_empty_response: dict[str, Any],
@@ -638,36 +604,30 @@ def mb_url_regex_to_mock_json(
 @pytest.fixture(scope="function", autouse=True)
 def global_httpx_mock(
     request: pytest.FixtureRequest,
-    httpx_mock: HTTPXMock,
+    httpx2_mock: respx.Router,
     red_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
     lfm_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
     mb_url_regex_to_mock_json: list[tuple[str, dict[str, Any]]],
-) -> Generator[HTTPXMock, Any, Any]:
+) -> Generator[respx.Router, Any, Any]:
     """
     Globally applied fixture to ensure no HTTP requests in the unit tests
-    leak out to the actual network. via pytest-httpx:  https://pypi.org/project/pytest-httpx/
+    leak out to the actual network. via pytest-httpx2:  https://pypi.org/project/pytest-httpx2/
     """
     # Do not add any expected responses to this fixture for the edge-case tests which need to run with their own
     # function-specific mock responses. https://stackoverflow.com/a/38763328
     if "override_global_httpx_mock" in request.keywords:
-        yield httpx_mock
+        yield httpx2_mock
     else:
         for red_regex_and_json in red_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = red_regex_and_json
-            httpx_mock.add_response(
-                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
-            )
+            httpx2_mock.route(url__regex=request_url_pattern).respond(json=resp_mock_json)
         for lfm_regex_and_json in lfm_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = lfm_regex_and_json
-            httpx_mock.add_response(
-                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
-            )
+            httpx2_mock.route(url__regex=request_url_pattern).respond(json=resp_mock_json)
         for mb_regex_and_json in mb_url_regex_to_mock_json:
             request_url_pattern, resp_mock_json = mb_regex_and_json
-            httpx_mock.add_response(
-                url=re.compile(request_url_pattern), json=resp_mock_json, is_optional=True, is_reusable=True
-            )
-        yield httpx_mock
+            httpx2_mock.route(url__regex=request_url_pattern).respond(json=resp_mock_json)
+        yield httpx2_mock
 
 
 @pytest.fixture(scope="session")
