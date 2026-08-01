@@ -30,7 +30,7 @@ dependencies = [
 
 [dependency-groups]
 test = [
-	"bandit==1.8.0",
+	"bandit==1.9.4",
 	"coverage-badge==1.1.2",
 	"fastapi[standard]",
 	"ipython>=9.3.0",
