@@ -64,3 +64,7 @@ Everything is driven from the web UI:
 - **Config** — inspect the effective app config the server loaded.
 
 Snatched `.torrent` files are written to the mounted downloads directory; point your download client at it.
+
+## 5. Full REST API Reference
+
+You can view the full API documentation for your server at `<plastered URL and port here>/docs`.
