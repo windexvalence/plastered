@@ -8,13 +8,11 @@ from rebrowser_playwright.sync_api import Error, PlaywrightContextManager
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import RecContext, EntityType
-from plastered.run_cache.run_cache import RunCache
 from plastered.scraper.lfm_scraper import (
     _CONTENT_READ_MAX_ATTEMPTS,
     _PAGE_SETTLE_TIMEOUT_MS,
     LFMRecsScraper,
     _sleep_random,
-    cached_lfm_recs_validator,
 )
 from plastered.utils.constants import (
     ALBUM_RECS_BASE_URL,
@@ -307,61 +305,6 @@ def test_sleep_random() -> None:
             mock_sleep.assert_called_once_with(mock_randint.return_value)
 
 
-@pytest.mark.parametrize(
-    "cached_data, expected",
-    [
-        ({}, False),
-        ([None], False),
-        (["Not a LFMRec"], False),
-        (
-            tuple(
-                [
-                    LFMRec(
-                        lfm_artist_str="A",
-                        lfm_entity_str="B",
-                        recommendation_type=EntityType.ALBUM,
-                        rec_context=RecContext.IN_LIBRARY,
-                    )
-                ]
-            ),
-            False,
-        ),
-        ([], True),
-        (
-            [
-                LFMRec(
-                    lfm_artist_str="Factory+Floor",
-                    lfm_entity_str="Lying+%2F+A+Wooden+Box",
-                    recommendation_type=EntityType.ALBUM,
-                    rec_context=RecContext.IN_LIBRARY,
-                )
-            ],
-            True,
-        ),
-        (
-            [
-                LFMRec(
-                    lfm_artist_str="Factory+Floor",
-                    lfm_entity_str="Lying+%2F+A+Wooden+Box",
-                    recommendation_type=EntityType.ALBUM,
-                    rec_context=RecContext.IN_LIBRARY,
-                ),
-                LFMRec(
-                    lfm_artist_str="A",
-                    lfm_entity_str="B",
-                    recommendation_type=EntityType.ALBUM,
-                    rec_context=RecContext.IN_LIBRARY,
-                ),
-            ],
-            True,
-        ),
-    ],
-)
-def test_cached_album_recs_validator(cached_data: Any, expected: bool) -> None:
-    actual = cached_lfm_recs_validator(cached_data=cached_data)
-    assert actual == expected, f"Expected {expected}, but got {actual}"
-
-
 def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_settings: AppSettings) -> None:
     with patch.object(LFMRecsScraper, "__enter__") as enter_method_mock:
         enter_method_mock.assert_not_called()
@@ -384,7 +327,7 @@ def test_scraper_init(lfm_rec_scraper: LFMRecsScraper, valid_app_settings: AppSe
     )
 
 
-def test_scraper_enter_no_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
+def test_scraper_enter(lfm_rec_scraper: LFMRecsScraper) -> None:
     mock_playwright = MagicMock()
     mock_browser = MagicMock()
     with patch.object(PlaywrightContextManager, "start") as mock_sync_playwright_ctx:
@@ -401,26 +344,7 @@ def test_scraper_enter_no_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
             user_login_mock.assert_called_once()
 
 
-def test_scraper_enter_with_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
-    mock_playwright = MagicMock()
-    mock_browser = MagicMock()
-    with patch.object(PlaywrightContextManager, "start") as mock_sync_playwright_ctx:
-        mock_sync_playwright_ctx.return_value = mock_playwright
-        mock_playwright.chromium.launch.return_value = mock_browser
-        with patch.object(RunCache, "load_data_if_valid") as mock_run_cache_load:
-            mock_run_cache_load.return_value = True
-            with patch.object(LFMRecsScraper, "_user_login") as user_login_mock:
-                lfm_rec_scraper.__enter__()
-                mock_sync_playwright_ctx.assert_not_called()
-                mock_playwright.assert_not_called()
-                mock_browser.new_page.assert_not_called()
-                assert lfm_rec_scraper._playwright is None
-                assert lfm_rec_scraper._browser is None
-                assert lfm_rec_scraper._page is None
-                user_login_mock.assert_not_called()
-
-
-def test_scraper_exit_no_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
+def test_scraper_exit(lfm_rec_scraper: LFMRecsScraper) -> None:
     mock_playwright = MagicMock()
     mock_browser = MagicMock()
     mock_page = MagicMock()
@@ -436,32 +360,6 @@ def test_scraper_exit_no_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
                 lfm_rec_scraper._page.close.assert_called_once()
                 mock_browser.close.assert_called_once()
                 mock_playwright.stop.assert_called_once()
-
-
-def test_scraper_exit_with_cache(lfm_rec_scraper: LFMRecsScraper) -> None:
-    mock_playwright = MagicMock()
-    mock_browser = MagicMock()
-    mock_page = MagicMock()
-    with patch.object(PlaywrightContextManager, "start") as mock_sync_playwright_ctx:
-        mock_sync_playwright_ctx.return_value = mock_playwright
-        mock_playwright.chromium.launch.return_value = mock_browser
-        mock_run_cache = MagicMock()
-        with patch("plastered.scraper.lfm_scraper.RunCache") as mock_run_cache_constructor:
-            mock_run_cache_constructor.return_value = mock_run_cache
-            mock_run_cache.load_data_if_valid.return_value = True
-            mock_run_cache.close.return_value = None
-            with patch.object(LFMRecsScraper, "_user_login") as user_login_mock:
-                with patch.object(LFMRecsScraper, "_user_logout") as user_logout_mock:
-                    lfm_rec_scraper._run_cache = mock_run_cache
-                    lfm_rec_scraper.__enter__()
-                    lfm_rec_scraper.__exit__(exc_type=None, exc_val=None, exc_tb=None)
-                    mock_run_cache.close.assert_called_once()
-                    user_logout_mock.assert_not_called()
-                    mock_browser.close.assert_not_called()
-                    mock_playwright.stop.assert_not_called()
-                    assert lfm_rec_scraper._playwright is None
-                    assert lfm_rec_scraper._browser is None
-                    assert lfm_rec_scraper._page is None
 
 
 def test_context_manager(valid_app_settings: AppSettings) -> None:
@@ -622,20 +520,6 @@ def test_scrape_recs_list(lfm_rec_scraper: LFMRecsScraper, rec_type: EntityType,
             lfm_rec_scraper._scrape_recs_list(rec_type=rec_type)
             mock_navigate_to_page.assert_called()
             mock_extract_recs.assert_called()
-
-
-def test_scrape_recs_list_cache_hit(lfm_rec_scraper: LFMRecsScraper) -> None:
-    lfm_rec_scraper._loaded_from_run_cache = {
-        EntityType.ALBUM: [LFMRec("A", "B", EntityType.ALBUM, RecContext.SIMILAR_ARTIST)],
-        EntityType.TRACK: [LFMRec("A+Artist", "A+Song", EntityType.TRACK, RecContext.IN_LIBRARY)],
-    }
-    with patch.object(LFMRecsScraper, "_navigate_to_page_and_get_page_source") as mock_navigate_to_page:
-        mock_navigate_to_page.return_value = ""
-        with patch.object(LFMRecsScraper, "_extract_recs_from_page_source") as mock_extract_recs:
-            mock_extract_recs.return_value = []
-            lfm_rec_scraper._scrape_recs_list(EntityType.ALBUM)
-            mock_navigate_to_page.assert_not_called()
-            mock_extract_recs.assert_not_called()
 
 
 @pytest.mark.parametrize(
