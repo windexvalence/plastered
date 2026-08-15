@@ -21,7 +21,7 @@ from plastered.actions.common_actions import run_lfm_scraper
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.auth_sessions import SESSION_COOKIE_NAME, credentials_valid, set_session_cookie
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
-from plastered.api.fastapi_dependencies import SessionDep
+from plastered.api.fastapi_dependencies import AppSettingsDep, RedUserDetailsDep, ReleaseSearcherDep, SessionDep
 from plastered.db.db_models import RecDownloadBatchStatus, Status
 from plastered.db.db_utils import create_rec_download_batch, create_scraper_run
 from plastered.models.types import EntityType, RedReleaseType
@@ -52,11 +52,12 @@ async def login_page(request: Request, next_url: Annotated[str, Query(alias="nex
 @plastered_web_router.post("/login")
 async def login_submit(
     request: Request,
+    app_settings: AppSettingsDep,
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
     next_url: Annotated[str, Form(alias="next")] = "/",
 ) -> Response:
-    auth_config = request.state.lifespan_singleton.app_settings.server.auth
+    auth_config = app_settings.server.auth
     if not credentials_valid(auth_config=auth_config, username=username, password=password):
         return TEMPLATES.TemplateResponse(
             request=request,
@@ -85,9 +86,7 @@ async def logout_submit(request: Request) -> RedirectResponse:
 @plastered_web_router.get("/")
 async def root_endpoint(request: Request) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={"plastered_version": request.state.lifespan_singleton.project_version},
+        request=request, name="index.html", context={"plastered_version": request.app.version}
     )
 
 
@@ -112,6 +111,7 @@ async def adhoc_search_submit(
     session: SessionDep,
     background_tasks: BackgroundTasks,
     request: Request,
+    release_searcher: ReleaseSearcherDep,
     artist: Annotated[str, Form()],
     release: Annotated[str | None, Form()] = None,
     track: Annotated[str | None, Form()] = None,
@@ -136,10 +136,7 @@ async def adhoc_search_submit(
         max_size_gb=max_size_gb,
     )
     search_id = schedule_adhoc_search(
-        session=session,
-        background_tasks=background_tasks,
-        release_searcher=request.state.lifespan_singleton.release_searcher,
-        req=adhoc_request,
+        session=session, background_tasks=background_tasks, release_searcher=release_searcher, req=adhoc_request
     )
     return TEMPLATES.TemplateResponse(
         request=request, name="fragments/adhoc_result_fragment.html", context={"search_id": search_id, "result": None}
@@ -161,13 +158,12 @@ async def adhoc_result_fragment(session: SessionDep, request: Request, search_id
 
 # POST /adhoc_snatch  (HTMX per-result "Download" button -> snatch the already-matched release, return the result fragment)
 @plastered_web_router.post("/adhoc_snatch")
-async def adhoc_snatch_submit(session: SessionDep, request: Request, search_id: Annotated[int, Form()]) -> HTMLResponse:
+async def adhoc_snatch_submit(
+    session: SessionDep, request: Request, release_searcher: ReleaseSearcherDep, search_id: Annotated[int, Form()]
+) -> HTMLResponse:
     # Run the snatch (which makes a throttled, busy-waiting RED request) off the event loop so it never blocks it.
     result = await run_in_threadpool(
-        adhoc_snatch_action,
-        release_searcher=request.state.lifespan_singleton.release_searcher,
-        search_id=search_id,
-        session=session,
+        adhoc_snatch_action, release_searcher=release_searcher, search_id=search_id, session=session
     )
     if result is None:
         raise HTTPException(
@@ -190,11 +186,11 @@ async def lfm_scraper_run_submit(
     session: SessionDep,
     background_tasks: BackgroundTasks,
     request: Request,
+    app_settings: AppSettingsDep,
+    release_searcher: ReleaseSearcherDep,
     rec_type: Annotated[str | None, Form()] = None,
     snatch: Annotated[bool, Form()] = False,
 ) -> HTMLResponse:
-    singleton = request.state.lifespan_singleton
-    app_settings = singleton.app_settings
     rec_types_override = [EntityType(rec_type)] if rec_type in {member.value for member in EntityType} else None
     effective_rec_types = (
         [member.value for member in rec_types_override] if rec_types_override else app_settings.lfm.rec_types_to_scrape
@@ -205,7 +201,7 @@ async def lfm_scraper_run_submit(
     background_tasks.add_task(
         func=run_lfm_scraper,
         app_settings=app_settings,
-        release_searcher=singleton.release_searcher,
+        release_searcher=release_searcher,
         run_id=run_id,
         rec_types_to_scrape_override=rec_types_override,
         snatch_enabled=snatch,
@@ -284,6 +280,7 @@ async def scraper_run_snatch_submit(
     session: SessionDep,
     background_tasks: BackgroundTasks,
     request: Request,
+    release_searcher: ReleaseSearcherDep,
     run_id: Annotated[int, Form()],
     search_ids: Annotated[list[int] | None, Form()] = None,
     download_all: Annotated[bool, Form()] = False,
@@ -303,7 +300,7 @@ async def scraper_run_snatch_submit(
         )
         background_tasks.add_task(
             func=run_rec_download_batch_action,
-            release_searcher=request.state.lifespan_singleton.release_searcher,
+            release_searcher=release_searcher,
             batch_id=batch_id,
             search_ids=selected,
         )
@@ -311,8 +308,7 @@ async def scraper_run_snatch_submit(
 
 
 @plastered_web_router.get("/user_details")
-async def user_details_page(request: Request) -> HTMLResponse:
-    red_user_details = request.state.lifespan_singleton.red_user_details
+async def user_details_page(request: Request, red_user_details: RedUserDetailsDep) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(
         request=request,
         name="user_details.html",

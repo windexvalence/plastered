@@ -40,7 +40,7 @@ def _status_label(status: object) -> str:
 def _auth_template_context(request: Request) -> dict[str, bool]:
     """Template context processor: exposes `auth_enabled` to every page so shared chrome (e.g. the nav-bar logout
     control in `base_template.html`) can render conditionally on `server.auth.enable_login_protection`."""
-    auth_config = request.app.state.lifespan_singleton.app_settings.server.auth
+    auth_config = request.app.state.app_settings.server.auth
     return {"auth_enabled": auth_config.enable_login_protection}
 
 

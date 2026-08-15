@@ -20,7 +20,7 @@ from plastered.api.api_models import (
     RunHistoryListResponse,
 )
 from plastered.api.constants import SUB_CONF_NAMES, TEMPLATES, RouterPrefix
-from plastered.api.fastapi_dependencies import SessionDep
+from plastered.api.fastapi_dependencies import AppSettingsDep, ReleaseSearcherDep, SessionDep
 from plastered.db.db_models import Status
 from plastered.models import EntityType
 
@@ -31,14 +31,16 @@ plastered_api_router = APIRouter(prefix=str(RouterPrefix.API))
 # /api/healthcheck
 @plastered_api_router.get("/healthcheck")
 async def healthcheck_endpoint(request: Request) -> JSONResponse:
-    return JSONResponse(content={"version": request.state.lifespan_singleton.project_version}, status_code=200)
+    return JSONResponse(content={"version": request.app.version}, status_code=200)
 
 
 # /api/config?sub_conf=<format_preferences|search|snatch>
 @plastered_api_router.get("/config", response_model=None)
-async def show_config_endpoint(request: Request, sub_conf: str | None = None) -> JSONResponse | HTMLResponse:
+async def show_config_endpoint(
+    request: Request, app_settings: AppSettingsDep, sub_conf: str | None = None
+) -> JSONResponse | HTMLResponse:
     _LOGGER.debug(f"/api/config endpoint called at {datetime.now(tz=UTC).timestamp()}")
-    conf_dict = show_config_action(app_settings=request.state.lifespan_singleton.app_settings)
+    conf_dict = show_config_action(app_settings=app_settings)
     _LOGGER.debug(f"/api/config endpoint acquired conf_dict of size {len(conf_dict)}.")
     if request.headers.get("HX-Request") == "true":
         _LOGGER.debug("/api/config endpoint detected request from HTMX.")
@@ -68,7 +70,10 @@ async def show_config_endpoint(request: Request, sub_conf: str | None = None) ->
 # /api/adhoc_search  (JSON REST entry point for the ad-hoc release search flow)
 @plastered_api_router.post("/adhoc_search", status_code=status.HTTP_202_ACCEPTED)
 async def adhoc_search_endpoint(
-    session: SessionDep, background_tasks: BackgroundTasks, request: Request, adhoc_request: AdhocSearchRequest
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    release_searcher: ReleaseSearcherDep,
+    adhoc_request: AdhocSearchRequest,
 ) -> AdhocSearchSubmittedResponse:
     """
     Accepts an ad-hoc release search request (artist + one of release/track, all other fields optional, plus optional
@@ -76,10 +81,7 @@ async def adhoc_search_endpoint(
     `/api/adhoc_result?search_id=<id>` for the matched release(s) and any snatch information.
     """
     search_id = schedule_adhoc_search(
-        session=session,
-        background_tasks=background_tasks,
-        release_searcher=request.state.lifespan_singleton.release_searcher,
-        req=adhoc_request,
+        session=session, background_tasks=background_tasks, release_searcher=release_searcher, req=adhoc_request
     )
     return AdhocSearchSubmittedResponse(
         search_id=search_id, status=Status.IN_PROGRESS, result_url=f"/api/adhoc_result?search_id={search_id}"
@@ -99,14 +101,13 @@ async def adhoc_result_endpoint(session: SessionDep, search_id: int) -> AdhocSea
 
 # /api/adhoc_snatch?search_id=<int>  (download an already-matched release from a search-only run)
 @plastered_api_router.post("/adhoc_snatch")
-async def adhoc_snatch_endpoint(session: SessionDep, request: Request, search_id: int) -> AdhocSearchResult:
+async def adhoc_snatch_endpoint(
+    session: SessionDep, release_searcher: ReleaseSearcherDep, search_id: int
+) -> AdhocSearchResult:
     """Snatches the release previously matched (but not downloaded) for an ad-hoc search, and returns the updated result."""
     # Run the snatch (which makes a throttled, busy-waiting RED request) off the event loop so it never blocks it.
     result = await run_in_threadpool(
-        adhoc_snatch_action,
-        release_searcher=request.state.lifespan_singleton.release_searcher,
-        search_id=search_id,
-        session=session,
+        adhoc_snatch_action, release_searcher=release_searcher, search_id=search_id, session=session
     )
     if result is None:
         raise HTTPException(
@@ -118,10 +119,10 @@ async def adhoc_snatch_endpoint(session: SessionDep, request: Request, search_id
 # /api/scrape?snatch=<false|true>&rec_type=<album|track|None>
 @plastered_api_router.post("/scrape")
 async def scrape_endpoint(
-    request: Request, session: SessionDep, snatch: bool = False, rec_type: EntityType | None = None
+    app_settings: AppSettingsDep, session: SessionDep, snatch: bool = False, rec_type: EntityType | None = None
 ) -> RedirectResponse:
     scrape_action(
-        app_settings=request.state.lifespan_singleton.app_settings,
+        app_settings=app_settings,
         rec_types_to_scrape_override=[rec_type] if rec_type is not None else [et for et in EntityType],
         snatch_override=snatch,
     )
