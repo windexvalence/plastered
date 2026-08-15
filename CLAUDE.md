@@ -22,7 +22,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for t
 
 - Test runner config lives in `pyproject.toml` `[tool.pytest.ini_options]`. Coverage `fail_under = 100` — **new code must be fully covered** or use the documented `pragma: no cover` / `exclude_also` patterns already in the codebase.
 - Sockets are disabled in tests (`--disable-socket`); HTTP is mocked via `pytest-httpx2` (respx). Tests run in parallel with `pytest -n auto --dist=loadfile`.
-- Markers gate optional suites: `slow` (run in CI or with `--slowtests`), `releasetest` (release builds only, `--releasetests`). See also `no_autouse_mock_lifespan_singleton_inst` and `override_global_httpx_mock` for opting out of autouse fixtures.
+- Markers gate optional suites: `slow` (run in CI or with `--slowtests`), `releasetest` (release builds only, `--releasetests`). See also `override_global_httpx_mock` for opting out of the autouse httpx mock fixture.
 - `tests/conftest.py` sets `PLASTERED_CONFIG` to `examples/config.yaml` before any imports — config loads eagerly at import time, so import order matters.
 
 ## Architecture
@@ -57,7 +57,7 @@ All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `h
 
 ### Web server (`plastered/api/`)
 
-`api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). A lifespan context (`api/lifespan_resources.py`, `LifespanSingleton`) initializes the SQLite DB (`db_startup`) and shared singletons. Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
+`api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). Its lifespan (`_app_lifespan`) initializes the SQLite DB (`db_startup`) and the app-scoped singletons on `app.state` (`AppSettings`, an APScheduler `AsyncIOScheduler`, the RED user details, and the shared `ReleaseSearcher`), which routes read via the accessor dependencies in `api/fastapi_dependencies.py` (`AppSettingsDep`, `SchedulerDep`, etc.). Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
 
 ### Persistence (`plastered/db/`)
 

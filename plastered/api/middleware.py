@@ -30,7 +30,7 @@ class LoginProtectionMiddleware(BaseHTTPMiddleware):
     """Rejects unauthenticated requests: browsers are redirected to `/login`, API clients get a 401."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        auth_config = request.app.state.lifespan_singleton.app_settings.server.auth
+        auth_config = request.app.state.app_settings.server.auth
         if not auth_config.enable_login_protection or _is_exempt_path(request.url.path):
             return await call_next(request)
         token = _extract_token(request)

@@ -76,6 +76,10 @@ class ReleaseSearcher:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:  # pragma: no cover
             _LOGGER.error(f"ReleaseSearcher encountered an uncaught exception: {exc_val}")
+        self.close_clients()
+
+    def close_clients(self) -> None:
+        """Closes all of the searcher's API clients. Called at the end of the FastAPI app lifespan on shutdown."""
         for client in (self._red_client, self._red_snatch_client, self._lfm_client, self._musicbrainz_client):
             if client:
                 client.close_client()

@@ -1,6 +1,6 @@
 import time
 from typing import Generator
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import patch
 
 from fastapi import Response
 from fastapi.testclient import TestClient
@@ -8,10 +8,8 @@ import pytest
 
 from plastered.api.app import create_fastapi_app
 from plastered.api.auth_sessions import SESSION_COOKIE_NAME, SessionTokenStore, credentials_valid, set_session_cookie
-from plastered.api.lifespan_resources import LifespanSingleton
 from plastered.config.app_settings import AppSettings, AuthConfig
 from plastered.utils.exceptions import AppConfigException
-from plastered.version import get_project_version
 
 TEST_USERNAME = "admin"
 TEST_PASSWORD = "hunter2"
@@ -19,14 +17,12 @@ TEST_PASSWORD = "hunter2"
 
 @pytest.fixture(scope="function")
 def auth_enabled_client(valid_app_settings: AppSettings) -> Generator[TestClient, None, None]:
-    """A TestClient over a fresh app whose settings have `server.auth.enable_login_protection` turned on."""
+    """A TestClient over a fresh app whose settings have `server.auth.enable_login_protection` turned on. The RED
+    client + ReleaseSearcher built by the app lifespan are already stubbed by the autouse `mock_lifespan_state`."""
     auth = AuthConfig(enable_login_protection=True, username=TEST_USERNAME, password=TEST_PASSWORD)
     server = valid_app_settings.server.model_copy(update={"auth": auth})
     app_settings = valid_app_settings.model_copy(update={"server": server})
-    singleton = MagicMock(spec=LifespanSingleton)
-    type(singleton).app_settings = PropertyMock(return_value=app_settings)
-    type(singleton).project_version = PropertyMock(return_value=get_project_version())
-    with patch("plastered.api.app.get_lifespan_singleton", return_value=singleton):
+    with patch("plastered.api.app.get_app_settings", return_value=app_settings):
         with TestClient(app=create_fastapi_app()) as test_client:
             yield test_client
 
