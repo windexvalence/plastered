@@ -6,9 +6,7 @@ MUSICBRAINZ_API_BASE_URL: Final[str] = "https://musicbrainz.org/ws/2/"
 
 RED_JSON_RESPONSE_KEY: Final[str] = "response"
 
-CACHE_DIRNAME: Final[str] = "cache"
 DB_FILENAME: Final[str] = "plastered.db"
-CACHE_TYPE_SCRAPER: Final[str] = "scraper"
 
 RENDER_WAIT_SEC_MIN: Final[int] = 3
 RENDER_WAIT_SEC_MAX: Final[int] = 7

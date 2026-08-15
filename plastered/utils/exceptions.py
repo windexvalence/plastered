@@ -75,17 +75,3 @@ class MusicBrainzClientException(Exception):
     """Exception for failed request attempts to the Musicbrainz API."""
 
     pass
-
-
-class RunCacheException(Exception):
-    """Exception for invalid RunCache configurations or execution errors."""
-
-    pass
-
-
-class RunCacheDisabledException(RunCacheException):
-    """
-    Specific Exception raised when enabled-only methods are called on a RunCache instance which is not enabled.
-    """
-
-    pass

@@ -53,7 +53,7 @@ When adding/reordering search logic, edit the chain tuples in `chains.py` and ad
 
 ### API clients (`plastered/utils/http_clients/`)
 
-All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx2.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. The API clients do **not** cache their responses. `RunCache` (diskcache, `plastered/run_cache/run_cache.py`) is used only by the LFM scraper to cache the recommendation pages it scrapes.
+All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx2.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. Nothing is cached: the API clients do **not** cache their responses, and the LFM scraper re-scrapes the recommendation pages on every run.
 
 ### Web server (`plastered/api/`)
 

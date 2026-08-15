@@ -21,8 +21,6 @@ from plastered.config.app_settings import AppSettings, get_app_settings
 from plastered.db.db_models import FailReason, SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
-from plastered.run_cache.run_cache import RunCache
-from plastered.utils.constants import CACHE_TYPE_SCRAPER
 from plastered.db.db_models import SkipReason
 from plastered.models.lfm_models import LFMRec, RecContext
 from plastered.models.search_item import SearchItem
@@ -387,14 +385,9 @@ def mock_red_user_details_fn_scoped(mock_red_user_details: RedUserDetails) -> Re
 
 
 @pytest.fixture(scope="session")
-def valid_app_settings_sesh_scoped(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
-    """
-    Session-scoped valid `AppSettings` fixture, with cache root dir
-    overridden to use the session-scoped tmp cache root dir fixture
-    """
-    app_settings = get_app_settings(valid_config_filepath)
-    app_settings._base_cache_directory_path = str(cache_root_dir_path)
-    return app_settings
+def valid_app_settings_sesh_scoped(valid_config_filepath: str) -> AppSettings:
+    """Session-scoped valid `AppSettings` fixture."""
+    return get_app_settings(valid_config_filepath)
 
 
 @pytest.fixture(scope="session")
@@ -454,39 +447,10 @@ def expected_mb_release() -> MBRelease:
     )
 
 
-@pytest.fixture(scope="session")
-def cache_root_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
-    """
-    Fixture which creates a session-scoped temporary root cache directory and returns the pathlib.Path object for it.
-    """
-    return tmp_path_factory.mktemp("cache")
-
-
-@pytest.fixture(scope="session")
-def scraper_cache_dir_path(cache_root_dir_path: Path) -> Path:
-    """
-    Fixture which creates a session-scoped Scraper cache directory and returns the pathlib.Path object for it.
-    """
-    scraper_cache_path = cache_root_dir_path / "scraper"
-    scraper_cache_path.mkdir()
-    return scraper_cache_path
-
-
 @pytest.fixture(scope="function")
-def valid_app_settings(valid_config_filepath: str, cache_root_dir_path: Path) -> AppSettings:
-    """
-    Function-scoped valid `AppSettings` fixture, with cache root dir
-    overridden to use the session-scoped tmp cache root dir fixture
-    """
-    app_settings = get_app_settings(valid_config_filepath)
-    app_settings._base_cache_directory_path = str(cache_root_dir_path)
-    return app_settings
-
-
-@pytest.fixture(scope="session")
-def scraper_run_cache(valid_config_filepath: str) -> RunCache:
-    app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-    return RunCache(app_settings=app_settings, cache_type=CACHE_TYPE_SCRAPER)
+def valid_app_settings(valid_config_filepath: str) -> AppSettings:
+    """Function-scoped valid `AppSettings` fixture."""
+    return get_app_settings(valid_config_filepath)
 
 
 def mock_red_snatch_get_side_effect() -> bytes:

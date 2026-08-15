@@ -43,8 +43,6 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | musicbrainz | `object` |  | object |  |  |  |  |
 | musicbrainz.musicbrainz_api_max_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | musicbrainz.musicbrainz_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
-| cache | `object` |  | object |  |  |  |  |
-| cache.scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 | server | `object` |  | object |  |  | Config section for the plastered API server. |  |
 | server.host | `string` |  | string |  | `"0.0.0.0"` |  |  |
 | server.port | `integer` |  | integer |  | `80` |  |  |
@@ -83,16 +81,6 @@ browser `/login` page) using the `username`/`password` configured here.
 | username | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
 | password | `string` |  | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  | `null` |  |  |
 | session_ttl_hours | `integer` |  | `0 <= x ` |  | `168` | How long a login token stays valid before a new login is required. Setting to zero disables expiration. Not recommended. |  |
-
-## CacheConfig
-
-No description provided for this model.
-
-#### Type: `object`
-
-| Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
-| -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
-| scraper_cache_enabled | `boolean` |  | boolean |  | `true` |  |  |
 
 ## CdOnlyExtras
 

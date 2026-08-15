@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettin
 from plastered.models.field_validators import APIRetries, NonRedCallWait, RedCallWait, validate_rec_types_to_scrape
 from plastered.models.red_models import RedFormat
 from plastered.models.types import MediaEnum
-from plastered.utils.constants import CACHE_DIRNAME, DB_FILENAME, PLASTERED_CONFIG_ENVVAR
+from plastered.utils.constants import DB_FILENAME, PLASTERED_CONFIG_ENVVAR
 from plastered.utils.exceptions import AppConfigException
 
 _LOGGER = logging.getLogger(__name__)
@@ -143,11 +143,6 @@ class MusicBrainzConfig(BaseModel):
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="musicbrainz")
 
 
-class CacheConfig(BaseModel):
-    model_config = ConfigDict(title="cache")
-    scraper_cache_enabled: bool = Field(default=True)
-
-
 class AuthConfig(BaseModel):
     """
     Optional config section for the plastered API server's authentication setup.
@@ -204,10 +199,6 @@ def _default_music_brainz_config() -> MusicBrainzConfig:
     return MusicBrainzConfig()
 
 
-def _default_cache_config() -> CacheConfig:
-    return CacheConfig()
-
-
 def _default_server_config() -> ServerConfig:
     return ServerConfig()
 
@@ -222,11 +213,9 @@ class AppSettings(BaseSettings):
     red: RedConfig = Field(title="red")
     lfm: LFMConfig = Field(title="lfm")
     musicbrainz: MusicBrainzConfig = Field(title="musicbrainz", default_factory=_default_music_brainz_config)
-    cache: CacheConfig = Field(title="cache", default_factory=_default_cache_config)
     server: ServerConfig = Field(title="server", default_factory=_default_server_config)
     # Private, post-init attributes below
     _config_directory_path: Path
-    _base_cache_directory_path: Path
     _db_filepath: Path
 
     def model_post_init(self, context: Any) -> None:
@@ -235,14 +224,10 @@ class AppSettings(BaseSettings):
         https://docs.pydantic.dev/latest/concepts/models/#private-model-attributes
         """
         self._config_directory_path = Path(os.path.dirname(os.path.abspath(self.src_yaml_filepath)))
-        self._base_cache_directory_path = Path(os.path.join(self._config_directory_path, CACHE_DIRNAME))
         self._db_filepath = Path(os.path.join(self._config_directory_path, DB_FILENAME))
 
     def get_db_filepath(self) -> str:
         return os.fspath(self._db_filepath)
-
-    def get_cache_directory_path(self, cache_type: str) -> str:
-        return os.path.join(self._base_cache_directory_path, cache_type)
 
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
@@ -276,10 +261,6 @@ class AppSettings(BaseSettings):
             red_updates["format_preferences"] = overrides.format_preferences
         red = self.red.model_copy(update=red_updates)
         return self.model_copy(update={"red": red})
-
-    def is_cache_enabled(self, cache_type: str) -> bool:
-        # Only the scraper cache remains; the API clients no longer cache their responses.
-        return cache_type == "scraper" and self.cache.scraper_cache_enabled
 
 
 def get_app_settings(src_yaml_filepath: Path | None = None) -> AppSettings:
