@@ -30,7 +30,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for t
 ### Request → snatch flow (scraper run)
 
 1. The server (a scraper-page submission or `POST /api/scrape`) builds an `AppSettings` via `get_app_settings()` (merging `config.yaml` + env vars `PLASTERED_*`) and calls `scrape_action` / `run_lfm_scraper` (`plastered/actions/common_actions.py`).
-2. `LFMRecsScraper` (`plastered/scraper/lfm_scraper.py`) uses Playwright (rebrowser-playwright) to scrape recommendation pages into `dict[EntityType, list[LFMRec]]`.
+2. `LFMRecsScraper` (`plastered/scraper/lfm_scraper.py`) uses Playwright (patchright) to scrape recommendation pages into `dict[EntityType, list[LFMRec]]`.
 3. `ReleaseSearcher` (`plastered/release_search/release_searcher.py`) is the orchestrator. It owns four httpx2 API clients (LFM, MusicBrainz, RED, RED-snatch) and builds a per-run `SearchState`. It wraps each `LFMRec` in a `SearchItem` and runs them through the processor chain, then snatches matches.
 
 ### The processor chain (core of release_search)

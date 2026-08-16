@@ -46,7 +46,7 @@ COPY ./plastered/config/init_conf.yaml /app/init_conf.yaml
 # Install the browser + its system deps via the playwright CLI shipped inside the PEX.
 # The PEX venv this extracts is pointed at a throwaway PEX_ROOT and removed in the same RUN,
 # so the unpacked dependency tree never lands in an image layer.
-RUN PEX_ROOT=/tmp/pex-root PEX_SCRIPT=rebrowser_playwright /app/plastered.pex install --with-deps chromium-headless-shell \
+RUN PEX_ROOT=/tmp/pex-root PEX_SCRIPT=patchright /app/plastered.pex install --with-deps chromium-headless-shell \
     # Purge with-deps packages that headless-shell scraping doesn't use (verified: page load + screenshot
     # still work): the software-GL stack (libgl1-mesa-dri drags in the ~110MB libllvm15 + libz3-4;
     # headless-shell bundles SwiftShader), xvfb (headless mode never talks to an X server), and the
@@ -95,7 +95,7 @@ ARG PLASTERED_RELEASE_TAG=""
 # deliberately runs plastered from sources on PYTHONPATH rather than as an installed distribution
 # (get_project_version() falls back to $PLASTERED_RELEASE_TAG here).
 RUN uv lock --check && uv sync --locked --all-groups --no-install-project --no-cache
-RUN rebrowser_playwright install --with-deps chromium-headless-shell \
+RUN patchright install --with-deps chromium-headless-shell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 COPY ./plastered /app/plastered
