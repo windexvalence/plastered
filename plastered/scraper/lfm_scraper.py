@@ -7,7 +7,7 @@ from time import sleep
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
-from rebrowser_playwright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
+from patchright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
 
 from plastered.models import EntityType, LFMRec, RecContext
 from plastered.utils.constants import (

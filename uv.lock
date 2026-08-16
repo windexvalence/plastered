@@ -772,6 +772,25 @@ wheels = [
 ]
 
 [[package]]
+name = "patchright"
+version = "1.61.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "greenlet" },
+    { name = "pyee" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/42/a76e2ea17dd4feccbf5ef6df017fb2e67f4b72a6f559f59d9aad1197f83a/patchright-1.61.2-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:43ae10cd2a3e46b222179a120ab39ba88f801f3a42aa41cab45fac9928f2103d", size = 43727572, upload-time = "2026-07-05T21:17:52.382Z" },
+    { url = "https://files.pythonhosted.org/packages/57/e7/1ff89853c9aeaf26cd20559f401375ec71a40e4041cf7ace03d41a741f06/patchright-1.61.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:a3da24d7890631255c7bef467b94ffe7f7bfa36f96fc72c10d5787d3cb396873", size = 42512921, upload-time = "2026-07-05T21:17:55.657Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/d0/d730536a7fc43c3aaf2781518595ca71ffa1fc2f24e580c0d0cf04e00eca/patchright-1.61.2-py3-none-macosx_11_0_universal2.whl", hash = "sha256:edef852aa7d28791fa2d3f7ce135edfea2ce07a2bc5e0a74fb2dfe269af62223", size = 43727573, upload-time = "2026-07-05T21:17:59.121Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/b5/c76dcda275cb0d9651321e343f3268609ae24cef196bff56751754ffba16/patchright-1.61.2-py3-none-manylinux1_x86_64.whl", hash = "sha256:545bdf2c0bb5f9ad78ab315e91c8c2990cc6a702e7f18650b71fe1071049b5c1", size = 47729338, upload-time = "2026-07-05T21:18:02.608Z" },
+    { url = "https://files.pythonhosted.org/packages/19/ef/5de6feaedf47a6ba8efb9e8c4f8a42bad29cc59c35bbd088b1729a36b271/patchright-1.61.2-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1824da30cf6560749bc1bb4a7f002fec325d5b709090dd7c8c1b643899331cee", size = 47426969, upload-time = "2026-07-05T21:18:06.88Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/6e/ce2c5d03a4c785ac8f3e0180bbf83ef85149cf41fdfa41c09bd8cbcfd945/patchright-1.61.2-py3-none-win32.whl", hash = "sha256:a5aaf4cec2bd38714f2447f84bcdfe7dcb592a16e9616bf6d2d872066d1c78af", size = 38155048, upload-time = "2026-07-05T21:18:09.938Z" },
+    { url = "https://files.pythonhosted.org/packages/46/c8/fceb57b9d32ed078f53fc6a757c6e4b54cb117f59412938252a3359105e5/patchright-1.61.2-py3-none-win_amd64.whl", hash = "sha256:506bca9b72e609fd8fee35e2a3ad26e5d92e25337002f5c2cdad53d5cacb0b67", size = 38155052, upload-time = "2026-07-05T21:18:13.051Z" },
+    { url = "https://files.pythonhosted.org/packages/33/96/67a791c6b7cd76424b44d356beaf414ab97c3aef2d42fad4641e7905b41d/patchright-1.61.2-py3-none-win_arm64.whl", hash = "sha256:3dee1e2daada9f98653763831f688d39c924e0cf0eeb988e8047b703766cee73", size = 34268624, upload-time = "2026-07-05T21:18:15.966Z" },
+]
+
+[[package]]
 name = "pathspec"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -815,13 +834,13 @@ dependencies = [
     { name = "httpx2" },
     { name = "jinja2-fragments" },
     { name = "jsonschema" },
+    { name = "patchright" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pygments" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "pyyaml" },
-    { name = "rebrowser-playwright" },
     { name = "rich" },
     { name = "soupsieve" },
     { name = "sqlmodel" },
@@ -858,13 +877,13 @@ requires-dist = [
     { name = "httpx2", specifier = ">=2.9.1" },
     { name = "jinja2-fragments", specifier = "==1.12.0" },
     { name = "jsonschema", specifier = "==4.26.0" },
+    { name = "patchright", specifier = "==1.61.2" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pygments", specifier = ">=2.20.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = "==6.0.3" },
-    { name = "rebrowser-playwright", specifier = "==1.52.0" },
     { name = "rich", specifier = "==15.0.0" },
     { name = "soupsieve", specifier = ">=2.9.1" },
     { name = "sqlmodel", specifier = "==0.0.39" },
@@ -1161,25 +1180,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/da/92/1446574745d74df0c92e6aa4a7b0b3130706a4142b2d1a5869f2eaa423c6/pyyaml-6.0.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:16249ee61e95f858e83976573de0f5b2893b3677ba71c9dd36b9cf8be9ac6d65", size = 829923, upload-time = "2025-09-25T21:32:54.537Z" },
     { url = "https://files.pythonhosted.org/packages/f0/7a/1c7270340330e575b92f397352af856a8c06f230aa3e76f86b39d01b416a/pyyaml-6.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4ad1906908f2f5ae4e5a8ddfce73c320c2a1429ec52eafd27138b7f1cbe341c9", size = 174062, upload-time = "2025-09-25T21:32:55.767Z" },
     { url = "https://files.pythonhosted.org/packages/f1/12/de94a39c2ef588c7e6455cfbe7343d3b2dc9d6b6b2f40c4c6565744c873d/pyyaml-6.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:ebc55a14a21cb14062aa4162f906cd962b28e2e9ea38f9b4391244cd8de4ae0b", size = 149341, upload-time = "2025-09-25T21:32:56.828Z" },
-]
-
-[[package]]
-name = "rebrowser-playwright"
-version = "1.52.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "greenlet" },
-    { name = "pyee" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/90/1c9ecdb44b81c1b46d284ebd9d5ef27b5567a66192856e001c67caf2e02d/rebrowser_playwright-1.52.0-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:ab47150ee1ab2efe2c5738b631cf366b46bcef3e2d3a72405fec564d8b13d424", size = 39281549, upload-time = "2025-05-09T05:23:03.415Z" },
-    { url = "https://files.pythonhosted.org/packages/fa/47/e5e44a9ddb7ab3f7305eced9ada7df72472abfe5e84165fcf35f220ab5aa/rebrowser_playwright-1.52.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:5dbf5ee4d6b34fba163e975c88bf34f6badb56290aa091510e422da4932c1e24", size = 37633283, upload-time = "2025-05-09T05:23:07.197Z" },
-    { url = "https://files.pythonhosted.org/packages/49/ca/bc3a206788195218f15b9a44b51b74c651f0f17c29a925226434ea28bd3f/rebrowser_playwright-1.52.0-py3-none-macosx_11_0_universal2.whl", hash = "sha256:ddd095e39e0ff68972307bd1fbe40f4a9e44fa4dbf121926b707a6b019ec9945", size = 39281549, upload-time = "2025-05-09T05:23:11.893Z" },
-    { url = "https://files.pythonhosted.org/packages/12/91/9fbff3e85dd2fd765452b1d287ef4ae93a96b669385228fa8e516085f7ca/rebrowser_playwright-1.52.0-py3-none-manylinux1_x86_64.whl", hash = "sha256:b9d27ee9fbacd597fb36a38c39d142f9a9a8837230c66207f5c15c727d3a1d91", size = 44811642, upload-time = "2025-05-09T05:23:18.006Z" },
-    { url = "https://files.pythonhosted.org/packages/43/67/8c6e02660ae209790cd73ecd99f6cacd2b85da19139d1e158f332f6a471e/rebrowser_playwright-1.52.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:065c70e1901928b16f07d26161f3c2d8f672e9176ddae055b9e802a591d88166", size = 44210930, upload-time = "2025-05-09T05:23:25.674Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/0f/595b60ca41c5f381147b041d90a720aa3820d17156d3cda9b4f2a29d1acc/rebrowser_playwright-1.52.0-py3-none-win32.whl", hash = "sha256:928519b50dab08e14ac286334d96b7b09cd1090253c996c14042ecb6fb302776", size = 34509460, upload-time = "2025-05-09T05:23:32.715Z" },
-    { url = "https://files.pythonhosted.org/packages/e0/f3/023969defc1fe4178e38c45805e3a77f44d79def9db5329c5f3506fe2d18/rebrowser_playwright-1.52.0-py3-none-win_amd64.whl", hash = "sha256:e945020f49abb498e0d3965ba106fdc2d7afa13dbe98e789fbd3aab90bb811c2", size = 34509464, upload-time = "2025-05-09T05:23:39.103Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/59/7155d058949baed2f10ae9f5dcb4416afc89d3ff6daadaa50d01d2035fd8/rebrowser_playwright-1.52.0-py3-none-win_arm64.whl", hash = "sha256:9bed76a49ce51feb65ca1f5e7df92302152e52893de4df472c998416d9806119", size = 30359272, upload-time = "2025-05-09T05:23:45.476Z" },
 ]
 
 [[package]]

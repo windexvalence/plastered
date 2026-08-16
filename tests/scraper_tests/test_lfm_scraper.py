@@ -3,7 +3,7 @@ from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from rebrowser_playwright.sync_api import Error, PlaywrightContextManager
+from patchright.sync_api import Error, PlaywrightContextManager
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec

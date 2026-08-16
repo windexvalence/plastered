@@ -1,8 +1,9 @@
 # Plastered
 
-![CI status](https://github.com/windexvalence/plastered/actions/workflows/build-and-test.yml/badge.svg?branch=main) ![coverage](./docs/image_assets/coverage.svg) ![Security: Bandit](https://img.shields.io/badge/security-bandit-8A2BE2) 
+![Latest release](https://img.shields.io/github/release/windexvalence/plastered?label=Latest%20release)
 
-![Last release](https://img.shields.io/github/release/windexvalence/plastered?label=Last%20release)
+![CI status](https://github.com/windexvalence/plastered/actions/workflows/build-and-test.yml/badge.svg?branch=main) ![coverage](./docs/image_assets/coverage.svg) ![Security: Bandit](https://img.shields.io/badge/security-bandit-8A2BE2) 
+[![python](https://img.shields.io/badge/python-3.14%2B-blue.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 
 
 ## `Python + Last + RED = plastered`
