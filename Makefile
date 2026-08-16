@@ -60,6 +60,7 @@ docker-server:  docker-build-no-test  ## Execs a local container running the ser
 		-v $(DOWNLOADS_DIR):/downloads \
 		-e PLASTERED_CONFIG=/config/config.yaml \
 		-e DB_TEST_MODE=$(DB_TEST_MODE) \
+		--user root -e PUID=$$(id -u) -e PGID=$$(id -g) \
 		wv/plastered:non-test
 
 docker-py-shell:  docker-build  ## Execs a local python shell inside a locally built plastered docker container for testing and debugging

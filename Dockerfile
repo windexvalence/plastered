@@ -34,7 +34,10 @@ LABEL org.opencontainers.image.source="https://github.com/windexvalence/plastere
 LABEL org.opencontainers.image.version="${PLASTERED_RELEASE_TAG#v}"
 
 WORKDIR /app
-ENV PYTHONDONTWRITEBYTECODE=1
+# PLAYWRIGHT_BROWSERS_PATH: install the browser into a world-readable shared path instead of the
+# default ~/.cache/ms-playwright — /root is 0700, so a root-home install would be unreadable to the
+# non-root runtime user. Set before the install RUN below and kept for runtime resolution.
+ENV PYTHONDONTWRITEBYTECODE=1 PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # The single PEX is the entire application: 1st-party sources (incl. static/templates/pyproject.toml,
 # all resolved at runtime via importlib.resources) + all locked 3rd-party deps.
 COPY --from=pex-builder /plastered.pex /app/plastered.pex
@@ -61,12 +64,24 @@ RUN PEX_ROOT=/tmp/pex-root PEX_SCRIPT=rebrowser_playwright /app/plastered.pex in
     && rm -rf /tmp/pex-root \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /root/.cache/ms-playwright/ffmpeg-* \
+    && rm -rf ${PLAYWRIGHT_BROWSERS_PATH}/ffmpeg-* \
     && rm -rf /usr/share/doc /usr/share/man
-ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
-# `run` resolves the config path from the PLASTERED_CONFIG env var and launches uvicorn with the
-# host / port / log level / workers from the app config.
-ENTRYPOINT ["/app/plastered.pex", "run"]
+# The non-root runtime user. PUID/PGID are its default ids and double as the remap request read by
+# docker-entrypoint.sh: launching with `--user root -e PUID=<uid> -e PGID=<gid>` remaps the
+# `plastered` user linuxserver.io-style and re-drops privileges before booting the app. PEX_ROOT
+# (where the PEX extracts its venv on first boot) is /tmp-style world-writable so arbitrary
+# `docker run --user <uid>:<gid>` launches work too.
+ENV PUID=1000 PGID=1000
+RUN groupadd --gid "${PGID}" plastered \
+    && useradd --uid "${PUID}" --gid plastered --create-home --shell /usr/sbin/nologin plastered \
+    && mkdir --parents --mode=1777 /app/.pex
+COPY --chmod=755 ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG} PEX_ROOT=/app/.pex
+USER plastered
+# The entrypoint execs `/app/plastered.pex run`; `run` resolves the config path from the
+# PLASTERED_CONFIG env var and launches uvicorn with the host / port / log level / workers from
+# the app config.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 ########## Stage 3: the test image (CI + local dev only; size does not matter here) ##########
 FROM python:3.14.7-slim-bookworm AS plastered-test
