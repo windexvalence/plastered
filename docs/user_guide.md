@@ -52,6 +52,32 @@ Then open <http://localhost:8000/> in your browser.
 > The container serves the app on port 80 internally; the `-p 8000:80` above exposes it as `localhost:8000` on your
 > host — change the left-hand `8000` if that port is taken.
 
+### User / Group Identifiers
+
+The app never runs as root: the image defaults to a non-root user with uid:gid `1000:1000`. When using volumes (`-v`
+flags), permissions issues can arise between the host OS and the container — avoid them by matching the container's
+ids to the host user that owns your mounted directories. To find that user's ids, run `id your_user`:
+
+```shell
+$ id your_user
+uid=1000(your_user) gid=1000(your_user) groups=1000(your_user)
+```
+
+If those ids are not `1000:1000`, pick one of these ways to change the container's ids:
+
+- **`PUID`/`PGID` environment variables (linuxserver.io-style):** start the container as root so it can remap its
+  internal user; it re-drops privileges to the requested ids before booting the app:
+
+  ```shell
+  docker run ... --user root -e PUID=1000 -e PGID=1000 ...
+  ```
+
+  On startup the config directory is chowned to those ids automatically (it holds the app's SQLite DB); the
+  downloads directory is left untouched, so ensure it is writable by `PUID:PGID`.
+
+- **`--user` (docker-native):** `docker run --user <uid>:<gid>` runs the app directly as those ids. Nothing is
+  chowned for you, so both mounted directories must already be writable by those ids.
+
 ## 4: Use the App
 
 Everything is driven from the web UI:
