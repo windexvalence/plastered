@@ -61,7 +61,7 @@ class LFMTrackInfo:  # TODO (later): stop using this class and above class in fa
         )
 
     @classmethod
-    def from_mb_origin_release_info(cls, si: "SearchItem", origin_info_json: dict[str, Any] | None):
+    def from_mb_origin_release_info(cls, si: SearchItem, origin_info_json: dict[str, Any] | None):
         """
         Constructs an LFMTrackInfo instance from the MB API's 'recording' endpoint response.
         Returns `None` if `mb_origin_release_info_json` is `None`.

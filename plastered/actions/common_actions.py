@@ -1,16 +1,20 @@
+from __future__ import annotations
+
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlmodel import Session
-
-from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import ScraperRunStatus
 from plastered.db.db_utils import create_scraper_run, update_scraper_run
-from plastered.models import EntityType
 from plastered.release_search.release_searcher import ReleaseSearcher
 from plastered.scraper.lfm_scraper import LFMRecsScraper
+
+if TYPE_CHECKING:
+    from sqlmodel import Session
+
+    from plastered.config.app_settings import AppSettings
+    from plastered.models import EntityType
 
 _LOGGER = logging.getLogger(__name__)
 

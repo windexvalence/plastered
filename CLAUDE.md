@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common commands
 
-All workflows go through the `Makefile` and `uv` (Python 3.12). Run `make` for the full target list.
+All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for the full target list.
 
 - `make test` — run all tests (non-containerized). Sets `PYTHONPATH`/`APP_DIR` and calls `tests/tests_entrypoint.sh`.
 - `make test TEST_TARGET=tests/utils_tests/test_http_utils.py` — run a single test file.

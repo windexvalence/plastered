@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
-from plastered.config.app_settings import AppSettings
-from plastered.models import SearchItem
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL
 from plastered.utils.exceptions import MusicBrainzClientException
 from plastered.utils.http_clients.base_client import LOGGER, ThrottledAPIBaseClient
+
+if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings
+    from plastered.models import SearchItem
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +97,7 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         json_data = mb_response.json()
         try:
             first_release_match_json = json_data["recordings"][0]["releases"][0]
-        except (KeyError, IndexError):
+        except KeyError, IndexError:
             LOGGER.debug(f"Unable to resolve an origin release for track: '{track_name}' by '{artist_name}'")
             return None
         rel_mbid, rel_name = first_release_match_json.get("id"), first_release_match_json.get("title")

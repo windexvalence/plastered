@@ -1,7 +1,12 @@
-from dataclasses import dataclass
-from pathlib import Path
+from __future__ import annotations
 
-from plastered.config.app_settings import AppSettings
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from plastered.config.app_settings import AppSettings
 
 
 @dataclass(frozen=True)

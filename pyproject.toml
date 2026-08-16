@@ -3,7 +3,7 @@ name = "plastered"
 # The version is derived from the latest `vX.Y.Z` git tag by setuptools-scm (see
 # [tool.setuptools_scm] below); it is never maintained by hand.
 dynamic = ["version"]
-requires-python = ">= 3.12"
+requires-python = ">= 3.14"
 dependencies = [
 	"click==8.4.2",
 	"anyio==4.14.2",
@@ -141,7 +141,16 @@ ignore = ["E203", "E501"]
 # https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_exempt-modules
 exempt-modules = ["typing", "typing_extensions"]
 # https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-base-classes
-runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase", "sqlmodel.SQLModel"]
+runtime-evaluated-base-classes = [
+	"pydantic.BaseModel",
+	"pydantic_settings.BaseSettings",
+	"sqlalchemy.orm.DeclarativeBase",
+	"sqlmodel.SQLModel",
+]
+# FastAPI evaluates route-handler annotations at runtime to build the dependency graph, so imports
+# used in decorated handlers' signatures must stay out of TYPE_CHECKING blocks.
+# https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-decorators
+runtime-evaluated-decorators = ["fastapi.APIRouter.get", "fastapi.APIRouter.post"]
 
 [tool.ruff.lint.isort]
 # https://docs.astral.sh/ruff/settings/#lint_isort_split-on-trailing-comma

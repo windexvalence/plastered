@@ -232,7 +232,7 @@ class AppSettings(BaseSettings):
     def get_red_format_preferences(self) -> list[FormatPreference]:
         return self.red.format_preferences
 
-    def with_red_overrides(self, overrides: "RedSearchOverrides | None") -> "AppSettings":
+    def with_red_overrides(self, overrides: RedSearchOverrides | None) -> AppSettings:
         """
         Returns a copy of these settings with the provided ad-hoc `RedSearchOverrides` merged onto the `red.search`,
         `red.snatches`, and `red.format_preferences` settings. Returns `self` unchanged when `overrides` is `None` or

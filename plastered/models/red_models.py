@@ -30,7 +30,7 @@ class CdOnlyExtras(BaseModel):
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore")
 
     @model_validator(mode="after")
-    def post_model_validator(self) -> "CdOnlyExtras":
+    def post_model_validator(self) -> CdOnlyExtras:
         validate_cd_extras_log_value(self.log)
         return self
 

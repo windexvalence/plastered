@@ -118,6 +118,7 @@ def test_create_and_update_and_get_scraper_run() -> None:
     assert run.rec_types == "album,track"
     assert run.stage == "searching" and run.progress_current == 2 and run.progress_total == 5
     assert run.status == ScraperRunStatus.COMPLETED and run.total_recs == 5
+    engine.dispose()
 
 
 def test_rec_download_batch_lifecycle() -> None:
@@ -142,3 +143,4 @@ def test_rec_download_batch_lifecycle() -> None:
     with Session(engine) as session:
         final = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
     assert final.status == RecDownloadBatchStatus.COMPLETED and final.completed == 2
+    engine.dispose()

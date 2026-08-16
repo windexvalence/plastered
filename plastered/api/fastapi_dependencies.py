@@ -1,5 +1,6 @@
-from collections.abc import Generator
-from typing import Annotated, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import Depends, Request
 from sqlmodel import Session
@@ -9,8 +10,11 @@ from plastered.db.db_models import get_engine
 from plastered.models import RedUserDetails
 from plastered.release_search.release_searcher import ReleaseSearcher
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
-def _get_session() -> Generator[Session, None, None]:
+
+def _get_session() -> Generator[Session]:
     with Session(get_engine()) as session:
         yield session
 

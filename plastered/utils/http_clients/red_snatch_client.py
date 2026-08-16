@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import httpx2
 
-from plastered.config.app_settings import AppSettings
 from plastered.utils.constants import RED_API_BASE_URL
 from plastered.utils.exceptions import RedClientSnatchException
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings
     from plastered.models import RedUserDetails
 
 

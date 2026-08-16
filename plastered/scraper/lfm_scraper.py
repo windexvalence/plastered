@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import logging
 import re
 from random import randint
 from time import sleep
+from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from rebrowser_playwright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
 
-from plastered.config.app_settings import AppSettings
 from plastered.models import EntityType, LFMRec, RecContext
 from plastered.utils.constants import (
     ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
@@ -28,6 +30,9 @@ from plastered.utils.constants import (
 )
 from plastered.utils.exceptions import ScraperException
 from plastered.utils.log_utils import CONSOLE, SPINNER
+
+if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings
 
 _LOGGER = logging.getLogger(__name__)
 
