@@ -29,6 +29,11 @@ class SearchItem:
     above_max_size_te_found: bool | None = False
     torrent_entry: TorrentEntry | None = None
     search_id: int | None = None
+    # Set when an LFM / MusicBrainz API request for this item failed at the infrastructure level (connection error,
+    # unusable payload). Filters use these to attribute a data-missing skip to the failed request rather than to a
+    # generic unresolved-fields / no-source-release reason.
+    lfm_request_failed: bool = False
+    mb_request_failed: bool = False
     _lfm_album_info: LFMAlbumInfo | None = None
     _lfm_track_info: LFMTrackInfo | None = None
     _mb_release: MBRelease | None = None

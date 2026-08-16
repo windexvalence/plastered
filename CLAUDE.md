@@ -39,7 +39,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for t
 
 Two processor kinds, both defined in `processors/bases.py`:
 - **Modifiers** (`SearchItemModifier`, `processors/modifiers.py`) — enrich the `SearchItem` in place (attach search ID, resolve LFM album/track info, resolve MusicBrainz release/MBID, query the RED browse endpoint). Always return the item.
-- **Filters** (`SearchItemFilter`, `processors/filters.py`) — return the item to keep it or `None` to drop it. Filters delegate their actual rules to `SearchState` methods (e.g. already-snatched, rec-context, required-fields-present, dupe, size limits) and record a `SkipReason`.
+- **Filters** (`SearchItemFilter`, `processors/filters.py`) — return the item to keep it or `None` to drop it. Filters delegate their actual rules to `SearchState` methods (e.g. already-snatched, required-fields-present, dupe, size limits) and record a `SkipReason`.
 
 When adding/reordering search logic, edit the chain tuples in `chains.py` and add the corresponding modifier/filter.
 

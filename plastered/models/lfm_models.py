@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote_plus
 
-from plastered.models.types import EntityType, RecContext
+from plastered.models.types import EntityType
 from plastered.utils.exceptions import LFMRecException
 
 if TYPE_CHECKING:
@@ -94,20 +94,13 @@ class LFMRec:
     Corresponds to either a distinct LFM Album recommendation, or a distinct LFM Track recommendation.
     """
 
-    def __init__(
-        self,
-        lfm_artist_str: str,
-        lfm_entity_str: str,
-        recommendation_type: str | EntityType,
-        rec_context: str | RecContext,
-    ):
+    def __init__(self, lfm_artist_str: str, lfm_entity_str: str, recommendation_type: str | EntityType):
         self._lfm_artist_str = lfm_artist_str
         self._lfm_entity_str = lfm_entity_str
         self._entity_type = EntityType(recommendation_type)
-        self._rec_context = RecContext(rec_context)
 
     def __str__(self) -> str:
-        return f"artist={self._lfm_artist_str}, {self._entity_type.value}={self._lfm_entity_str}, context={self._rec_context.value}"
+        return f"artist={self._lfm_artist_str}, {self._entity_type.value}={self._lfm_entity_str}"
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, LFMRec):
@@ -116,7 +109,6 @@ class LFMRec:
             self.encoded_artist_str == other.encoded_artist_str
             and self.encoded_entity_str == other.encoded_entity_str
             and self.is_album_rec() == other.is_album_rec()
-            and self.rec_context.value == other.rec_context.value
         )
 
     def is_album_rec(self) -> bool:
@@ -149,10 +141,6 @@ class LFMRec:
     @property
     def entity_type(self) -> EntityType:
         return self._entity_type
-
-    @property
-    def rec_context(self) -> RecContext:
-        return self._rec_context
 
     @property
     def lfm_entity_url(self) -> str:

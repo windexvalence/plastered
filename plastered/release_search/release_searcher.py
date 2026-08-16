@@ -28,12 +28,12 @@ def _dedupe_recs(recs: list[LFMRec]) -> list[LFMRec]:
     """
     Drops duplicate recs (order-preserving) that map to the same release, so the same query isn't processed — and
     recorded as a separate `SearchRecord` — more than once. Recs are deduped by the same identity as `LFMRec.__eq__`
-    (artist, entity, album-vs-track, rec context).
+    (artist, entity, album-vs-track).
     """
-    seen: set[tuple[str, str, bool, str]] = set()
+    seen: set[tuple[str, str, bool]] = set()
     deduped: list[LFMRec] = []
     for rec in recs:
-        key = (rec.encoded_artist_str, rec.encoded_entity_str, rec.is_album_rec(), rec.rec_context.value)
+        key = (rec.encoded_artist_str, rec.encoded_entity_str, rec.is_album_rec())
         if key in seen:
             _LOGGER.debug(f"Dropping duplicate rec: {rec}")
             continue

@@ -50,7 +50,6 @@ lfm:
   lfm_api_retries: 3
   lfm_api_seconds_between_calls: 2
   rec_types_to_scrape: [album, track]
-  allow_library_items: false
 musicbrainz:
   musicbrainz_api_max_retries: 3
   musicbrainz_api_seconds_between_calls: 1

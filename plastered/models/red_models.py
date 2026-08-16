@@ -315,14 +315,14 @@ class RedUserDetails(BaseModel):
 
     def calculate_max_download_allowed_gb(self, min_allowed_ratio: float) -> float:
         """
-        Calculates the maximum total GB which can be snatched from RED during the current run.
-        Returns the lesser of the two values:
-            (a) the user's initial buffer at the start of the run,
-            (b) OR the additional DL (in GB) required to bring the user's ratio down to their configured 'min_allowed_ratio' config setting.
+        Calculates the maximum total GB which can be snatched from RED during the current run: the additional DL
+        (in GB) required to bring the user's ratio down to their configured 'min_allowed_ratio' config setting,
+        capped by the user's initial buffer at the start of the run. A non-positive `min_allowed_ratio` (the
+        config default) disables the limit entirely: the run's cumulative download is unbounded.
         """
         init_stats = self._initial_stats
         if min_allowed_ratio <= 0:
-            return self._initial_stats.buffer
+            return float("inf")
         # Solve for constraint init_U / (init_D + max_allowed_run_dl) >= min_allowed_ratio
         ratio_max_allowed_run_dl = init_stats.uploaded / min_allowed_ratio - init_stats.downloaded
         return max(min(ratio_max_allowed_run_dl, init_stats.buffer), 0.0)

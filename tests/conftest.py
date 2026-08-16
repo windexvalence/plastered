@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from contextlib import contextmanager
 import copy
-import csv
 import json
 import os
 
@@ -18,11 +17,10 @@ import respx
 import yaml
 
 from plastered.config.app_settings import AppSettings, get_app_settings
-from plastered.db.db_models import FailReason, SearchRecord
+from plastered.db.db_models import SearchRecord
 from plastered.models.red_models import CdOnlyExtras, RedFormat
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
-from plastered.db.db_models import SkipReason
-from plastered.models.lfm_models import LFMRec, RecContext
+from plastered.models.lfm_models import LFMRec
 from plastered.models.search_item import SearchItem
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.musicbrainz_models import MBRelease
@@ -187,11 +185,6 @@ def mock_album_result() -> SearchRecord:
 
 
 @pytest.fixture(scope="session")
-def mock_run_date_str() -> str:
-    return "2025-01-20__00-24-42"
-
-
-@pytest.fixture(scope="session")
 def valid_config_filepath() -> str:
     return os.path.join(EXAMPLES_DIR_PATH, "config.yaml")
 
@@ -223,121 +216,6 @@ def minimal_valid_config_raw_data(minimal_valid_config_filepath: str) -> dict[st
 @pytest.fixture(scope="session")
 def minimal_valid_app_settings(minimal_valid_config_filepath: str) -> AppSettings:
     return get_app_settings(src_yaml_filepath=Path(minimal_valid_config_filepath))
-
-
-@pytest.fixture(scope="session")
-def mock_root_summary_dir_path(tmp_path_factory: pytest.FixtureRequest) -> Path:
-    return tmp_path_factory.mktemp("summaries")
-
-
-@pytest.fixture(scope="session")
-def mock_output_summary_dir_path(mock_root_summary_dir_path: Path, mock_run_date_str: str) -> Path:
-    run_summary_dir = mock_root_summary_dir_path / mock_run_date_str
-    run_summary_dir.mkdir()
-    return run_summary_dir
-
-
-@pytest.fixture(scope="session")
-def skipped_rows() -> list[list[str]]:
-    return [
-        ["album", "similar-artist", "Some Artist", "Their Album", "N/A", "69420", SkipReason.ALREADY_SNATCHED.value],
-        [
-            "album",
-            "similar-artist",
-            "Some Other Artist",
-            "Other Album",
-            "N/A",
-            "69420",
-            SkipReason.ABOVE_MAX_ALLOWED_SIZE.value,
-        ],
-        ["album", "similar-artist", "Another Artist", "Fake Album", "N/A", "None", SkipReason.NO_MATCH_FOUND.value],
-        ["album", "in-library", "Another Artist", "Fake Album", "N/A", "None", SkipReason.REC_CONTEXT_FILTERING.value],
-        [
-            "track",
-            "in-library",
-            "Another Artist",
-            "Fake Release",
-            "Some Track",
-            "None",
-            SkipReason.REC_CONTEXT_FILTERING.value,
-        ],
-    ]
-
-
-@pytest.fixture(scope="session")
-def failed_snatch_rows() -> list[list[str]]:
-    return [
-        ["redacted.sh/torrents.php?torrentid=69", "abcde1-gfhe39", FailReason.RED_API_REQUEST_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=420", "asjh98uf2f-fajsdknau", FailReason.FILE_ERROR.value],
-        ["redacted.sh/torrents.php?torrentid=666", "ajdff2favdfvkj", FailReason.OTHER.value],
-    ]
-
-
-@pytest.fixture(scope="session")
-def snatch_summary_rows() -> list[list[str]]:
-    return [
-        [
-            "album",
-            "similar-artist",
-            "Some Artist",
-            "Their Album",
-            "N/A",
-            "69420",
-            "Vinyl",
-            "no",
-            "/downloads/69420.torrent",
-        ],
-        ["album", "similar-artist", "Fake Band", "Fake Album", "N/A", "69", "CD", "yes", "/downloads/69.torrent"],
-        [
-            "track",
-            "similar-artist",
-            "Fake Band",
-            "Fake Album",
-            "Fake Song",
-            "420",
-            "CD",
-            "yes",
-            "/downloads/420.torrent",
-        ],
-    ]
-
-
-@pytest.fixture(scope="session")
-def mock_summary_tsvs(
-    mock_output_summary_dir_path: Path,
-    failed_snatch_rows: list[list[str]],
-    skipped_rows: list[list[str]],
-    snatch_summary_rows: list[list[str]],
-) -> dict[str, str]:
-    type_to_headers = {
-        "failed": ["RED_permalink", "Matched_MBID_(if_any)", "Failure_reason"],
-        "snatched": [
-            "Type",
-            "LFM_Rec_context",
-            "Artist",
-            "Release",
-            "Track_Rec",
-            "RED_tid",
-            "Media",
-            "FL_token_used",
-            "Snatch_path",
-        ],
-        "skipped": ["Type", "LFM_Rec_context", "Artist", "Release", "Track_Rec", "Matched_RED_TID", "Skip_reason"],
-    }
-
-    def _write_dummy_tsv(dummy_path: str, header: list[str], dummy_rows: list[list[str]]) -> None:
-        with open(dummy_path, "w") as f:
-            w = csv.writer(f, delimiter="\t", lineterminator="\n")
-            w.writerow(header)
-            w.writerows(dummy_rows)
-
-    failed_tsv_path = os.path.join(mock_output_summary_dir_path, "failed.tsv")
-    snatched_tsv_path = os.path.join(mock_output_summary_dir_path, "snatched.tsv")
-    skipped_tsv_path = os.path.join(mock_output_summary_dir_path, "skipped.tsv")
-    _write_dummy_tsv(failed_tsv_path, type_to_headers["failed"], failed_snatch_rows)
-    _write_dummy_tsv(snatched_tsv_path, type_to_headers["snatched"], snatch_summary_rows)
-    _write_dummy_tsv(skipped_tsv_path, type_to_headers["skipped"], skipped_rows)
-    return {"failed": failed_tsv_path, "snatched": snatched_tsv_path, "skipped": skipped_tsv_path}
 
 
 @pytest.fixture(scope="session")
@@ -617,40 +495,34 @@ def global_httpx_mock(
 
 
 @pytest.fixture(scope="session")
-def make_album_search_item() -> Callable[[bool, str | None, str | None, RecContext | None], SearchItem]:
+def make_album_search_item() -> Callable[[bool, str | None, str | None], SearchItem]:
     """
     Fixture factory to generate album search items on the fly.
     https://docs.pytest.org/en/stable/how-to/fixtures.html#factories-as-fixtures
     """
 
     def _make_album_search_item(
-        is_lfm_rec: bool,
-        artist: str | None = "artist",
-        album: str | None = "album",
-        rc: RecContext | None = RecContext.SIMILAR_ARTIST,
+        is_lfm_rec: bool, artist: str | None = "artist", album: str | None = "album"
     ) -> SearchItem:
         if is_lfm_rec:
-            return SearchItem(initial_info=LFMRec(artist, album, EntityType.ALBUM, rc))
+            return SearchItem(initial_info=LFMRec(artist, album, EntityType.ALBUM))
         return SearchItem(initial_info=AdhocSearch(artist=artist, release=album))
 
     return _make_album_search_item
 
 
 @pytest.fixture(scope="session")
-def make_track_search_item() -> Callable[[bool, str | None, str | None, RecContext | None], SearchItem]:
+def make_track_search_item() -> Callable[[bool, str | None, str | None], SearchItem]:
     """
     Fixture factory to generate track search items on the fly.
     https://docs.pytest.org/en/stable/how-to/fixtures.html#factories-as-fixtures
     """
 
     def _make_track_search_item(
-        is_lfm_rec: bool,
-        artist: str | None = "artist",
-        track: str | None = "track",
-        rc: RecContext | None = RecContext.SIMILAR_ARTIST,
+        is_lfm_rec: bool, artist: str | None = "artist", track: str | None = "track"
     ) -> SearchItem:
         if is_lfm_rec:
-            return SearchItem(initial_info=LFMRec(artist, track, EntityType.TRACK, rc))
+            return SearchItem(initial_info=LFMRec(artist, track, EntityType.TRACK))
         return SearchItem(initial_info=AdhocSearch(artist=artist, track=track))
 
     return _make_track_search_item

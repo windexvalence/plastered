@@ -36,9 +36,13 @@ class SkipReason(StrEnum):
     NO_MATCH_FOUND = "No RED match found"
     ALREADY_SNATCHED = "Already snatched from release group"
     DUPE_OF_ANOTHER_REC = "Dupe of other release pending download"
+    # No longer produced (rec-context filtering and `lfm.allow_library_items` were removed); retained so
+    # historical `Skipped` DB rows written by older versions still deserialize.
     REC_CONTEXT_FILTERING = "LFM Recs with context 'in-library' ignored when 'allow_library_items' = false"
     NO_SOURCE_RELEASE_FOUND = "Could not associate track rec with a release"
     MIN_RATIO_LIMIT = "Snatch would drop ratio below configured 'min_allowed_ratio'"
+    MB_REQUEST_FAILURE = "A failed MusicBrainz API request prevented resolving the release"
+    LFM_REQUEST_FAILURE = "A failed LFM API request prevented resolving the release"
     UNRESOLVED_REQUIRED_SEARCH_FIELDS = (
         "Could not resolve 1 or more of: first_release_year record_label, catalog_number"
     )

@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
-from plastered.models import EntityType as et, LFMRec, RecContext as rc, SearchItem, TorrentEntry as te
+from plastered.models import EntityType as et, LFMRec, SearchItem, TorrentEntry as te
 from plastered.release_search.search_helpers import SearchState
 from plastered.snatch import Snatcher
 from plastered.utils.http_clients import RedSnatchAPIClient
@@ -71,7 +71,7 @@ def test_snatch_matches(
     make_snatcher: SnatcherFactory, fake_snatch_dir: Path, manual_run: bool, ent_type: et, enable_snatches: bool
 ) -> None:
     expect_calls = enable_snatches
-    mock_si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rc.IN_LIBRARY))
+    mock_si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type))
     snatcher, _, mock_search_state = make_snatcher(snatch_directory=fake_snatch_dir, enable_snatches=enable_snatches)
     mock_search_state.get_search_items_to_snatch.return_value = [mock_si_to_snatch]
     with patch.object(Snatcher, "_snatch_match") as mock_snatch_match_method:
@@ -85,20 +85,14 @@ def test_snatch_matches(
 
 
 @pytest.mark.parametrize("ent_type", [m for m in et])
-@pytest.mark.parametrize("rec_ctx", [r for r in rc])
 @pytest.mark.parametrize("used_fl_token", [False, True])
 def test_snatch_match_valid(
-    make_snatcher: SnatcherFactory,
-    mock_best_te: te,
-    fake_snatch_dir: Path,
-    ent_type: et,
-    rec_ctx: rc,
-    used_fl_token: bool,
+    make_snatcher: SnatcherFactory, mock_best_te: te, fake_snatch_dir: Path, ent_type: et, used_fl_token: bool
 ) -> None:
     mock_tid = mock_best_te.torrent_id
     expected_out_filepath = fake_snatch_dir / f"{mock_tid}.torrent"
     mock_content_bytes = b"some-fake-bytes"
-    si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type, rec_ctx), torrent_entry=mock_best_te)
+    si_to_snatch = SearchItem(initial_info=LFMRec("artist", "ent", ent_type), torrent_entry=mock_best_te)
     snatcher, mock_red_snatch_client, mock_search_state = make_snatcher(
         snatch_directory=fake_snatch_dir, enable_snatches=True
     )

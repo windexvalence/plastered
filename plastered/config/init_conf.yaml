@@ -12,13 +12,13 @@ red:
     use_first_release_year: true
     use_record_label: false
     use_catalog_number: false
-    use_fl_tokens: false
   snatches:
-    # NOTE: the snatch_directory must point to the content directory 
+    # NOTE: the snatch_directory must point to the content directory
     # mounted on your container.
     snatch_directory: /downloads
     snatch_recs: true
     max_size_gb: 2.0
+    use_fl_tokens: false
   # You should modify this list of preferences to match the formats / encodings / media preferences that best suite your needs.
   # Refer to https://github.com/windexvalence/plastered/blob/main/docs/config_reference.md for more details.
   format_preferences: 

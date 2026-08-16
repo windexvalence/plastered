@@ -7,7 +7,7 @@ from patchright.sync_api import Error, PlaywrightContextManager
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.lfm_models import LFMRec
-from plastered.models.types import RecContext, EntityType
+from plastered.models.types import EntityType
 from plastered.scraper.lfm_scraper import (
     _CONTENT_READ_MAX_ATTEMPTS,
     _PAGE_SETTLE_TIMEOUT_MS,
@@ -38,251 +38,115 @@ def lfm_rec_scraper(valid_app_settings: AppSettings) -> LFMRecsScraper:
 def expected_album_recs() -> list[LFMRec]:
     return [
         LFMRec(
-            lfm_artist_str="Dr.+Octagon",
-            lfm_entity_str="Dr.+Octagonecologyst",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
+            lfm_artist_str="Dr.+Octagon", lfm_entity_str="Dr.+Octagonecologyst", recommendation_type=EntityType.ALBUM
         ),
         LFMRec(
             lfm_artist_str="Soulwax",
             lfm_entity_str="Much+Against+Everyone%27s+Advice",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
         ),
         LFMRec(
             lfm_artist_str="Mission+of+Burma",
             lfm_entity_str="Signals,+Calls+and+Marches",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
         LFMRec(
             lfm_artist_str="The+Fall",
             lfm_entity_str="This+Nation%27s+Saving+Grace",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Bo+Diddley",
-            lfm_entity_str="500%25+More+Man",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
-        ),
-        LFMRec(
-            lfm_artist_str="MF+DOOM",
-            lfm_entity_str="MM...FOOD",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
-        ),
+        LFMRec(lfm_artist_str="Bo+Diddley", lfm_entity_str="500%25+More+Man", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="MF+DOOM", lfm_entity_str="MM...FOOD", recommendation_type=EntityType.ALBUM),
         LFMRec(
             lfm_artist_str="Black+Moth+Super+Rainbow",
             lfm_entity_str="Dandelion+Gum",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
         ),
-        LFMRec(
-            lfm_artist_str="Magazine",
-            lfm_entity_str="Real+Life",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Red+Rider",
-            lfm_entity_str="Neruda",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
-        ),
-        LFMRec(
-            lfm_artist_str="Pylon",
-            lfm_entity_str="Chomp+(Remastered)",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Thee+Oh+Sees",
-            lfm_entity_str="Floating+Coffin",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Magazine", lfm_entity_str="Real+Life", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="Red+Rider", lfm_entity_str="Neruda", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="Pylon", lfm_entity_str="Chomp+(Remastered)", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="Thee+Oh+Sees", lfm_entity_str="Floating+Coffin", recommendation_type=EntityType.ALBUM),
         LFMRec(
             lfm_artist_str="Minutemen",
             lfm_entity_str="Double+Nickels+on+the+Dime",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Ty+Segall+Band",
-            lfm_entity_str="Slaughterhouse",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Television",
-            lfm_entity_str="Marquee+Moon",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Ty+Segall+Band", lfm_entity_str="Slaughterhouse", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="Television", lfm_entity_str="Marquee+Moon", recommendation_type=EntityType.ALBUM),
         LFMRec(
             lfm_artist_str="Factory+Floor",
             lfm_entity_str="Lying+%2F+A+Wooden+Box",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
         ),
-        LFMRec(
-            lfm_artist_str="Donovan",
-            lfm_entity_str="Sunshine+Superman",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
-        ),
-        LFMRec(
-            lfm_artist_str="The+Pop+Group",
-            lfm_entity_str="Y",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Donovan", lfm_entity_str="Sunshine+Superman", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="The+Pop+Group", lfm_entity_str="Y", recommendation_type=EntityType.ALBUM),
         LFMRec(
             lfm_artist_str="FrankJavCee",
             lfm_entity_str="FrankJavCee+Collection,+Vol.+1,+Pt.+II",
             recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
         ),
-        LFMRec(
-            lfm_artist_str="Public+Image+Ltd.",
-            lfm_entity_str="Metal+Box",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Wire",
-            lfm_entity_str="Chairs+Missing",
-            recommendation_type=EntityType.ALBUM,
-            rec_context=RecContext.IN_LIBRARY,
-        ),
+        LFMRec(lfm_artist_str="Public+Image+Ltd.", lfm_entity_str="Metal+Box", recommendation_type=EntityType.ALBUM),
+        LFMRec(lfm_artist_str="Wire", lfm_entity_str="Chairs+Missing", recommendation_type=EntityType.ALBUM),
     ]
 
 
 @pytest.fixture(scope="session")
 def expected_track_recs(expected_album_recs: list[LFMRec]) -> list[LFMRec]:
     return [
+        LFMRec(lfm_artist_str="Liquid+Liquid", lfm_entity_str="Cavern", recommendation_type=EntityType.TRACK),
+        LFMRec(lfm_artist_str="Yellow+Swans", lfm_entity_str="Foiled", recommendation_type=EntityType.TRACK),
         LFMRec(
-            lfm_artist_str="Liquid+Liquid",
-            lfm_entity_str="Cavern",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
+            lfm_artist_str="William+Basinski", lfm_entity_str="Melancholia+VI", recommendation_type=EntityType.TRACK
         ),
-        LFMRec(
-            lfm_artist_str="Yellow+Swans",
-            lfm_entity_str="Foiled",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="William+Basinski",
-            lfm_entity_str="Melancholia+VI",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Blanck+Mass",
-            lfm_entity_str="House+Vs.+House",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Blanck+Mass", lfm_entity_str="House+Vs.+House", recommendation_type=EntityType.TRACK),
         LFMRec(
             lfm_artist_str="Ben+Frost",
             lfm_entity_str="We+Don%27t+Need+Other+Worlds,+We+Need+Mirrors",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
         LFMRec(
-            lfm_artist_str="Dr.+Octagon",
-            lfm_entity_str="Technical+Difficulties",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
+            lfm_artist_str="Dr.+Octagon", lfm_entity_str="Technical+Difficulties", recommendation_type=EntityType.TRACK
         ),
         LFMRec(
             lfm_artist_str="Public+Image+Ltd.",
             lfm_entity_str="Public+Image+-+Remastered+2011",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Ty+Segall+Band",
-            lfm_entity_str="Wave+Goodbye",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Ty+Segall+Band", lfm_entity_str="Wave+Goodbye", recommendation_type=EntityType.TRACK),
         LFMRec(
             lfm_artist_str="Tim+Hecker+&+Daniel+Lopatin",
             lfm_entity_str="Ritual+for+Consumption",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Meatbodies",
-            lfm_entity_str="Move",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Meatbodies", lfm_entity_str="Move", recommendation_type=EntityType.TRACK),
         LFMRec(
             lfm_artist_str="Aidan+Baker+&+Tim+Hecker",
             lfm_entity_str="Hymn+to+the+Idea+of+Night",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Wand",
-            lfm_entity_str="Smile",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Pylon",
-            lfm_entity_str="Crazy+-+Remastered",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Fennesz",
-            lfm_entity_str="City+of+Light",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Wand", lfm_entity_str="Smile", recommendation_type=EntityType.TRACK),
+        LFMRec(lfm_artist_str="Pylon", lfm_entity_str="Crazy+-+Remastered", recommendation_type=EntityType.TRACK),
+        LFMRec(lfm_artist_str="Fennesz", lfm_entity_str="City+of+Light", recommendation_type=EntityType.TRACK),
         LFMRec(
             lfm_artist_str="Ultramagnetic+MC%27s",
             lfm_entity_str="Give+the+Drummer+Some",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
         LFMRec(
             lfm_artist_str="Thee+Oh+Sees",
             lfm_entity_str="Cassius,+Brutus+&+Judas",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
+        LFMRec(lfm_artist_str="Simian+Mobile+Disco", lfm_entity_str="Hustler", recommendation_type=EntityType.TRACK),
         LFMRec(
-            lfm_artist_str="Simian+Mobile+Disco",
-            lfm_entity_str="Hustler",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
-        LFMRec(
-            lfm_artist_str="Belong",
-            lfm_entity_str="I+Never+Lose.+Never+Really",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
+            lfm_artist_str="Belong", lfm_entity_str="I+Never+Lose.+Never+Really", recommendation_type=EntityType.TRACK
         ),
         LFMRec(
             lfm_artist_str="Frankie+and+the+Witch+Fingers",
             lfm_entity_str="Burn+Me+Down",
             recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
         ),
-        LFMRec(
-            lfm_artist_str="Oneohtrix+Point+Never",
-            lfm_entity_str="Cryo",
-            recommendation_type=EntityType.TRACK,
-            rec_context=RecContext.SIMILAR_ARTIST,
-        ),
+        LFMRec(lfm_artist_str="Oneohtrix+Point+Never", lfm_entity_str="Cryo", recommendation_type=EntityType.TRACK),
     ]
 
 

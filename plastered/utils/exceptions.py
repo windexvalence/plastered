@@ -71,7 +71,27 @@ class LFMClientException(Exception):
     pass
 
 
+class LFMRequestFailureException(LFMClientException):
+    """
+    LFM API request failed at the infrastructure level: a connection/transport error that survived the
+    transport-level retries, or an unusable (non-JSON) payload. Distinguished from the base `LFMClientException`
+    (error statuses / in-band API errors) so callers can attribute skips to the failed request itself.
+    """
+
+    pass
+
+
 class MusicBrainzClientException(Exception):
     """Exception for failed request attempts to the Musicbrainz API."""
+
+    pass
+
+
+class MusicBrainzRequestFailureException(MusicBrainzClientException):
+    """
+    MusicBrainz API request failed at the infrastructure level: a connection/transport error that survived the
+    transport-level retries, or an unusable (non-JSON) payload. Distinguished from the base
+    `MusicBrainzClientException` (error statuses) so callers can attribute skips to the failed request itself.
+    """
 
     pass

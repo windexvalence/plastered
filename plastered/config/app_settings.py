@@ -37,7 +37,12 @@ class SnatchesConfig(BaseModel):
     max_size_gb: float = Field(ge=0.02, le=100.0)
     skip_prior_snatches: bool = Field(default=True)
     use_fl_tokens: bool = Field(default=False)
-    min_allowed_ratio: float = Field(default=-1.0)
+    min_allowed_ratio: float = Field(
+        default=-1.0,
+        description="Ratio floor for scraper runs: candidate snatches are dropped (largest-first) once the run's "
+        "cumulative download would push the RED ratio below this value. Any value <= 0 (the default) disables "
+        "the cap entirely. Not applicable to ad-hoc searches, which are explicit user-initiated downloads.",
+    )
 
 
 class FormatPreference(RedFormat):
@@ -78,7 +83,9 @@ class RedSearchOverrides(BaseModel):
     max_size_gb: float | None = Field(default=None, ge=0.02, le=100.0)
     skip_prior_snatches: bool | None = Field(default=None)
     use_fl_tokens: bool | None = Field(default=None)
-    min_allowed_ratio: float | None = Field(default=None)
+    # NOTE: `min_allowed_ratio` is deliberately NOT overridable: the ratio-based cumulative download cap only applies
+    # to scraper runs (`SearchState.get_search_items_to_snatch` bypasses it for manual runs), so a per-request
+    # override could never have any effect.
 
 
 def _default_red_search_config() -> SearchConfig:  # pragma: no cover
@@ -123,11 +130,24 @@ class LFMConfig(BaseModel):
     )
     rec_types_to_scrape: list[str] = Field(default_factory=lambda: ["album", "track"])
     scraper_max_rec_pages_to_scrape: int = Field(ge=1, le=5, default=5)
-    allow_library_items: bool = Field(default=False)
+    allow_library_items: bool | None = Field(
+        default=None,
+        description="DEPRECATED and ignored: LFM rec-context filtering has been removed "
+        "(LFM's 'in your library' context refers to the rec's artist, not the release itself). "
+        "Use `red.snatches.skip_prior_snatches` to skip releases you already have. "
+        "Remove this option from your config; it will be rejected in a future release.",
+    )
 
     @model_validator(mode="after")
     def post_model_validator(self) -> Self:
         validate_rec_types_to_scrape(self.rec_types_to_scrape)
+        if self.allow_library_items is not None:
+            _LOGGER.warning(
+                "The `lfm.allow_library_items` config option is deprecated and has no effect: LFM rec-context "
+                "filtering has been removed (LFM's 'in your library' context refers to the rec's artist, not the "
+                "release itself). Use `red.snatches.skip_prior_snatches` to skip releases you already have, and "
+                "remove `allow_library_items` from your config."
+            )
         return self
 
 
@@ -253,7 +273,6 @@ class AppSettings(BaseSettings):
             "max_size_gb": overrides.max_size_gb,
             "skip_prior_snatches": overrides.skip_prior_snatches,
             "use_fl_tokens": overrides.use_fl_tokens,
-            "min_allowed_ratio": overrides.min_allowed_ratio,
         }
         snatches = self.red.snatches.model_copy(update={k: v for k, v in snatch_updates.items() if v is not None})
         red_updates: dict[str, Any] = {"search": search, "snatches": snatches}

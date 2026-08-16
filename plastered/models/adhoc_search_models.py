@@ -19,7 +19,7 @@ from urllib.parse import quote_plus
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from plastered.models.types import EntityType, RecContext, RedReleaseType
+from plastered.models.types import EntityType, RedReleaseType
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
@@ -83,11 +83,6 @@ class AdhocSearch(BaseModel):
         if self.entity_type == EntityType.ALBUM:
             return f"https://www.last.fm/music/{self.encoded_artist_str}/{self.encoded_entity_str}"
         return f"https://www.last.fm/music/{self.encoded_artist_str}/_/{self.encoded_entity_str}"
-
-    @property
-    def rec_context(self) -> RecContext:
-        # Ad-hoc searches have no LFM recommendation context.
-        return RecContext.NOT_SET
 
     def get_human_readable_artist_str(self) -> str:
         return self.artist

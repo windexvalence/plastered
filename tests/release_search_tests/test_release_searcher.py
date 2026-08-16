@@ -10,7 +10,6 @@ from plastered.models import (
     LFMRec,
     LFMTrackInfo,
     MBRelease,
-    RecContext as rc,
     SearchItem,
     TorrentEntry as te,
 )
@@ -95,14 +94,11 @@ def mock_kwargs(valid_app_settings: AppSettings) -> _MockRsKwargs:
         {},
         {et.ALBUM: []},
         {et.TRACK: []},
-        {et.ALBUM: [LFMRec("artist1", "ent1", et.ALBUM, rc.IN_LIBRARY)]},
-        {et.TRACK: [LFMRec("artist2", "ent2", et.TRACK, rc.IN_LIBRARY)]},
-        {
-            et.ALBUM: [LFMRec("artist3", "ent3", et.ALBUM, rc.IN_LIBRARY)],
-            et.TRACK: [LFMRec("artist4", "ent4", et.TRACK, rc.IN_LIBRARY)],
-        },
-        {et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY), LFMRec("a2", "e2", et.ALBUM, rc.IN_LIBRARY)]},
-        {et.TRACK: [LFMRec("a", "e", et.TRACK, rc.IN_LIBRARY), LFMRec("a2", "e2", et.TRACK, rc.IN_LIBRARY)]},
+        {et.ALBUM: [LFMRec("artist1", "ent1", et.ALBUM)]},
+        {et.TRACK: [LFMRec("artist2", "ent2", et.TRACK)]},
+        {et.ALBUM: [LFMRec("artist3", "ent3", et.ALBUM)], et.TRACK: [LFMRec("artist4", "ent4", et.TRACK)]},
+        {et.ALBUM: [LFMRec("a", "e", et.ALBUM), LFMRec("a2", "e2", et.ALBUM)]},
+        {et.TRACK: [LFMRec("a", "e", et.TRACK), LFMRec("a2", "e2", et.TRACK)]},
     ],
 )
 def test_search_for_recs(mock_kwargs: _MockRsKwargs, ent_to_recs: dict[et, list[LFMRec]]) -> None:
@@ -128,9 +124,7 @@ def test_search_for_recs_with_snatch_override_and_progress_callback(mock_kwargs:
             patch.object(Snatcher, "snatch_matches") as mock_snatch,
         ):
             rs.search_for_recs(
-                {et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)]},
-                snatch_override=True,
-                progress_callback=_callback,
+                {et.ALBUM: [LFMRec("a", "e", et.ALBUM)]}, snatch_override=True, progress_callback=_callback
             )
             mock_apply.assert_called_once()
             assert mock_apply.call_args.kwargs["progress_callback"] is _callback
@@ -145,17 +139,17 @@ def test_search_for_recs_records_matches_when_downloads_disabled(mock_kwargs: _M
             patch.object(Snatcher, "snatch_matches") as mock_snatch,
             patch.object(SearchState, "record_matched_result_rows") as mock_record,
         ):
-            rs.search_for_recs({et.ALBUM: [LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)]}, snatch_override=False)
+            rs.search_for_recs({et.ALBUM: [LFMRec("a", "e", et.ALBUM)]}, snatch_override=False)
         mock_snatch.assert_not_called()
         mock_record.assert_called_once_with()
 
 
 def test_dedupe_recs_preserves_order_and_drops_dupes() -> None:
     """`_dedupe_recs` drops recs equal by `LFMRec.__eq__` while preserving first-seen order."""
-    r1 = LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)
-    r2 = LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY)  # duplicate of r1
-    r3 = LFMRec("a", "e", et.TRACK, rc.IN_LIBRARY)  # distinct: track vs album
-    r4 = LFMRec("b", "e", et.ALBUM, rc.IN_LIBRARY)  # distinct artist
+    r1 = LFMRec("a", "e", et.ALBUM)
+    r2 = LFMRec("a", "e", et.ALBUM)  # duplicate of r1
+    r3 = LFMRec("a", "e", et.TRACK)  # distinct: track vs album
+    r4 = LFMRec("b", "e", et.ALBUM)  # distinct artist
     deduped = _dedupe_recs([r1, r2, r3, r4])
     assert deduped == [r1, r3, r4]
 
@@ -163,9 +157,9 @@ def test_dedupe_recs_preserves_order_and_drops_dupes() -> None:
 def test_search_for_recs_dedupes_identical_recs(mock_kwargs: _MockRsKwargs) -> None:
     """Duplicate recs mapping to the same release are collapsed before the processor chain runs."""
     recs = [
-        LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY),
-        LFMRec("a", "e", et.ALBUM, rc.IN_LIBRARY),  # duplicate
-        LFMRec("b", "e2", et.ALBUM, rc.IN_LIBRARY),
+        LFMRec("a", "e", et.ALBUM),
+        LFMRec("a", "e", et.ALBUM),  # duplicate
+        LFMRec("b", "e2", et.ALBUM),
     ]
     with ReleaseSearcher(**mock_kwargs._asdict()) as rs:
         with patch.object(rs, "_apply_si_processor_chain") as mock_apply, patch.object(Snatcher, "snatch_matches"):
@@ -261,8 +255,8 @@ def test_apply_si_processor_chain(
 ) -> None:
     n_alb, n_track = ent_to_cnt.get(et.ALBUM, 0), ent_to_cnt.get(et.TRACK, 0)
     ent_to_sis = {
-        et.ALBUM: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)) for _ in range(n_alb)],
-        et.TRACK: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM, rc.IN_LIBRARY)) for _ in range(n_track)],
+        et.ALBUM: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM)) for _ in range(n_alb)],
+        et.TRACK: [SearchItem(initial_info=LFMRec("artist", "ent", et.ALBUM)) for _ in range(n_track)],
     }
     mock_processed = []
     for si_list in ent_to_sis.values():

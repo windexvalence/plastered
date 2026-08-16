@@ -18,12 +18,10 @@ PW_USER_AGENT: Final[str] = (
 ALBUM_RECS_BASE_URL: Final[str] = "https://www.last.fm/music/+recommended/albums"
 ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR: Final[str] = ".music-recommended-albums-item-name"
 ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR: Final[str] = ".music-recommended-albums-item-name a.link-block-target"
-ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR: Final[str] = "p.music-recommended-albums-album-context"
 
 TRACK_RECS_BASE_URL: Final[str] = "https://www.last.fm/music/+recommended/tracks"
 TRACK_REC_LIST_ELEMENT_CSS_SELECTOR: Final[str] = ".recommended-tracks-item-name"
 TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR: Final[str] = ".recommended-tracks-item-name a.link-block-target"
-TRACK_REC_CONTEXT_CSS_SELECTOR: Final[str] = "p.recommended-tracks-item-aux-text.recommended-tracks-item-context"
 
 LOGIN_URL: Final[str] = "https://www.last.fm/login"
 LOGIN_USERNAME_FORM_LOCATOR: Final[str] = "[name='username_or_email']"

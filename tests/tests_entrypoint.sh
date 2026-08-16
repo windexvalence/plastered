@@ -37,5 +37,7 @@ if [[ -z "${GITHUB_ACTIONS}" ]] && [[ "$1" == "tests" ]]; then
     if [[ -z "${IS_DOCKER}" ]]; then
         coverage_badge_output_path="./docs/image_assets/coverage.svg"
     fi
-    coverage-badge -f -o "${coverage_badge_output_path}"
+    # genbadge reads the XML coverage report (coverage.xml is gitignored; only the rendered badge is committed).
+    coverage xml -o coverage.xml
+    genbadge coverage --silent -i coverage.xml -o "${coverage_badge_output_path}"
 fi

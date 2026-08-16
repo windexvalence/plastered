@@ -9,7 +9,12 @@ from plastered.db.db_models import SearchRecord
 from plastered.db.db_utils import add_record
 from plastered.models import LFMAlbumInfo, LFMTrackInfo, MBRelease
 from plastered.release_search.processors.bases import SearchItemModifier
-from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
+from plastered.utils.exceptions import (
+    LFMClientException,
+    LFMRequestFailureException,
+    MusicBrainzClientException,
+    MusicBrainzRequestFailureException,
+)
 
 if TYPE_CHECKING:
     from plastered.models import SearchItem
@@ -30,8 +35,10 @@ class ResolveAlbumInfoModifier(SearchItemModifier):
             return si
         try:
             lfmai = LFMAlbumInfo.construct_from_api_response(json_blob=lfm.get_album_info(si=si))
-        except LFMClientException as ex:  # pragma: no cover
+        except LFMClientException as ex:
             _LOGGER.debug(f"{ex.__class__.__name__} during LFM album info resolution for search item: {si}")
+            if isinstance(ex, LFMRequestFailureException):
+                si.lfm_request_failed = True
             lfmai = None
         si.set_lfm_album_info(lfmai=lfmai)
         return si
@@ -52,11 +59,19 @@ class ResolveTrackInfoModifier(SearchItemModifier):
         except (LFMClientException, KeyError, TypeError) as ex:
             # KeyError/TypeError guard against a malformed LFM `album` blob; fall through to MusicBrainz resolution.
             _LOGGER.debug(f"{ex.__class__.__name__} during track origin release resolution: {si}")
+            if isinstance(ex, LFMRequestFailureException):
+                si.lfm_request_failed = True
         artist_mbid = None
         if isinstance(lfm_resp, dict) and isinstance(lfm_resp.get("artist"), dict):
             artist_mbid = lfm_resp["artist"].get("mbid")
-        if origin_info := mb.request_release_details_for_track(si=si, artist_mbid=artist_mbid):
-            si.set_lfm_track_info(lfmti=LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=origin_info))
+        try:
+            if origin_info := mb.request_release_details_for_track(si=si, artist_mbid=artist_mbid):
+                si.set_lfm_track_info(
+                    lfmti=LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=origin_info)
+                )
+        except MusicBrainzRequestFailureException as ex:
+            _LOGGER.warning(f"{ex.__class__.__name__} during track origin release resolution: {si}: {ex}")
+            si.mb_request_failed = True
         return si
 
 
@@ -95,6 +110,9 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
             return si
         try:
             si.set_mb_release(MBRelease.construct_from_api(json_blob=mb.request_release_details(mbid=mbid)))
+        except MusicBrainzRequestFailureException:
+            _LOGGER.error(f"Musicbrainz request failure for search item '{si}'.", exc_info=True)
+            si.mb_request_failed = True
         except MusicBrainzClientException, KeyError:
             _LOGGER.error(f"Musicbrainz resolution error for search item '{si}'.", exc_info=True)
         return si
