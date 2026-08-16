@@ -16,7 +16,7 @@ Once `uv` is installed, you can follow this one-time setup for creating a host v
 
 1. Install the correct Python version:
     ```shell
-    uv python install 3.12.8
+    uv python install 3.14
     ```
 2. Create a dedicated virtualenv:
     ```shell

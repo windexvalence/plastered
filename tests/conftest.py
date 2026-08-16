@@ -105,6 +105,20 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _dispose_cached_app_engine() -> Generator[None, None, None]:
+    """
+    Dispose the process-cached app engine (`plastered.db.db_models.get_engine`) at the end of each test session
+    (i.e. each xdist worker) so its pooled sqlite connections are closed explicitly rather than by GC — Python
+    3.14's sqlite3 emits a ResourceWarning for connections closed by GC. The api tests exercise the real
+    `db_startup` / `SessionDep` paths, which populate this engine's pool.
+    """
+    yield
+    from plastered.db.db_models import get_engine
+
+    get_engine().dispose()
+
+
 def load_mock_response_json(json_filepath: str) -> dict[str, Any]:
     """Utility function to load and return the mock API json blob located at the specified json_filepath."""
     with open(json_filepath) as f:
@@ -124,6 +138,9 @@ def mock_session() -> Generator[Session, None, None]:
         yield session
         session.rollback()
         session.close()
+    # Dispose so the StaticPool's held sqlite connection is closed rather than GC'd
+    # (Python 3.14's sqlite3 emits a ResourceWarning for connections closed by GC).
+    engine.dispose()
 
 
 @contextmanager
@@ -137,9 +154,14 @@ def mock_session_context() -> Generator[Session, None, None]:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
     session = Session(engine)
-    yield session
-    session.rollback()
-    session.close()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+        # Dispose so the StaticPool's held sqlite connection is closed rather than GC'd
+        # (Python 3.14's sqlite3 emits a ResourceWarning for connections closed by GC).
+        engine.dispose()
 
 
 @pytest.fixture(scope="function")

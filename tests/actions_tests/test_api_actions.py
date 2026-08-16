@@ -42,6 +42,9 @@ def mock_session() -> Generator[Session, None, None]:
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session
+    # Dispose so the StaticPool's held sqlite connection is closed rather than GC'd
+    # (Python 3.14's sqlite3 emits a ResourceWarning for connections closed by GC).
+    engine.dispose()
 
 
 @pytest.fixture(scope="function")

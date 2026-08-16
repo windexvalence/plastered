@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
-from plastered.models.musicbrainz_models import MBRelease
-from plastered.models.red_models import TorrentEntry, TorrentMatch
 from plastered.models.types import EntityType
+
+if TYPE_CHECKING:
+    from plastered.models.musicbrainz_models import MBRelease
+    from plastered.models.red_models import TorrentEntry, TorrentMatch
 
 type InitialInfo = LFMRec | AdhocSearch
 

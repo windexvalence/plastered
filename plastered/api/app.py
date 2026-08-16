@@ -43,7 +43,7 @@ def create_fastapi_app() -> FastAPI:
 
 
 @asynccontextmanager
-async def _app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def _app_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Context manager used by FastAPI for initializing application-scoped singletons (held on `app.state`, read by
     the routes via the accessor dependencies in `plastered.api.fastapi_dependencies`)."""
     _LOGGER.debug("Running fastapi app lifespan startup ...")

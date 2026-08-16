@@ -1,5 +1,5 @@
 ########## Stage 1: build the single-file app PEX ##########
-FROM python:3.12.8-slim-bookworm AS pex-builder
+FROM python:3.14.7-slim-bookworm AS pex-builder
 WORKDIR /build
 ENV HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js
 # The wheel's version comes from setuptools-scm: there is no .git in the build context, so it is
@@ -26,7 +26,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
         -o /plastered.pex
 
 ########## Stage 2: the app image (the published end-user product) ##########
-FROM python:3.12.8-slim-bookworm AS plastered-app
+FROM python:3.14.7-slim-bookworm AS plastered-app
 ARG PLASTERED_RELEASE_TAG=""
 LABEL org.opencontainers.image.source="https://github.com/windexvalence/plastered"
 # Publish builds pass PLASTERED_RELEASE_TAG=vMAJOR.MINOR.PATCH, so the label carries the bare
@@ -69,7 +69,7 @@ ENV APP_DIR=/app FORCE_COLOR=1 PLASTERED_RELEASE_TAG=${PLASTERED_RELEASE_TAG}
 ENTRYPOINT ["/app/plastered.pex", "run"]
 
 ########## Stage 3: the test image (CI + local dev only; size does not matter here) ##########
-FROM python:3.12.8-slim-bookworm AS plastered-test
+FROM python:3.14.7-slim-bookworm AS plastered-test
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 # Ensure uv installs in container do not create a virtualenv (since it is not needed in a container).

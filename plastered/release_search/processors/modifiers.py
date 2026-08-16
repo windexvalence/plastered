@@ -95,7 +95,7 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
             return si
         try:
             si.set_mb_release(MBRelease.construct_from_api(json_blob=mb.request_release_details(mbid=mbid)))
-        except (MusicBrainzClientException, KeyError):
+        except MusicBrainzClientException, KeyError:
             _LOGGER.error(f"Musicbrainz resolution error for search item '{si}'.", exc_info=True)
         return si
 

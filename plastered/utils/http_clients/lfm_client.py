@@ -1,10 +1,14 @@
-from typing import Any
+from __future__ import annotations
 
-from plastered.config.app_settings import AppSettings
-from plastered.release_search.search_helpers import SearchItem
+from typing import TYPE_CHECKING, Any
+
 from plastered.utils.constants import LFM_API_BASE_URL
 from plastered.utils.exceptions import LFMClientException
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
+
+if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings
+    from plastered.release_search.search_helpers import SearchItem
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
-from plastered.config.app_settings import AppSettings, FormatPreference
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
 from plastered.models import RecContext, RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
@@ -14,6 +16,9 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_YEAR,
 )
 from plastered.utils.exceptions import MissingTorrentEntryException, SearchItemException, SearchStateException
+
+if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings, FormatPreference
 
 _LOGGER = logging.getLogger(__name__)
 

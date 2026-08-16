@@ -1,12 +1,16 @@
-import logging
-from typing import Any
+from __future__ import annotations
 
-from plastered.config.app_settings import AppSettings
+import logging
+from typing import TYPE_CHECKING, Any
+
 from plastered.models import RedUserDetails
 from plastered.models.red_models import ReleaseEntry
 from plastered.utils.constants import RED_API_BASE_URL, RED_JSON_RESPONSE_KEY
 from plastered.utils.exceptions import RedUserDetailsInitError
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
+
+if TYPE_CHECKING:
+    from plastered.config.app_settings import AppSettings
 
 _LOGGER = logging.getLogger(__name__)
 
