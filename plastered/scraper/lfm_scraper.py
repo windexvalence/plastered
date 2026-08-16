@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 from bs4 import BeautifulSoup
 from patchright.sync_api import BrowserType, Error, Page, Playwright, sync_playwright
 
-from plastered.models import EntityType, LFMRec, RecContext
+from plastered.models import EntityType, LFMRec
 from plastered.utils.constants import (
-    ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
     ALBUM_REC_LIST_ELEMENT_CSS_SELECTOR,
     ALBUM_RECS_BASE_URL,
@@ -23,7 +22,6 @@ from plastered.utils.constants import (
     PW_USER_AGENT,
     RENDER_WAIT_SEC_MAX,
     RENDER_WAIT_SEC_MIN,
-    TRACK_REC_CONTEXT_CSS_SELECTOR,
     TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR,
     TRACK_REC_LIST_ELEMENT_CSS_SELECTOR,
     TRACK_RECS_BASE_URL,
@@ -175,36 +173,21 @@ class LFMRecsScraper:
         soup = BeautifulSoup(page_source, "html.parser")
         if rec_type == EntityType.ALBUM:
             rec_class_name = ALBUM_REC_LIST_ELEMENT_BS4_CSS_SELECTOR
-            entity_rec_context_class_name = ALBUM_REC_CONTEXT_BS4_CSS_SELECTOR
             recommendation_regex_pattern = _ARTIST_ALBUM_REGEX_PATTERN
         else:
             rec_class_name = TRACK_REC_LIST_ELEMENT_BS4_CSS_SELECTOR
-            entity_rec_context_class_name = TRACK_REC_CONTEXT_CSS_SELECTOR
             recommendation_regex_pattern = _ARTIST_TRACK_REGEX_PATTERN
 
         rec_hrefs = [li.get("href") for li in soup.select(rec_class_name)]
-        entity_rec_contexts = [elem.text.strip() for elem in soup.select(entity_rec_context_class_name)]
         page_recs: list[LFMRec] = []
-        for i, href_value in enumerate(rec_hrefs):
+        for href_value in rec_hrefs:
             regex_match = re.match(recommendation_regex_pattern, href_value)  # type: ignore
             if not regex_match:  # pragma: no cover
                 continue
             artist, entity = regex_match.groups()
-            entity_rec_context = (
-                RecContext.IN_LIBRARY
-                if entity_rec_contexts[i].endswith("in your library")
-                else RecContext.SIMILAR_ARTIST
-            )
             _LOGGER.debug(f"artist: {artist}")
             _LOGGER.debug(f"{rec_type.value}: {entity}")
-            page_recs.append(
-                LFMRec(
-                    lfm_artist_str=artist,
-                    lfm_entity_str=entity,
-                    recommendation_type=rec_type,
-                    rec_context=entity_rec_context,
-                )
-            )
+            page_recs.append(LFMRec(lfm_artist_str=artist, lfm_entity_str=entity, recommendation_type=rec_type))
         return page_recs
 
     def _scrape_recs_list(self, rec_type: EntityType) -> list[LFMRec]:

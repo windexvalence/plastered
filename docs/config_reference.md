@@ -1,4 +1,4 @@
-# `plastered` 1.0.0 config reference
+# `plastered` 1.2.0 config reference
 
 This doc is Auto-generated. If in doubt, refer to `examples/config.yaml`
 # config
@@ -25,7 +25,7 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | red.snatches.max_size_gb | `number` | ✅ | `0.02 <= x <= 100.0` |  |  |  |  |
 | red.snatches.skip_prior_snatches | `boolean` |  | boolean |  | `true` |  |  |
 | red.snatches.use_fl_tokens | `boolean` |  | boolean |  | `false` |  |  |
-| red.snatches.min_allowed_ratio | `number` |  | number |  | `-1.0` |  |  |
+| red.snatches.min_allowed_ratio | `number` |  | number |  | `-1.0` | Ratio floor for scraper runs: candidate snatches are dropped (largest-first) once the run's cumulative download would push the RED ratio below this value. Any value <= 0 (the default) disables the cap entirely. Not applicable to ad-hoc searches, which are explicit user-initiated downloads. |  |
 | red.search | `object` |  | object |  |  | RED search settings defined in the plastered config at `red.search`. |  |
 | red.search.use_release_type | `boolean` |  | boolean |  | `true` |  |  |
 | red.search.use_first_release_year | `boolean` |  | boolean |  | `true` |  |  |
@@ -39,7 +39,7 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | lfm.lfm_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | lfm.rec_types_to_scrape | `array` |  | string |  |  |  |  |
 | lfm.scraper_max_rec_pages_to_scrape | `integer` |  | `1 <= x <= 5` |  | `5` |  |  |
-| lfm.allow_library_items | `boolean` |  | boolean |  | `false` |  |  |
+| lfm.allow_library_items | `boolean` or `null` |  | boolean |  | `null` | DEPRECATED and ignored: LFM rec-context filtering has been removed (LFM's 'in your library' context refers to the rec's artist, not the release itself). Use `red.snatches.skip_prior_snatches` to skip releases you already have. Remove this option from your config; it will be rejected in a future release. |  |
 | musicbrainz | `object` |  | object |  |  |  |  |
 | musicbrainz.musicbrainz_api_max_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | musicbrainz.musicbrainz_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
@@ -137,7 +137,7 @@ No description provided for this model.
 | lfm_api_seconds_between_calls | `integer` |  | `1 <= x <= 6` |  | `2` |  |  |
 | rec_types_to_scrape | `array` |  | string |  |  |  |  |
 | scraper_max_rec_pages_to_scrape | `integer` |  | `1 <= x <= 5` |  | `5` |  |  |
-| allow_library_items | `boolean` |  | boolean |  | `false` |  |  |
+| allow_library_items | `boolean` |  | boolean |  | `null` | DEPRECATED and ignored: LFM rec-context filtering has been removed (LFM's 'in your library' context refers to the rec's artist, not the release itself). Use `red.snatches.skip_prior_snatches` to skip releases you already have. Remove this option from your config; it will be rejected in a future release. |  |
 
 ## MediaEnum
 
@@ -179,7 +179,7 @@ App settings defined under the plastered yaml config's top-level `red` key.
 | snatches.max_size_gb | `number` | ✅ | `0.02 <= x <= 100.0` |  |  |  |  |
 | snatches.skip_prior_snatches | `boolean` |  | boolean |  | `true` |  |  |
 | snatches.use_fl_tokens | `boolean` |  | boolean |  | `false` |  |  |
-| snatches.min_allowed_ratio | `number` |  | number |  | `-1.0` |  |  |
+| snatches.min_allowed_ratio | `number` |  | number |  | `-1.0` | Ratio floor for scraper runs: candidate snatches are dropped (largest-first) once the run's cumulative download would push the RED ratio below this value. Any value <= 0 (the default) disables the cap entirely. Not applicable to ad-hoc searches, which are explicit user-initiated downloads. |  |
 | red_api_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | red_api_seconds_between_calls | `integer` |  | `2 <= x <= 10` |  | `5` |  |  |
 | search | `object` |  | object |  |  | RED search settings defined in the plastered config at `red.search`. |  |
@@ -236,7 +236,7 @@ RED snatch settings defined in the plastered config at `red.snatches`.
 | max_size_gb | `number` | ✅ | `0.02 <= x <= 100.0` |  |  |  |  |
 | skip_prior_snatches | `boolean` |  | boolean |  | `true` |  |  |
 | use_fl_tokens | `boolean` |  | boolean |  | `false` |  |  |
-| min_allowed_ratio | `number` |  | number |  | `-1.0` |  |  |
+| min_allowed_ratio | `number` |  | number |  | `-1.0` | Ratio floor for scraper runs: candidate snatches are dropped (largest-first) once the run's cumulative download would push the RED ratio below this value. Any value <= 0 (the default) disables the cap entirely. Not applicable to ad-hoc searches, which are explicit user-initiated downloads. |  |
 
 
 ---

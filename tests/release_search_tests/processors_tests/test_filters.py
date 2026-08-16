@@ -5,12 +5,14 @@ import pytest
 from plastered.db.db_models import SkipReason, Status
 from plastered.models import EntityType
 from plastered.models.search_item import SearchItem
+from plastered.models.lfm_models import LFMTrackInfo
 from plastered.release_search.processors.filters import (
     BaseFilter,
     PreMBIDResolutionFilter,
     PostResolveOriginTrackFilter,
     PostMBIDResolutionFilter,
     PostRedSearchFilter,
+    _origin_track_skip_reason,
 )
 from plastered.release_search.processors.bases import FilterFuncs
 from plastered.release_search.search_helpers import SearchState
@@ -75,6 +77,33 @@ def test_base_filter_mark_skipped(
         mock_set_result_status.assert_called_once_with(
             search_id=mock_si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": skip_reason}
         )
+
+
+@pytest.mark.parametrize(
+    "has_track_info, lfm_request_failed, mb_request_failed, expected",
+    [
+        (True, False, False, None),
+        (True, True, True, None),  # resolved track info always wins: no skip even if a request failed along the way
+        (False, False, False, SkipReason.NO_SOURCE_RELEASE_FOUND),
+        (False, True, False, SkipReason.LFM_REQUEST_FAILURE),
+        (False, False, True, SkipReason.MB_REQUEST_FAILURE),
+        (False, True, True, SkipReason.LFM_REQUEST_FAILURE),  # LFM is the primary source, so it wins the attribution
+    ],
+)
+def test_origin_track_skip_reason_attribution(
+    make_track_search_item: pytest.FixtureRequest,
+    has_track_info: bool,
+    lfm_request_failed: bool,
+    mb_request_failed: bool,
+    expected: SkipReason | None,
+) -> None:
+    """A missing origin release is attributed to a failed LFM/MB request when one occurred during resolution."""
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    if has_track_info:
+        mock_si._lfm_track_info = LFMTrackInfo(artist="a", track_name="t", release_name="r", lfm_url="u")
+    mock_si.lfm_request_failed = lfm_request_failed
+    mock_si.mb_request_failed = mb_request_failed
+    assert _origin_track_skip_reason(si=mock_si) == expected
 
 
 def test_mark_skipped_logs_real_filter_classname(

@@ -80,17 +80,3 @@ class EntityType(StrEnum):
 
     ALBUM = "album"
     TRACK = "track"
-
-
-class RecContext(StrEnum):
-    """
-    Enum representing the recommendation's context, as stated by LFM's recommendation page.
-    Can be either "in-library", or "similar-artist".
-
-    "in-library" means that the recommendation is for a release from an artist which is already in your library, according to LFM.
-    "similar-artist" means that the recommendation is for a release from an artist which is similar to other artists you frequently listen to, according to LFM.
-    """
-
-    IN_LIBRARY = "in-library"
-    SIMILAR_ARTIST = "similar-artist"
-    NOT_SET = "not-set"  # For manual runs only, where the concept of a "rec" isn't relevant

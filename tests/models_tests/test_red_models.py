@@ -276,7 +276,9 @@ def test_release_entry_from_torrent_search_json_blob(mock_red_browse_non_empty_r
 @pytest.mark.parametrize(
     "mock_initial_buffer_gb, mock_initial_uploaded_gb, mock_initial_downloaded_gb, min_allowed_ratio, expected",
     [
-        (0.0, 0.0, 0.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0, 0.0, float("inf")),  # ratio floor of 0 disables the cap
+        (0.5, 2.0, 1.0, -1.0, float("inf")),  # the -1.0 config default disables the cap regardless of buffer
+        (-3.0, 0.2, 4.0, -1.0, float("inf")),  # disabled cap is unlimited even with a negative buffer
         (0.5, 2.0, 1.0, 0.4, 0.5),  # ratio_max_allowed_run_dl := 4.0
         (7.2, 2.0, 1.0, 0.4, 4.0),  # ratio_max_allowed_run_dl := 4.0
         (2.0, 1.0, 1.0, 1.0, 0.0),  # ratio_max_allowed_run_dl := 0.0

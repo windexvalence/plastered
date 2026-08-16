@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from json import JSONDecodeError
 from typing import TYPE_CHECKING, Any
 
+import httpx2
+
 from plastered.utils.constants import LFM_API_BASE_URL
-from plastered.utils.exceptions import LFMClientException
+from plastered.utils.exceptions import LFMClientException, LFMRequestFailureException
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
@@ -29,19 +32,33 @@ class LFMAPIClient(ThrottledAPIBaseClient):
     def request_api(self, method: str, params: str) -> dict[str, Any]:
         """
         Helper function to hit the LFM API with retries and rate-limits.
-        Returns the JSON response payload on success, and throws an Exception after max allowed consecutive failures.
+        Returns the JSON response payload on success.
+        Raises `LFMRequestFailureException` on a connection/transport failure that survives the transport-level
+        retries or on an unusable (non-JSON) payload, and the base `LFMClientException` on error responses — so
+        callers can degrade gracefully (skip the LFM enrichment for one item) instead of a single flaky upstream
+        call aborting an entire run.
         """
         # Enforce request throttling before building and submitting the request.
         self._throttle()
-        lfm_response = self._client.get(
-            url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
-            headers={"Accept": "application/json"},
-        )
+        try:
+            lfm_response = self._client.get(
+                url=f"{LFM_API_BASE_URL}?method={method}&api_key={self._api_key}&{params}&format=json",
+                headers={"Accept": "application/json"},
+            )
+        except httpx2.HTTPError as ex:
+            raise LFMRequestFailureException(
+                f"LFM request failed for method '{method}' and params '{params}': {ex.__class__.__name__}: {ex}"
+            ) from ex
         if lfm_response.is_error:
             raise LFMClientException(
                 f"Unexpected LFM API error encountered for method '{method}' and params '{params}'. Status code: {lfm_response.status_code}"
             )
-        json_data = lfm_response.json()
+        try:
+            json_data = lfm_response.json()
+        except JSONDecodeError as ex:
+            raise LFMRequestFailureException(
+                f"LFM returned a non-JSON payload for method '{method}' and params '{params}'."
+            ) from ex
         # LMF API does non-standard stuff with surfacing errors sometimes.
         if "error" in json_data:
             raise LFMClientException(f"LFM API error encounterd. LFM error code: '{json_data['error']}'")

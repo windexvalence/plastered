@@ -426,6 +426,43 @@ def test_scraper_run_recs_fragment_interactive_for_disabled_downloads(client: Te
     assert "Download all (1)" in text
 
 
+def test_scraper_run_recs_fragment_shows_request_failure_skip_reasons(client: TestClient) -> None:
+    """Recs skipped due to a failed LFM/MB API request show those distinct skip reasons in the run's recs table."""
+    run, _, batch = _scraper_recs(True)
+    failure_recs = [
+        RunHistoryItem(
+            searchrecord=SearchRecord(
+                id=12,
+                submit_timestamp=1759680012,
+                is_manual=False,
+                entity_type=EntityType.ALBUM,
+                artist="LFM Failure Artist",
+                entity="LFM Failure Album",
+                status=Status.SKIPPED,
+            ),
+            skipped=Skipped(s_result_id=12, skip_reason=SkipReason.LFM_REQUEST_FAILURE),
+        ),
+        RunHistoryItem(
+            searchrecord=SearchRecord(
+                id=13,
+                submit_timestamp=1759680013,
+                is_manual=False,
+                entity_type=EntityType.TRACK,
+                artist="MB Failure Artist",
+                entity="MB Failure Track",
+                status=Status.SKIPPED,
+            ),
+            skipped=Skipped(s_result_id=13, skip_reason=SkipReason.MB_REQUEST_FAILURE),
+        ),
+    ]
+    with patch(
+        "plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=(run, failure_recs, batch)
+    ):
+        text = client.get("/scraper_run_recs?run_id=5").text
+    assert SkipReason.LFM_REQUEST_FAILURE.value in text
+    assert SkipReason.MB_REQUEST_FAILURE.value in text
+
+
 def test_scraper_run_recs_fragment_readonly_when_downloads_enabled(client: TestClient) -> None:
     """A downloads-enabled run shows a read-only recs table (no download controls)."""
     with patch("plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(True)):

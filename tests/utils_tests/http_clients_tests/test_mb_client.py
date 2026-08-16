@@ -2,12 +2,19 @@ import re
 from typing import Any
 from unittest.mock import Mock
 
+import httpx2
 import pytest
 import respx
 
 from plastered.config.app_settings import AppSettings
-from plastered.utils.exceptions import MusicBrainzClientException
+from plastered.utils.exceptions import MusicBrainzClientException, MusicBrainzRequestFailureException
 from plastered.utils.http_clients.musicbrainz_client import MusicBrainzAPIClient
+
+
+def _single_attempt_settings(app_settings: AppSettings) -> AppSettings:
+    """Settings copy with a single MB API attempt, so transport-error tests don't sleep between retries."""
+    mb_conf = app_settings.musicbrainz.model_copy(update={"musicbrainz_api_max_retries": 1})
+    return app_settings.model_copy(update={"musicbrainz": mb_conf})
 
 
 @pytest.fixture(scope="session")
@@ -159,5 +166,49 @@ def test_request_release_details_for_track_error_handling(
     assert actual is None
 
 
-def test_request_release_details_for_track_api_error() -> None:
-    pass  # TODO: implement
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_transport_error(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    """A connection/transport failure surfaces as MusicBrainzRequestFailureException, not a raw httpx2 error."""
+    httpx2_mock.route().mock(
+        side_effect=httpx2.ConnectError("[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol")
+    )
+    mb_client = MusicBrainzAPIClient(app_settings=_single_attempt_settings(valid_app_settings))
+    mb_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(MusicBrainzRequestFailureException, match=re.escape("Musicbrainz request failed for URL ")):
+        mb_client.request_release_details(mbid="fake")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_invalid_json(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    """A 200 response with a non-JSON body (e.g. an HTML error page) surfaces as MusicBrainzRequestFailureException."""
+    httpx2_mock.route().respond(status_code=200, text="<html>bad gateway</html>")
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings)
+    mb_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(MusicBrainzRequestFailureException, match=re.escape("non-JSON payload")):
+        mb_client.request_release_details(mbid="fake")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_for_track_transport_error(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, make_track_search_item: pytest.FixtureRequest
+) -> None:
+    """A connection/transport failure during track origin-release resolution raises the request-failure exception."""
+    httpx2_mock.route().mock(side_effect=httpx2.ConnectError("connection dropped"))
+    mb_client = MusicBrainzAPIClient(app_settings=_single_attempt_settings(valid_app_settings))
+    mb_client._throttle = Mock(name="_throttle", return_value=None)
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    with pytest.raises(MusicBrainzRequestFailureException, match=re.escape("Musicbrainz request failed for URL ")):
+        mb_client.request_release_details_for_track(si=mock_si, artist_mbid="a")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_release_details_for_track_invalid_json(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, make_track_search_item: pytest.FixtureRequest
+) -> None:
+    """A 200 response with a non-JSON body during track origin-release resolution raises the request-failure exception."""
+    httpx2_mock.route().respond(status_code=200, text="not json")
+    mb_client = MusicBrainzAPIClient(app_settings=valid_app_settings)
+    mb_client._throttle = Mock(name="_throttle", return_value=None)
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    with pytest.raises(MusicBrainzRequestFailureException, match=re.escape("non-JSON payload")):
+        mb_client.request_release_details_for_track(si=mock_si, artist_mbid="a")

@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from plastered.models.types import RecContext, EntityType
+from plastered.models.types import EntityType
 from plastered.models.lfm_models import LFMRec
 from plastered.utils.exceptions import LFMRecException
 
@@ -12,21 +12,17 @@ from plastered.utils.exceptions import LFMRecException
     [
         (
             LFMRec(
-                lfm_artist_str="Some+Bad+Artist",
-                lfm_entity_str="Some+Dumb+Album",
-                recommendation_type=EntityType.ALBUM,
-                rec_context=RecContext.SIMILAR_ARTIST,
+                lfm_artist_str="Some+Bad+Artist", lfm_entity_str="Some+Dumb+Album", recommendation_type=EntityType.ALBUM
             ),
-            "artist=Some+Bad+Artist, album=Some+Dumb+Album, context=similar-artist",
+            "artist=Some+Bad+Artist, album=Some+Dumb+Album",
         ),
         (
             LFMRec(
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
-            "artist=Some+Other+Bad+Artist, track=Some+Dumb+Track, context=in-library",
+            "artist=Some+Other+Bad+Artist, track=Some+Dumb+Track",
         ),
     ],
 )
@@ -58,12 +54,7 @@ def test_lfmrec_str(lfm_rec: LFMRec, expected: str) -> None:
     ],
 )
 def test_get_human_readable_artist_str(lfm_str: str, expected: str) -> None:
-    test_lfm_rec = LFMRec(
-        lfm_artist_str=lfm_str,
-        lfm_entity_str="Fake+Release",
-        recommendation_type=EntityType.ALBUM,
-        rec_context=RecContext.SIMILAR_ARTIST,
-    )
+    test_lfm_rec = LFMRec(lfm_artist_str=lfm_str, lfm_entity_str="Fake+Release", recommendation_type=EntityType.ALBUM)
     actual = test_lfm_rec.get_human_readable_artist_str()
     assert actual == expected, (
         f"Expected LFMRec.get_human_readable_artist_str() to return '{expected}', but got '{actual}'"
@@ -76,7 +67,6 @@ def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, exp
         lfm_artist_str="Some+Artist",
         lfm_entity_str="Some+Entity",
         recommendation_type=EntityType.TRACK if is_track_rec else EntityType.ALBUM,
-        rec_context=RecContext.IN_LIBRARY,
     )
     if should_fail:
         with pytest.raises(
@@ -93,26 +83,19 @@ def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, exp
     [
         (
             LFMRec(
-                lfm_artist_str="Some+Bad+Artist",
-                lfm_entity_str="Some+Dumb+Album",
-                recommendation_type=EntityType.ALBUM,
-                rec_context=RecContext.SIMILAR_ARTIST,
+                lfm_artist_str="Some+Bad+Artist", lfm_entity_str="Some+Dumb+Album", recommendation_type=EntityType.ALBUM
             ),
             None,
             False,
         ),
         (
             LFMRec(
-                lfm_artist_str="Some+Bad+Artist",
-                lfm_entity_str="Some+Dumb+Album",
-                recommendation_type=EntityType.ALBUM,
-                rec_context=RecContext.SIMILAR_ARTIST,
+                lfm_artist_str="Some+Bad+Artist", lfm_entity_str="Some+Dumb+Album", recommendation_type=EntityType.ALBUM
             ),
             LFMRec(
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
             False,
         ),
@@ -121,13 +104,11 @@ def test_get_human_readable_track_str(is_track_rec: bool, should_fail: bool, exp
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
             LFMRec(
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
             True,
         ),
@@ -143,10 +124,7 @@ def test_lfmrec_eq(lfm_rec: LFMRec, other: Any, expected: bool) -> None:
     [
         (
             LFMRec(
-                lfm_artist_str="Some+Bad+Artist",
-                lfm_entity_str="Some+Dumb+Album",
-                recommendation_type=EntityType.ALBUM,
-                rec_context=RecContext.SIMILAR_ARTIST,
+                lfm_artist_str="Some+Bad+Artist", lfm_entity_str="Some+Dumb+Album", recommendation_type=EntityType.ALBUM
             ),
             False,
         ),
@@ -155,7 +133,6 @@ def test_lfmrec_eq(lfm_rec: LFMRec, other: Any, expected: bool) -> None:
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
             True,
         ),
@@ -171,10 +148,7 @@ def test_lfmrec_is_track_rec(lfm_rec: LFMRec, expected: bool) -> None:
     [
         (
             LFMRec(
-                lfm_artist_str="Some+Bad+Artist",
-                lfm_entity_str="Some+Dumb+Album",
-                recommendation_type=EntityType.ALBUM,
-                rec_context=RecContext.SIMILAR_ARTIST,
+                lfm_artist_str="Some+Bad+Artist", lfm_entity_str="Some+Dumb+Album", recommendation_type=EntityType.ALBUM
             ),
             "https://www.last.fm/music/Some+Bad+Artist/Some+Dumb+Album",
         ),
@@ -183,7 +157,6 @@ def test_lfmrec_is_track_rec(lfm_rec: LFMRec, expected: bool) -> None:
                 lfm_artist_str="Some+Other+Bad+Artist",
                 lfm_entity_str="Some+Dumb+Track",
                 recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
             ),
             "https://www.last.fm/music/Some+Other+Bad+Artist/_/Some+Dumb+Track",
         ),

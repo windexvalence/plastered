@@ -1,13 +1,20 @@
 from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
+import httpx2
 import pytest
 import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.search_item import SearchItem
-from plastered.utils.exceptions import LFMClientException
+from plastered.utils.exceptions import LFMClientException, LFMRequestFailureException
 from plastered.utils.http_clients import LFMAPIClient
+
+
+def _single_attempt_settings(app_settings: AppSettings) -> AppSettings:
+    """Settings copy with a single LFM API attempt, so transport-error tests don't sleep between retries."""
+    lfm_conf = app_settings.lfm.model_copy(update={"lfm_api_retries": 1})
+    return app_settings.model_copy(update={"lfm": lfm_conf})
 
 
 @pytest.fixture(scope="session")
@@ -66,6 +73,26 @@ def test_request_lfm_api_bad_json_response(
     lfm_client._throttle.return_value = None
     with pytest.raises(LFMClientException, match="LFM API error encounterd. LFM error code: '123'"):
         lfm_client.request_api(method=method, params="fakekey=fakevalue")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_lfm_api_transport_error(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    """A connection/transport failure surfaces as LFMRequestFailureException, not a raw httpx2 error."""
+    httpx2_mock.route().mock(side_effect=httpx2.ConnectError("connection dropped"))
+    lfm_client = LFMAPIClient(app_settings=_single_attempt_settings(valid_app_settings))
+    lfm_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(LFMRequestFailureException, match="LFM request failed for method 'album.getinfo'"):
+        lfm_client.request_api(method="album.getinfo", params="fakekey=fakevalue")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_lfm_api_non_json_payload(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    """A 200 response with a non-JSON body (e.g. an HTML error page) surfaces as LFMRequestFailureException."""
+    httpx2_mock.route().respond(status_code=200, text="<html>bad gateway</html>")
+    lfm_client = LFMAPIClient(app_settings=valid_app_settings)
+    lfm_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(LFMRequestFailureException, match="non-JSON payload"):
+        lfm_client.request_api(method="album.getinfo", params="fakekey=fakevalue")
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])

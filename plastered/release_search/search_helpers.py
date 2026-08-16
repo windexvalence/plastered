@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
-from plastered.models import RecContext, RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
+from plastered.models import RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
 from plastered.utils.constants import (
     OPTIONAL_RED_PARAMS,
     RED_BROWSE_CONSTANT_PARAMS,
@@ -46,7 +46,6 @@ class SearchState:
 
     def __init__(self, app_settings: AppSettings, red_user_details: RedUserDetails | None = None):
         self._skip_prior_snatches = app_settings.red.snatches.skip_prior_snatches
-        self._allow_library_items = app_settings.lfm.allow_library_items
         self._use_release_type = app_settings.red.search.use_release_type
         self._use_first_release_year = app_settings.red.search.use_first_release_year
         self._use_record_label = app_settings.red.search.use_record_label
@@ -64,7 +63,12 @@ class SearchState:
         self._max_size_gb = app_settings.red.snatches.max_size_gb
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
         self._max_download_allowed_gb = 0.0
-        self._red_user_details = red_user_details
+        self._red_user_details: RedUserDetails | None = None
+        # Route through the setter so `_max_download_allowed_gb` is computed for BOTH initialization paths: a state
+        # constructed with already-fetched details (a reused `ReleaseSearcher`) and one populated later via
+        # `set_red_user_details` (the first run). Leaving the cap at 0.0 here would skip every snatch as MIN_RATIO_LIMIT.
+        if red_user_details is not None:
+            self.set_red_user_details(red_user_details=red_user_details)
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
@@ -124,14 +128,6 @@ class SearchState:
             return SkipReason.ALREADY_SNATCHED
         return None
 
-    def _pre_mbid_reso_rule_allowed_rec_context(self, si: SearchItem) -> SkipReason | None:
-        """
-        Return `True` if si has an `IN_LIBRARY` context and self._allow_library items is `False`, return `False` otherwise.
-        """
-        if not self._allow_library_items and si.initial_info.rec_context == RecContext.IN_LIBRARY:
-            return SkipReason.REC_CONTEXT_FILTERING
-        return None
-
     def post_mbid_reso_rule_has_required_fields(self, si: SearchItem) -> SkipReason | None:
         """
         Return `SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS` if the SearchItem should be skipped due to missing
@@ -143,6 +139,13 @@ class SearchState:
         if not self._require_mbid_resolution:
             return None
         if not si.search_kwargs_has_all_required_fields(required_kwargs=self._required_red_search_kwargs):
+            # Attribute the missing fields to an upstream API request failure when one occurred (checking LFM first
+            # since it resolves earlier in the chain and gates the MB lookup): without the failure the fields might
+            # have resolved, so the recorded reason should surface the failed request, not a generic unresolved skip.
+            if si.lfm_request_failed:
+                return SkipReason.LFM_REQUEST_FAILURE
+            if si.mb_request_failed:
+                return SkipReason.MB_REQUEST_FAILURE
             return SkipReason.UNRESOLVED_REQUIRED_SEARCH_FIELDS
         return None
 

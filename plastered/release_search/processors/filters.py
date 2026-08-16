@@ -42,20 +42,28 @@ class BaseFilter(SearchItemFilter):
 class PreMBIDResolutionFilter(BaseFilter):
     """Intended as a replacement for `SearchState.pre_mbid_resolution_filter`."""
 
-    funcs: ClassVar[FilterFuncs] = tuple(
-        [
-            lambda si, state: state._pre_mbid_reso_rule_not_previously_snatched(si=si),
-            lambda si, state: state._pre_mbid_reso_rule_allowed_rec_context(si=si),
-        ]
-    )
+    funcs: ClassVar[FilterFuncs] = tuple([lambda si, state: state._pre_mbid_reso_rule_not_previously_snatched(si=si)])
+
+
+def _origin_track_skip_reason(si: SearchItem) -> SkipReason | None:
+    """
+    Keep a track item whose origin release resolved; otherwise attribute the drop to an upstream API request
+    failure when one occurred (checking LFM first since it is the primary source), falling back to the generic
+    no-source-release reason.
+    """
+    if si._lfm_track_info:
+        return None
+    if si.lfm_request_failed:
+        return SkipReason.LFM_REQUEST_FAILURE
+    if si.mb_request_failed:
+        return SkipReason.MB_REQUEST_FAILURE
+    return SkipReason.NO_SOURCE_RELEASE_FOUND
 
 
 class PostResolveOriginTrackFilter(BaseFilter):
     """Intended as a replacement for `SearchState.post_resolve_track_filter`."""
 
-    funcs: ClassVar[FilterFuncs] = tuple(
-        [lambda si, _: None if si._lfm_track_info else SkipReason.NO_SOURCE_RELEASE_FOUND]
-    )
+    funcs: ClassVar[FilterFuncs] = tuple([lambda si, _: _origin_track_skip_reason(si=si)])
 
 
 class PostMBIDResolutionFilter(BaseFilter):

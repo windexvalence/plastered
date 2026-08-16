@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from plastered.models.adhoc_search_models import AdhocSearch
-from plastered.models.types import EntityType, RecContext, RedReleaseType
+from plastered.models.types import EntityType, RedReleaseType
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
@@ -56,9 +56,6 @@ class TestAdhocSearch:
     def test_lfm_entity_url(self, release: str | None, track: str | None, expected_url: str) -> None:
         adhoc = AdhocSearch(artist="Fake Artist", release=release, track=track)
         assert adhoc.lfm_entity_url == expected_url
-
-    def test_rec_context(self) -> None:
-        assert AdhocSearch(artist="x", release="y").rec_context == RecContext.NOT_SET
 
     def test_get_human_track_str_for_track(self) -> None:
         assert AdhocSearch(artist="x", track="My Track").get_human_readable_track_str() == "My Track"

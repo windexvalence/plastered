@@ -16,7 +16,6 @@ from plastered.models import (
     LFMTrackInfo,
     MBRelease,
     MediaEnum,
-    RecContext,
     RedFormat,
     ReleaseEntry,
     SearchItem,
@@ -32,7 +31,12 @@ from plastered.release_search.processors.modifiers import (
 )
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.release_search.search_helpers import SearchState
-from plastered.utils.exceptions import LFMClientException, MusicBrainzClientException
+from plastered.utils.exceptions import (
+    LFMClientException,
+    LFMRequestFailureException,
+    MusicBrainzClientException,
+    MusicBrainzRequestFailureException,
+)
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
 
@@ -123,12 +127,7 @@ def test_resolve_album_info_modifier(
     "test_lfm_rec, mock_lfm_json_fixture, mb_resolved_origin_release_fields, expected_lfmti",
     [
         (
-            LFMRec(
-                lfm_artist_str="Dr.+Octagon",
-                lfm_entity_str="No+Awareness",
-                recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
-            ),
+            LFMRec(lfm_artist_str="Dr.+Octagon", lfm_entity_str="No+Awareness", recommendation_type=EntityType.TRACK),
             "mock_full_lfm_track_info_json",
             None,
             LFMTrackInfo(
@@ -141,10 +140,7 @@ def test_resolve_album_info_modifier(
         ),
         (
             LFMRec(
-                lfm_artist_str="The+Tuss",
-                lfm_entity_str="rushup+i+bank+12+M",
-                recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
+                lfm_artist_str="The+Tuss", lfm_entity_str="rushup+i+bank+12+M", recommendation_type=EntityType.TRACK
             ),
             "mock_no_album_lfm_track_info_json",
             {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
@@ -158,10 +154,7 @@ def test_resolve_album_info_modifier(
         ),
         (
             LFMRec(
-                lfm_artist_str="The+Tuss",
-                lfm_entity_str="rushup+i+bank+12+M",
-                recommendation_type=EntityType.TRACK,
-                rec_context=RecContext.IN_LIBRARY,
+                lfm_artist_str="The+Tuss", lfm_entity_str="rushup+i+bank+12+M", recommendation_type=EntityType.TRACK
             ),
             "mock_no_album_lfm_track_info_json",
             None,
@@ -315,6 +308,13 @@ def test_attempt_resolve_mb_release_modifier(
     assert actual._mb_release == expected_mb_release
 
 
+@pytest.mark.parametrize(
+    "raised_exception, expected_mb_request_failed",
+    [
+        (MusicBrainzClientException("Intentionally raised exception"), False),
+        (MusicBrainzRequestFailureException("Intentionally raised exception"), True),
+    ],
+)
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])
 def test_attempt_resolve_mb_release_modifier_exception(
@@ -323,6 +323,8 @@ def test_attempt_resolve_mb_release_modifier_exception(
     make_track_search_item: pytest.FixtureRequest,
     is_lfm_rec: bool,
     entity_type: EntityType,
+    raised_exception: MusicBrainzClientException,
+    expected_mb_request_failed: bool,
 ) -> None:
     mock_matched_mbid = "69-420"
     mock_si = (
@@ -345,12 +347,71 @@ def test_attempt_resolve_mb_release_modifier_exception(
         )
         mock_si._lfm_album_info = lfmai
 
-    def _mb_request_release_details_side_effect(*args: Any, **kwargs: Any) -> None:
-        raise MusicBrainzClientException("Intentionally raised exception")
-
-    mock_process_kwargs["mb"].request_release_details.side_effect = _mb_request_release_details_side_effect
+    mock_process_kwargs["mb"].request_release_details.side_effect = raised_exception
     actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
     assert isinstance(actual, SearchItem)
+    assert actual.mb_request_failed is expected_mb_request_failed
+
+
+@pytest.mark.parametrize(
+    "raised_exception, expected_lfm_request_failed",
+    [
+        (LFMClientException("Intentionally raised exception"), False),
+        (LFMRequestFailureException("Intentionally raised exception"), True),
+    ],
+)
+def test_resolve_album_info_modifier_lfm_exception(
+    mock_process_kwargs: _MockProcKwargs,
+    make_album_search_item: pytest.FixtureRequest,
+    raised_exception: LFMClientException,
+    expected_lfm_request_failed: bool,
+) -> None:
+    """An LFM client error degrades to no album info; only an infra-level failure sets `lfm_request_failed`."""
+    mock_process_kwargs["lfm"].get_album_info.side_effect = raised_exception
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    actual = ResolveAlbumInfoModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual._lfm_album_info is None
+    assert actual.lfm_request_failed is expected_lfm_request_failed
+
+
+@pytest.mark.parametrize(
+    "raised_exception, expected_lfm_request_failed",
+    [
+        (LFMClientException("Intentionally raised exception"), False),
+        (LFMRequestFailureException("Intentionally raised exception"), True),
+    ],
+)
+def test_resolve_track_info_modifier_lfm_request_failure_sets_flag(
+    mock_process_kwargs: _MockProcKwargs,
+    make_track_search_item: pytest.FixtureRequest,
+    raised_exception: LFMClientException,
+    expected_lfm_request_failed: bool,
+) -> None:
+    """Only an infra-level LFM failure during track resolution sets `lfm_request_failed` (MB fallback still runs)."""
+    mock_process_kwargs["lfm"].get_track_info.side_effect = raised_exception
+    mock_process_kwargs["mb"].request_release_details_for_track.return_value = None
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual.lfm_request_failed is expected_lfm_request_failed
+    assert actual.mb_request_failed is False
+    mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once_with(si=mock_si, artist_mbid=None)
+
+
+def test_resolve_track_info_modifier_mb_request_failure_sets_flag(
+    mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
+) -> None:
+    """An infra-level MB failure during the track origin-release fallback sets `mb_request_failed` and keeps going."""
+    mock_process_kwargs["lfm"].get_track_info.return_value = {"no_album_key": True}
+    mock_process_kwargs["mb"].request_release_details_for_track.side_effect = MusicBrainzRequestFailureException(
+        "Intentionally raised exception"
+    )
+    mock_si = make_track_search_item(is_lfm_rec=True)
+    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual.mb_request_failed is True
+    assert actual._lfm_track_info is None
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])

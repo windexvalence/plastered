@@ -138,13 +138,11 @@ flowchart TD
     subgraph PF["PreMBIDResolutionFilter"]
         direction TB
         S_snatched["state._pre_mbid_reso_rule_not_previously_snatched()"]
-        S_context["state._pre_mbid_reso_rule_allowed_rec_context()"]
-        S_snatched -->|None| S_context
     end
     ATTACH -->|"EntityType.ALBUM"| S_snatched
     TS_in -->|present| S_snatched
-    S_context -->|"None (album)"| RESOLVE_ALBUM
-    S_context -->|"None (track)"| ATTEMPT_MB
+    S_snatched -->|"None (album)"| RESOLVE_ALBUM
+    S_snatched -->|"None (track)"| ATTEMPT_MB
     RESOLVE_ALBUM --> ATTEMPT_MB
 
     %% ── PostMBIDResolutionFilter ──
@@ -169,7 +167,6 @@ flowchart TD
 
     %% ── Rule rejections drop the item ──
     S_snatched -->|SkipReason| DROP
-    S_context -->|SkipReason| DROP
     S_required -->|SkipReason| DROP
     S_match -->|SkipReason| DROP
     S_dupe -->|SkipReason| DROP
@@ -187,7 +184,7 @@ flowchart TD
     class SFR,MS,NEW_STATE,GRUD,APPLY rsMethod;
     class SNATCHES,SNATCH snatcher;
     class RESOLVE_TRACK,ATTACH,RESOLVE_ALBUM,ATTEMPT_MB,SEARCH_RED modifier;
-    class S_snatched,S_context,S_required,S_match,S_dupe,S_add searchState;
+    class S_snatched,S_required,S_match,S_dupe,S_add searchState;
     class TS_in inlineRule;
     class DROP terminal;
 ```
