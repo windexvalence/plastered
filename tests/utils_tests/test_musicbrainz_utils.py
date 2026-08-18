@@ -107,6 +107,15 @@ def test_release_year_non_match(raw_field_present: bool, raw_field_value: str, e
             OrderedDict([("releasetype", 1), ("year", None), ("recordlabel", None), ("cataloguenumber", None)]),
         ),
         (
+            # An MB primary-type RED has no mapping for resolves to UNKNOWN, which is reported as an unresolved
+            # release type (None) rather than becoming a filter no real RED group could ever satisfy.
+            "Other",
+            None,
+            None,
+            None,
+            OrderedDict([("releasetype", None), ("year", None), ("recordlabel", None), ("cataloguenumber", None)]),
+        ),
+        (
             "single",
             None,
             None,
@@ -125,14 +134,14 @@ def test_release_year_non_match(raw_field_present: bool, raw_field_value: str, e
             None,
             "Fake Label",
             None,
-            OrderedDict([("releasetype", 1), ("year", None), ("recordlabel", "Fake+Label"), ("cataloguenumber", None)]),
+            OrderedDict([("releasetype", 1), ("year", None), ("recordlabel", "Fake Label"), ("cataloguenumber", None)]),
         ),
         (
             "single",
             None,
             None,
             "DOODOO 89",
-            OrderedDict([("releasetype", 9), ("year", None), ("recordlabel", None), ("cataloguenumber", "DOODOO+89")]),
+            OrderedDict([("releasetype", 9), ("year", None), ("recordlabel", None), ("cataloguenumber", "DOODOO 89")]),
         ),
         (
             "album",
@@ -140,7 +149,7 @@ def test_release_year_non_match(raw_field_present: bool, raw_field_value: str, e
             "Fake Label",
             "DOODOO 89",
             OrderedDict(
-                [("releasetype", 1), ("year", 1969), ("recordlabel", "Fake+Label"), ("cataloguenumber", "DOODOO+89")]
+                [("releasetype", 1), ("year", 1969), ("recordlabel", "Fake Label"), ("cataloguenumber", "DOODOO 89")]
             ),
         ),
     ],

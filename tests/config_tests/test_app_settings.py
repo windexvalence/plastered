@@ -59,6 +59,7 @@ def test_with_red_overrides_applies_all_fields(valid_app_settings: AppSettings) 
         use_first_release_year=False,
         use_record_label=True,
         use_catalog_number=True,
+        fuzzy_search_enabled=True,
         snatch=True,
         max_size_gb=12.5,
         skip_prior_snatches=False,
@@ -70,6 +71,7 @@ def test_with_red_overrides_applies_all_fields(valid_app_settings: AppSettings) 
     assert merged.red.search.use_first_release_year is False
     assert merged.red.search.use_record_label is True
     assert merged.red.search.use_catalog_number is True
+    assert merged.red.search.fuzzy_search_enabled is True
     assert merged.red.snatches.snatch_recs is True
     assert merged.red.snatches.max_size_gb == 12.5
     assert merged.red.snatches.skip_prior_snatches is False

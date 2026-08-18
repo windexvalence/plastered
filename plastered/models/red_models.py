@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from functools import cached_property
+from html import unescape
 from typing import Annotated, Any, NamedTuple, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator, model_validator
@@ -113,6 +114,7 @@ class TorrentEntry:
     log_score: int
     has_cue: bool
     can_use_token: bool
+    seeders: int | None = None
     reported: bool | None = None
     lossy_web: bool | None = None
     lossy_master: bool | None = None
@@ -142,25 +144,29 @@ class TorrentEntry:
         return all([other_attrs[attr_name] == attr_val for attr_name, attr_val in self_attrs.items()])
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
+    def from_artist_torrent_json_blob(cls, json_blob: dict[str, Any]):
         """
-        Construct a TorrentEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
-        NOTE: TorrentEntry instances constructed via this class method will have their reported, lossy_web, and lossy_master
-        fields set to `None`, as the browse endpoint's responses do not surface those pieces of information.
+        Construct a TorrentEntry from a torrent object of the `ajax.php?action=artist&<...>` API endpoint's response.
+        NOTE: instances constructed via this class method have their reported, lossy_web, and lossy_master fields set
+        to `None`, as the artist endpoint's responses do not surface those pieces of information. `trumpable`,
+        `hasSnatched`, and `canUseToken` are not documented for every Gazelle variant of the endpoint, so absent keys
+        default to conservative values (in particular `can_use_token=False`, so an FL token is never spent on a
+        torrent we can't confirm allows it).
         """
         return cls(
-            torrent_id=json_blob["torrentId"],
+            torrent_id=json_blob["id"],
             media=json_blob["media"],
             format=json_blob["format"],
             encoding=json_blob["encoding"],
             size=json_blob["size"],
             scene=json_blob["scene"],
-            trumpable=json_blob["trumpable"],
-            has_snatched=json_blob["hasSnatched"],
+            trumpable=json_blob.get("trumpable", False),
+            has_snatched=json_blob.get("hasSnatched", False),
             has_log=json_blob["hasLog"],
             log_score=json_blob["logScore"],
             has_cue=json_blob["hasCue"],
-            can_use_token=json_blob["canUseToken"],
+            can_use_token=json_blob.get("canUseToken", False),
+            seeders=json_blob.get("seeders"),
         )
 
     def get_size(self, unit: str | None = "B") -> float:
@@ -183,50 +189,67 @@ class TorrentMatch(NamedTuple):
     above_max_size_found: bool
 
 
-# TODO (later): reformat this as a dataclass
-# Defines a singular search preference
-# NOTE: the browse response returns the releaseType string value, rather than the int
-def _red_release_type_str_to_enum(release_type_str: str) -> RedReleaseType:
-    return RedReleaseType[release_type_str.replace(" ", "_").upper()]
-
-
 @dataclass
 class ReleaseEntry:
     """
-    Utility class wrapping the details of a given specific release within a RED release group,
-    along with all the individual torrents associated with this specific release.
+    Utility class wrapping a single RED release group — along with all the individual torrents in it — as returned by
+    the `ajax.php?action=artist&<...>` API endpoint. Carries the group-level fields used for the client-side
+    title/year/release-type matching and record-label/catalogue-number ranking of candidate groups
+    (see `SearchState.get_candidate_release_groups`).
     """
 
     group_id: int
-    media: str
-    remastered: bool
+    group_name: str
     release_type: RedReleaseType
-    remaster_year: int | None = None
-    remaster_title: str | None = None
-    remaster_catalogue_number: str | None = None
-    remaster_record_label: str | None = None
+    group_year: int | None = None
+    # Every record label / catalogue number attached to the group: the group-level (original release) values plus any
+    # per-torrent remaster values. Used as ranking signals only — never to drop a group.
+    record_labels: frozenset[str] = frozenset()
+    catalogue_numbers: frozenset[str] = frozenset()
     torrent_entries: list[TorrentEntry] = field(default_factory=list)
 
     @classmethod
-    def from_torrent_search_json_blob(cls, json_blob: dict[str, Any]):
+    def from_artist_torrent_group_json_blob(cls, json_blob: dict[str, Any]):
         """
-        Construct a ReleaseEntry from the JSON data returned from the `ajax.php?action=browse&<...>` search API endpoint.
-        NOTE: Instances constructed via this method will have a NoneType `remaster_record_label` value as the `browse` endpoint responses don't surface
-        that information.
+        Construct a ReleaseEntry from a `torrentgroup` object of the `ajax.php?action=artist&<...>` API endpoint's
+        response. Torrents whose format/encoding/media fall outside the supported search enums (e.g. AAC or DSD) can
+        never match a configured format preference, so they are skipped rather than failing the whole group.
         """
-        first_torrent_blob = json_blob["torrents"][0]
-        torrent_entries = [
-            TorrentEntry.from_torrent_search_json_blob(json_blob=torrent_json_blob)
-            for torrent_json_blob in json_blob["torrents"]
-        ]
+        torrent_blobs = json_blob.get("torrent", [])
+        torrent_entries = []
+        for torrent_blob in torrent_blobs:
+            try:
+                torrent_entries.append(TorrentEntry.from_artist_torrent_json_blob(json_blob=torrent_blob))
+            except ValueError:
+                _LOGGER.debug(
+                    f"Skipping torrent id={torrent_blob.get('id')} in group id={json_blob.get('groupId')}: "
+                    "unsupported format/encoding/media."
+                )
+        # Order the group's torrents best-seeded-first: `select_best_torrent` takes the first size-acceptable torrent
+        # per format preference, so this keeps the snatch preferring healthy torrents (the artist endpoint lists
+        # torrents in edition order, unlike the seeder-ordered browse results this flow replaced).
+        torrent_entries.sort(key=lambda te: te.seeders or 0, reverse=True)
+        try:
+            release_type = RedReleaseType(json_blob["releaseType"])
+        except ValueError:
+            # RED may introduce release-type ids the enum doesn't know about; degrade rather than fail the group.
+            release_type = RedReleaseType.UNKNOWN
+        record_labels = {json_blob.get("groupRecordLabel"), *(tb.get("remasterRecordLabel") for tb in torrent_blobs)}
+        catalogue_numbers = {
+            json_blob.get("groupCatalogueNumber"),
+            *(tb.get("remasterCatalogueNumber") for tb in torrent_blobs),
+        }
         return cls(
             group_id=json_blob["groupId"],
-            media=first_torrent_blob["media"],
-            remastered=first_torrent_blob["remastered"],
-            remaster_year=first_torrent_blob["remasterYear"],
-            remaster_title=first_torrent_blob["remasterTitle"],
-            remaster_catalogue_number=first_torrent_blob["remasterCatalogueNumber"],
-            release_type=_red_release_type_str_to_enum(release_type_str=json_blob["releaseType"]),
+            # Text fields in the artist endpoint's response are HTML-escaped (e.g. "&amp;"); unescape them so the
+            # client-side title matching and label/catalogue-number ranking compare against the real values.
+            group_name=unescape(json_blob["groupName"]),
+            release_type=release_type,
+            group_year=json_blob.get("groupYear"),
+            record_labels=frozenset(unescape(label) for label in record_labels if label),
+            catalogue_numbers=frozenset(
+                unescape(catalogue_number) for catalogue_number in catalogue_numbers if catalogue_number
+            ),
             torrent_entries=torrent_entries,
         )
 

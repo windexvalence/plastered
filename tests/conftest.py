@@ -35,10 +35,7 @@ MOCK_JSON_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_api_r
 MOCK_HTML_RESPONSES_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "mock_browser_html")
 INVALID_CONFIGS_DIR_PATH = os.path.join(MOCK_RESOURCES_DIR_PATH, "invalid_configs")
 EXAMPLES_DIR_PATH = os.path.join(PROJECT_ABS_PATH, "examples")
-_RED_MOCK_BROWSE_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_browse_api_response.json")
-_RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH = os.path.join(
-    MOCK_JSON_RESPONSES_DIR_PATH, "red_browse_api_no_results_response.json"
-)
+_RED_MOCK_ARTIST_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_artist_api_response.json")
 _RED_MOCK_GROUP_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "mock_red_group_response.json")
 _RED_MOCK_USER_STATS_JSON_FILEPATH = os.path.join(MOCK_JSON_RESPONSES_DIR_PATH, "red_userstats_response.json")
 _RED_MOCK_USER_TORRENTS_SNATCHED_JSON_FILEPATH = os.path.join(
@@ -56,6 +53,9 @@ _LFM_MOCK_TRACK_INFO_NO_ALBUM_JSON_FILEPATH = os.path.join(
 )
 _MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "musicbrainz_release_api_response.json"
+)
+_MUSICBRAINZ_MOCK_RELEASE_SEARCH_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "mb_release_search_response.json"
 )
 _MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_arid.json"
@@ -219,18 +219,8 @@ def minimal_valid_app_settings(minimal_valid_config_filepath: str) -> AppSetting
 
 
 @pytest.fixture(scope="session")
-def mock_action_to_red_json_responses() -> dict[str, dict[str, Any]]:
-    return {"browse": load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH)}
-
-
-@pytest.fixture(scope="session")
-def mock_red_browse_non_empty_response() -> dict[str, Any]:
-    return load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_JSON_FILEPATH)
-
-
-@pytest.fixture(scope="session")
-def mock_red_browse_empty_response() -> dict[str, Any]:
-    return load_mock_response_json(json_filepath=_RED_MOCK_BROWSE_EMPTY_JSON_FILEPATH)
+def mock_red_artist_response() -> dict[str, Any]:
+    return load_mock_response_json(json_filepath=_RED_MOCK_ARTIST_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
@@ -327,9 +317,17 @@ def mock_musicbrainz_track_search_artist_name_json() -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def mock_musicbrainz_track_search_no_release_name_json() -> dict[str, Any]:
+    """A recording-search payload where no release carries a title, so no origin release can be resolved."""
     raw_data = load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_TRACK_ARTIST_NAME_JSON_FILEPATH)
-    del raw_data["recordings"][0]["releases"][0]["title"]
+    for recording_json in raw_data["recordings"]:
+        for release_json in recording_json.get("releases", []):
+            release_json.pop("title", None)
     return raw_data
+
+
+@pytest.fixture(scope="session")
+def mock_musicbrainz_release_search_json() -> dict[str, Any]:
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RELEASE_SEARCH_JSON_FILEPATH)
 
 
 @pytest.fixture(scope="session")
@@ -401,7 +399,7 @@ def expected_red_format_list() -> list[RedFormat]:
 
 @pytest.fixture(scope="session")
 def red_url_regex_to_mock_json(
-    mock_red_browse_non_empty_response: dict[str, Any],
+    mock_red_artist_response: dict[str, Any],
     mock_red_group_response: dict[str, Any],
     mock_red_user_stats_response: dict[str, Any],
     mock_red_user_torrents_snatched_response: dict[str, Any],
@@ -412,7 +410,7 @@ def red_url_regex_to_mock_json(
     Utility fixture consumed by `global_httpx_mock` to map RED API url patterns to mock JSON response payloads
     """
     return [
-        (r"^https://redacted\.sh/ajax\.php\?action=browse.*$", mock_red_browse_non_empty_response),
+        (r"^https://redacted\.sh/ajax\.php\?action=artist.*$", mock_red_artist_response),
         (r"^https://redacted\.sh/ajax\.php\?action=torrentgroup.*$", mock_red_group_response),
         (r"^https://redacted\.sh/ajax\.php\?action=community_stats.*$", mock_red_user_stats_response),
         # ?action=user_torrents&type=snatched&...
@@ -446,6 +444,7 @@ def lfm_url_regex_to_mock_json(
 @pytest.fixture(scope="session")
 def mb_url_regex_to_mock_json(
     mock_musicbrainz_release_json: dict[str, Any],
+    mock_musicbrainz_release_search_json: dict[str, Any],
     mock_musicbrainz_track_search_arid_json: dict[str, Any],
     mock_musicbrainz_track_search_artist_name_json: dict[str, Any],
 ) -> list[tuple[str, str]]:
@@ -454,6 +453,8 @@ def mb_url_regex_to_mock_json(
     """
     return [
         (r"https://musicbrainz\.org/ws/2/release/.*$", mock_musicbrainz_release_json),
+        # The release *search* endpoint (`release?query=...`), as opposed to the release-details lookup above.
+        (r"https://musicbrainz\.org/ws/2/release\?query=.*$", mock_musicbrainz_release_search_json),
         (
             r"https://musicbrainz\.org/ws/2/recording\?query=.*recording:.+AND.+arid:.*$",
             mock_musicbrainz_track_search_arid_json,

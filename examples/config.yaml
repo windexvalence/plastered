@@ -9,6 +9,7 @@ red:
     use_first_release_year: true
     use_record_label: false
     use_catalog_number: false
+    fuzzy_search_enabled: false
     use_fl_tokens: false
   snatches:
     snatch_directory: /app/tests/resources

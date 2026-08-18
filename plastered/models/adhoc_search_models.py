@@ -5,7 +5,7 @@ An ad-hoc search is any release search that does NOT originate from the LFM scra
 client (the web UI or a REST client) and, unlike an `LFMRec`, is not required to carry any Last.fm-specific data. The
 only required fields are the `artist` plus exactly one of `release` (album name) or `track` name. Every other field
 (MBID, catalog number, record label, release year, release type) is optional and, when present, is used to refine the
-RED browse query.
+client-side matching of the artist's RED release groups.
 
 `AdhocSearch` implements the same read interface that the `ReleaseSearcher` processor chain expects from a search's
 `initial_info` (see `plastered.models.search_item.SearchItem`), so the existing album/track processor chains work for
@@ -46,7 +46,8 @@ class AdhocSearch(BaseModel):
     release: str | None = Field(default=None)
     track: str | None = Field(default=None)
     mbid: str | None = Field(default=None)
-    # Optional fields used to refine the RED browse query when present. They map directly to RED browse params.
+    # Optional fields used to refine the client-side RED release-group matching when present: release type and year
+    # act as filters, record label and catalogue number act as ranking signals.
     release_type: RedReleaseType | None = Field(default=None)
     release_year: int | None = Field(default=None)
     record_label: str | None = Field(default=None)
@@ -97,8 +98,9 @@ class AdhocSearch(BaseModel):
 
     def get_user_search_kwargs(self) -> OrderedDict[str, Any]:
         """
-        Returns the user-supplied optional RED browse params (URL-encoded where needed), omitting any unset fields.
-        These take precedence over any values later resolved from MusicBrainz (see `SearchItem.set_mb_release`).
+        Returns the user-supplied optional release attributes (raw, non URL-encoded strings), omitting any unset
+        fields. These take precedence over any values later resolved from MusicBrainz (see `SearchItem.set_mb_release`)
+        and are applied client-side when matching RED release groups (see `SearchState.get_candidate_release_groups`).
         """
         kwargs: OrderedDict[str, Any] = OrderedDict()
         if self.release_type is not None:
@@ -106,7 +108,7 @@ class AdhocSearch(BaseModel):
         if self.release_year is not None:
             kwargs[RED_PARAM_RELEASE_YEAR] = self.release_year
         if self.record_label:
-            kwargs[RED_PARAM_RECORD_LABEL] = quote_plus(self.record_label)
+            kwargs[RED_PARAM_RECORD_LABEL] = self.record_label
         if self.catalog_number:
-            kwargs[RED_PARAM_CATALOG_NUMBER] = quote_plus(self.catalog_number)
+            kwargs[RED_PARAM_CATALOG_NUMBER] = self.catalog_number
         return kwargs

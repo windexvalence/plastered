@@ -17,6 +17,8 @@ Additionally, `plastered` is completely agnostic to your download client as well
 Some other nice perks:
 * Rate-limits and retries for all API calls are enabled by default, with configurable retry counts and per-API rate limit settings.
 * Search filtering and criteria are very configurable to suit your needs.
+* Resilient release matching: RED search offers no fuzzy matching, so `plastered` matches releases itself — tolerating punctuation/edition-suffix naming differences (with an opt-in fuzzy mode), and falling back to musicbrainz's scored search when Last.fm lacks release metadata. See the [FAQ](./docs/FAQ.md#how-does-plastered-match-releases-on-red) for details.
+* Only one RED search request is made per artist per run, no matter how many of that artist's releases are being searched for.
 * Setup and installation is quick.
 * Supports use of FL tokens (prioritizing the use of FL on the largest RED matches over smaller ones in a given run)
 

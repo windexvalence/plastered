@@ -12,6 +12,7 @@ red:
     use_first_release_year: true
     use_record_label: false
     use_catalog_number: false
+    fuzzy_search_enabled: false
   snatches:
     # NOTE: the snatch_directory must point to the content directory
     # mounted on your container.

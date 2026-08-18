@@ -105,8 +105,18 @@ class AttemptResolveMBReleaseModifier(SearchItemModifier):
         if not state.mb_resolution_would_be_used(si=si):
             _LOGGER.debug("MusicBrainz release resolution not required by config; skipping the lookup.")
             return si
-        if not (mbid := si.get_matched_mbid()):
-            _LOGGER.debug(f"No MBID to resolve from for artist: '{si.artist_name}', release: '{si.release_name}'")
+        mbid = si.get_matched_mbid()
+        if not mbid:
+            # LFM's MBID coverage is sparse and stale, so fall back to resolving one via the MB release search — its
+            # Lucene scoring tolerates minor naming differences, unlike an exact lookup.
+            try:
+                mbid = mb.search_release_mbid(artist_name=si.artist_name, release_name=si.release_name)
+            except MusicBrainzRequestFailureException:
+                _LOGGER.error(f"Musicbrainz request failure during release search for '{si}'.", exc_info=True)
+                si.mb_request_failed = True
+                return si
+        if not mbid:
+            _LOGGER.debug(f"No MBID resolved for artist: '{si.artist_name}', release: '{si.release_name}'")
             return si
         try:
             si.set_mb_release(MBRelease.construct_from_api(json_blob=mb.request_release_details(mbid=mbid)))
@@ -125,16 +135,26 @@ class SearchRedReleaseByPrefsModifier(SearchItemModifier):
     def process(
         si: SearchItem, state: SearchState, lfm: LFMAPIClient, mb: MusicBrainzAPIClient, red: RedAPIClient
     ) -> SearchItem:
-        # Issue a single, format-agnostic browse per rec and rank the returned torrents against the format preferences
-        # client-side (see `SearchState.select_best_torrent`). Build params outside the try so a browse failure's log
-        # line can't hit an unassigned `req_params`.
-        req_params = state.create_red_browse_params(si=si)
-        try:
-            release_entries = red.browse(request_params=req_params)
-        except Exception:
-            _LOGGER.error(f"RED browse request failed: {req_params}: ", exc_info=True)
-            release_entries = []
-        torrent_match = state.select_best_torrent(release_entries=release_entries)
+        # Issue at most one artist-endpoint request per artist per run and do all release matching client-side: the
+        # wanted title (plus year/release-type filters and label/catalogue-number ranking) selects the candidate
+        # groups (`SearchState.get_candidate_release_groups`), then the candidates' torrents are ranked against the
+        # format preferences (`SearchState.select_best_torrent`).
+        artist_name = si.artist_name
+        release_entries = state.get_cached_artist_release_groups(artist_name=artist_name)
+        if release_entries is None:
+            try:
+                release_entries = red.get_artist_release_groups(artist_name=artist_name)
+                # Cache the fetched listing (empty included) for later recs by the same artist this run. The
+                # exception path is deliberately NOT cached, so a transient request failure doesn't turn every
+                # later rec by the artist into a silent no-match.
+                state.cache_artist_release_groups(artist_name=artist_name, release_entries=release_entries)
+            except Exception:
+                _LOGGER.error(f"RED artist request failed for artist '{artist_name}': ", exc_info=True)
+                release_entries = []
+        else:
+            _LOGGER.debug(f"Using this run's cached RED release-group listing for artist '{artist_name}'.")
+        candidate_entries = state.get_candidate_release_groups(si=si, release_entries=release_entries)
+        torrent_match = state.select_best_torrent(release_entries=candidate_entries)
         if torrent_match.torrent_entry is None:
             _LOGGER.debug(f"No torrent match found for si: {si.initial_info}")
         si.set_torrent_match_fields(torrent_match=torrent_match)

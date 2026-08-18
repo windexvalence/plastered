@@ -77,9 +77,10 @@ class TestAdhocSearch:
             catalog_number="58 010",
         )
         kwargs = adhoc.get_user_search_kwargs()
+        # Values are the raw strings: they are compared against RED group fields client-side, not sent as URL params.
         assert kwargs == {
             RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value,
             RED_PARAM_RELEASE_YEAR: 1996,
-            RED_PARAM_RECORD_LABEL: "Get+On+Down",
-            RED_PARAM_CATALOG_NUMBER: "58+010",
+            RED_PARAM_RECORD_LABEL: "Get On Down",
+            RED_PARAM_CATALOG_NUMBER: "58 010",
         }
