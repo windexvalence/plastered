@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-from urllib.parse import quote_plus
+from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
 from plastered.models import RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
+from plastered.release_search.title_matching import MIN_MATCH_SCORE, title_match_score
 from plastered.utils.constants import (
-    OPTIONAL_RED_PARAMS,
-    RED_BROWSE_CONSTANT_PARAMS,
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
     RED_PARAM_RELEASE_TYPE,
@@ -23,18 +21,17 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _required_search_kwargs(
-    use_release_type: bool, use_first_release_year: bool, use_record_label: bool, use_catalog_number: bool
-) -> set[str]:
+def _required_search_kwargs(use_release_type: bool, use_first_release_year: bool) -> set[str]:
+    """
+    The search kwargs a scraper item must resolve to proceed. Only the release-type/year fields (the client-side
+    *filters*) are ever required — record label and catalogue number are ranking signals, so they are best-effort by
+    nature and never gate an item.
+    """
     required_kwargs = set()
     if use_release_type:
         required_kwargs.add(RED_PARAM_RELEASE_TYPE)
     if use_first_release_year:
         required_kwargs.add(RED_PARAM_RELEASE_YEAR)
-    if use_record_label:
-        required_kwargs.add(RED_PARAM_RECORD_LABEL)
-    if use_catalog_number:
-        required_kwargs.add(RED_PARAM_CATALOG_NUMBER)
     return required_kwargs
 
 
@@ -50,15 +47,15 @@ class SearchState:
         self._use_first_release_year = app_settings.red.search.use_first_release_year
         self._use_record_label = app_settings.red.search.use_record_label
         self._use_catalog_number = app_settings.red.search.use_catalog_number
+        self._fuzzy_search_enabled = app_settings.red.search.fuzzy_search_enabled
         self._required_red_search_kwargs: set[str] = _required_search_kwargs(
-            use_release_type=self._use_release_type,
-            use_first_release_year=self._use_first_release_year,
-            use_record_label=self._use_record_label,
-            use_catalog_number=self._use_catalog_number,
+            use_release_type=self._use_release_type, use_first_release_year=self._use_first_release_year
         )
-        # MBID resolution is required exactly when at least one optional search field is enabled, i.e. the
-        # required-kwargs set above is non-empty.
-        self._require_mbid_resolution = bool(self._required_red_search_kwargs)
+        # MBID resolution is used when at least one optional search field is enabled: release type and year act as
+        # client-side candidate filters, record label and catalogue number act as ranking signals.
+        self._require_mbid_resolution = (
+            self._use_release_type or self._use_first_release_year or self._use_record_label or self._use_catalog_number
+        )
         self._red_format_preferences = app_settings.get_red_format_preferences()
         self._max_size_gb = app_settings.red.snatches.max_size_gb
         self._min_allowed_ratio = app_settings.red.snatches.min_allowed_ratio
@@ -72,6 +69,24 @@ class SearchState:
         self._tids_to_snatch: set[int] = set()
         self._search_items_to_snatch: list[SearchItem] = []
         self._manual_search_item_to_snatch: SearchItem | None = None
+        # In-memory, run-scoped cache of RED artist release-group listings: multiple recs in a scraper run often
+        # share an artist, and the artist endpoint returns the artist's *entire* listing, so one fetch serves them
+        # all. Never persisted — a fresh `SearchState` (one per run) always starts empty.
+        self._artist_release_groups_cache: dict[str, list[ReleaseEntry]] = {}
+
+    def get_cached_artist_release_groups(self, artist_name: str) -> list[ReleaseEntry] | None:
+        """
+        Returns this run's cached RED release-group listing for the artist, or `None` when the artist has not been
+        fetched yet this run. Keyed case-insensitively, matching RED's own artist-name lookup behavior.
+        """
+        return self._artist_release_groups_cache.get(artist_name.casefold())
+
+    def cache_artist_release_groups(self, artist_name: str, release_entries: list[ReleaseEntry]) -> None:
+        """
+        Caches an artist's fetched RED release-group listing (in memory only) for the remainder of the run. An empty
+        listing is cached too: an artist RED doesn't know stays unknown for the whole run.
+        """
+        self._artist_release_groups_cache[artist_name.casefold()] = release_entries
 
     def red_user_details_is_initialized(self) -> bool:
         """Returns `True` if the red user details have been initialized, `False` otherwise."""
@@ -86,24 +101,71 @@ class SearchState:
         )
         self._red_user_details = red_user_details
 
-    def create_red_browse_params(self, si: SearchItem) -> str:
+    def _effective_search_kwarg(self, si: SearchItem, red_param: str, enabled_for_scraper: bool) -> Any:
         """
-        Builds the RED browse API params string for a search item. A single broad browse is issued per rec (by
-        artist + group, with no format/encoding/media constraints); the returned torrents are then ranked against the
-        configured format preferences client-side (see `select_best_torrent`). This replaces issuing one throttled
-        browse per format preference.
+        Returns the optional release attribute to apply during candidate matching, or `None` when unset/disabled.
+        Ad-hoc searches use every attribute present on the item (user-supplied or MB-resolved — all such fields are
+        best-effort in the ad-hoc flow); scraper items only use those enabled by `red.search`.
         """
-        artist_name = si.initial_info.encoded_artist_str
-        album_name = quote_plus(si.release_name)
-        # TODO: figure out why the `order_by` param appears to be ignored whenever the params also have `group_results=1`.
-        browse_request_params = f"artistname={artist_name}&groupname={album_name}&{RED_BROWSE_CONSTANT_PARAMS}"
-        for red_param in OPTIONAL_RED_PARAMS:
-            # For ad-hoc searches, include every optional param the request actually supplied (all such fields are
-            # optional in the ad-hoc flow). For the scraper flow, only include params enabled by `red.search`.
-            include_param = si.is_manual or red_param in self._required_red_search_kwargs
-            if include_param and (red_param_val := si.get_search_kwargs().get(red_param)):
-                browse_request_params += f"&{red_param}={red_param_val}"
-        return browse_request_params
+        if not (si.is_manual or enabled_for_scraper):
+            return None
+        return si.get_search_kwargs().get(red_param)
+
+    def get_candidate_release_groups(self, si: SearchItem, release_entries: list[ReleaseEntry]) -> list[ReleaseEntry]:
+        """
+        Matches the wanted release against the artist's RED release groups client-side (RED's search offers no fuzzy
+        matching, so titles are matched here rather than via the browse endpoint's exact `groupname` param). Returns
+        the matching groups ordered best-first:
+
+        1. Groups are title-matched via `title_match_score` (with the lenient fuzzy tiers included only when
+           `red.search.fuzzy_search_enabled` is on).
+        2. When a release type is available, groups of a different type are dropped.
+        3. When a release year is available, groups from a different year are dropped — unless that would eliminate
+           every remaining candidate, in which case the year filter is skipped entirely: a wrong or edition-specific
+           year should narrow the match, never kill it.
+        4. Candidates are ordered by title score, then by a matching record label / catalogue number. These two are
+           ranking signals only — a mismatch never drops a group.
+        """
+        wanted_release_type = self._effective_search_kwarg(si, RED_PARAM_RELEASE_TYPE, self._use_release_type)
+        wanted_year = self._effective_search_kwarg(si, RED_PARAM_RELEASE_YEAR, self._use_first_release_year)
+        wanted_label = self._effective_search_kwarg(si, RED_PARAM_RECORD_LABEL, self._use_record_label)
+        wanted_catalogue_number = self._effective_search_kwarg(si, RED_PARAM_CATALOG_NUMBER, self._use_catalog_number)
+        scored_entries: list[tuple[float, ReleaseEntry]] = []
+        for release_entry in release_entries:
+            score = title_match_score(
+                wanted_title=si.release_name,
+                candidate_title=release_entry.group_name,
+                fuzzy_enabled=self._fuzzy_search_enabled,
+            )
+            if score < MIN_MATCH_SCORE:
+                continue
+            if wanted_release_type is not None and release_entry.release_type != wanted_release_type:
+                continue
+            scored_entries.append((score, release_entry))
+        if wanted_year is not None:
+            year_scored_entries = [(score, re) for score, re in scored_entries if re.group_year == wanted_year]
+            if year_scored_entries:
+                scored_entries = year_scored_entries
+            elif scored_entries:
+                _LOGGER.info(
+                    f"Year filter ({wanted_year}) eliminated every candidate group for '{si.release_name}' by "
+                    f"'{si.artist_name}'; falling back to the year-agnostic candidates."
+                )
+
+        def _rank_key(scored_entry: tuple[float, ReleaseEntry]) -> tuple[float, bool, bool]:
+            score, release_entry = scored_entry
+            label_matches = wanted_label is not None and any(
+                label.casefold() == wanted_label.casefold() for label in release_entry.record_labels
+            )
+            catalogue_number_matches = wanted_catalogue_number is not None and any(
+                catalogue_number.casefold() == str(wanted_catalogue_number).casefold()
+                for catalogue_number in release_entry.catalogue_numbers
+            )
+            return (score, label_matches, catalogue_number_matches)
+
+        # `sort` is stable, so equally-ranked groups keep RED's own (release-type + year) listing order.
+        scored_entries.sort(key=_rank_key, reverse=True)
+        return [release_entry for _, release_entry in scored_entries]
 
     def mb_resolution_would_be_used(self, si: SearchItem) -> bool:
         """
@@ -307,13 +369,14 @@ class SearchState:
 
     def select_best_torrent(self, release_entries: list[ReleaseEntry]) -> TorrentMatch:
         """
-        Ranks the torrents returned by a single (format-agnostic) RED browse against the configured format preferences,
-        client-side. The highest-priority preference that has a size-acceptable matching torrent wins; among matches for
-        a preference the first (highest-seeded, since the browse is seeder-ordered) within `max_size_gb` is chosen.
+        Ranks the torrents of the candidate release groups (best-candidate-first, see
+        `get_candidate_release_groups`) against the configured format preferences, client-side. The highest-priority
+        preference that has a size-acceptable matching torrent wins; among matches for a preference, groups are
+        visited in candidate-rank order (each group's torrents are seeder-ordered, see
+        `ReleaseEntry.from_artist_torrent_group_json_blob`) and the first torrent within `max_size_gb` is chosen.
 
         `above_max_size_found` is reported when a format-matching torrent existed but every candidate exceeded the size
-        limit — mirroring the prior per-preference browse behavior. Matching is by format/encoding/media only (log/cue
-        `cd_only_extras` are intentionally ignored, preserving the semantics of the previous browse-query filtering).
+        limit. Matching is by format/encoding/media only (log/cue `cd_only_extras` are intentionally ignored).
         """
         above_max_size_found = False
         for pref in self._red_format_preferences:

@@ -1,0 +1,194 @@
+{
+  "status": "success",
+  "response": {
+    "id": 24604,
+    "name": "Soulwax",
+    "notificationsEnabled": false,
+    "hasBookmarked": false,
+    "image": "https://ptpimg.me/abcde.jpg",
+    "body": "",
+    "vanityHouse": false,
+    "tags": [
+      {
+        "name": "rock",
+        "count": 14
+      },
+      {
+        "name": "electronic",
+        "count": 10
+      }
+    ],
+    "torrentgroup": [
+      {
+        "groupId": 24523,
+        "groupName": "Much Against Everyone&#39;s Advice",
+        "groupYear": 1998,
+        "groupRecordLabel": "PIAS",
+        "groupCatalogueNumber": "BIAS 360",
+        "tags": [
+          "rock",
+          "alternative.rock"
+        ],
+        "releaseType": 1,
+        "groupVanityHouse": false,
+        "hasBookmarked": false,
+        "torrent": [
+          {
+            "id": 4717421,
+            "groupId": 24523,
+            "media": "WEB",
+            "format": "FLAC",
+            "encoding": "Lossless",
+            "remasterYear": 1998,
+            "remastered": true,
+            "remasterTitle": "",
+            "remasterRecordLabel": "",
+            "remasterCatalogueNumber": "",
+            "scene": false,
+            "hasLog": false,
+            "hasCue": false,
+            "logScore": 0,
+            "fileCount": 14,
+            "freeTorrent": false,
+            "size": 360174720,
+            "leechers": 0,
+            "seeders": 2,
+            "snatched": 3,
+            "time": "2024-02-08 20:10:09",
+            "hasFile": 4717421,
+            "canUseToken": true,
+            "trumpable": false,
+            "hasSnatched": false
+          },
+          {
+            "id": 1131958,
+            "groupId": 24523,
+            "media": "CD",
+            "format": "FLAC",
+            "encoding": "Lossless",
+            "remasterYear": 2000,
+            "remastered": true,
+            "remasterTitle": "",
+            "remasterRecordLabel": "PIAS Recordings",
+            "remasterCatalogueNumber": "PIASB 010CD",
+            "scene": false,
+            "hasLog": true,
+            "hasCue": true,
+            "logScore": 100,
+            "fileCount": 17,
+            "freeTorrent": false,
+            "size": 357745845,
+            "leechers": 0,
+            "seeders": 33,
+            "snatched": 73,
+            "time": "2017-05-31 13:11:09",
+            "hasFile": 1131958
+          },
+          {
+            "id": 2229901,
+            "groupId": 24523,
+            "media": "WEB",
+            "format": "AAC",
+            "encoding": "256",
+            "remasterYear": 1998,
+            "remastered": false,
+            "remasterTitle": "",
+            "remasterRecordLabel": "",
+            "remasterCatalogueNumber": "",
+            "scene": false,
+            "hasLog": false,
+            "hasCue": false,
+            "logScore": 0,
+            "fileCount": 14,
+            "freeTorrent": false,
+            "size": 110174720,
+            "leechers": 0,
+            "seeders": 1,
+            "snatched": 2,
+            "time": "2019-06-01 10:00:00",
+            "hasFile": 2229901
+          }
+        ]
+      },
+      {
+        "groupId": 36006,
+        "groupName": "Any Minute Now",
+        "groupYear": 2004,
+        "groupRecordLabel": "Parlophone",
+        "groupCatalogueNumber": "5607862",
+        "tags": [
+          "electronic",
+          "rock"
+        ],
+        "releaseType": 1,
+        "groupVanityHouse": false,
+        "hasBookmarked": false,
+        "torrent": [
+          {
+            "id": 220466,
+            "groupId": 36006,
+            "media": "CD",
+            "format": "FLAC",
+            "encoding": "Lossless",
+            "remasterYear": 0,
+            "remastered": false,
+            "remasterTitle": "",
+            "remasterRecordLabel": "",
+            "remasterCatalogueNumber": "",
+            "scene": false,
+            "hasLog": true,
+            "hasCue": true,
+            "logScore": 100,
+            "fileCount": 15,
+            "freeTorrent": false,
+            "size": 457745845,
+            "leechers": 0,
+            "seeders": 20,
+            "snatched": 55,
+            "time": "2016-11-27 04:29:42",
+            "hasFile": 220466
+          }
+        ]
+      },
+      {
+        "groupId": 48210,
+        "groupName": "Much Against Everyone&#39;s Advice",
+        "groupYear": 1999,
+        "groupRecordLabel": "PIAS",
+        "groupCatalogueNumber": "BIAS 360 S",
+        "tags": [
+          "rock"
+        ],
+        "releaseType": 9,
+        "groupVanityHouse": false,
+        "hasBookmarked": false,
+        "torrent": [
+          {
+            "id": 310007,
+            "groupId": 48210,
+            "media": "CD",
+            "format": "FLAC",
+            "encoding": "Lossless",
+            "remasterYear": 0,
+            "remastered": false,
+            "remasterTitle": "",
+            "remasterRecordLabel": "",
+            "remasterCatalogueNumber": "",
+            "scene": false,
+            "hasLog": false,
+            "hasCue": false,
+            "logScore": 0,
+            "fileCount": 3,
+            "freeTorrent": false,
+            "size": 98098098,
+            "leechers": 0,
+            "seeders": 4,
+            "snatched": 9,
+            "time": "2015-01-13 08:00:00",
+            "hasFile": 310007
+          }
+        ]
+      }
+    ]
+  }
+}

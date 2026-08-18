@@ -1,4 +1,4 @@
-# `plastered` 1.2.0 config reference
+# `plastered` 1.2.1.dev0+gd90b7d9f8.d20260818 config reference
 
 This doc is Auto-generated. If in doubt, refer to `examples/config.yaml`
 # config
@@ -27,10 +27,11 @@ Pydantic settings class encapsulating the `plastered` application yaml config.
 | red.snatches.use_fl_tokens | `boolean` |  | boolean |  | `false` |  |  |
 | red.snatches.min_allowed_ratio | `number` |  | number |  | `-1.0` | Ratio floor for scraper runs: candidate snatches are dropped (largest-first) once the run's cumulative download would push the RED ratio below this value. Any value <= 0 (the default) disables the cap entirely. Not applicable to ad-hoc searches, which are explicit user-initiated downloads. |  |
 | red.search | `object` |  | object |  |  | RED search settings defined in the plastered config at `red.search`. |  |
-| red.search.use_release_type | `boolean` |  | boolean |  | `true` |  |  |
-| red.search.use_first_release_year | `boolean` |  | boolean |  | `true` |  |  |
-| red.search.use_record_label | `boolean` |  | boolean |  | `false` |  |  |
-| red.search.use_catalog_number | `boolean` |  | boolean |  | `false` |  |  |
+| red.search.use_release_type | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the release type (album/EP/single/...) resolved from MusicBrainz. A scraper rec whose release type cannot be resolved is skipped. |  |
+| red.search.use_first_release_year | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the original release year resolved from MusicBrainz. When the year filter would eliminate every candidate group, it is skipped for that item (the year should narrow a match, never kill it). A scraper rec whose release year cannot be resolved is skipped. |  |
+| red.search.use_record_label | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose record label matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved label never drops a candidate. |  |
+| red.search.use_catalog_number | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose catalogue number matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved catalogue number never drops a candidate. |  |
+| red.search.fuzzy_search_enabled | `boolean` |  | boolean |  | `false` | Opt-in fuzzy title matching of RED release groups: in addition to exact/word-subset matches, accept groups whose (normalized) name is highly similar to the wanted release title. Improves the hit rate for titles with punctuation/edition-suffix differences, at some risk of false-positive matches. |  |
 | lfm | `object` | ✅ | object |  |  |  |  |
 | lfm.lfm_api_key | `string` | ✅ | Format: [`password`](https://json-schema.org/understanding-json-schema/reference/string#built-in-formats) |  |  |  |  |
 | lfm.lfm_username | `string` | ✅ | Length: `string >= 1` |  |  |  |  |
@@ -183,10 +184,11 @@ App settings defined under the plastered yaml config's top-level `red` key.
 | red_api_retries | `integer` |  | `1 <= x <= 10` |  | `3` |  |  |
 | red_api_seconds_between_calls | `integer` |  | `2 <= x <= 10` |  | `5` |  |  |
 | search | `object` |  | object |  |  | RED search settings defined in the plastered config at `red.search`. |  |
-| search.use_release_type | `boolean` |  | boolean |  | `true` |  |  |
-| search.use_first_release_year | `boolean` |  | boolean |  | `true` |  |  |
-| search.use_record_label | `boolean` |  | boolean |  | `false` |  |  |
-| search.use_catalog_number | `boolean` |  | boolean |  | `false` |  |  |
+| search.use_release_type | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the release type (album/EP/single/...) resolved from MusicBrainz. A scraper rec whose release type cannot be resolved is skipped. |  |
+| search.use_first_release_year | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the original release year resolved from MusicBrainz. When the year filter would eliminate every candidate group, it is skipped for that item (the year should narrow a match, never kill it). A scraper rec whose release year cannot be resolved is skipped. |  |
+| search.use_record_label | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose record label matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved label never drops a candidate. |  |
+| search.use_catalog_number | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose catalogue number matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved catalogue number never drops a candidate. |  |
+| search.fuzzy_search_enabled | `boolean` |  | boolean |  | `false` | Opt-in fuzzy title matching of RED release groups: in addition to exact/word-subset matches, accept groups whose (normalized) name is highly similar to the wanted release title. Improves the hit rate for titles with punctuation/edition-suffix differences, at some risk of false-positive matches. |  |
 
 ## SearchConfig
 
@@ -196,10 +198,11 @@ RED search settings defined in the plastered config at `red.search`.
 
 | Property | Type | Required | Possible values | Deprecated | Default | Description | Examples |
 | -------- | ---- | -------- | --------------- | ---------- | ------- | ----------- | -------- |
-| use_release_type | `boolean` |  | boolean |  | `true` |  |  |
-| use_first_release_year | `boolean` |  | boolean |  | `true` |  |  |
-| use_record_label | `boolean` |  | boolean |  | `false` |  |  |
-| use_catalog_number | `boolean` |  | boolean |  | `false` |  |  |
+| use_release_type | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the release type (album/EP/single/...) resolved from MusicBrainz. A scraper rec whose release type cannot be resolved is skipped. |  |
+| use_first_release_year | `boolean` |  | boolean |  | `true` | Filter candidate RED release groups to the original release year resolved from MusicBrainz. When the year filter would eliminate every candidate group, it is skipped for that item (the year should narrow a match, never kill it). A scraper rec whose release year cannot be resolved is skipped. |  |
+| use_record_label | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose record label matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved label never drops a candidate. |  |
+| use_catalog_number | `boolean` |  | boolean |  | `false` | Prefer candidate RED release groups whose catalogue number matches the one resolved from MusicBrainz. A ranking signal only: a mismatched or unresolved catalogue number never drops a candidate. |  |
+| fuzzy_search_enabled | `boolean` |  | boolean |  | `false` | Opt-in fuzzy title matching of RED release groups: in addition to exact/word-subset matches, accept groups whose (normalized) name is highly similar to the wanted release title. Improves the hit rate for titles with punctuation/edition-suffix differences, at some risk of false-positive matches. |  |
 
 ## ServerConfig
 

@@ -1,0 +1,54 @@
+{
+  "created": "2026-08-18T00:00:00.000Z",
+  "count": 2,
+  "offset": 0,
+  "releases": [
+    {
+      "id": "d211379d-3203-47ed-a0c5-e564815bb45a",
+      "score": 100,
+      "status-id": "4e304316-386d-3409-af2e-78857eec5cfe",
+      "count": 1,
+      "title": "Dr. Octagonecologyst",
+      "status": "Official",
+      "artist-credit": [
+        {
+          "name": "Dr. Octagon",
+          "artist": {
+            "id": "0e21ea1c-c807-42fb-b78b-a2f89934f0dc",
+            "name": "Dr. Octagon",
+            "sort-name": "Dr. Octagon"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+        "primary-type": "Album"
+      },
+      "date": "1996-05-07",
+      "country": "US"
+    },
+    {
+      "id": "9c17231f-ca76-4e73-9a16-845b1e4e5c02",
+      "score": 87,
+      "count": 1,
+      "title": "Dr. Octagonecologyst (Deluxe Edition)",
+      "status": "Official",
+      "artist-credit": [
+        {
+          "name": "Dr. Octagon",
+          "artist": {
+            "id": "0e21ea1c-c807-42fb-b78b-a2f89934f0dc",
+            "name": "Dr. Octagon",
+            "sort-name": "Dr. Octagon"
+          }
+        }
+      ],
+      "release-group": {
+        "id": "b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+        "primary-type": "Album"
+      },
+      "date": "2017-05-19",
+      "country": "US"
+    }
+  ]
+}

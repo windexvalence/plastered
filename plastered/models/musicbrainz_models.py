@@ -2,7 +2,6 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import quote_plus
 
 from plastered.models.types import RedReleaseType
 from plastered.utils.constants import (
@@ -64,10 +63,21 @@ class MBRelease:
             return RedReleaseType.UNKNOWN
 
     def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
-        """Helper method to return the search_kwargs used by the ReleaseSearcher on the RED browse endpoint."""
+        """
+        Helper method to return the search_kwargs used by the ReleaseSearcher when matching RED release groups
+        client-side (see `SearchState.get_candidate_release_groups`). Values are the raw (non URL-encoded) strings.
+        """
+        red_release_type = self.get_red_release_type()
         return OrderedDict(
             [
-                (RED_PARAM_RELEASE_TYPE, self.get_red_release_type().value),
+                # An UNKNOWN release type (a null or RED-unmapped MB primary-type) is unusable as a candidate
+                # filter — real RED groups essentially never carry it — so report it as unresolved instead. A user
+                # who explicitly picks "Unknown" in the ad-hoc form still filters on it (see
+                # `AdhocSearch.get_user_search_kwargs`).
+                (
+                    RED_PARAM_RELEASE_TYPE,
+                    red_release_type.value if red_release_type != RedReleaseType.UNKNOWN else None,
+                ),
                 (
                     RED_PARAM_RELEASE_YEAR,
                     (
@@ -76,7 +86,7 @@ class MBRelease:
                         else None
                     ),
                 ),
-                (RED_PARAM_RECORD_LABEL, quote_plus(self.label) if self.label else None),
-                (RED_PARAM_CATALOG_NUMBER, quote_plus(self.catalog_number) if self.catalog_number else None),
+                (RED_PARAM_RECORD_LABEL, self.label if self.label else None),
+                (RED_PARAM_CATALOG_NUMBER, self.catalog_number if self.catalog_number else None),
             ]
         )

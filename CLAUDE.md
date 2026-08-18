@@ -38,14 +38,14 @@ All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for t
 `SearchItemProcessorChain` (`processors/chains.py`) defines an **ordered tuple of processors** — separate `album_chain` and `track_chain`. Each `SearchItem` is passed through every processor in order; the first one to reject it short-circuits and drops the item (returns `None`).
 
 Two processor kinds, both defined in `processors/bases.py`:
-- **Modifiers** (`SearchItemModifier`, `processors/modifiers.py`) — enrich the `SearchItem` in place (attach search ID, resolve LFM album/track info, resolve MusicBrainz release/MBID, query the RED browse endpoint). Always return the item.
+- **Modifiers** (`SearchItemModifier`, `processors/modifiers.py`) — enrich the `SearchItem` in place (attach search ID, resolve LFM album/track info, resolve MusicBrainz release/MBID — with an MB release-*search* fallback when LFM carries no MBID, fetch the artist's RED release groups via the `artist` endpoint and match them client-side). Always return the item.
 - **Filters** (`SearchItemFilter`, `processors/filters.py`) — return the item to keep it or `None` to drop it. Filters delegate their actual rules to `SearchState` methods (e.g. already-snatched, required-fields-present, dupe, size limits) and record a `SkipReason`.
 
 When adding/reordering search logic, edit the chain tuples in `chains.py` and add the corresponding modifier/filter.
 
 ### SearchState
 
-`SearchState` (`release_search/search_helpers.py`) holds the mutable per-run state and **all the filtering business rules**: RED user ratio/quota limits, prior-snatch dedup, building RED browse query params, and `get_search_items_to_snatch()` which sorts candidates largest-first (to optimize FL token use) and caps the cumulative download by the allowed ratio limit. It also writes `SearchRecord` status rows (`IN_PROGRESS` → `GRABBED`/`SKIPPED`/`FAILED`).
+`SearchState` (`release_search/search_helpers.py`) holds the mutable per-run state and **all the filtering business rules**: RED user ratio/quota limits, prior-snatch dedup, client-side matching of RED release groups (`get_candidate_release_groups`: title matching via `release_search/title_matching.py` — opt-in fuzzy tiers behind `red.search.fuzzy_search_enabled` — plus release-type/year filters with a year fallback and label/catalogue-number ranking signals), and `get_search_items_to_snatch()` which sorts candidates largest-first (to optimize FL token use) and caps the cumulative download by the allowed ratio limit. It also writes `SearchRecord` status rows (`IN_PROGRESS` → `GRABBED`/`SKIPPED`/`FAILED`).
 
 ### Config (`plastered/config/app_settings.py`)
 
@@ -53,7 +53,7 @@ When adding/reordering search logic, edit the chain tuples in `chains.py` and ad
 
 ### API clients (`plastered/utils/http_clients/`)
 
-All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx2.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. Nothing is cached: the API clients do **not** cache their responses, and the LFM scraper re-scrapes the recommendation pages on every run.
+All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `httpx2.Client` with a custom retry transport (`HTTPXRetryTransport`, tenacity-based) and per-API rate limiting. The API clients themselves do **not** cache their responses, and the LFM scraper re-scrapes the recommendation pages on every run. The only cache is run-scoped and in-memory: `SearchState` holds the RED artist release-group listings fetched during a run (`cache_artist_release_groups`), so multiple recs by the same artist share one `action=artist` request; nothing is ever persisted across runs.
 
 ### Web server (`plastered/api/`)
 

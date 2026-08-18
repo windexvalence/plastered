@@ -47,7 +47,8 @@ class ReleaseSearcher:
     General 'brains' for searching for a collection of LFM-recommended releases.
     Responsible for ultimately searching, filtering, and downloading matching releases from RED.
     Optionally may interact with the official LFM API to collect the MBID for a release, and may also optionally
-    interact with the official MusicBrainz API to gather more specific search parameters to use on the RED browse endpoint.
+    interact with the official MusicBrainz API to gather more specific search attributes to apply when matching the
+    RED release groups client-side.
     """
 
     def __init__(

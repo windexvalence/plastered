@@ -87,10 +87,15 @@ class SearchItem:
         # from the LFM album/track info (the latter applies to ad-hoc track searches, which still resolve a release).
         if isinstance(self.initial_info, AdhocSearch) and self.initial_info.mbid is not None:
             return self.initial_info.mbid
-        if self.initial_info.entity_type == EntityType.ALBUM and self._lfm_album_info is not None:
+        is_album = self.initial_info.entity_type == EntityType.ALBUM
+        if is_album and self._lfm_album_info is not None and self._lfm_album_info.release_mbid:
             return self._lfm_album_info.release_mbid
-        elif self.initial_info.entity_type == EntityType.TRACK and self._lfm_track_info is not None:
+        if not is_album and self._lfm_track_info is not None and self._lfm_track_info.release_mbid:
             return self._lfm_track_info.release_mbid
+        # Final fallback: the release resolved via the MusicBrainz release search (see
+        # `AttemptResolveMBReleaseModifier`), used when LFM carried no MBID for the item.
+        if self._mb_release is not None:
+            return self._mb_release.mbid
         return None
 
     def found_red_match(self) -> bool:

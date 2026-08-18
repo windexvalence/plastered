@@ -54,141 +54,174 @@ def mock_torrent_entry() -> TorrentEntry:
     )
 
 
-# A single, format-agnostic browse is issued per rec (see `SearchRedReleaseByPrefsModifier`), so the params no longer
-# carry format/encoding/media; the constant `filter_cat[1]=1` restricts the browse to the Music category.
-_BROWSE_PARAMS_BASE = (
-    "artistname=Some+Artist&groupname=Some+Bad+Album&filter_cat[1]=1&group_results=1&order_by=seeders&order_way=desc"
-)
-
-
-@pytest.mark.parametrize(
-    "mock_kwargs_user_settings, mock_search_kwargs, expected_browse_params",
-    [
-        pytest.param(
-            {
-                "use_release_type": False,
-                "use_first_release_year": False,
-                "use_record_label": False,
-                "use_catalog_number": False,
-            },
-            {},
-            _BROWSE_PARAMS_BASE,
-            id="disabled-all-empty-kwargs",
-        ),
-        pytest.param(
-            {
-                "use_release_type": False,
-                "use_first_release_year": False,
-                "use_record_label": False,
-                "use_catalog_number": False,
-            },
-            {
-                RED_PARAM_RELEASE_TYPE: "foo",
-                RED_PARAM_RELEASE_YEAR: 1969,
-                RED_PARAM_RECORD_LABEL: "fake",
-                RED_PARAM_CATALOG_NUMBER: "bar",
-            },
-            # Non-manual search: optional params are omitted because none are enabled by `red.search`.
-            _BROWSE_PARAMS_BASE,
-            id="disabled-all-full-kwargs",
-        ),
-        pytest.param(
-            {
-                "use_release_type": True,
-                "use_first_release_year": True,
-                "use_record_label": True,
-                "use_catalog_number": True,
-            },
-            {},
-            _BROWSE_PARAMS_BASE,
-            id="enabled-all-empty-kwargs",
-        ),
-        pytest.param(
-            {
-                "use_release_type": False,
-                "use_first_release_year": True,
-                "use_record_label": False,
-                "use_catalog_number": False,
-            },
-            {RED_PARAM_RELEASE_YEAR: 1969},
-            f"{_BROWSE_PARAMS_BASE}&year=1969",
-            id="use-release-year-valid",
-        ),
-        pytest.param(
-            {
-                "use_release_type": True,
-                "use_first_release_year": False,
-                "use_record_label": False,
-                "use_catalog_number": False,
-            },
-            {RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value},
-            f"{_BROWSE_PARAMS_BASE}&releasetype=1",
-            id="use-release-type-valid",
-        ),
-        pytest.param(
-            {
-                "use_release_type": False,
-                "use_first_release_year": False,
-                "use_record_label": True,
-                "use_catalog_number": False,
-            },
-            {RED_PARAM_RECORD_LABEL: "Fake+Label"},
-            f"{_BROWSE_PARAMS_BASE}&recordlabel=Fake+Label",
-            id="use-record-label-valid",
-        ),
-        pytest.param(
-            {
-                "use_release_type": False,
-                "use_first_release_year": False,
-                "use_record_label": False,
-                "use_catalog_number": True,
-            },
-            {RED_PARAM_CATALOG_NUMBER: "FL+69420"},
-            f"{_BROWSE_PARAMS_BASE}&cataloguenumber=FL+69420",
-            id="use-catalog-num-valid",
-        ),
-        pytest.param(
-            {
-                "use_release_type": True,
-                "use_first_release_year": True,
-                "use_record_label": True,
-                "use_catalog_number": True,
-            },
-            {
-                RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value,
-                RED_PARAM_RELEASE_YEAR: 1969,
-                RED_PARAM_RECORD_LABEL: "Fake+Label",
-                RED_PARAM_CATALOG_NUMBER: "FL+69420",
-            },
-            f"{_BROWSE_PARAMS_BASE}&releasetype=1&year=1969&recordlabel=Fake+Label&cataloguenumber=FL+69420",
-            id="use-all-kwargs-valid",
-        ),
-    ],
-)
-def test_create_browse_params(
-    valid_config_raw_data: dict[str, Any],
-    valid_config_filepath: str,
-    mock_kwargs_user_settings: dict[str, bool],
-    mock_search_kwargs: dict[str, Any],
-    expected_browse_params: str,
-) -> None:
+def _make_search_state(
+    valid_config_raw_data: dict[str, Any], valid_config_filepath: str, search_settings: dict[str, bool]
+) -> SearchState:
+    """Builds a `SearchState` from the valid example config with the given `red.search` settings applied."""
     mock_settings_data = deepcopy(valid_config_raw_data)
-    for raw_k, raw_v in mock_kwargs_user_settings.items():
+    for raw_k, raw_v in search_settings.items():
         mock_settings_data["red"]["search"][raw_k] = raw_v
     mock_settings_data["src_yaml_filepath"] = Path(valid_config_filepath)
     with patch("plastered.config.app_settings._get_settings_data", return_value=mock_settings_data):
         app_settings = get_app_settings(src_yaml_filepath=Path(valid_config_filepath))
-        search_state = SearchState(app_settings=app_settings)
+    return SearchState(app_settings=app_settings)
+
+
+def _group(
+    group_id: int,
+    group_name: str,
+    group_year: int | None = None,
+    release_type: RedReleaseType = RedReleaseType.ALBUM,
+    record_labels: frozenset[str] = frozenset(),
+    catalogue_numbers: frozenset[str] = frozenset(),
+) -> ReleaseEntry:
+    return ReleaseEntry(
+        group_id=group_id,
+        group_name=group_name,
+        group_year=group_year,
+        release_type=release_type,
+        record_labels=record_labels,
+        catalogue_numbers=catalogue_numbers,
+    )
+
+
+_ALL_SEARCH_FIELDS_DISABLED = {
+    "use_release_type": False,
+    "use_first_release_year": False,
+    "use_record_label": False,
+    "use_catalog_number": False,
+}
+
+
+class TestGetCandidateReleaseGroups:
+    """Client-side matching of an artist's release groups: title match + type/year filters + label/catno ranking."""
+
+    def _si(self, mock_search_kwargs: dict[str, Any] | None = None, is_manual: bool = False) -> SearchItem:
+        initial_info: LFMRec | AdhocSearch = (
+            AdhocSearch(artist="Some Artist", release="Some Bad Album")
+            if is_manual
+            else LFMRec(lfm_artist_str="Some+Artist", lfm_entity_str="Some+Bad+Album", recommendation_type=rt.ALBUM)
+        )
+        return SearchItem(initial_info=initial_info, _search_kwargs=mock_search_kwargs or {})  # type: ignore[arg-type]
+
+    def test_title_matching_default_mode(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        """Exact (normalization-insensitive) and word-subset group names match; unrelated titles do not."""
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        exact = _group(1, "Some Bad Album")
+        punctuated = _group(2, "Some Bad Album!")
+        superset = _group(3, "Some Bad Album (Deluxe Edition)")
+        unrelated = _group(4, "A Different Album")
+        actual = state.get_candidate_release_groups(
+            si=self._si(), release_entries=[unrelated, superset, punctuated, exact]
+        )
+        # Exact-scored groups first (in listing order), then the word-subset match; the unrelated group is dropped.
+        assert [re.group_id for re in actual] == [2, 1, 3]
+
+    def test_title_matching_fuzzy_mode(self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str) -> None:
+        """Fuzzy mode additionally accepts near-identical titles and candidate-subset names, ranked below exact."""
+        state = _make_search_state(
+            valid_config_raw_data, valid_config_filepath, {**_ALL_SEARCH_FIELDS_DISABLED, "fuzzy_search_enabled": True}
+        )
+        wanted = "Some Bad Album (Deluxe Edition)"
         si = SearchItem(
             initial_info=LFMRec(
-                lfm_artist_str="Some+Artist", lfm_entity_str="Some+Bad+Album", recommendation_type=rt.ALBUM
-            ),
-            _search_kwargs=mock_search_kwargs,  # type: ignore[arg-type]
+                lfm_artist_str="Some+Artist", lfm_entity_str=wanted.replace(" ", "+"), recommendation_type=rt.ALBUM
+            )
         )
-        actual_browse_params = search_state.create_red_browse_params(si=si)
-        assert actual_browse_params == expected_browse_params, (
-            f"Expected browse params to be '{expected_browse_params}', but got '{actual_browse_params}' instead."
+        exact = _group(1, "Some Bad Album (Deluxe Edition)")
+        subset = _group(2, "Some Bad Album")
+        near = _group(3, "Some Bad Album (Deluxe Editions)")
+        unrelated = _group(4, "Completely Different")
+        actual = state.get_candidate_release_groups(si=si, release_entries=[near, subset, unrelated, exact])
+        assert [re.group_id for re in actual] == [1, 3, 2]
+
+    def test_fuzzy_disabled_drops_near_matches(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        near = _group(1, "Some Bad Albums")  # not an exact/word-subset match
+        actual = state.get_candidate_release_groups(si=self._si(), release_entries=[near])
+        assert actual == []
+
+    def test_release_type_filter(self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str) -> None:
+        state = _make_search_state(
+            valid_config_raw_data, valid_config_filepath, {**_ALL_SEARCH_FIELDS_DISABLED, "use_release_type": True}
         )
+        album = _group(1, "Some Bad Album", release_type=RedReleaseType.ALBUM)
+        single = _group(2, "Some Bad Album", release_type=RedReleaseType.SINGLE)
+        si = self._si(mock_search_kwargs={RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value})
+        actual = state.get_candidate_release_groups(si=si, release_entries=[single, album])
+        assert [re.group_id for re in actual] == [1]
+
+    def test_release_type_ignored_when_disabled_for_scraper_item(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        single = _group(2, "Some Bad Album", release_type=RedReleaseType.SINGLE)
+        si = self._si(mock_search_kwargs={RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value})
+        actual = state.get_candidate_release_groups(si=si, release_entries=[single])
+        assert [re.group_id for re in actual] == [2]
+
+    def test_year_filter_narrows(self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str) -> None:
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True},
+        )
+        right_year = _group(1, "Some Bad Album", group_year=1998)
+        wrong_year = _group(2, "Some Bad Album", group_year=2005)
+        si = self._si(mock_search_kwargs={RED_PARAM_RELEASE_YEAR: 1998})
+        actual = state.get_candidate_release_groups(si=si, release_entries=[wrong_year, right_year])
+        assert [re.group_id for re in actual] == [1]
+
+    def test_year_filter_falls_back_when_it_would_eliminate_all(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        """A year mismatch must narrow the match, never kill it: zero year-matching groups -> yearless candidates."""
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True},
+        )
+        off_by_one = _group(1, "Some Bad Album", group_year=1999)
+        si = self._si(mock_search_kwargs={RED_PARAM_RELEASE_YEAR: 1998})
+        actual = state.get_candidate_release_groups(si=si, release_entries=[off_by_one])
+        assert [re.group_id for re in actual] == [1]
+
+    def test_label_and_catalog_number_rank_but_never_drop(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_record_label": True, "use_catalog_number": True},
+        )
+        label_only = _group(1, "Some Bad Album", record_labels=frozenset({"Fake Label"}))
+        label_and_catno = _group(
+            2,
+            "Some Bad Album",
+            record_labels=frozenset({"fake label"}),  # label comparison is case-insensitive
+            catalogue_numbers=frozenset({"FL 69420"}),
+        )
+        no_signals = _group(3, "Some Bad Album")
+        si = self._si(mock_search_kwargs={RED_PARAM_RECORD_LABEL: "Fake Label", RED_PARAM_CATALOG_NUMBER: "FL 69420"})
+        actual = state.get_candidate_release_groups(si=si, release_entries=[no_signals, label_only, label_and_catno])
+        # All three stay (ranking signals never drop a group); best signal match first.
+        assert [re.group_id for re in actual] == [2, 1, 3]
+
+    def test_manual_item_uses_all_present_kwargs(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        """Ad-hoc items apply every attribute present on the item even when the scraper config disables them."""
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        right_year = _group(1, "Some Bad Album", group_year=1998)
+        wrong_year = _group(2, "Some Bad Album", group_year=2005)
+        # The user-supplied ad-hoc field is seeded into the item's search kwargs by SearchItem.__post_init__.
+        si = SearchItem(initial_info=AdhocSearch(artist="Some Artist", release="Some Bad Album", release_year=1998))
+        actual = state.get_candidate_release_groups(si=si, release_entries=[wrong_year, right_year])
+        assert [re.group_id for re in actual] == [1]
 
 
 def _make_te(fmt: str, encoding: str, media: str, size_gb: float, tid: int = 1) -> TorrentEntry:
@@ -211,7 +244,7 @@ def _make_te(fmt: str, encoding: str, media: str, size_gb: float, tid: int = 1) 
 
 def _release_entry(torrent_entries: list[TorrentEntry]) -> ReleaseEntry:
     return ReleaseEntry(
-        group_id=69, media="CD", release_type=RedReleaseType.ALBUM, torrent_entries=torrent_entries, remastered=False
+        group_id=69, group_name="Some Album", release_type=RedReleaseType.ALBUM, torrent_entries=torrent_entries
     )
 
 
@@ -619,42 +652,67 @@ def test_te_size_acceptable(
             mock_add_skipped_snatch_row_fn.assert_called_once_with(si=si, reason=SkipReason.MIN_RATIO_LIMIT)
 
 
+def test_artist_release_groups_cache_roundtrip(valid_app_settings: AppSettings) -> None:
+    """The run-scoped artist cache: miss -> None, then the cached listing (case-insensitively keyed) is returned."""
+    state = SearchState(app_settings=valid_app_settings)
+    assert state.get_cached_artist_release_groups(artist_name="Some Artist") is None
+    cached_entries = [_group(1, "Some Album")]
+    state.cache_artist_release_groups(artist_name="Some Artist", release_entries=cached_entries)
+    assert state.get_cached_artist_release_groups(artist_name="Some Artist") is cached_entries
+    assert state.get_cached_artist_release_groups(artist_name="some artist") is cached_entries
+    assert state.get_cached_artist_release_groups(artist_name="Another Artist") is None
+
+
+def test_artist_release_groups_cache_stores_empty_listing(valid_app_settings: AppSettings) -> None:
+    """An empty listing (artist unknown to RED) is a cacheable result, distinct from a not-yet-fetched miss."""
+    state = SearchState(app_settings=valid_app_settings)
+    state.cache_artist_release_groups(artist_name="No Such Artist", release_entries=[])
+    assert state.get_cached_artist_release_groups(artist_name="No Such Artist") == []
+
+
+def test_artist_release_groups_cache_is_per_state_instance(valid_app_settings: AppSettings) -> None:
+    """Each run builds a fresh `SearchState`, so a new state starts with an empty cache."""
+    first_state = SearchState(app_settings=valid_app_settings)
+    first_state.cache_artist_release_groups(artist_name="Some Artist", release_entries=[_group(1, "Some Album")])
+    second_state = SearchState(app_settings=valid_app_settings)
+    assert second_state.get_cached_artist_release_groups(artist_name="Some Artist") is None
+
+
 @pytest.mark.parametrize(
-    "use_release_type, use_first_release_year, use_record_label, use_catalog_number, expected",
+    "use_release_type, use_first_release_year, expected",
     [
-        (False, False, False, False, set()),
-        (False, False, False, True, {RED_PARAM_CATALOG_NUMBER}),
-        (False, False, True, False, {RED_PARAM_RECORD_LABEL}),
-        (False, True, False, False, {RED_PARAM_RELEASE_YEAR}),
-        (True, False, False, False, {RED_PARAM_RELEASE_TYPE}),
-        (True, False, False, True, {RED_PARAM_RELEASE_TYPE, RED_PARAM_CATALOG_NUMBER}),
-        (True, False, True, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RECORD_LABEL}),
-        (True, True, False, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR}),
-        (True, True, False, True, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_CATALOG_NUMBER}),
-        (True, True, True, False, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_RECORD_LABEL}),
-        (
-            True,
-            True,
-            True,
-            True,
-            {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR, RED_PARAM_RECORD_LABEL, RED_PARAM_CATALOG_NUMBER},
-        ),
+        (False, False, set()),
+        (False, True, {RED_PARAM_RELEASE_YEAR}),
+        (True, False, {RED_PARAM_RELEASE_TYPE}),
+        (True, True, {RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR}),
     ],
 )
-def test_required_search_kwargs(
-    use_release_type: bool,
-    use_first_release_year: bool,
-    use_record_label: bool,
-    use_catalog_number: bool,
-    expected: set[str],
-) -> None:
-    actual = _required_search_kwargs(
-        use_release_type=use_release_type,
-        use_first_release_year=use_first_release_year,
-        use_record_label=use_record_label,
-        use_catalog_number=use_catalog_number,
-    )
+def test_required_search_kwargs(use_release_type: bool, use_first_release_year: bool, expected: set[str]) -> None:
+    """Only the filter fields (release type / year) are ever required; label/catalogue-number are ranking-only."""
+    actual = _required_search_kwargs(use_release_type=use_release_type, use_first_release_year=use_first_release_year)
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "search_settings, expected_required, expected_require_mbid",
+    [
+        (_ALL_SEARCH_FIELDS_DISABLED, set(), False),
+        ({**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True}, {RED_PARAM_RELEASE_YEAR}, True),
+        # Ranking-only fields still require MB resolution (their values come from MB) but gate nothing.
+        ({**_ALL_SEARCH_FIELDS_DISABLED, "use_record_label": True}, set(), True),
+        ({**_ALL_SEARCH_FIELDS_DISABLED, "use_catalog_number": True}, set(), True),
+    ],
+)
+def test_search_state_required_kwargs_and_mbid_resolution(
+    valid_config_raw_data: dict[str, Any],
+    valid_config_filepath: str,
+    search_settings: dict[str, bool],
+    expected_required: set[str],
+    expected_require_mbid: bool,
+) -> None:
+    state = _make_search_state(valid_config_raw_data, valid_config_filepath, search_settings)
+    assert state._required_red_search_kwargs == expected_required
+    assert state._require_mbid_resolution is expected_require_mbid
 
 
 @pytest.mark.parametrize(

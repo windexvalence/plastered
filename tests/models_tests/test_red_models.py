@@ -4,7 +4,6 @@ import pytest
 
 from plastered.models.red_models import CdOnlyExtras, PriorSnatch, RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry
 from plastered.models.types import EncodingEnum, FormatEnum, MediaEnum, RedReleaseType
-from plastered.models.red_models import _red_release_type_str_to_enum
 
 
 @pytest.mark.parametrize(
@@ -19,35 +18,6 @@ def test_red_format_eq(other: Any, expected: bool) -> None:
     test_instance = RedFormat(format=FormatEnum.MP3, encoding=EncodingEnum.MP3_V0, media=MediaEnum.WEB)
     actual = test_instance.__eq__(other)
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
-
-
-@pytest.mark.parametrize(
-    "release_type_str, expected",
-    [
-        ("Album", RedReleaseType.ALBUM),
-        ("Soundtrack", RedReleaseType.SOUNDTRACK),
-        ("EP", RedReleaseType.EP),
-        ("Anthology", RedReleaseType.ANTHOLOGY),
-        ("Compilation", RedReleaseType.COMPILATION),
-        ("single", RedReleaseType.SINGLE),
-        ("Live Album", RedReleaseType.LIVE_ALBUM),
-        ("Remix", RedReleaseType.REMIX),
-        ("Bootleg", RedReleaseType.BOOTLEG),
-        ("Interview", RedReleaseType.INTERVIEW),
-        ("Mixtape", RedReleaseType.MIXTAPE),
-        ("Demo", RedReleaseType.DEMO),
-        ("Concert Recording", RedReleaseType.CONCERT_RECORDING),
-        ("Dj mix", RedReleaseType.DJ_MIX),
-        ("Unknown", RedReleaseType.UNKNOWN),
-        ("Produced By", RedReleaseType.PRODUCED_BY),
-        ("Composition", RedReleaseType.COMPOSITION),
-        ("Remixed by", RedReleaseType.REMIXED_BY),
-        ("Guest Appearance", RedReleaseType.GUEST_APPEARANCE),
-    ],
-)
-def test_red_release_type_str_to_enum(release_type_str: str, expected: RedReleaseType) -> None:
-    actual = _red_release_type_str_to_enum(release_type_str=release_type_str)
-    assert actual == expected
 
 
 @pytest.mark.parametrize(
@@ -265,12 +235,57 @@ def test_torrent_entry_get_red_format() -> None:
     )
 
 
-def test_release_entry_from_torrent_search_json_blob(mock_red_browse_non_empty_response: dict[str, Any]) -> None:
-    mock_json = mock_red_browse_non_empty_response["response"]["results"][0]
-    expected_group_id = mock_json["groupId"]
-    actual = ReleaseEntry.from_torrent_search_json_blob(json_blob=mock_json)
+def test_release_entry_from_artist_torrent_group_json_blob(mock_red_artist_response: dict[str, Any]) -> None:
+    mock_json = mock_red_artist_response["response"]["torrentgroup"][0]
+    actual = ReleaseEntry.from_artist_torrent_group_json_blob(json_blob=mock_json)
     assert isinstance(actual, ReleaseEntry)
-    assert actual.group_id == expected_group_id
+    assert actual.group_id == mock_json["groupId"]
+    # The HTML-escaped group name ("&#39;") is unescaped on construction.
+    assert actual.group_name == "Much Against Everyone's Advice"
+    assert actual.group_year == 1998
+    assert actual.release_type == RedReleaseType.ALBUM
+    # Group-level and per-torrent remaster labels/catalogue-numbers are all gathered (empty strings dropped).
+    assert actual.record_labels == frozenset({"PIAS", "PIAS Recordings"})
+    assert actual.catalogue_numbers == frozenset({"BIAS 360", "PIASB 010CD"})
+    # The AAC torrent has no supported-format mapping and is skipped rather than failing the group; the surviving
+    # torrents are ordered best-seeded-first (CD id 1131958 has 33 seeders vs the WEB torrent's 2).
+    assert [te.torrent_id for te in actual.get_torrent_entries()] == [1131958, 4717421]
+    assert [te.seeders for te in actual.get_torrent_entries()] == [33, 2]
+
+
+def test_release_entry_from_artist_torrent_group_unescapes_labels_and_catalogue_numbers() -> None:
+    """Label/catalogue-number fields are HTML-escaped in RED's payloads and must be unescaped for ranking."""
+    mock_json = {
+        "groupId": 1,
+        "groupName": "Some Album",
+        "groupYear": 2001,
+        "groupRecordLabel": "R&amp;S Records",
+        "groupCatalogueNumber": "RS&amp;X 1",
+        "releaseType": 1,
+        "torrent": [],
+    }
+    actual = ReleaseEntry.from_artist_torrent_group_json_blob(json_blob=mock_json)
+    assert actual.record_labels == frozenset({"R&S Records"})
+    assert actual.catalogue_numbers == frozenset({"RS&X 1"})
+
+
+def test_release_entry_from_artist_torrent_group_unknown_release_type(mock_red_artist_response: dict[str, Any]) -> None:
+    """An unmapped RED releaseType id degrades to UNKNOWN instead of failing the group."""
+    mock_json = dict(mock_red_artist_response["response"]["torrentgroup"][1])
+    mock_json["releaseType"] = 9999
+    actual = ReleaseEntry.from_artist_torrent_group_json_blob(json_blob=mock_json)
+    assert actual.release_type == RedReleaseType.UNKNOWN
+
+
+def test_torrent_entry_from_artist_torrent_json_blob_defaults(mock_red_artist_response: dict[str, Any]) -> None:
+    """RED-specific torrent keys absent from the artist endpoint's payload default to conservative values."""
+    torrent_blobs = mock_red_artist_response["response"]["torrentgroup"][0]["torrent"]
+    with_keys = TorrentEntry.from_artist_torrent_json_blob(json_blob=torrent_blobs[0])
+    assert with_keys.can_use_token is True
+    without_keys = TorrentEntry.from_artist_torrent_json_blob(json_blob=torrent_blobs[1])
+    assert without_keys.can_use_token is False
+    assert without_keys.trumpable is False
+    assert without_keys.has_snatched is False
 
 
 @pytest.mark.parametrize(

@@ -299,6 +299,9 @@ def test_attempt_resolve_mb_release_modifier(
         )
         si._lfm_album_info = lfmai
 
+    # With no LFM-provided MBID, the modifier falls back to the MB release search; a fruitless search leaves the
+    # item unresolved.
+    mock_process_kwargs["mb"].search_release_mbid.return_value = None
     expected_mb_release = (
         MBRelease.construct_from_api(json_blob=mock_musicbrainz_release_json) if has_matched_mbid else None
     )
@@ -306,6 +309,48 @@ def test_attempt_resolve_mb_release_modifier(
     actual = AttemptResolveMBReleaseModifier.process(si=si, **mock_process_kwargs)
     assert actual is si
     assert actual._mb_release == expected_mb_release
+    if has_matched_mbid:
+        mock_process_kwargs["mb"].search_release_mbid.assert_not_called()
+    else:
+        mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
+            artist_name=si.artist_name, release_name=si.release_name
+        )
+
+
+@pytest.mark.override_global_httpx_mock
+@pytest.mark.parametrize("is_lfm_rec", [False, True])
+def test_attempt_resolve_mb_release_modifier_search_fallback_resolves(
+    mock_musicbrainz_release_json: dict[str, Any],
+    mock_process_kwargs: _MockProcKwargs,
+    make_album_search_item: pytest.FixtureRequest,
+    is_lfm_rec: bool,
+) -> None:
+    """An item with no LFM MBID resolves its MB release via the release-search fallback."""
+    mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
+    mock_process_kwargs["mb"].search_release_mbid.return_value = "searched-mbid"
+    mock_process_kwargs["mb"].request_release_details.return_value = mock_musicbrainz_release_json
+    actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual._mb_release == MBRelease.construct_from_api(json_blob=mock_musicbrainz_release_json)
+    mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
+        artist_name=mock_si.artist_name, release_name=mock_si.release_name
+    )
+    mock_process_kwargs["mb"].request_release_details.assert_called_once_with(mbid="searched-mbid")
+
+
+def test_attempt_resolve_mb_release_modifier_search_fallback_request_failure(
+    mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
+) -> None:
+    """An infra-level failure during the MB release-search fallback sets `mb_request_failed` and stops resolution."""
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    mock_process_kwargs["mb"].search_release_mbid.side_effect = MusicBrainzRequestFailureException(
+        "Intentionally raised exception"
+    )
+    actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual.mb_request_failed is True
+    assert actual._mb_release is None
+    mock_process_kwargs["mb"].request_release_details.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -431,37 +476,67 @@ def test_attempt_resolve_mb_release_modifier_skips_when_not_required(
 
 
 class TestSearchRedReleaseByPrefsModifier:
-    """A single, format-agnostic browse is issued per rec; ranking the returned torrents against the format
-    preferences is delegated to `SearchState.select_best_torrent`."""
+    """A single artist-endpoint request is issued per rec; selecting the candidate groups and ranking their torrents
+    against the format preferences are delegated to `SearchState`."""
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
-    def test_single_browse_delegates_ranking(
+    def test_single_artist_request_delegates_matching_and_ranking(
         self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
     ) -> None:
         matched_te = TorrentEntry(
             torrent_id=69420, media="WEB", format="FLAC", encoding="24bit Lossless", **_MOCK_TE_KWARGS
         )
-        release_entries = [MagicMock(spec=ReleaseEntry)]
-        mock_process_kwargs["state"].create_red_browse_params.return_value = "browse=params"
-        mock_process_kwargs["red"].browse.return_value = release_entries
+        release_entries = [MagicMock(spec=ReleaseEntry), MagicMock(spec=ReleaseEntry)]
+        candidate_entries = [release_entries[1]]
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
+        mock_process_kwargs["red"].get_artist_release_groups.return_value = release_entries
+        mock_process_kwargs["state"].get_candidate_release_groups.return_value = candidate_entries
         mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
             torrent_entry=matched_te, above_max_size_found=False
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
         assert mock_si.torrent_entry is None
         actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
-        mock_process_kwargs["state"].create_red_browse_params.assert_called_once_with(si=mock_si)
-        mock_process_kwargs["red"].browse.assert_called_once_with(request_params="browse=params")
-        mock_process_kwargs["state"].select_best_torrent.assert_called_once_with(release_entries=release_entries)
+        mock_process_kwargs["red"].get_artist_release_groups.assert_called_once_with(artist_name=mock_si.artist_name)
+        # The fetched listing is cached on the run state for later recs by the same artist.
+        mock_process_kwargs["state"].cache_artist_release_groups.assert_called_once_with(
+            artist_name=mock_si.artist_name, release_entries=release_entries
+        )
+        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
+            si=mock_si, release_entries=release_entries
+        )
+        mock_process_kwargs["state"].select_best_torrent.assert_called_once_with(release_entries=candidate_entries)
         assert actual is mock_si
         assert actual.torrent_entry is matched_te
         assert actual.above_max_size_te_found is False
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
+    def test_cached_artist_listing_skips_the_red_request(
+        self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
+    ) -> None:
+        """A run-cached artist listing is reused: no RED request is issued and nothing is re-cached."""
+        cached_entries = [MagicMock(spec=ReleaseEntry)]
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = cached_entries
+        mock_process_kwargs["state"].get_candidate_release_groups.return_value = cached_entries
+        mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
+            torrent_entry=None, above_max_size_found=False
+        )
+        mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
+        actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        mock_process_kwargs["red"].get_artist_release_groups.assert_not_called()
+        mock_process_kwargs["state"].cache_artist_release_groups.assert_not_called()
+        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
+            si=mock_si, release_entries=cached_entries
+        )
+        assert actual is mock_si
+
+    @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_no_match_records_above_max_size(
         self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
     ) -> None:
-        mock_process_kwargs["red"].browse.return_value = []
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
+        mock_process_kwargs["red"].get_artist_release_groups.return_value = []
+        mock_process_kwargs["state"].get_candidate_release_groups.return_value = []
         mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
             torrent_entry=None, above_max_size_found=True
         )
@@ -472,21 +547,28 @@ class TestSearchRedReleaseByPrefsModifier:
         assert actual.above_max_size_te_found is True
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
-    def test_browse_exception_ranks_empty_results(
+    def test_artist_request_exception_ranks_empty_results(
         self, mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest, is_lfm_rec: bool
     ) -> None:
-        """A failed browse is logged and treated as empty results, which the ranker turns into a no-match."""
+        """A failed artist request is logged and treated as an empty listing, which becomes a no-match."""
 
         def _raise(*args: Any, **kwargs: Any) -> None:
             raise Exception("Fake exception intentionally raised.")
 
-        mock_process_kwargs["red"].browse.side_effect = _raise
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
+        mock_process_kwargs["red"].get_artist_release_groups.side_effect = _raise
+        mock_process_kwargs["state"].get_candidate_release_groups.return_value = []
         mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
             torrent_entry=None, above_max_size_found=False
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
         actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
-        mock_process_kwargs["state"].select_best_torrent.assert_called_once_with(release_entries=[])
+        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
+            si=mock_si, release_entries=[]
+        )
+        # A failed fetch is NOT cached: a later rec by the same artist retries the request instead of inheriting
+        # a silent no-match for the rest of the run.
+        mock_process_kwargs["state"].cache_artist_release_groups.assert_not_called()
         assert actual is mock_si
         assert actual.torrent_entry is None
         assert actual.above_max_size_te_found is False

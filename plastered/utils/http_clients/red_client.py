@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote_plus
 
 from plastered.models import RedUserDetails
 from plastered.models.red_models import ReleaseEntry
@@ -42,13 +43,27 @@ class RedAPIClient(ThrottledAPIBaseClient):
         self._throttle()
         url = f"{RED_API_BASE_URL}?action={action}&{params}"
         json_data = self._client.get(url=url).json()
-        if RED_JSON_RESPONSE_KEY not in json_data:  # pragma: no cover
+        if RED_JSON_RESPONSE_KEY not in json_data:
             raise KeyError(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         return json_data[RED_JSON_RESPONSE_KEY]
 
-    def browse(self, request_params: str) -> list[ReleaseEntry]:
-        raw_browse_resp = self.request_api(action="browse", params=request_params)
-        return [ReleaseEntry.from_torrent_search_json_blob(json_blob=blob) for blob in raw_browse_resp["results"]]
+    def get_artist_release_groups(self, artist_name: str) -> list[ReleaseEntry]:
+        """
+        Fetches every release group (and its torrents) for an artist via the `ajax.php?action=artist` endpoint.
+        Returns an empty list when RED has no entry for the artist name. Matching the wanted release against these
+        groups (by title/year/release-type) happens client-side — see `SearchState.get_candidate_release_groups` —
+        since RED's search offers no fuzzy matching.
+        """
+        try:
+            raw_artist_resp = self.request_api(action="artist", params=f"artistname={quote_plus(artist_name)}")
+        except KeyError:
+            # RED responds with a failure payload carrying no top-level response key when the artist does not exist.
+            _LOGGER.info(f"RED has no artist entry matching '{artist_name}'.")
+            return []
+        return [
+            ReleaseEntry.from_artist_torrent_group_json_blob(json_blob=blob)
+            for blob in raw_artist_resp.get("torrentgroup", [])
+        ]
 
     def get_red_user_details(self) -> RedUserDetails:
         """

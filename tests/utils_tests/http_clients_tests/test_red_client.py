@@ -15,7 +15,22 @@ from plastered.utils.http_clients.red_client import RedAPIClient
 @pytest.mark.parametrize(
     "action, expected_top_keys",
     [
-        ("browse", set(["currentPage", "pages", "results"])),
+        (
+            "artist",
+            set(
+                [
+                    "id",
+                    "name",
+                    "notificationsEnabled",
+                    "hasBookmarked",
+                    "image",
+                    "body",
+                    "vanityHouse",
+                    "tags",
+                    "torrentgroup",
+                ]
+            ),
+        ),
         ("torrentgroup", set(["group", "torrents"])),
         (
             "community_stats",
@@ -108,19 +123,37 @@ def test_rud_helper_raises(valid_app_settings: AppSettings) -> None:
             _ = test_client._rud_helper(action="user_torrents", type_="snatched", lim=69)
 
 
-def test_browse(valid_app_settings: AppSettings) -> None:
-    mock_params = "fake=val&other_fake=other_val"
+def test_get_artist_release_groups(valid_app_settings: AppSettings) -> None:
     with (
-        patch.object(RedAPIClient, "request_api", return_value={"results": ["foo", "bar"]}) as mock_request_api,
+        patch.object(
+            RedAPIClient, "request_api", return_value={"id": 1, "torrentgroup": ["blob-a", "blob-b"]}
+        ) as mock_request_api,
         patch.object(
             ReleaseEntry,
-            "from_torrent_search_json_blob",
-            return_value=ReleaseEntry(69, "CD", False, RedReleaseType.ALBUM),
-        ) as mock_from_torrent_json_blob,
+            "from_artist_torrent_group_json_blob",
+            return_value=ReleaseEntry(group_id=69, group_name="Some Album", release_type=RedReleaseType.ALBUM),
+        ),
     ):
         test_client = RedAPIClient(app_settings=valid_app_settings)
-        actual = test_client.browse(request_params=mock_params)
+        actual = test_client.get_artist_release_groups(artist_name="Some Artist")
         assert isinstance(actual, list)
         assert len(actual) == 2
         assert all([isinstance(elem, ReleaseEntry) for elem in actual])
-        mock_request_api.assert_called_once_with(action="browse", params=mock_params)
+        # The artist name is URL-encoded into the request params.
+        mock_request_api.assert_called_once_with(action="artist", params="artistname=Some+Artist")
+
+
+def test_get_artist_release_groups_artist_not_found(valid_app_settings: AppSettings) -> None:
+    """A RED failure payload (no top-level response key -> request_api KeyError) resolves to an empty listing."""
+    with patch.object(RedAPIClient, "request_api", side_effect=KeyError("response")):
+        test_client = RedAPIClient(app_settings=valid_app_settings)
+        assert test_client.get_artist_release_groups(artist_name="No Such Artist") == []
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_missing_response_key_raises(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    httpx2_mock.route().respond(json={"status": "failure", "error": "failure"})
+    test_client = RedAPIClient(app_settings=valid_app_settings)
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(KeyError, match="missing expected"):
+        test_client.request_api(action="artist", params="artistname=Nobody")

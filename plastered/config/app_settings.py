@@ -22,10 +22,33 @@ class SearchConfig(BaseModel):
     """RED search settings defined in the plastered config at `red.search`."""
 
     model_config = ConfigDict(frozen=True, validate_default=True, extra="ignore", title="search")
-    use_release_type: bool = Field(default=True)
-    use_first_release_year: bool = Field(default=True)
-    use_record_label: bool = Field(default=False)
-    use_catalog_number: bool = Field(default=False)
+    use_release_type: bool = Field(
+        default=True,
+        description="Filter candidate RED release groups to the release type (album/EP/single/...) resolved from "
+        "MusicBrainz. A scraper rec whose release type cannot be resolved is skipped.",
+    )
+    use_first_release_year: bool = Field(
+        default=True,
+        description="Filter candidate RED release groups to the original release year resolved from MusicBrainz. "
+        "When the year filter would eliminate every candidate group, it is skipped for that item (the year should "
+        "narrow a match, never kill it). A scraper rec whose release year cannot be resolved is skipped.",
+    )
+    use_record_label: bool = Field(
+        default=False,
+        description="Prefer candidate RED release groups whose record label matches the one resolved from "
+        "MusicBrainz. A ranking signal only: a mismatched or unresolved label never drops a candidate.",
+    )
+    use_catalog_number: bool = Field(
+        default=False,
+        description="Prefer candidate RED release groups whose catalogue number matches the one resolved from "
+        "MusicBrainz. A ranking signal only: a mismatched or unresolved catalogue number never drops a candidate.",
+    )
+    fuzzy_search_enabled: bool = Field(
+        default=False,
+        description="Opt-in fuzzy title matching of RED release groups: in addition to exact/word-subset matches, "
+        "accept groups whose (normalized) name is highly similar to the wanted release title. Improves the hit rate "
+        "for titles with punctuation/edition-suffix differences, at some risk of false-positive matches.",
+    )
 
 
 class SnatchesConfig(BaseModel):
@@ -78,6 +101,7 @@ class RedSearchOverrides(BaseModel):
     use_first_release_year: bool | None = Field(default=None)
     use_record_label: bool | None = Field(default=None)
     use_catalog_number: bool | None = Field(default=None)
+    fuzzy_search_enabled: bool | None = Field(default=None)
     # red.snatches
     snatch: bool | None = Field(default=None)
     max_size_gb: float | None = Field(default=None, ge=0.02, le=100.0)
@@ -266,6 +290,7 @@ class AppSettings(BaseSettings):
             "use_first_release_year": overrides.use_first_release_year,
             "use_record_label": overrides.use_record_label,
             "use_catalog_number": overrides.use_catalog_number,
+            "fuzzy_search_enabled": overrides.fuzzy_search_enabled,
         }
         search = self.red.search.model_copy(update={k: v for k, v in search_updates.items() if v is not None})
         snatch_updates = {

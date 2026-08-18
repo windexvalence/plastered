@@ -35,18 +35,10 @@ BYTES_IN_MB: Final[float] = 1e6
 
 PLASTERED_CONFIG_ENVVAR: Final[str] = "PLASTERED_CONFIG"
 
-# Constant query params appended to every RED browse request. `filter_cat[1]=1` restricts results to the Music category.
-RED_BROWSE_CONSTANT_PARAMS: Final[str] = "filter_cat[1]=1&group_results=1&order_by=seeders&order_way=desc"
-
-# User-specified params to optionally append to the RED browse requests
+# Keys for the optional release attributes attached to a `SearchItem` (from MusicBrainz resolution or an ad-hoc
+# request) and applied client-side when matching RED release groups: release type and year act as filters, record
+# label and catalogue number act as ranking signals. See `SearchState.get_candidate_release_groups`.
 RED_PARAM_RELEASE_TYPE: Final[str] = "releasetype"
 RED_PARAM_RELEASE_YEAR: Final[str] = "year"
 RED_PARAM_RECORD_LABEL: Final[str] = "recordlabel"
 RED_PARAM_CATALOG_NUMBER: Final[str] = "cataloguenumber"
-
-OPTIONAL_RED_PARAMS: Final[list[str]] = [
-    RED_PARAM_RELEASE_TYPE,
-    RED_PARAM_RELEASE_YEAR,
-    RED_PARAM_RECORD_LABEL,
-    RED_PARAM_CATALOG_NUMBER,
-]
