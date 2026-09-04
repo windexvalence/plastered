@@ -1,0 +1,6 @@
+{#
+  Run-history "Retry search" response, swapped into the retried search's #adhoc-retry-<id> container. Names the new
+  search and nests the ad-hoc result fragment, which polls until the retried search completes.
+#}
+<p><small>Retried as search {{ search_id }}. <a href="/run_history?search_id={{ search_id }}">View in run history</a></small></p>
+{% include "fragments/adhoc_result_fragment.html" %}

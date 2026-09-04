@@ -56,7 +56,16 @@
                             <tr><td>Matched MBID</td><td><code>{{ row.adhoc.failed.matched_mbid or "—" }}</code></td></tr>
                         </table>
                     {% elif row.adhoc.skipped %}
-                        <p><strong>Skipped</strong> — {{ row.adhoc.skipped.skip_reason }}</p>
+                        <p><strong>Skipped</strong> — {{ row.adhoc.skipped.skip_reason }}
+                            {% if row.adhoc.is_retryable %}
+                                {# Re-submits this search's request as a new search; its polling result renders below. #}
+                                <button class="inline-action" hx-post="/adhoc_retry" hx-vals='{"search_id": {{ rec.id }}}'
+                                        hx-target="#adhoc-retry-{{ rec.id }}" hx-swap="innerHTML" hx-disabled-elt="this">
+                                    Retry search
+                                </button>
+                            {% endif %}
+                        </p>
+                        {% if row.adhoc.is_retryable %}<div id="adhoc-retry-{{ rec.id }}"></div>{% endif %}
                     {% else %}
                         <p><em>In progress…</em></p>
                     {% endif %}

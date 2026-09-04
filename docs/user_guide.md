@@ -87,8 +87,9 @@ Everything is driven from the web UI:
 - **Scheduled scrapes** — the bottom of the scraper page lets you run that scrape automatically on a recurring
   schedule (see below). Nothing runs on a schedule unless you set one up.
 - **Ad-hoc search** — search RED for a specific artist + album/track on demand, optionally downloading the top match.
-- **Run history** — review past scraper and ad-hoc runs, see per-rec results/skip reasons, and (for downloads-disabled
-  scraper runs) retroactively download matched releases.
+- **Run history** — review past scraper and ad-hoc runs, see per-rec results/skip reasons, re-submit an ad-hoc search
+  that found no RED match (**Retry search**, shown when you expand it), and (for downloads-disabled scraper runs)
+  retroactively download matched releases.
 - **Config** — inspect the effective app config the server loaded.
 
 Snatched `.torrent` files are written to the mounted downloads directory; point your download client at it.

@@ -15,6 +15,7 @@ from plastered.db.db_models import (
     ScrapeSchedule,
     SearchRecord,
     Skipped,
+    SkipReason,
     Status,
 )
 from plastered.models import AdhocSearch, EntityType
@@ -80,6 +81,15 @@ class RunHistoryItem(BaseModel):
     @classmethod
     def from_sql_row(cls, row: Row) -> RunHistoryItem:
         return cls(**{k.lower(): v for k, v in row._asdict().items()})
+
+    @property
+    def is_retryable(self) -> bool:
+        """`True` for an ad-hoc search that found no RED match, which the run-history page offers to re-submit."""
+        return (
+            self.searchrecord.is_manual
+            and self.skipped is not None
+            and self.skipped.skip_reason == SkipReason.NO_MATCH_FOUND
+        )
 
 
 class RunHistoryRow(BaseModel):

@@ -19,7 +19,7 @@ from plastered.actions.api_actions import (
 )
 from plastered.actions.common_actions import run_lfm_scraper
 from plastered.actions.schedule_actions import clear_scrape_schedule, get_scrape_schedule_response, set_scrape_schedule
-from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
+from plastered.api.adhoc_helpers import build_adhoc_request_from_form, retry_adhoc_search, schedule_adhoc_search
 from plastered.api.auth_sessions import SESSION_COOKIE_NAME, credentials_valid, set_session_cookie
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
 from plastered.api.fastapi_dependencies import (
@@ -183,6 +183,25 @@ async def adhoc_snatch_submit(
         )
     return TEMPLATES.TemplateResponse(
         request=request, name="fragments/adhoc_result_fragment.html", context={"search_id": search_id, "result": result}
+    )
+
+
+# POST /adhoc_retry  (run-history "Retry search" button -> re-submits a no-match ad-hoc search, returns the polling fragment)
+@plastered_web_router.post("/adhoc_retry")
+async def adhoc_retry_submit(
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    release_searcher: ReleaseSearcherDep,
+    search_id: Annotated[int, Form()],
+) -> HTMLResponse:
+    new_search_id = retry_adhoc_search(
+        session=session, background_tasks=background_tasks, release_searcher=release_searcher, search_id=search_id
+    )
+    return TEMPLATES.TemplateResponse(
+        request=request,
+        name="fragments/adhoc_retry_fragment.html",
+        context={"search_id": new_search_id, "result": None},
     )
 
 

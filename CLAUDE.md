@@ -72,7 +72,7 @@ The optional recurring scrape is driven by the app-scoped APScheduler `AsyncIOSc
 
 ### Persistence (`plastered/db/`)
 
-SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution.
+SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution. `AdhocRequest` stores each ad-hoc search's submitted request as JSON so the run-history page can re-submit it (`retry_adhoc_search` in `api/adhoc_helpers.py`).
 
 ## Conventions
 
