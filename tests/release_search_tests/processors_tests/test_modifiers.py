@@ -1,22 +1,15 @@
-from collections.abc import Callable
-from copy import deepcopy
 from typing import Any, TypedDict
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import SearchRecord, SkipReason
+from plastered.db.db_models import SearchRecord
 from plastered.models import (
-    EncodingEnum,
     EntityType,
-    FormatEnum,
     LFMAlbumInfo,
-    LFMRec,
-    LFMTrackInfo,
     MBRelease,
-    MediaEnum,
-    RedFormat,
+    OriginRelease,
+    OriginSource,
     ReleaseEntry,
     SearchItem,
     TorrentEntry,
@@ -24,10 +17,11 @@ from plastered.models import (
 )
 from plastered.release_search.processors.modifiers import (
     ResolveAlbumInfoModifier,
-    ResolveTrackInfoModifier,
+    ResolveTrackOriginModifier,
     AttachSearchIdModifier,
     AttemptResolveMBReleaseModifier,
     SearchRedReleaseByPrefsModifier,
+    _request_release_details_with_fallback,
 )
 from plastered.release_search.processors.bases import SearchItemModifier
 from plastered.release_search.search_helpers import SearchState
@@ -37,8 +31,10 @@ from plastered.utils.exceptions import (
     MusicBrainzClientException,
     MusicBrainzRequestFailureException,
 )
-from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient
+from plastered.utils.constants import MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP
+
+_UPSERT_RESOLVED_ORIGIN = "plastered.release_search.processors.modifiers.upsert_resolved_origin"
 
 
 class _MockProcKwargs(TypedDict):
@@ -73,12 +69,24 @@ _MOCK_TE_KWARGS: dict[str, Any] = {
 }
 
 
+def _origin(
+    name: str,
+    source: OriginSource = OriginSource.MB_RECORDING_LOOKUP,
+    mbid: str | None = None,
+    primary_type: str | None = "Album",
+    date: str | None = "2000",
+) -> OriginRelease:
+    return OriginRelease(
+        release_name=name, source=source, release_mbid=mbid, primary_type=primary_type, release_date=date
+    )
+
+
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])
 @pytest.mark.parametrize(
     "filter_class",
     [
         ResolveAlbumInfoModifier,
-        ResolveTrackInfoModifier,
+        ResolveTrackOriginModifier,
         AttachSearchIdModifier,
         AttemptResolveMBReleaseModifier,
         SearchRedReleaseByPrefsModifier,
@@ -90,8 +98,8 @@ def test_modifier_process(
     entity_type: EntityType,
     filter_class: SearchItemModifier,
 ) -> None:
-    if filter_class == ResolveTrackInfoModifier and entity_type == EntityType.ALBUM:
-        pytest.skip(f"{ResolveTrackInfoModifier.__class__.__qualname__} not relevant for albums.")
+    if filter_class == ResolveTrackOriginModifier and entity_type == EntityType.ALBUM:
+        pytest.skip(f"{ResolveTrackOriginModifier.__class__.__qualname__} not relevant for albums.")
     mock_si = (
         make_album_search_item(is_lfm_rec=True)
         if entity_type == EntityType.ALBUM
@@ -109,7 +117,7 @@ def test_resolve_album_info_modifier(
     is_lfm_rec: bool,
 ) -> None:
     mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
-    assert mock_si._lfm_track_info is None
+    assert mock_si.origin_candidates == []
     with patch.object(
         LFMAlbumInfo, "construct_from_api_response", return_value=mock_lfmai
     ) as mock_construct_from_api_response:
@@ -124,113 +132,219 @@ def test_resolve_album_info_modifier(
 
 
 @pytest.mark.parametrize(
-    "test_lfm_rec, mock_lfm_json_fixture, mb_resolved_origin_release_fields, expected_lfmti",
+    "raised_exception, expected_lfm_request_failed",
     [
-        (
-            LFMRec(lfm_artist_str="Dr.+Octagon", lfm_entity_str="No+Awareness", recommendation_type=EntityType.TRACK),
-            "mock_full_lfm_track_info_json",
-            None,
-            LFMTrackInfo(
-                artist="Dr. Octagon",
-                track_name="No Awareness",
-                release_name="Dr. Octagonecologyst",
-                lfm_url="https://www.last.fm/music/Dr.+Octagon/_/No+Awareness",
-                release_mbid="cddbf21f-9cd8-4665-a015-3cdc50cdcc72",
-            ),
-        ),
-        (
-            LFMRec(
-                lfm_artist_str="The+Tuss", lfm_entity_str="rushup+i+bank+12+M", recommendation_type=EntityType.TRACK
-            ),
-            "mock_no_album_lfm_track_info_json",
-            {"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"},
-            LFMTrackInfo(
-                artist="The Tuss",
-                track_name="rushup i bank 12 M",
-                release_name="Rushup Edge",
-                lfm_url="https://www.last.fm/music/The+Tuss/_/rushup+i+bank+12+M",
-                release_mbid="3b08749b-b63e-46d3-b693-e0736faf046f",
-            ),
-        ),
-        (
-            LFMRec(
-                lfm_artist_str="The+Tuss", lfm_entity_str="rushup+i+bank+12+M", recommendation_type=EntityType.TRACK
-            ),
-            "mock_no_album_lfm_track_info_json",
-            None,
-            None,
-        ),
+        (LFMClientException("Intentionally raised exception"), False),
+        (LFMRequestFailureException("Intentionally raised exception"), True),
     ],
 )
-def test_resolve_track_info_modifier(
-    request: pytest.FixtureRequest,
+def test_resolve_album_info_modifier_lfm_exception(
     mock_process_kwargs: _MockProcKwargs,
-    test_lfm_rec: SearchItem,
-    mock_lfm_json_fixture: str,
-    mb_resolved_origin_release_fields: dict[str, str | None] | None,
-    expected_lfmti: LFMTrackInfo | None,
+    make_album_search_item: pytest.FixtureRequest,
+    raised_exception: LFMClientException,
+    expected_lfm_request_failed: bool,
 ) -> None:
-    input_si = SearchItem(initial_info=test_lfm_rec)
-    mock_lfm_response = request.getfixturevalue(mock_lfm_json_fixture)["track"]
-    mock_process_kwargs["lfm"].get_track_info.return_value = mock_lfm_response
-    mock_process_kwargs["mb"].request_release_details_for_track.return_value = mb_resolved_origin_release_fields
-    actual = ResolveTrackInfoModifier.process(si=input_si, **mock_process_kwargs)
-    mock_process_kwargs["lfm"].get_track_info.assert_called_once_with(si=input_si)
-    if "album" in mock_lfm_response:
-        mock_process_kwargs["mb"].request_release_details_for_track.assert_not_called()
-    else:
-        mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once()
-
-    assert actual._lfm_track_info == expected_lfmti, f"Expected {expected_lfmti}, but got {actual}"
+    """An LFM client error degrades to no album info; only an infra-level failure sets `lfm_request_failed`."""
+    mock_process_kwargs["lfm"].get_album_info.side_effect = raised_exception
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    actual = ResolveAlbumInfoModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual is mock_si
+    assert actual._lfm_album_info is None
+    assert actual.lfm_request_failed is expected_lfm_request_failed
 
 
-@pytest.mark.parametrize("is_lfm_rec", [False, True])
-@pytest.mark.parametrize(
-    "mb_resolved_origin_release_fields",
-    [{"origin_release_mbid": "3b08749b-b63e-46d3-b693-e0736faf046f", "origin_release_name": "Rushup Edge"}, None],
-)
-def test_resolve_track_info_modifier_lfm_client_exception(
-    mock_process_kwargs: _MockProcKwargs,
-    make_track_search_item: pytest.FixtureRequest,
-    is_lfm_rec: bool,
-    mb_resolved_origin_release_fields: dict[str, str | None] | None,
-) -> None:
-    def _lfm_client_side_effect(*args: Any, **kwargs: Any) -> None:
-        raise LFMClientException("Intentionally raised exception")
+class TestResolveTrackOriginModifier:
+    """The LFM album and the MB recording lookup / search results are gathered and ranked into origin candidates."""
 
-    mock_process_kwargs["lfm"].get_track_info.side_effect = _lfm_client_side_effect
-    mock_process_kwargs["mb"].request_release_details_for_track.return_value = mb_resolved_origin_release_fields
-    mock_si = make_track_search_item(is_lfm_rec=is_lfm_rec)
-    with patch.object(SearchItem, "set_lfm_track_info") as mock_set_lfm_track_info:
-        actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
-        assert isinstance(actual, SearchItem)
-        mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once_with(
-            si=mock_si, artist_mbid=None
+    @pytest.fixture
+    def lookup_candidates(self) -> list[OriginRelease]:
+        return [
+            _origin("Blue Flowers", mbid="single-mbid", primary_type="Single", date="1996"),
+            _origin("Dr. Octagonecologyst", mbid="album-mbid", date="1996-05-07"),
+        ]
+
+    @pytest.mark.parametrize("is_lfm_rec", [False, True])
+    def test_lookup_by_lfm_recording_mbid(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+        lookup_candidates: list[OriginRelease],
+        is_lfm_rec: bool,
+    ) -> None:
+        """A full LFM blob drives a recording lookup (no search); the LFM album folds into the ranked MB album."""
+        si = make_track_search_item(is_lfm_rec=is_lfm_rec, artist="Dr. Octagon", track="No Awareness")
+        si.search_id = 7
+        lfm_resp = mock_full_lfm_track_info_json["track"]
+        mock_process_kwargs["lfm"].get_track_info.return_value = lfm_resp
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = lookup_candidates
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        assert actual is si
+        mock_process_kwargs["lfm"].get_track_info.assert_called_once_with(si=si)
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.assert_called_once_with(
+            recording_mbid=lfm_resp["mbid"], artist_name="Dr. Octagon", artist_mbid=lfm_resp["artist"]["mbid"]
         )
-        if mb_resolved_origin_release_fields is not None:
-            mock_set_lfm_track_info.assert_called_once()
-        else:
-            mock_set_lfm_track_info.assert_not_called
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_not_called()
+        assert [c.release_name for c in actual.origin_candidates] == ["Dr. Octagonecologyst", "Blue Flowers"]
+        assert actual.release_name == "Dr. Octagonecologyst"
+        assert actual.top_origin is lookup_candidates[1]
+        mock_upsert.assert_called_once_with(
+            search_id=7, origin=lookup_candidates[1], candidate_rank=0, candidate_count=2, matched=False
+        )
+        assert actual.lfm_request_failed is False and actual.mb_request_failed is False
 
+    def test_search_fallback_when_lookup_is_empty(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """An empty lookup (stale MBID / artist mismatch) falls back to the recording search."""
+        si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
+        lfm_resp = mock_full_lfm_track_info_json["track"]
+        single = _origin("Blue Flowers", source=OriginSource.MB_RECORDING_SEARCH, primary_type="Single")
+        mock_process_kwargs["lfm"].get_track_info.return_value = lfm_resp
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = []
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = [single]
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once_with(
+            track_name="No Awareness", artist_name="Dr. Octagon", artist_mbid=lfm_resp["artist"]["mbid"]
+        )
+        # The single ranks first; the (type-less) LFM album is kept as a last-tier candidate of its own.
+        assert [(c.release_name, c.source) for c in actual.origin_candidates] == [
+            ("Blue Flowers", OriginSource.MB_RECORDING_SEARCH),
+            ("Dr. Octagonecologyst", OriginSource.LFM),
+        ]
 
-def test_resolve_track_info_modifier_malformed_lfm_blob_falls_through_to_mb(
-    mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
-) -> None:
-    """
-    Regression: a malformed LFM track blob (has an 'album' key but is missing fields construct_from_api_response
-    needs) must not crash the modifier — it should be caught and fall through to MusicBrainz resolution.
-    """
-    mock_process_kwargs["lfm"].get_track_info.return_value = {"album": {}}  # missing 'name'/'artist' -> KeyError
-    mock_process_kwargs["mb"].request_release_details_for_track.return_value = {
-        "origin_release_mbid": "mbid",
-        "origin_release_name": "Resolved Release",
-    }
-    mock_si = make_track_search_item(is_lfm_rec=True)
-    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
-    assert isinstance(actual, SearchItem)
-    # Fell through to MB (artist_mbid is None since the malformed blob's 'artist' is not a dict).
-    mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once_with(si=mock_si, artist_mbid=None)
-    assert actual.release_name == "Resolved Release"
+    def test_capped_lookup_also_searches_and_merges(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """A lookup listing at MB's linked-entity cap may lack the original album, so the search results are merged."""
+        si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
+        capped_listing = [
+            OriginRelease(
+                release_name=f"Compilation {i}",
+                source=OriginSource.MB_RECORDING_LOOKUP,
+                release_group_mbid=f"rg-{i}",
+                primary_type="Album",
+                secondary_types=("Compilation",),
+                release_date=str(2000 + i),
+            )
+            for i in range(MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP)
+        ]
+        original_album = _origin("Dr. Octagonecologyst", source=OriginSource.MB_RECORDING_SEARCH, date="1996")
+        mock_process_kwargs["lfm"].get_track_info.return_value = mock_full_lfm_track_info_json["track"]
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = capped_listing
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = [original_album]
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once()
+        assert actual.top_origin is original_album
+        assert len(actual.origin_candidates) == MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP + 1
+
+    def test_no_album_lfm_blob_searches_without_lookup(
+        self,
+        mock_no_album_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """Without a recording MBID from LFM only the search runs; no candidates leaves the item unresolved."""
+        si = make_track_search_item(is_lfm_rec=True, artist="The Tuss", track="rushup i bank 12 M")
+        lfm_resp = mock_no_album_lfm_track_info_json["track"]
+        mock_process_kwargs["lfm"].get_track_info.return_value = lfm_resp
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = []
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.assert_not_called()
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once_with(
+            track_name="rushup i bank 12 M", artist_name="The Tuss", artist_mbid=lfm_resp["artist"]["mbid"]
+        )
+        assert actual.origin_candidates == [] and actual.release_name == "None"
+        mock_upsert.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "raised_exception, expected_lfm_request_failed",
+        [
+            (LFMClientException("Intentionally raised exception"), False),
+            (LFMRequestFailureException("Intentionally raised exception"), True),
+        ],
+    )
+    def test_lfm_exception_still_searches(
+        self,
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+        raised_exception: LFMClientException,
+        expected_lfm_request_failed: bool,
+    ) -> None:
+        """An LFM failure only flags the item (infra-level failures); the MB search still resolves candidates."""
+        si = make_track_search_item(is_lfm_rec=True)
+        mock_process_kwargs["lfm"].get_track_info.side_effect = raised_exception
+        album = _origin("Album", source=OriginSource.MB_RECORDING_SEARCH)
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = [album]
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once_with(
+            track_name=si.track_name, artist_name=si.artist_name, artist_mbid=None
+        )
+        assert actual.origin_candidates == [album] and actual.release_name == "Album"
+        assert actual.lfm_request_failed is expected_lfm_request_failed
+        assert actual.mb_request_failed is False
+
+    def test_malformed_lfm_blob_falls_through_to_search(
+        self, mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
+    ) -> None:
+        si = make_track_search_item(is_lfm_rec=True)
+        mock_process_kwargs["lfm"].get_track_info.return_value = "not-a-dict"
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = []
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once_with(
+            track_name=si.track_name, artist_name=si.artist_name, artist_mbid=None
+        )
+        assert actual.origin_candidates == [] and actual.lfm_request_failed is False
+
+    def test_mb_request_failure_keeps_lfm_candidate(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """An infra-level MB failure flags the item; the LFM album still stands as the only candidate."""
+        si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
+        si.search_id = 9
+        mock_process_kwargs["lfm"].get_track_info.return_value = mock_full_lfm_track_info_json["track"]
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.side_effect = MusicBrainzRequestFailureException(
+            "Intentionally raised exception"
+        )
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_not_called()
+        assert actual.mb_request_failed is True
+        assert [(c.release_name, c.source) for c in actual.origin_candidates] == [
+            ("Dr. Octagonecologyst", OriginSource.LFM)
+        ]
+        mock_upsert.assert_called_once_with(
+            search_id=9, origin=actual.origin_candidates[0], candidate_rank=0, candidate_count=1, matched=False
+        )
+
+    def test_search_request_failure_sets_flag(
+        self, mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
+    ) -> None:
+        si = make_track_search_item(is_lfm_rec=True)
+        mock_process_kwargs["lfm"].get_track_info.return_value = {"no_album_key": True}
+        mock_process_kwargs["mb"].search_recording_origin_releases.side_effect = MusicBrainzRequestFailureException(
+            "Intentionally raised exception"
+        )
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        assert actual.mb_request_failed is True
+        assert actual.origin_candidates == []
+        mock_upsert.assert_not_called()
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
@@ -265,6 +379,16 @@ def test_attach_search_id_modifier(
             mock_add_record.assert_not_called()
 
 
+def _attach_lfm_mbid(si: SearchItem, entity_type: EntityType, mbid: str | None) -> None:
+    """Gives the item an LFM-sourced release MBID: album info for albums, a top origin candidate for tracks."""
+    if entity_type == EntityType.TRACK:
+        si.set_origin_candidates([_origin(si.release_name, source=OriginSource.LFM, mbid=mbid, primary_type=None)])
+    else:
+        si._lfm_album_info = LFMAlbumInfo(
+            artist=si.artist_name, album_name=si.release_name, lfm_url="abc", release_mbid=mbid
+        )
+
+
 @pytest.mark.override_global_httpx_mock
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
 @pytest.mark.parametrize("entity_type", [et for et in EntityType])
@@ -284,21 +408,7 @@ def test_attempt_resolve_mb_release_modifier(
         if entity_type == EntityType.ALBUM
         else make_track_search_item(is_lfm_rec=is_lfm_rec)
     )
-    if entity_type == EntityType.TRACK:
-        lfmti = LFMTrackInfo(
-            artist=si.artist_name,
-            track_name=si.track_name,
-            release_name=si.release_name,
-            lfm_url="abc",
-            release_mbid=mock_matched_mbid,
-        )
-        si._lfm_track_info = lfmti
-    else:
-        lfmai = LFMAlbumInfo(
-            artist=si.artist_name, album_name=si.release_name, lfm_url="abc", release_mbid=mock_matched_mbid
-        )
-        si._lfm_album_info = lfmai
-
+    _attach_lfm_mbid(si=si, entity_type=entity_type, mbid=mock_matched_mbid)
     # With no LFM-provided MBID, the modifier falls back to the MB release search; a fruitless search leaves the
     # item unresolved.
     mock_process_kwargs["mb"].search_release_mbid.return_value = None
@@ -311,10 +421,12 @@ def test_attempt_resolve_mb_release_modifier(
     assert actual._mb_release == expected_mb_release
     if has_matched_mbid:
         mock_process_kwargs["mb"].search_release_mbid.assert_not_called()
+        mock_process_kwargs["mb"].request_release_details.assert_called_once_with(mbid=mock_matched_mbid)
     else:
         mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
             artist_name=si.artist_name, release_name=si.release_name
         )
+        mock_process_kwargs["mb"].request_release_details.assert_not_called()
 
 
 @pytest.mark.override_global_httpx_mock
@@ -338,6 +450,35 @@ def test_attempt_resolve_mb_release_modifier_search_fallback_resolves(
     mock_process_kwargs["mb"].request_release_details.assert_called_once_with(mbid="searched-mbid")
 
 
+@pytest.mark.override_global_httpx_mock
+@pytest.mark.parametrize("entity_type", [et for et in EntityType])
+def test_attempt_resolve_mb_release_modifier_stale_mbid_falls_back_to_search(
+    mock_musicbrainz_release_json: dict[str, Any],
+    mock_process_kwargs: _MockProcKwargs,
+    make_album_search_item: pytest.FixtureRequest,
+    make_track_search_item: pytest.FixtureRequest,
+    entity_type: EntityType,
+) -> None:
+    """An LFM-supplied MBID that MB answers with an error is replaced via the release search, then looked up."""
+    si = make_album_search_item(is_lfm_rec=True) if entity_type == EntityType.ALBUM else make_track_search_item(True)
+    _attach_lfm_mbid(si=si, entity_type=entity_type, mbid="stale-mbid")
+    mock_process_kwargs["mb"].request_release_details.side_effect = [
+        MusicBrainzClientException("404"),
+        mock_musicbrainz_release_json,
+    ]
+    mock_process_kwargs["mb"].search_release_mbid.return_value = "searched-mbid"
+    actual = AttemptResolveMBReleaseModifier.process(si=si, **mock_process_kwargs)
+    assert actual._mb_release == MBRelease.construct_from_api(json_blob=mock_musicbrainz_release_json)
+    assert actual.mb_request_failed is False
+    assert [c.kwargs["mbid"] for c in mock_process_kwargs["mb"].request_release_details.call_args_list] == [
+        "stale-mbid",
+        "searched-mbid",
+    ]
+    mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
+        artist_name=si.artist_name, release_name=si.release_name
+    )
+
+
 def test_attempt_resolve_mb_release_modifier_search_fallback_request_failure(
     mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
 ) -> None:
@@ -350,6 +491,26 @@ def test_attempt_resolve_mb_release_modifier_search_fallback_request_failure(
     assert actual is mock_si
     assert actual.mb_request_failed is True
     assert actual._mb_release is None
+    mock_process_kwargs["mb"].request_release_details.assert_not_called()
+
+
+def test_attempt_resolve_mb_release_modifier_malformed_release_payload(
+    mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
+) -> None:
+    """A release payload missing expected keys is logged and leaves the item unresolved rather than crashing."""
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    _attach_lfm_mbid(si=mock_si, entity_type=EntityType.ALBUM, mbid="69-420")
+    mock_process_kwargs["mb"].request_release_details.return_value = {}
+    actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
+    assert actual._mb_release is None and actual.mb_request_failed is False
+
+
+def test_request_release_details_with_fallback_no_search_result(
+    mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
+) -> None:
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    mock_process_kwargs["mb"].search_release_mbid.return_value = None
+    assert _request_release_details_with_fallback(si=mock_si, mb=mock_process_kwargs["mb"], mbid=None) is None
     mock_process_kwargs["mb"].request_release_details.assert_not_called()
 
 
@@ -371,92 +532,17 @@ def test_attempt_resolve_mb_release_modifier_exception(
     raised_exception: MusicBrainzClientException,
     expected_mb_request_failed: bool,
 ) -> None:
-    mock_matched_mbid = "69-420"
     mock_si = (
         make_album_search_item(is_lfm_rec=is_lfm_rec)
         if entity_type == EntityType.ALBUM
         else make_track_search_item(is_lfm_rec=is_lfm_rec)
     )
-    if entity_type == EntityType.TRACK:
-        lfmti = LFMTrackInfo(
-            artist=mock_si.artist_name,
-            track_name=mock_si.track_name,
-            release_name=mock_si.release_name,
-            lfm_url="abc",
-            release_mbid=mock_matched_mbid,
-        )
-        mock_si._lfm_track_info = lfmti
-    else:
-        lfmai = LFMAlbumInfo(
-            artist=mock_si.artist_name, album_name=mock_si.release_name, lfm_url="abc", release_mbid=mock_matched_mbid
-        )
-        mock_si._lfm_album_info = lfmai
-
+    _attach_lfm_mbid(si=mock_si, entity_type=entity_type, mbid="69-420")
     mock_process_kwargs["mb"].request_release_details.side_effect = raised_exception
     actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
     assert isinstance(actual, SearchItem)
+    assert actual._mb_release is None
     assert actual.mb_request_failed is expected_mb_request_failed
-
-
-@pytest.mark.parametrize(
-    "raised_exception, expected_lfm_request_failed",
-    [
-        (LFMClientException("Intentionally raised exception"), False),
-        (LFMRequestFailureException("Intentionally raised exception"), True),
-    ],
-)
-def test_resolve_album_info_modifier_lfm_exception(
-    mock_process_kwargs: _MockProcKwargs,
-    make_album_search_item: pytest.FixtureRequest,
-    raised_exception: LFMClientException,
-    expected_lfm_request_failed: bool,
-) -> None:
-    """An LFM client error degrades to no album info; only an infra-level failure sets `lfm_request_failed`."""
-    mock_process_kwargs["lfm"].get_album_info.side_effect = raised_exception
-    mock_si = make_album_search_item(is_lfm_rec=True)
-    actual = ResolveAlbumInfoModifier.process(si=mock_si, **mock_process_kwargs)
-    assert actual is mock_si
-    assert actual._lfm_album_info is None
-    assert actual.lfm_request_failed is expected_lfm_request_failed
-
-
-@pytest.mark.parametrize(
-    "raised_exception, expected_lfm_request_failed",
-    [
-        (LFMClientException("Intentionally raised exception"), False),
-        (LFMRequestFailureException("Intentionally raised exception"), True),
-    ],
-)
-def test_resolve_track_info_modifier_lfm_request_failure_sets_flag(
-    mock_process_kwargs: _MockProcKwargs,
-    make_track_search_item: pytest.FixtureRequest,
-    raised_exception: LFMClientException,
-    expected_lfm_request_failed: bool,
-) -> None:
-    """Only an infra-level LFM failure during track resolution sets `lfm_request_failed` (MB fallback still runs)."""
-    mock_process_kwargs["lfm"].get_track_info.side_effect = raised_exception
-    mock_process_kwargs["mb"].request_release_details_for_track.return_value = None
-    mock_si = make_track_search_item(is_lfm_rec=True)
-    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
-    assert actual is mock_si
-    assert actual.lfm_request_failed is expected_lfm_request_failed
-    assert actual.mb_request_failed is False
-    mock_process_kwargs["mb"].request_release_details_for_track.assert_called_once_with(si=mock_si, artist_mbid=None)
-
-
-def test_resolve_track_info_modifier_mb_request_failure_sets_flag(
-    mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
-) -> None:
-    """An infra-level MB failure during the track origin-release fallback sets `mb_request_failed` and keeps going."""
-    mock_process_kwargs["lfm"].get_track_info.return_value = {"no_album_key": True}
-    mock_process_kwargs["mb"].request_release_details_for_track.side_effect = MusicBrainzRequestFailureException(
-        "Intentionally raised exception"
-    )
-    mock_si = make_track_search_item(is_lfm_rec=True)
-    actual = ResolveTrackInfoModifier.process(si=mock_si, **mock_process_kwargs)
-    assert actual is mock_si
-    assert actual.mb_request_failed is True
-    assert actual._lfm_track_info is None
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
@@ -496,7 +582,8 @@ class TestSearchRedReleaseByPrefsModifier:
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
         assert mock_si.torrent_entry is None
-        actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
         mock_process_kwargs["red"].get_artist_release_groups.assert_called_once_with(artist_name=mock_si.artist_name)
         # The fetched listing is cached on the run state for later recs by the same artist.
         mock_process_kwargs["state"].cache_artist_release_groups.assert_called_once_with(
@@ -506,6 +593,8 @@ class TestSearchRedReleaseByPrefsModifier:
             si=mock_si, release_entries=release_entries
         )
         mock_process_kwargs["state"].select_best_torrent.assert_called_once_with(release_entries=candidate_entries)
+        mock_process_kwargs["state"].match_track_origin_candidates.assert_not_called()
+        mock_upsert.assert_not_called()
         assert actual is mock_si
         assert actual.torrent_entry is matched_te
         assert actual.above_max_size_te_found is False
@@ -572,3 +661,48 @@ class TestSearchRedReleaseByPrefsModifier:
         assert actual is mock_si
         assert actual.torrent_entry is None
         assert actual.above_max_size_te_found is False
+
+    @pytest.mark.parametrize("is_lfm_rec", [False, True])
+    def test_track_item_matches_via_origin_candidates(
+        self, mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest, is_lfm_rec: bool
+    ) -> None:
+        """A track item is matched candidate-by-candidate; the matching candidate is persisted as the resolved origin."""
+        mock_si = make_track_search_item(is_lfm_rec=is_lfm_rec)
+        mock_si.search_id = 3
+        candidates = [_origin("Album"), _origin("Single", primary_type="Single")]
+        mock_si.set_origin_candidates(candidates)
+        matched_te = TorrentEntry(
+            torrent_id=1, media="WEB", format="FLAC", encoding="24bit Lossless", **_MOCK_TE_KWARGS
+        )
+        release_entries = [MagicMock(spec=ReleaseEntry)]
+
+        def _match(si: SearchItem, release_entries: list[ReleaseEntry]) -> TorrentMatch:
+            si.set_matched_origin(candidates[1])
+            return TorrentMatch(torrent_entry=matched_te, above_max_size_found=False)
+
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = release_entries
+        mock_process_kwargs["state"].match_track_origin_candidates.side_effect = _match
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        mock_process_kwargs["state"].match_track_origin_candidates.assert_called_once_with(
+            si=mock_si, release_entries=release_entries
+        )
+        mock_process_kwargs["state"].get_candidate_release_groups.assert_not_called()
+        assert actual.torrent_entry is matched_te and actual.release_name == "Single"
+        mock_upsert.assert_called_once_with(
+            search_id=3, origin=candidates[1], candidate_rank=1, candidate_count=2, matched=True
+        )
+
+    def test_track_item_without_match_persists_nothing(
+        self, mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
+    ) -> None:
+        mock_si = make_track_search_item(is_lfm_rec=True)
+        mock_si.set_origin_candidates([_origin("Album")])
+        mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = []
+        mock_process_kwargs["state"].match_track_origin_candidates.return_value = TorrentMatch(
+            torrent_entry=None, above_max_size_found=True
+        )
+        with patch(_UPSERT_RESOLVED_ORIGIN) as mock_upsert:
+            actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
+        mock_upsert.assert_not_called()
+        assert actual.torrent_entry is None and actual.above_max_size_te_found is True

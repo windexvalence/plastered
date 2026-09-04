@@ -15,7 +15,7 @@ from plastered.release_search.processors.modifiers import (
     AttachSearchIdModifier,
     AttemptResolveMBReleaseModifier,
     ResolveAlbumInfoModifier,
-    ResolveTrackInfoModifier,
+    ResolveTrackOriginModifier,
     SearchRedReleaseByPrefsModifier,
 )
 
@@ -59,7 +59,7 @@ class SearchItemProcessorChain:
             # search_id to attach the SKIPPED/FAILED row to. Otherwise a track that fails origin-release resolution
             # would hit PostResolveOriginTrackFilter with search_id=None and crash the whole run via set_result_status.
             AttachSearchIdModifier,
-            ResolveTrackInfoModifier,
+            ResolveTrackOriginModifier,
             PostResolveOriginTrackFilter,
             PreMBIDResolutionFilter,
             AttemptResolveMBReleaseModifier,

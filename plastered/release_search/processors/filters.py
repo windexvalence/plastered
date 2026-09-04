@@ -47,11 +47,11 @@ class PreMBIDResolutionFilter(BaseFilter):
 
 def _origin_track_skip_reason(si: SearchItem) -> SkipReason | None:
     """
-    Keep a track item whose origin release resolved; otherwise attribute the drop to an upstream API request
-    failure when one occurred (checking LFM first since it is the primary source), falling back to the generic
+    Keep a track item with at least one candidate origin release; otherwise attribute the drop to an upstream API
+    request failure when one occurred (checking LFM first since it resolves first), falling back to the generic
     no-source-release reason.
     """
-    if si._lfm_track_info:
+    if si.origin_candidates:
         return None
     if si.lfm_request_failed:
         return SkipReason.LFM_REQUEST_FAILURE

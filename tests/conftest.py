@@ -67,6 +67,9 @@ _MUSICBRAINZ_MOCK_RELEASE_JSON_FILEPATH = os.path.join(
 _MUSICBRAINZ_MOCK_RELEASE_SEARCH_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "mb_release_search_response.json"
 )
+_MUSICBRAINZ_MOCK_RECORDING_LOOKUP_JSON_FILEPATH = os.path.join(
+    MOCK_JSON_RESPONSES_DIR_PATH, "mb_recording_lookup_response.json"
+)
 _MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH = os.path.join(
     MOCK_JSON_RESPONSES_DIR_PATH, "mb_track_search_tuss_arid.json"
 )
@@ -317,6 +320,12 @@ def mock_musicbrainz_release_json() -> dict[str, Any]:
 
 
 @pytest.fixture(scope="session")
+def mock_musicbrainz_recording_lookup_json() -> dict[str, Any]:
+    """An MB recording *lookup* payload (`recording/<mbid>?inc=releases+release-groups+artist-credits`)."""
+    return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_RECORDING_LOOKUP_JSON_FILEPATH)
+
+
+@pytest.fixture(scope="session")
 def mock_musicbrainz_track_search_arid_json() -> dict[str, Any]:
     return load_mock_response_json(json_filepath=_MUSICBRAINZ_MOCK_TRACK_ARID_JSON_FILEPATH)
 
@@ -456,6 +465,7 @@ def lfm_url_regex_to_mock_json(
 def mb_url_regex_to_mock_json(
     mock_musicbrainz_release_json: dict[str, Any],
     mock_musicbrainz_release_search_json: dict[str, Any],
+    mock_musicbrainz_recording_lookup_json: dict[str, Any],
     mock_musicbrainz_track_search_arid_json: dict[str, Any],
     mock_musicbrainz_track_search_artist_name_json: dict[str, Any],
 ) -> list[tuple[str, str]]:
@@ -466,6 +476,8 @@ def mb_url_regex_to_mock_json(
         (r"https://musicbrainz\.org/ws/2/release/.*$", mock_musicbrainz_release_json),
         # The release *search* endpoint (`release?query=...`), as opposed to the release-details lookup above.
         (r"https://musicbrainz\.org/ws/2/release\?query=.*$", mock_musicbrainz_release_search_json),
+        # The recording *lookup* endpoint (`recording/<mbid>?inc=...`), as opposed to the recording search below.
+        (r"https://musicbrainz\.org/ws/2/recording/[^?]+\?inc=.*$", mock_musicbrainz_recording_lookup_json),
         (
             r"https://musicbrainz\.org/ws/2/recording\?query=.*recording:.+AND.+arid:.*$",
             mock_musicbrainz_track_search_arid_json,

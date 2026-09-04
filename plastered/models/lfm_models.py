@@ -1,12 +1,9 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import unquote_plus
 
 from plastered.models.types import EntityType
 from plastered.utils.exceptions import LFMRecException
-
-if TYPE_CHECKING:
-    from plastered.models.search_item import SearchItem
 
 
 @dataclass
@@ -29,62 +26,6 @@ class LFMAlbumInfo:
             release_mbid=json_blob["mbid"],
             album_name=json_blob["name"],
             lfm_url=json_blob["url"],
-        )
-
-
-@dataclass
-class LFMTrackInfo:  # TODO (later): stop using this class and above class in favor of SearchItem
-    """
-    Utility class wrapping the results of the LFM API's track.getinfo endpoint.
-    Used by the ReleaseSearcher when mapping a track rec to the release it originated from.
-    Also optionally used by the ReleaseSearcher when resolving certain additional search fields (i.e. catalog number)
-    from musicbrainz is required by the user's config.
-    """
-
-    artist: str
-    track_name: str
-    release_name: str
-    lfm_url: str
-    release_mbid: str | None = None
-
-    @classmethod
-    def construct_from_api_response(cls, json_blob: dict[str, Any]):
-        """Constructs an LFMTrackInfo instance from the LFM API's track.getinfo endpoint JSON response."""
-        release_json = json_blob["album"]
-        release_mbid = release_json.get("mbid", None)
-        return cls(
-            artist=json_blob["artist"]["name"],
-            track_name=json_blob["name"],
-            release_mbid=release_mbid,
-            release_name=release_json["title"],
-            lfm_url=json_blob["url"],
-        )
-
-    @classmethod
-    def from_mb_origin_release_info(cls, si: SearchItem, origin_info_json: dict[str, Any] | None):
-        """
-        Constructs an LFMTrackInfo instance from the MB API's 'recording' endpoint response.
-        Returns `None` if `mb_origin_release_info_json` is `None`.
-        """
-        if not origin_info_json:
-            return None
-        return LFMTrackInfo(
-            artist=si.artist_name,
-            track_name=si.track_name,
-            lfm_url=si.initial_info.lfm_entity_url,
-            release_mbid=origin_info_json["origin_release_mbid"],
-            release_name=origin_info_json["origin_release_name"],
-        )
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, LFMTrackInfo):
-            return False
-        return (
-            other.artist == self.artist
-            and other.track_name == self.track_name
-            and other.release_name == self.release_name
-            and other.lfm_url == self.lfm_url
-            and other.release_mbid == self.release_mbid
         )
 
 

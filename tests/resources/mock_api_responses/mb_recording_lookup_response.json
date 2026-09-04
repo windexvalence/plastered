@@ -1,0 +1,83 @@
+{
+  "id": "89f3ce2d-f83d-4a8e-9067-983bdbf691b3",
+  "title": "No Awareness",
+  "length": 285000,
+  "video": false,
+  "disambiguation": "",
+  "first-release-date": "1996-05-07",
+  "artist-credit": [
+    {
+      "name": "Dr. Octagon",
+      "joinphrase": "",
+      "artist": {
+        "id": "3eba5e02-780b-4acd-befb-d23a0c6708dd",
+        "name": "Dr. Octagon",
+        "sort-name": "Dr. Octagon",
+        "disambiguation": "",
+        "type": "Person"
+      }
+    }
+  ],
+  "releases": [
+    {
+      "id": "d211379d-3203-47ed-a0c5-e564815bb45a",
+      "title": "Dr. Octagonecologyst",
+      "status": "Official",
+      "date": "2017-05-19",
+      "country": "US",
+      "disambiguation": "",
+      "release-group": {
+        "id": "b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+        "title": "Dr. Octagonecologyst",
+        "primary-type": "Album",
+        "secondary-types": [],
+        "first-release-date": "1996-05-07"
+      }
+    },
+    {
+      "id": "cddbf21f-9cd8-4665-a015-3cdc50cdcc72",
+      "title": "Dr. Octagonecologyst",
+      "status": "Official",
+      "date": "1996-05-07",
+      "country": "US",
+      "disambiguation": "",
+      "release-group": {
+        "id": "b38e21f6-8f76-3f87-a021-e91afad9e7e5",
+        "title": "Dr. Octagonecologyst",
+        "primary-type": "Album",
+        "secondary-types": [],
+        "first-release-date": "1996-05-07"
+      }
+    },
+    {
+      "id": "0b7a6f1e-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      "title": "Blue Flowers",
+      "status": "Official",
+      "date": "1996",
+      "country": "US",
+      "disambiguation": "",
+      "release-group": {
+        "id": "1c8b7f2e-3d4e-4f5a-9b0c-1d2e3f4a5b6c",
+        "title": "Blue Flowers",
+        "primary-type": "Single",
+        "secondary-types": [],
+        "first-release-date": "1996"
+      }
+    },
+    {
+      "id": "2d9c8a3f-4e5f-4a6b-8c1d-2e3f4a5b6c7d",
+      "title": "Instrumentalyst (Octagon Beats)",
+      "status": "Official",
+      "date": "1997",
+      "country": "US",
+      "disambiguation": "",
+      "release-group": {
+        "id": "3eadb940-5f6a-4b7c-9d2e-3f4a5b6c7d8e",
+        "title": "Instrumentalyst (Octagon Beats)",
+        "primary-type": "Album",
+        "secondary-types": ["Remix"],
+        "first-release-date": "1997"
+      }
+    }
+  ]
+}

@@ -23,7 +23,7 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
 )
-from plastered.models.lfm_models import LFMTrackInfo
+from plastered.models import MBRelease, OriginRelease, OriginSource, TorrentMatch
 from plastered.models.types import EncodingEnum as ee
 from plastered.models.types import FormatEnum as fe
 from plastered.models.types import MediaEnum as me
@@ -349,6 +349,7 @@ def test_mb_resolution_would_be_used(
     search_state._require_mbid_resolution = require_mbid
     si = MagicMock(spec=SearchItem)
     type(si).is_manual = PropertyMock(return_value=is_manual)
+    type(si).top_origin = PropertyMock(return_value=None)
     assert search_state.mb_resolution_would_be_used(si=si) is expected
 
 
@@ -753,7 +754,9 @@ def test_search_item_get_matched_mbid(rec_type: rt, info_field_present: bool, ex
         if rec_type == rt.ALBUM:
             si._lfm_album_info = LFMAlbumInfo("art", "album", "", mock_mbid)
         else:
-            si._lfm_track_info = LFMTrackInfo("art", "track", "", "", mock_mbid)
+            si.set_origin_candidates(
+                [OriginRelease(release_name="release", source=OriginSource.LFM, release_mbid=mock_mbid)]
+            )
     actual = si.get_matched_mbid()
     assert actual == expected
 
@@ -775,29 +778,32 @@ def test_search_item_found_red_match(
 
 
 @pytest.mark.parametrize(
-    "mock_rec_type, mock_lfmti, expected_get_human_readable_entity_str_call_cnt, expected_result",
+    "mock_rec_type, mock_origin, expected_get_human_readable_entity_str_call_cnt, expected_result",
     [
         pytest.param(rt.ALBUM, None, 1, "Title", id="album rec"),
-        pytest.param(rt.TRACK, None, 0, "None", id="track-no-lfmti"),
+        pytest.param(rt.TRACK, None, 0, "None", id="track-no-origin"),
         pytest.param(
             rt.TRACK,
-            LFMTrackInfo(artist="a", track_name="t", release_name="Title", lfm_url="fake", release_mbid="abc"),
+            OriginRelease(release_name="Title", source=OriginSource.LFM, release_mbid="abc"),
             0,
             "Title",
-            id="track-with-lfmti",
+            id="track-with-origin",
         ),
     ],
 )
 def test_search_item_release_name(
     mock_rec_type: rt,
-    mock_lfmti: LFMTrackInfo | None,
+    mock_origin: OriginRelease | None,
     expected_get_human_readable_entity_str_call_cnt: int,
     expected_result: str,
 ) -> None:
     with patch.object(
         LFMRec, "get_human_readable_entity_str", return_value=expected_result
     ) as mock_lfm_rec_get_human_readable_track_str_method:
-        si = SearchItem(initial_info=LFMRec("artist", "Title", mock_rec_type), _lfm_track_info=mock_lfmti)
+        si = SearchItem(
+            initial_info=LFMRec("artist", "Title", mock_rec_type),
+            origin_candidates=[mock_origin] if mock_origin else [],
+        )
         actual = si.release_name
         assert actual == expected_result
         assert (
@@ -873,3 +879,247 @@ def test_record_matched_result_rows_writes_one_per_matched_item(valid_app_settin
     assert mock_set_result_status.call_count == 3
     assert {call.kwargs["status_model_kwargs"]["tid"] for call in mock_set_result_status.call_args_list} == {10, 20, 30}
     assert all(call.kwargs["status"] == Status.MATCHED for call in mock_set_result_status.call_args_list)
+
+
+# ---- track items: origin candidates ------------------------------------------------------------------------------
+
+
+def _origin(
+    name: str,
+    primary_type: str | None = "Album",
+    date: str | None = "2000",
+    mbid: str | None = None,
+    source: OriginSource = OriginSource.MB_RECORDING_LOOKUP,
+    first_release_date: str | None = None,
+) -> OriginRelease:
+    return OriginRelease(
+        release_name=name,
+        source=source,
+        release_mbid=mbid,
+        primary_type=primary_type,
+        release_date=date,
+        first_release_date=first_release_date,
+    )
+
+
+def _track_si(is_manual: bool = False, **adhoc_kwargs: Any) -> SearchItem:
+    initial_info: LFMRec | AdhocSearch = (
+        AdhocSearch(artist="Some Artist", track="Some Track", **adhoc_kwargs)
+        if is_manual
+        else LFMRec(lfm_artist_str="Some+Artist", lfm_entity_str="Some+Track", recommendation_type=rt.TRACK)
+    )
+    return SearchItem(initial_info=initial_info)
+
+
+class TestGetCandidateReleaseGroupsForOrigin:
+    """Matching one origin candidate of a track item: its title and type/year drive the match."""
+
+    def test_origin_title_and_type_drive_matching(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(
+            valid_config_raw_data, valid_config_filepath, {**_ALL_SEARCH_FIELDS_DISABLED, "use_release_type": True}
+        )
+        si = _track_si()
+        si.set_origin_candidates([_origin("Some Album"), _origin("Some Single", primary_type="Single")])
+        album = _group(1, "Some Album", release_type=RedReleaseType.ALBUM)
+        single = _group(2, "Some Single", release_type=RedReleaseType.SINGLE)
+        single_titled_album = _group(3, "Some Single", release_type=RedReleaseType.ALBUM)
+        remixes_single = _group(4, "Some Single (Remixes)", release_type=RedReleaseType.SINGLE)
+        live_album = _group(5, "Some Single (Live)", release_type=RedReleaseType.ALBUM)
+        entries = [live_album, remixes_single, single_titled_album, single, album]
+        strict = state.get_candidate_release_groups(si=si, release_entries=entries, origin=si.origin_candidates[1])
+        assert [re.group_id for re in strict] == [2, 4]
+        lenient = state.get_candidate_release_groups(
+            si=si, release_entries=entries, origin=si.origin_candidates[1], strict_release_type=False
+        )
+        # Lenient: a type mismatch only ranks an exactly-titled group below the type-matching ones; a word-subset
+        # title with the wrong type (the live album) is still dropped.
+        assert [re.group_id for re in lenient] == [2, 3, 4]
+        top = state.get_candidate_release_groups(si=si, release_entries=entries, origin=si.origin_candidates[0])
+        assert [re.group_id for re in top] == [1]
+
+    def test_mb_resolved_year_applies_to_the_top_candidate_only(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True},
+        )
+        si = _track_si()
+        si.set_origin_candidates([_origin("A", date=None), _origin("B", date="2005")])
+        # The MB-resolved release (first_release_year 2016) describes the top candidate "A" only.
+        si.set_mb_release(
+            MBRelease(
+                mbid="m",
+                title="A",
+                artist="a",
+                primary_type="Album",
+                release_date="2016",
+                release_group_mbid="rg",
+                first_release_year=2016,
+            )
+        )
+        a_entries = [_group(1, "A", group_year=2016), _group(2, "A", group_year=2005)]
+        b_entries = [_group(3, "B", group_year=2016), _group(4, "B", group_year=2005)]
+        top = state.get_candidate_release_groups(si=si, release_entries=a_entries, origin=si.origin_candidates[0])
+        assert [re.group_id for re in top] == [1]
+        second = state.get_candidate_release_groups(si=si, release_entries=b_entries, origin=si.origin_candidates[1])
+        assert [re.group_id for re in second] == [4]
+
+    def test_user_supplied_year_applies_to_every_candidate(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        si = _track_si(is_manual=True, release_year=1998)
+        si.set_origin_candidates([_origin("A", date="2005"), _origin("B", date="2006")])
+        for origin, title in zip(si.origin_candidates, ("A", "B")):
+            entries = [_group(1, title, group_year=2005), _group(2, title, group_year=1998)]
+            actual = state.get_candidate_release_groups(si=si, release_entries=entries, origin=origin)
+            assert [re.group_id for re in actual] == [2]
+
+
+class TestMatchTrackOriginCandidates:
+    @pytest.fixture
+    def state(self, valid_app_settings: AppSettings) -> SearchState:
+        return SearchState(app_settings=valid_app_settings)  # release type + year filters on (config defaults)
+
+    @staticmethod
+    def _entry(group_id: int, name: str, release_type: RedReleaseType, size_gb: float = 0.1) -> ReleaseEntry:
+        te = _make_te("FLAC", "24bit Lossless", "WEB", size_gb, tid=group_id)
+        return ReleaseEntry(
+            group_id=group_id, group_name=name, release_type=release_type, group_year=2000, torrent_entries=[te]
+        )
+
+    def test_first_matching_candidate_wins(self, state: SearchState) -> None:
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("S", primary_type="Single")])
+        entries = [self._entry(1, "S", RedReleaseType.SINGLE), self._entry(2, "A", RedReleaseType.ALBUM)]
+        actual = state.match_track_origin_candidates(si=si, release_entries=entries)
+        assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 2
+        assert actual.above_max_size_found is False
+        assert si.matched_origin == si.origin_candidates[0] and si.release_name == "A"
+
+    def test_falls_through_to_a_later_candidate(self, state: SearchState) -> None:
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("S", primary_type="Single")])
+        actual = state.match_track_origin_candidates(
+            si=si, release_entries=[self._entry(1, "S", RedReleaseType.SINGLE)]
+        )
+        assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 1
+        assert si.matched_origin == si.origin_candidates[1] and si.release_name == "S"
+
+    def test_lenient_pass_relaxes_the_release_type(self, state: SearchState) -> None:
+        """A candidate whose type mismatches RED's group type still matches once the strict pass finds nothing."""
+        si = _track_si()
+        si.set_origin_candidates([_origin("S", primary_type="Single")])
+        actual = state.match_track_origin_candidates(si=si, release_entries=[self._entry(5, "S", RedReleaseType.ALBUM)])
+        assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 5
+        assert si.matched_origin == si.origin_candidates[0]
+
+    def test_strict_pass_over_every_candidate_precedes_the_lenient_pass(self, state: SearchState) -> None:
+        si = _track_si()
+        si.set_origin_candidates([_origin("S", primary_type="Single"), _origin("A")])
+        entries = [self._entry(1, "S", RedReleaseType.ALBUM), self._entry(2, "A", RedReleaseType.ALBUM)]
+        actual = state.match_track_origin_candidates(si=si, release_entries=entries)
+        assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 2
+        assert si.matched_origin == si.origin_candidates[1]
+
+    @pytest.mark.parametrize("skip_prior_snatches", [True, False])
+    def test_previously_snatched_candidate_is_skipped(self, state: SearchState, skip_prior_snatches: bool) -> None:
+        """A lower-ranked candidate the user already snatched (by artist + release name) is never matched again."""
+        state._skip_prior_snatches = skip_prior_snatches
+        state._red_user_details = MagicMock()
+        state._red_user_details.has_snatched_release.side_effect = lambda artist, release: release == "S"
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("S", primary_type="Single")])
+        actual = state.match_track_origin_candidates(
+            si=si, release_entries=[self._entry(1, "S", RedReleaseType.SINGLE)]
+        )
+        if skip_prior_snatches:
+            assert actual == TorrentMatch(torrent_entry=None, above_max_size_found=False)
+            assert si.matched_origin is None
+        else:
+            assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 1
+            assert si.matched_origin == si.origin_candidates[1]
+
+    def test_no_match_aggregates_above_max_size(self, state: SearchState) -> None:
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("B")])
+        entries = [self._entry(1, "A", RedReleaseType.ALBUM, size_gb=50.0)]  # above the configured max_size_gb
+        actual = state.match_track_origin_candidates(si=si, release_entries=entries)
+        assert actual == TorrentMatch(torrent_entry=None, above_max_size_found=True)
+        assert si.matched_origin is None and si.release_name == "A"
+
+    def test_no_candidates(self, state: SearchState) -> None:
+        si = _track_si()
+        actual = state.match_track_origin_candidates(si=si, release_entries=[self._entry(1, "A", RedReleaseType.ALBUM)])
+        assert actual == TorrentMatch(torrent_entry=None, above_max_size_found=False)
+
+
+class TestMbResolutionWouldBeUsedForTracks:
+    def test_top_candidate_with_type_and_first_release_date_skips_the_lookup(
+        self, valid_app_settings: AppSettings
+    ) -> None:
+        state = SearchState(app_settings=valid_app_settings)  # type + year on, label + catalogue number off
+        si = _track_si()
+        si.set_origin_candidates([_origin("A", primary_type="Album", date="2010", first_release_date="2000")])
+        assert state.mb_resolution_would_be_used(si=si) is False
+
+    @pytest.mark.parametrize(
+        "primary_type, first_release_date", [(None, "2000"), ("Album", None), ("Broadcast", "2000")]
+    )
+    def test_top_candidate_missing_type_or_first_release_date_needs_the_lookup(
+        self, valid_app_settings: AppSettings, primary_type: str | None, first_release_date: str | None
+    ) -> None:
+        """A release's own date (all a search-sourced candidate has) may be a reissue's, so it never skips the lookup."""
+        state = SearchState(app_settings=valid_app_settings)
+        si = _track_si()
+        si.set_origin_candidates(
+            [_origin("A", primary_type=primary_type, date="2010", first_release_date=first_release_date)]
+        )
+        assert state.mb_resolution_would_be_used(si=si) is True
+
+    @pytest.mark.parametrize(
+        "search_settings, primary_type, first_release_date",
+        [
+            ({**_ALL_SEARCH_FIELDS_DISABLED, "use_release_type": True}, "Album", None),
+            ({**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True}, None, "2000"),
+        ],
+    )
+    def test_only_the_enabled_fields_are_required(
+        self,
+        valid_config_raw_data: dict[str, Any],
+        valid_config_filepath: str,
+        search_settings: dict[str, bool],
+        primary_type: str | None,
+        first_release_date: str | None,
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, search_settings)
+        si = _track_si()
+        si.set_origin_candidates([_origin("A", primary_type=primary_type, first_release_date=first_release_date)])
+        assert state.mb_resolution_would_be_used(si=si) is False
+
+    @pytest.mark.parametrize("search_settings", [{"use_record_label": True}, {"use_catalog_number": True}])
+    def test_ranking_fields_need_the_lookup(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str, search_settings: dict[str, bool]
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, search_settings)
+        si = _track_si()
+        si.set_origin_candidates([_origin("A", primary_type="Album", first_release_date="2000")])
+        assert state.mb_resolution_would_be_used(si=si) is True
+
+    def test_manual_track_always_resolves(self, valid_app_settings: AppSettings) -> None:
+        state = SearchState(app_settings=valid_app_settings)
+        si = _track_si(is_manual=True)
+        si.set_origin_candidates([_origin("A", primary_type="Album", first_release_date="2000")])
+        assert state.mb_resolution_would_be_used(si=si) is True
+
+    def test_nothing_enabled_never_resolves(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        si = _track_si()
+        si.set_origin_candidates([_origin("A", primary_type=None, date=None)])
+        assert state.mb_resolution_would_be_used(si=si) is False

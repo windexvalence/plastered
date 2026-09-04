@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, SQLModel, select
@@ -14,6 +14,7 @@ from plastered.db.db_models import (
     Matched,
     RecDownloadBatch,
     RecDownloadBatchStatus,
+    ResolvedOrigin,
     ScraperRun,
     ScrapeSchedule,
     SearchRecord,
@@ -24,6 +25,9 @@ from plastered.db.db_models import (
 )
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import MissingDatabaseRecordException
+
+if TYPE_CHECKING:
+    from plastered.models import OriginRelease
 
 _LOGGER = logging.getLogger(__name__)
 _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true"
@@ -101,6 +105,32 @@ def set_result_status(search_id: int | None, status: Status, status_model_kwargs
         session.add(status_record)
         session.commit()
         _LOGGER.debug(f"Finished updating status of SearchRecord record (id={search_id}) ...")
+
+
+def upsert_resolved_origin(
+    search_id: int | None, origin: OriginRelease, candidate_rank: int, candidate_count: int, matched: bool
+) -> None:
+    """Writes, or replaces, the `ResolvedOrigin` row of the track search identified by `search_id`."""
+    if search_id is None:
+        raise MissingDatabaseRecordException(search_id)
+    with Session(get_engine()) as session:
+        row = session.exec(select(ResolvedOrigin).where(ResolvedOrigin.search_id == search_id)).first()
+        if row is None:
+            row = ResolvedOrigin(
+                search_id=search_id,
+                release_name=origin.release_name,
+                source=origin.source,
+                candidate_rank=candidate_rank,
+                candidate_count=candidate_count,
+            )
+        row.release_name = origin.release_name
+        row.source = origin.source
+        row.release_mbid = origin.release_mbid
+        row.candidate_rank = candidate_rank
+        row.candidate_count = candidate_count
+        row.matched = matched
+        session.add(row)
+        session.commit()
 
 
 def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:
