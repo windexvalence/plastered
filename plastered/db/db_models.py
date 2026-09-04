@@ -191,6 +191,41 @@ class RecDownloadBatch(SQLModel, table=True):
     completed: int = Field(default=0)
 
 
+class ScrapeCadence(StrEnum):
+    """The pre-defined recurrence options for a scheduled LFM scraper run."""
+
+    DAILY = "daily"
+    EVERY_OTHER_DAY = "every_other_day"
+    WEEKLY = "weekly"
+    EVERY_OTHER_WEEK = "every_other_week"
+    MONTHLY = "monthly"
+
+    @property
+    def display_name(self) -> str:
+        return self.value.replace("_", " ")
+
+
+class ScrapeSchedule(SQLModel, table=True):
+    """
+    The user-configured recurring LFM scraper run (at most one row; none by default). The row is the source of truth:
+    the app lifespan re-registers the APScheduler job from it on every startup, and the job re-reads it on each run
+    (see `plastered.actions.schedule_actions`). `hour`/`minute` are the run's time of day in the server's local
+    time zone; `start_timestamp` (the first run) anchors the every-other-day / every-other-week phase across restarts.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    cadence: ScrapeCadence
+    hour: int
+    minute: int
+    # `None` scrapes every type in `lfm.rec_types_to_scrape` (resolved at run time), else only this one.
+    rec_type: EntityType | None = Field(default=None)
+    snatch_enabled: bool
+    start_timestamp: int
+    created_timestamp: int
+    last_run_id: int | None = Field(default=None, foreign_key="scraperrun.id")
+    last_run_timestamp: int | None = Field(default=None)
+
+
 @cache
 def get_engine() -> Engine:
     from plastered.config.app_settings import get_app_settings

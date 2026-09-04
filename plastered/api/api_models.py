@@ -5,8 +5,19 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from plastered.config.app_settings import RedSearchOverrides
-from plastered.db.db_models import Failed, Grabbed, Matched, RecDownloadBatch, ScraperRun, SearchRecord, Skipped, Status
-from plastered.models import AdhocSearch
+from plastered.db.db_models import (
+    Failed,
+    Grabbed,
+    Matched,
+    RecDownloadBatch,
+    ScrapeCadence,
+    ScraperRun,
+    ScrapeSchedule,
+    SearchRecord,
+    Skipped,
+    Status,
+)
+from plastered.models import AdhocSearch, EntityType
 
 if TYPE_CHECKING:
     from sqlalchemy import Row
@@ -97,6 +108,30 @@ class RunHistoryPageResponse(BaseModel):
     query: str | None = Field(default=None)
     sort_desc: bool = Field(default=True)
     search_id: int | None = Field(default=None)
+
+
+class ScrapeScheduleRequest(BaseModel):
+    """
+    Request body for configuring the (single) scheduled LFM scraper run. The scrape first runs at the next occurrence
+    of `hour:minute` (server-local time) and then repeats per `cadence`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    cadence: ScrapeCadence
+    hour: int = Field(default=3, ge=0, le=23, description="Hour of the day (server-local time) the scrape runs at.")
+    minute: int = Field(default=0, ge=0, le=59)
+    rec_type: EntityType | None = Field(
+        default=None, description="Scrape only this rec type; `null` scrapes every type in `lfm.rec_types_to_scrape`."
+    )
+    snatch: bool = Field(default=False, description="Download the top RED match of each recommendation.")
+
+
+class ScrapeScheduleResponse(BaseModel):
+    """The configured scheduled scrape, with its next run time and the most recent scraper run it started (if any)."""
+
+    schedule: ScrapeSchedule
+    next_run_timestamp: int | None = Field(default=None)
+    last_run: ScraperRun | None = Field(default=None)
 
 
 class LoginRequestBody(BaseModel):

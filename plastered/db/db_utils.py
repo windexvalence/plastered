@@ -4,6 +4,7 @@ import logging
 import os
 from typing import Any, Final
 
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, SQLModel, select
 
 from plastered.db.db_models import (
@@ -14,6 +15,7 @@ from plastered.db.db_models import (
     RecDownloadBatch,
     RecDownloadBatchStatus,
     ScraperRun,
+    ScrapeSchedule,
     SearchRecord,
     Skipped,
     SkipReason,
@@ -25,24 +27,32 @@ from plastered.utils.exceptions import MissingDatabaseRecordException
 
 _LOGGER = logging.getLogger(__name__)
 _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true"
+_CREATE_TABLES_MAX_ATTEMPTS: Final[int] = 5
 
 
 def db_startup() -> None:
-    table_classes: list[type[SQLModel]] = [
-        SearchRecord,
-        Skipped,
-        Grabbed,
-        Failed,
-        Matched,
-        ScraperRun,
-        RecDownloadBatch,
-    ]
     _LOGGER.info("Creating metadata for DB tables ...")
-    for tbl_cls in table_classes:
-        tbl_cls.metadata.create_all(get_engine())
+    _create_tables()
     if _DB_TEST_MODE:  # pragma: no cover
-        _create_test_tables(table_classes=table_classes)
+        _create_test_tables()
     _LOGGER.info("DB tables metadata creation complete.")
+
+
+def _create_tables() -> None:
+    """
+    Creates every missing table. `create_all` skips tables that already exist, but its check-then-create is not
+    atomic: startups running concurrently against the same DB file (several uvicorn workers) can both see a table as
+    missing and race to create it. The loser's "already exists" error is benign — the winner's table is the one
+    wanted — so the creation is re-run, which now skips that table and continues with any still missing.
+    """
+    for attempt in range(1, _CREATE_TABLES_MAX_ATTEMPTS + 1):
+        try:
+            SQLModel.metadata.create_all(get_engine())
+            return
+        except OperationalError as ex:
+            if "already exists" not in str(ex) or attempt == _CREATE_TABLES_MAX_ATTEMPTS:
+                raise
+            _LOGGER.debug(f"A DB table was created concurrently by another process; re-checking ({attempt=}): {ex}")
 
 
 def add_record(model_inst: SQLModel, session: Session | None = None) -> None:
@@ -151,6 +161,49 @@ def complete_rec_download_batch(batch_id: int) -> None:
         session.commit()
 
 
+def get_scrape_schedule(session: Session | None = None) -> ScrapeSchedule | None:
+    """Returns the configured scrape schedule, or `None` when no scheduled scrape has been set up."""
+    if session is not None:
+        return session.exec(select(ScrapeSchedule)).first()
+    with Session(get_engine()) as own_session:
+        return own_session.exec(select(ScrapeSchedule)).first()
+
+
+def upsert_scrape_schedule(**fields: Any) -> ScrapeSchedule:
+    """Replaces the (single) scrape schedule row with the given `ScrapeSchedule` fields and returns the saved row."""
+    with Session(get_engine()) as session:
+        schedule = session.exec(select(ScrapeSchedule)).first()
+        if schedule is None:
+            schedule = ScrapeSchedule(**fields)
+        else:
+            for field_name, value in fields.items():
+                setattr(schedule, field_name, value)
+        session.add(schedule)
+        session.commit()
+        session.refresh(schedule)
+    return schedule
+
+
+def update_scrape_schedule(**fields: Any) -> None:
+    """Updates the given fields on the scrape schedule row. A no-op when no schedule is configured."""
+    with Session(get_engine()) as session:
+        schedule = session.exec(select(ScrapeSchedule)).first()
+        if schedule is None:
+            return
+        for field_name, value in fields.items():
+            setattr(schedule, field_name, value)
+        session.add(schedule)
+        session.commit()
+
+
+def delete_scrape_schedule() -> None:
+    """Removes the scrape schedule row (if any)."""
+    with Session(get_engine()) as session:
+        for schedule in session.exec(select(ScrapeSchedule)).all():
+            session.delete(schedule)
+        session.commit()
+
+
 def get_result_by_id(search_id: int | None, session: Session | None = None) -> SearchRecord:
     if search_id is None:
         raise MissingDatabaseRecordException(search_id)
@@ -170,12 +223,11 @@ def _get_rows(s: Session, search_id: int) -> list[SearchRecord] | None:  # pragm
     return list(s.exec(select(SearchRecord).where(SearchRecord.id == search_id)).all())
 
 
-def _create_test_tables(table_classes: list[type[SQLModel]]) -> None:  # pragma: no cover
+def _create_test_tables() -> None:  # pragma: no cover
     from datetime import datetime
 
     SQLModel.metadata.drop_all(get_engine())
-    for tbl_cls in table_classes:
-        tbl_cls.metadata.create_all(get_engine())
+    SQLModel.metadata.create_all(get_engine())
     session = Session(get_engine())
     _LOGGER.info("Test mode detected. Initializing test records ...")
     submit_ts = int(datetime.now().timestamp())

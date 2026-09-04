@@ -84,12 +84,31 @@ Everything is driven from the web UI:
 
 - **Scrape & snatch your Last.fm recs** — the LFM recommendations scraper page pulls your album/track recs and searches
   RED for matches (downloading them when snatching is enabled).
+- **Scheduled scrapes** — the bottom of the scraper page lets you run that scrape automatically on a recurring
+  schedule (see below). Nothing runs on a schedule unless you set one up.
 - **Ad-hoc search** — search RED for a specific artist + album/track on demand, optionally downloading the top match.
 - **Run history** — review past scraper and ad-hoc runs, see per-rec results/skip reasons, and (for downloads-disabled
   scraper runs) retroactively download matched releases.
 - **Config** — inspect the effective app config the server loaded.
 
 Snatched `.torrent` files are written to the mounted downloads directory; point your download client at it.
+
+### Scheduled scrapes
+
+The **Scheduled scrapes** section at the bottom of the LFM scraper page runs the scraper for you on a recurring
+schedule. Pick one of the pre-defined cadences — **daily**, **every other day**, **weekly**, **every other week**, or
+**monthly** — plus the time of day to run at, the recommendation type(s) to scrape, and whether to download the
+matches, then save it. Only one schedule exists at a time: saving again replaces it, and **Remove schedule** turns
+scheduled scraping off.
+
+- The first run happens at the next occurrence of the chosen time of day, then repeats per the cadence. The section
+  shows the next run time and the most recent scheduled run (which also appears in the run history like any other
+  scraper run).
+- The schedule is stored in the app's SQLite DB, so it survives container restarts. A run that was due while the
+  server was down is not caught up; the next one runs on schedule.
+- Times are in the server's local time zone. The container defaults to UTC, so pass your zone to `docker run` (e.g.
+  `-e TZ=America/New_York`) for the chosen time to mean your local time.
+- The same schedule can be managed over the JSON API: `GET`, `PUT`, and `DELETE /api/scrape_schedule`.
 
 ## 5. Full REST API Reference
 

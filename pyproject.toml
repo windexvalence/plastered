@@ -7,6 +7,7 @@ requires-python = ">= 3.14"
 dependencies = [
 	"click==8.5.0",
 	"anyio==4.14.2",
+	"apscheduler==3.11.3",
 	"beautifulsoup4==4.15.0",
 	"fastapi[all]==0.141.1",
 	"httpx2>=2.12.0",
@@ -154,7 +155,12 @@ runtime-evaluated-base-classes = [
 # FastAPI evaluates route-handler annotations at runtime to build the dependency graph, so imports
 # used in decorated handlers' signatures must stay out of TYPE_CHECKING blocks.
 # https://docs.astral.sh/ruff/settings/#lint_flake8-type-checking_runtime-evaluated-decorators
-runtime-evaluated-decorators = ["fastapi.APIRouter.get", "fastapi.APIRouter.post"]
+runtime-evaluated-decorators = [
+	"fastapi.APIRouter.get",
+	"fastapi.APIRouter.post",
+	"fastapi.APIRouter.put",
+	"fastapi.APIRouter.delete",
+]
 
 [tool.ruff.lint.isort]
 # https://docs.astral.sh/ruff/settings/#lint_isort_split-on-trailing-comma
@@ -239,6 +245,11 @@ exclude = [
 ]
 mypy_path = "$MYPY_CONFIG_FILE_DIR"
 # namespace_packages = false
+
+# apscheduler 3.x ships no type information (no py.typed / stubs).
+[[tool.mypy.overrides]]
+module = ["apscheduler", "apscheduler.*"]
+ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = [

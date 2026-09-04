@@ -1,0 +1,59 @@
+{#
+  Scheduled-scrape section of the LFM scraper page. Rendered into #scrape-schedule on page load and re-served by
+  GET / POST / DELETE /scrape_schedule. `schedule` is a ScrapeScheduleResponse (None when no scheduled scrape is
+  configured); `cadences` are the ScrapeCadence options; `cadence_label` / `run_at` pre-fill the form from the
+  current schedule (`run_at` defaults to 03:00 when there is none).
+#}
+<div id="scrape-schedule-inner">
+    {% if schedule %}
+        {% set current = schedule.schedule %}
+        <p><strong>⏰ A scheduled scrape is configured.</strong></p>
+        <table>
+            <tr><th>Field</th><th>Value</th></tr>
+            <tr><td>Runs</td><td>{{ cadence_label }} at {{ run_at }} <small>(server local time)</small></td></tr>
+            <tr><td>Recommendation type</td><td>{{ current.rec_type if current.rec_type else "all (per config)" }}</td></tr>
+            <tr><td>Downloads</td><td>{{ "enabled" if current.snatch_enabled else "disabled" }}</td></tr>
+            <tr><td>Next run</td><td>{{ schedule.next_run_timestamp | format_timestamp }}</td></tr>
+            <tr><td>Last scheduled run</td><td>
+                {% if schedule.last_run %}
+                    {{ schedule.last_run.submit_timestamp | format_timestamp }} &nbsp;·&nbsp;
+                    {{ schedule.last_run.status | status_label }} &nbsp;·&nbsp;
+                    <a href="/run_history">view in run history</a>
+                {% else %}—{% endif %}
+            </td></tr>
+        </table>
+        <button type="button" class="btn danger" hx-delete="/scrape_schedule" hx-target="#scrape-schedule" hx-swap="innerHTML">
+            Remove schedule
+        </button>
+    {% else %}
+        <p><em>No scheduled scrape is configured. Scrapes only run when you start one above.</em></p>
+    {% endif %}
+
+    <form hx-post="/scrape_schedule" hx-target="#scrape-schedule" hx-swap="innerHTML">
+        <label for="cadence">Run the scraper</label>
+        <select id="cadence" name="cadence">
+            {% for cadence in cadences %}
+                <option value="{{ cadence.value }}"{% if schedule and schedule.schedule.cadence == cadence %} selected{% endif %}>
+                    {{ cadence.display_name | capitalize }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label for="run_at">At <small>(server local time)</small></label>
+        <input type="time" id="run_at" name="run_at" value="{{ run_at }}" required>
+
+        <label for="schedule_rec_type">Recommendation type</label>
+        <select id="schedule_rec_type" name="rec_type">
+            <option value="">All (per config)</option>
+            <option value="album"{% if schedule and schedule.schedule.rec_type == "album" %} selected{% endif %}>Albums only</option>
+            <option value="track"{% if schedule and schedule.schedule.rec_type == "track" %} selected{% endif %}>Tracks only</option>
+        </select>
+
+        <label>
+            <input type="checkbox" name="snatch" value="true"{% if schedule and schedule.schedule.snatch_enabled %} checked{% endif %}>
+            Download matched releases
+        </label>
+
+        <button type="submit">{{ "Update schedule" if schedule else "Save schedule" }}</button>
+    </form>
+</div>

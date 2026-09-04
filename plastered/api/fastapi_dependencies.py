@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, cast
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, Request
 from sqlmodel import Session
 
@@ -28,6 +29,14 @@ def get_app_settings_from_state(request: Request) -> AppSettings:
 
 
 AppSettingsDep = Annotated[AppSettings, Depends(get_app_settings_from_state)]
+
+
+def get_scheduler_from_state(request: Request) -> AsyncIOScheduler:
+    """Return the app-scoped APScheduler `AsyncIOScheduler` started by the app lifespan (see `plastered.api.app`)."""
+    return cast("AsyncIOScheduler", request.app.state.scheduler)
+
+
+SchedulerDep = Annotated[AsyncIOScheduler, Depends(get_scheduler_from_state)]
 
 
 def get_release_searcher_from_state(request: Request) -> ReleaseSearcher:

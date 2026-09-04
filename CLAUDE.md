@@ -30,7 +30,7 @@ All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for t
 - Test runner config lives in `pyproject.toml` `[tool.pytest.ini_options]`. Coverage `fail_under = 100` — **new code must be fully covered** or use the documented `pragma: no cover` / `exclude_also` patterns already in the codebase.
 - Sockets are disabled in tests (`--disable-socket`); HTTP is mocked via `pytest-httpx2` (respx). Tests run in parallel with `pytest -n auto --dist=loadfile`.
 - Markers gate optional suites: `slow` (run in CI or with `--slowtests`), `releasetest` (release builds only, `--releasetests`). See also `override_global_httpx_mock` for opting out of the autouse httpx mock fixture.
-- `tests/conftest.py` sets `PLASTERED_CONFIG` to `examples/config.yaml` before any imports — config loads eagerly at import time, so import order matters.
+- `tests/conftest.py` copies `examples/config.yaml` into a per-process temp dir and points `PLASTERED_CONFIG` at the copy before any imports — config loads eagerly at import time, so import order matters. The app DB lives next to that copy, so every xdist worker has a private DB and tests never write into `examples/`.
 
 ## Architecture
 
@@ -65,6 +65,10 @@ All clients subclass `ThrottledAPIBaseClient` (`base_client.py`), which wraps `h
 ### Web server (`plastered/api/`)
 
 `api/app.py` holds the FastAPI app factory (`create_fastapi_app`, launched by the `plastered run` CLI in `plastered/main.py`). Its lifespan (`_app_lifespan`) initializes the SQLite DB (`db_startup`) and the app-scoped singletons on `app.state` (`AppSettings`, an APScheduler `AsyncIOScheduler`, the RED user details, and the shared `ReleaseSearcher`), which routes read via the accessor dependencies in `api/fastapi_dependencies.py` (`AppSettingsDep`, `SchedulerDep`, etc.). Routes split into `api/routes/api_routes.py` (JSON API) and `webserver_routes.py` (HTML via jinja2-fragments, with `static/` + `templates/`). The ad-hoc search endpoints call `ReleaseSearcher.adhoc_search()`.
+
+### Scheduled scrapes (`plastered/actions/schedule_actions.py`)
+
+The optional recurring scrape is driven by the app-scoped APScheduler `AsyncIOScheduler` (in-memory job store, one job: `SCRAPE_SCHEDULE_JOB_ID`). The persisted `ScrapeSchedule` row (`db/db_models.py`, at most one) is the source of truth: the lifespan calls `restore_scrape_schedule` to re-register the job from it on every startup, the routes (`/scrape_schedule` HTMX + `/api/scrape_schedule` JSON) replace/remove it via `set_scrape_schedule` / `clear_scrape_schedule`, and the job (`run_scheduled_scrape`) re-reads it at run time before running the same `run_lfm_scraper` a manual scraper-page submission uses (off the event loop via `run_in_threadpool`). Cadences map to triggers in `build_scrape_schedule_trigger`: interval triggers anchored to the first run (so alternating-day/week phase survives restarts) and a cron trigger for monthly. No scheduled scrape exists unless a user saves one.
 
 ### Persistence (`plastered/db/`)
 

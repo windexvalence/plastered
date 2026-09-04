@@ -1,7 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -12,15 +12,18 @@ from plastered.actions.api_actions import (
     inspect_run_action,
     run_history_action,
 )
+from plastered.actions.schedule_actions import clear_scrape_schedule, get_scrape_schedule_response, set_scrape_schedule
 from plastered.api.adhoc_helpers import schedule_adhoc_search
 from plastered.api.api_models import (
     AdhocSearchRequest,
     AdhocSearchResult,
     AdhocSearchSubmittedResponse,
     RunHistoryListResponse,
+    ScrapeScheduleRequest,
+    ScrapeScheduleResponse,
 )
 from plastered.api.constants import SUB_CONF_NAMES, TEMPLATES, RouterPrefix
-from plastered.api.fastapi_dependencies import AppSettingsDep, ReleaseSearcherDep, SessionDep
+from plastered.api.fastapi_dependencies import AppSettingsDep, ReleaseSearcherDep, SchedulerDep, SessionDep
 from plastered.db.db_models import Status
 from plastered.models import EntityType
 
@@ -128,6 +131,42 @@ async def scrape_endpoint(
     )
     # 303 status code required to redirect from this endpoint (post) to the other endpoint (get)
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# /api/scrape_schedule  (the single scheduled LFM scrape: GET the current one, PUT to set/replace it, DELETE to remove it)
+@plastered_api_router.get("/scrape_schedule")
+async def get_scrape_schedule_endpoint(session: SessionDep, scheduler: SchedulerDep) -> ScrapeScheduleResponse:
+    """Returns the configured scheduled scrape (with its next run time and last scheduled run), or 404 if none is set."""
+    schedule = get_scrape_schedule_response(scheduler=scheduler, session=session)
+    if schedule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No scheduled scrape is configured.")
+    return schedule
+
+
+@plastered_api_router.put("/scrape_schedule")
+async def set_scrape_schedule_endpoint(
+    scheduler: SchedulerDep,
+    app_settings: AppSettingsDep,
+    release_searcher: ReleaseSearcherDep,
+    schedule_request: ScrapeScheduleRequest,
+) -> ScrapeScheduleResponse:
+    """
+    Sets (or replaces) the scheduled scrape. The first run happens at the next occurrence of `hour:minute` in the
+    server's local time, then repeats per `cadence`; the schedule persists across server restarts.
+    """
+    return set_scrape_schedule(
+        scheduler=scheduler,
+        app_settings=app_settings,
+        release_searcher=release_searcher,
+        schedule_request=schedule_request,
+    )
+
+
+@plastered_api_router.delete("/scrape_schedule", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_scrape_schedule_endpoint(scheduler: SchedulerDep) -> Response:
+    """Removes the scheduled scrape (a no-op when none is configured)."""
+    clear_scrape_schedule(scheduler=scheduler)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # /api/inspect_run?run_id=<int>

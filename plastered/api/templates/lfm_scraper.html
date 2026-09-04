@@ -25,4 +25,14 @@
 <div id="scraper-status">
     <p><em>Start a scrape to see its progress here.</em></p>
 </div>
+
+<h3>Scheduled scrapes</h3>
+<p>
+    Optionally run the scraper automatically on a recurring schedule. Nothing runs on a schedule until you save one
+    here, and a saved schedule is kept across server restarts. Times are in the server's local time zone.
+</p>
+{# The section is served by /scrape_schedule so saving/removing a schedule can re-render it in place via HTMX. #}
+<div id="scrape-schedule" hx-get="/scrape_schedule" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+    <p aria-busy="true">Loading schedule…</p>
+</div>
 {% endblock %}
