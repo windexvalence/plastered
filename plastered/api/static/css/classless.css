@@ -287,6 +287,14 @@ input[type="submit"]:active,
 .btn:active,
 a[role="button"]:active { filter: brightness(0.9); }
 
+/* A compact variant for a button that sits on a line of text (e.g. the run-history "Retry search" control). */
+button.inline-action {
+    padding: 0.15rem 0.6rem;
+    margin: 0 0 0 0.6rem;
+    font-size: 0.85em;
+    vertical-align: baseline;
+}
+
 /* A muted/secondary variant for less-prominent actions and nav-style buttons. */
 a[role="button"] {
     background: linear-gradient(180deg, #30353b 0%, #262a2f 100%);

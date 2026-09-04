@@ -12,7 +12,7 @@
 
 <!--
   The form posts (form-encoded, via HTMX) to /adhoc_search, which schedules the search and returns the result
-  fragment into #adhoc-result. That fragment then polls /adhoc_result until the search completes.
+  fragment into #adhoc-result. That fragment then polls /adhoc_result (replacing itself) until the search completes.
 -->
 <form hx-post="/adhoc_search" hx-target="#adhoc-result" hx-swap="innerHTML" autocomplete="off">
     <label for="artist">Artist <small>(required)</small></label>

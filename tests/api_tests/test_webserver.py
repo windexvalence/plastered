@@ -4,6 +4,7 @@ from unittest.mock import ANY, MagicMock, patch
 from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
+from sqlmodel import Session, select
 
 from plastered.api.api_models import (
     AdhocSearchResult,
@@ -30,6 +31,7 @@ from plastered.db.db_models import (
     Skipped,
     SkipReason,
     Status,
+    get_engine,
 )
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
@@ -225,6 +227,61 @@ def test_adhoc_snatch_submit(client: TestClient, record_found: bool) -> None:
         mock_snatch.assert_called_once()
         if record_found:
             mock_template_response_constructor.assert_called_once()
+
+
+def test_adhoc_result_fragment_polls_in_place(client: TestClient) -> None:
+    """An in-progress result re-requests and replaces itself, so it works wherever it is rendered (not just #adhoc-result)."""
+    in_progress = _adhoc_result(Status.IN_PROGRESS)
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=in_progress):
+        text = client.get("/adhoc_result?search_id=69").text
+    assert 'hx-get="/adhoc_result?search_id=69"' in text
+    assert 'hx-target="this"' in text
+    assert 'hx-swap="outerHTML"' in text
+    assert "#adhoc-result" not in text
+
+
+def test_adhoc_retry_submit(client: TestClient) -> None:
+    """The run-history Retry button re-submits the search and gets back the new search's polling fragment."""
+    with patch("plastered.api.routes.webserver_routes.retry_adhoc_search", return_value=70) as mock_retry:
+        resp = client.post("/adhoc_retry", data={"search_id": "69"})
+    assert resp.status_code == 200
+    assert mock_retry.call_args.kwargs["search_id"] == 69
+    assert "Retried as search 70" in resp.text
+    assert 'href="/run_history?search_id=70"' in resp.text
+    assert 'hx-get="/adhoc_result?search_id=70"' in resp.text
+
+
+def test_adhoc_retry_submit_end_to_end(client: TestClient) -> None:
+    """Unpatched: a stored no-match ad-hoc search is re-submitted as a new IN_PROGRESS search via the app DB."""
+    with Session(get_engine()) as session:
+        record = SearchRecord(
+            submit_timestamp=1,
+            is_manual=True,
+            entity_type=EntityType.TRACK,
+            artist="Retry Artist",
+            entity="Retry Track",
+            status=Status.SKIPPED,
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        original_id = record.id
+    resp = client.post("/adhoc_retry", data={"search_id": str(original_id)})
+    assert resp.status_code == 200
+    with Session(get_engine()) as session:
+        new_record = session.exec(
+            select(SearchRecord).where(SearchRecord.artist == "Retry Artist", SearchRecord.id != original_id)
+        ).one()
+    assert new_record.status == Status.IN_PROGRESS
+    assert new_record.entity_type == EntityType.TRACK
+    assert new_record.entity == "Retry Track"
+    assert f"Retried as search {new_record.id}" in resp.text
+    assert f'hx-get="/adhoc_result?search_id={new_record.id}"' in resp.text
+
+
+def test_adhoc_retry_submit_missing(client: TestClient) -> None:
+    resp = client.post("/adhoc_retry", data={"search_id": "999999"})
+    assert resp.status_code == 404
 
 
 def test_lfm_scraper_page(client: TestClient) -> None:
@@ -515,6 +572,46 @@ def test_run_history_list_fragment_renders_scraper_run_row(client: TestClient) -
     assert "LFM scraper run" in text
     assert "Recommendations pulled (1)" in text
     assert "Scraped Artist" in text  # nested rec shown on expand
+
+
+def _skipped_item(search_id: int, skip_reason: SkipReason | None, is_manual: bool = True) -> RunHistoryItem:
+    rec = SearchRecord(
+        id=search_id,
+        submit_timestamp=1759680000,
+        is_manual=is_manual,
+        entity_type=EntityType.ALBUM,
+        artist="Skipped Artist",
+        entity="Skipped Album",
+        status=Status.SKIPPED,
+    )
+    skipped = Skipped(s_result_id=search_id, skip_reason=skip_reason) if skip_reason is not None else None
+    return RunHistoryItem(searchrecord=rec, skipped=skipped)
+
+
+def test_run_history_item_is_retryable() -> None:
+    """Only an ad-hoc search skipped for lack of a RED match is offered for retry."""
+    assert _skipped_item(5, SkipReason.NO_MATCH_FOUND).is_retryable is True
+    assert _skipped_item(5, SkipReason.ABOVE_MAX_ALLOWED_SIZE).is_retryable is False
+    assert _skipped_item(5, SkipReason.NO_MATCH_FOUND, is_manual=False).is_retryable is False
+    assert _skipped_item(5, None).is_retryable is False
+
+
+def test_run_history_list_fragment_offers_retry_for_no_match_skips(client: TestClient) -> None:
+    """A skipped ad-hoc row shows a Retry button next to the reason only when no RED match was found."""
+    rows = [
+        RunHistoryRow(kind="adhoc", sort_timestamp=1759680000, adhoc=_skipped_item(7, SkipReason.NO_MATCH_FOUND)),
+        RunHistoryRow(
+            kind="adhoc", sort_timestamp=1759680000, adhoc=_skipped_item(8, SkipReason.ABOVE_MAX_ALLOWED_SIZE)
+        ),
+    ]
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=_run_history_page(rows)):
+        text = client.get("/run_history_list").text
+    assert text.count("Retry search") == 1
+    assert text.count('hx-post="/adhoc_retry"') == 1
+    assert """hx-vals='{"search_id": 7}'""" in text
+    assert 'hx-target="#adhoc-retry-7"' in text
+    assert 'id="adhoc-retry-7"' in text  # the inline container the retried search's result renders into
+    assert "adhoc-retry-8" not in text
 
 
 def _scraper_recs(snatch_enabled: bool, batch: RecDownloadBatch | None = None):

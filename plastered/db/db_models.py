@@ -144,6 +144,18 @@ class Matched(SQLModel, table=True):
     encoding: str | None = Field(default=None)
 
 
+class AdhocRequest(SQLModel, table=True):
+    """
+    The request an ad-hoc `SearchRecord` was submitted with (an `AdhocSearchRequest`, stored as JSON), kept so the
+    run-history page can re-submit the identical request ("Retry search"). At most one row per search; scraper-created
+    records and ad-hoc searches submitted before this table existed have none.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    search_id: int | None = Field(default=None, foreign_key="searchrecord.id", unique=True)
+    request_json: str
+
+
 class ResolvedOrigin(SQLModel, table=True):
     """
     The origin release resolved for a track search (`SearchRecord`), kept so track-to-release resolution can be
