@@ -21,8 +21,11 @@ if TYPE_CHECKING:
     from fastapi import Request, Response
     from starlette.middleware.base import RequestResponseEndpoint
 
-# Routes reachable without a session token: the two login flows, plus assets/health probes that carry no user data.
-_EXEMPT_PATHS: Final[frozenset[str]] = frozenset({"/api/auth/login", "/login", "/api/healthcheck", "/favicon.ico"})
+# Routes reachable without a session token: the two login flows, plus assets/health probes and the help modal (also
+# reachable from the login page's header), none of which carry user data.
+_EXEMPT_PATHS: Final[frozenset[str]] = frozenset(
+    {"/api/auth/login", "/login", "/api/healthcheck", "/favicon.ico", "/help_modal"}
+)
 _EXEMPT_PATH_PREFIXES: Final[tuple[str, ...]] = ("/static/",)
 
 

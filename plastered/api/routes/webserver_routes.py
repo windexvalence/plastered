@@ -316,6 +316,14 @@ async def user_details_page(request: Request, red_user_details: RedUserDetailsDe
     )
 
 
+# /help_modal  (HTMX fragment for the header/home-page Help button: doc links pinned to this build's release tag)
+@plastered_web_router.get("/help_modal")
+async def help_modal(request: Request) -> HTMLResponse:
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/help_modal.html", context={"plastered_version": request.app.version}
+    )
+
+
 # /result_modal?<final-state-specific query parameters created by HTMX>
 @plastered_web_router.get("/result_modal")
 async def result_modal(request: Request) -> HTMLResponse:

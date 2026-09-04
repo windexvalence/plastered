@@ -53,10 +53,10 @@ def test_root_endpoint(client: TestClient) -> None:
     assert f"<title>Plastered v{expected_version}</title>" in resp.text
     # Header Help button (from the base template) + the big home-page Help button both reference the help modal.
     assert 'id="header-help-btn"' in resp.text
-    # The modal URL must be root-relative: an absolute `http://<host>/static/...` URL (what a bare `url_for` renders)
+    assert resp.text.count('hx-get="/help_modal"') == 2
+    # Static URLs must be root-relative: an absolute `http://<host>/static/...` URL (what a bare `url_for` renders)
     # breaks behind a reverse proxy, where the server-observed origin differs from the browser's and htmx refuses the
     # cross-origin request (`htmx:invalidPath`).
-    assert resp.text.count('hx-get="/static/html/help_modal.html"') == 2
     assert 'href="/static/css/classless.css"' in resp.text
     assert 'src="/static/js/htmx.min.js"' in resp.text
     assert "http://testserver/static/" not in resp.text
@@ -67,8 +67,19 @@ def test_header_help_button_present_on_all_pages(client: TestClient) -> None:
     for path in ("/run_history", "/lfm_recommendations_scraper", "/config"):
         text = client.get(path).text
         assert 'id="header-help-btn"' in text
-        assert 'hx-get="/static/html/help_modal.html"' in text
+        assert 'hx-get="/help_modal"' in text
         assert "http://testserver/static/" not in text
+
+
+def test_help_modal_fragment(client: TestClient) -> None:
+    """The help modal's doc links are pinned to this build's release tag."""
+    expected_version = get_project_version()
+    resp = client.get("/help_modal")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+    assert 'id="modal"' in resp.text
+    for doc in ("user_guide.md", "FAQ.md", "config_reference.md"):
+        assert f'href="https://github.com/windexvalence/plastered/blob/v{expected_version}/docs/{doc}"' in resp.text
 
 
 def test_show_config_endpoint(valid_app_settings: AppSettings, client: TestClient) -> None:

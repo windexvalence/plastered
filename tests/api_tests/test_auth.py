@@ -225,7 +225,9 @@ def test_unauthenticated_browser_redirected_to_login_page(auth_enabled_client: T
     assert resp.headers["location"] == "/login?next=/run_history"
 
 
-@pytest.mark.parametrize("path", ["/api/healthcheck", "/favicon.ico", "/static/css/classless.css", "/login"])
+@pytest.mark.parametrize(
+    "path", ["/api/healthcheck", "/favicon.ico", "/static/css/classless.css", "/login", "/help_modal"]
+)
 def test_exempt_paths_do_not_require_token(auth_enabled_client: TestClient, path: str) -> None:
     assert auth_enabled_client.get(path).status_code == 200
 
