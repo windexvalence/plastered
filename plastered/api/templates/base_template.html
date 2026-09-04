@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Plastered{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/classless.css') }}">
-    <script src="{{ url_for('static', path='/js/htmx.min.js') }}"></script>
+    {# Static URLs MUST be root-relative: `url_for` bakes in the server-side origin, which htmx rejects behind a proxy. #}
+    <link rel="stylesheet" href="/static/css/classless.css">
+    <script src="/static/js/htmx.min.js"></script>
     {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -20,7 +21,7 @@
                 <a href="/config">Config</a>
                 <a href="/user_details">User Details</a>
             </nav>
-            <button id="header-help-btn" hx-get="{{ url_for('static', path='/html/help_modal.html') }}" hx-target="body" hx-swap="beforeend">Help</button>
+            <button id="header-help-btn" hx-get="/static/html/help_modal.html" hx-target="body" hx-swap="beforeend">Help</button>
             {% if auth_enabled %}
             <form id="logout-form" method="post" action="/logout">
                 <button id="header-logout-btn" type="submit">Log out</button>

@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Required Conventions and Rules
+
+* Never add claude attributions in commit.
+* Use comments only where code needs clarification — never narration. Short sentences. RFC 2119 keywords for obligations.
+
+
 ## What this is
 
 `plastered` pulls a user's Last.fm (LFM) album/track recommendations and automatically snatches the matching releases from RED (a private music tracker). It runs as a FastAPI web server (driven entirely through the browser UI), launched via a slim click CLI: `plastered run --config <path-to-config.yaml>` (`plastered/main.py`). It is download-client- and library-agnostic — it only writes `.torrent` files to a configured directory.
@@ -10,9 +16,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All workflows go through the `Makefile` and `uv` (Python 3.14). Run `make` for the full target list.
 
-- `make test` — run all tests (non-containerized). Sets `PYTHONPATH`/`APP_DIR` and calls `tests/tests_entrypoint.sh`.
+- `make test` — run all tests (non-containerized). Sets `PYTHONPATH`/`APP_DIR` and calls `tests/tests_entrypoint.sh`. This is not expected to pass coverage checks, since a few slower tests are skipped by this command.
 - `make test TEST_TARGET=tests/utils_tests/test_http_utils.py` — run a single test file.
 - `make test TEST_TARGET=tests/utils_tests/test_http_utils.py::test_throttle` — run a single test function.
+- `SLOW_TESTS=1 make test` will run all unit tests, including some slow running tests.  This SHOULD pass coverage checks.
 - `make test PDB=1` — run serially (no `xdist`) and drop into pdb on failure.
 - `make fmt` — auto-format + lint (ruff format, `ruff check --fix`, bandit). `make fmt-check` is the check-only variant used in CI.
 - `make mypy` — type-check (`mypy --config-file pyproject.toml .`).
