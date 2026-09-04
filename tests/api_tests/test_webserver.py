@@ -5,7 +5,14 @@ from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
-from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryPageResponse, RunHistoryRow
+from plastered.api.api_models import (
+    AdhocSearchResult,
+    RunHistoryItem,
+    RunHistoryPageResponse,
+    RunHistoryRow,
+    ScrapeScheduleRequest,
+    ScrapeScheduleResponse,
+)
 from plastered.api.constants import _format_timestamp, _status_label
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import (
@@ -15,8 +22,10 @@ from plastered.db.db_models import (
     Matched,
     RecDownloadBatch,
     RecDownloadBatchStatus,
+    ScrapeCadence,
     ScraperRun,
     ScraperRunStatus,
+    ScrapeSchedule,
     SearchRecord,
     Skipped,
     SkipReason,
@@ -225,6 +234,9 @@ def test_lfm_scraper_page(client: TestClient) -> None:
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
     assert "Last.fm Recommendations Scraper" in resp.text
     assert 'name="rec_type"' in resp.text and 'name="snatch"' in resp.text
+    # The scheduled-scrapes section at the bottom loads its fragment on render.
+    assert "Scheduled scrapes" in resp.text
+    assert 'id="scrape-schedule"' in resp.text and 'hx-get="/scrape_schedule"' in resp.text
 
 
 @pytest.mark.parametrize("form_data", [{}, {"rec_type": "album", "snatch": "true"}])
@@ -308,6 +320,113 @@ def test_lfm_scraper_status_fragment_renders_stages(client: TestClient, run: Scr
     with patch("plastered.api.routes.webserver_routes.get_scraper_run_action", return_value=run):
         text = client.get("/lfm_scraper_status?run_id=1").text
     assert expected_snippet in text
+
+
+def _scrape_schedule_response(last_run: ScraperRun | None = None) -> ScrapeScheduleResponse:
+    return ScrapeScheduleResponse(
+        schedule=ScrapeSchedule(
+            id=1,
+            cadence=ScrapeCadence.EVERY_OTHER_WEEK,
+            hour=3,
+            minute=30,
+            rec_type=EntityType.ALBUM,
+            snatch_enabled=True,
+            start_timestamp=1759680000,
+            created_timestamp=1759670000,
+            last_run_id=last_run.id if last_run is not None else None,
+        ),
+        next_run_timestamp=1760889600,
+        last_run=last_run,
+    )
+
+
+def test_scrape_schedule_fragment_unconfigured(client: TestClient) -> None:
+    with patch("plastered.api.routes.webserver_routes.get_scrape_schedule_response", return_value=None):
+        resp = client.get("/scrape_schedule")
+    assert resp.status_code == 200
+    assert "No scheduled scrape is configured" in resp.text
+    assert "Save schedule" in resp.text
+    assert "/scrape_schedule" in resp.text and 'hx-delete="/scrape_schedule"' not in resp.text
+    # Every pre-defined cadence is offered; the time input defaults to 03:00.
+    for cadence in ScrapeCadence:
+        assert f'<option value="{cadence.value}">' in resp.text
+    assert 'name="run_at" value="03:00"' in resp.text
+
+
+@pytest.mark.parametrize("with_last_run", [False, True])
+def test_scrape_schedule_fragment_configured(client: TestClient, with_last_run: bool) -> None:
+    last_run = (
+        ScraperRun(
+            id=7,
+            submit_timestamp=1759680000,
+            snatch_enabled=True,
+            rec_types="album",
+            status=ScraperRunStatus.COMPLETED,
+            total_recs=3,
+        )
+        if with_last_run
+        else None
+    )
+    with patch(
+        "plastered.api.routes.webserver_routes.get_scrape_schedule_response",
+        return_value=_scrape_schedule_response(last_run=last_run),
+    ):
+        resp = client.get("/scrape_schedule")
+    assert resp.status_code == 200
+    assert "A scheduled scrape is configured" in resp.text
+    assert "every other week at 03:30" in resp.text
+    assert 'hx-delete="/scrape_schedule"' in resp.text and "Remove schedule" in resp.text
+    # The form is pre-filled from the current schedule.
+    assert "Update schedule" in resp.text
+    assert '<option value="every_other_week" selected>' in resp.text
+    assert '<option value="album" selected>' in resp.text
+    assert 'name="snatch" value="true" checked' in resp.text
+    assert 'name="run_at" value="03:30"' in resp.text
+    # The last scheduled run (with a run-history link) only renders once one has happened.
+    assert ("completed" in resp.text) is with_last_run
+    assert ('href="/run_history"' in resp.text) is with_last_run
+
+
+def test_scrape_schedule_submit(client: TestClient) -> None:
+    with patch(
+        "plastered.api.routes.webserver_routes.set_scrape_schedule", return_value=_scrape_schedule_response()
+    ) as mock_set:
+        resp = client.post(
+            "/scrape_schedule", data={"cadence": "weekly", "run_at": "04:15", "rec_type": "track", "snatch": "true"}
+        )
+    assert resp.status_code == 200
+    assert "A scheduled scrape is configured" in resp.text
+    assert mock_set.call_args.kwargs["schedule_request"] == ScrapeScheduleRequest(
+        cadence=ScrapeCadence.WEEKLY, hour=4, minute=15, rec_type=EntityType.TRACK, snatch=True
+    )
+
+
+def test_scrape_schedule_submit_defaults(client: TestClient) -> None:
+    """Only the cadence is required: the time defaults to 03:00, all rec types (per config), downloads off."""
+    with patch(
+        "plastered.api.routes.webserver_routes.set_scrape_schedule", return_value=_scrape_schedule_response()
+    ) as mock_set:
+        resp = client.post("/scrape_schedule", data={"cadence": "daily"})
+    assert resp.status_code == 200
+    assert mock_set.call_args.kwargs["schedule_request"] == ScrapeScheduleRequest(cadence=ScrapeCadence.DAILY)
+
+
+@pytest.mark.parametrize(
+    "form_data", [{"cadence": "hourly", "run_at": "03:00"}, {"cadence": "daily", "run_at": "3pm"}, {}]
+)
+def test_scrape_schedule_submit_invalid(client: TestClient, form_data: dict[str, str]) -> None:
+    with patch("plastered.api.routes.webserver_routes.set_scrape_schedule") as mock_set:
+        resp = client.post("/scrape_schedule", data=form_data)
+    assert resp.status_code == 422
+    mock_set.assert_not_called()
+
+
+def test_scrape_schedule_delete(client: TestClient) -> None:
+    with patch("plastered.api.routes.webserver_routes.clear_scrape_schedule") as mock_clear:
+        resp = client.delete("/scrape_schedule")
+    assert resp.status_code == 200
+    mock_clear.assert_called_once()
+    assert "No scheduled scrape is configured" in resp.text
 
 
 def test_runs_page(client: TestClient) -> None:

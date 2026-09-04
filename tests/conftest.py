@@ -1,10 +1,20 @@
+import atexit
 from collections.abc import Callable
 from contextlib import contextmanager
 import copy
 import json
 import os
+import shutil
+import tempfile
 
-os.environ["PLASTERED_CONFIG"] = os.path.join(os.environ["APP_DIR"], "examples", "config.yaml")
+# Each test process (every xdist worker, or the single process without xdist) gets its own copy of the example config
+# in a private temp dir. The app DB lives next to the config (`AppSettings.get_db_filepath`), so it is private to the
+# process too: parallel workers never share one DB file, and nothing is written into the repo's `examples/` dir.
+# This MUST run before any `plastered` import — config loads eagerly at import time.
+_TEST_CONFIG_DIR = tempfile.mkdtemp(prefix=f"plastered-tests-{os.getenv('PYTEST_XDIST_WORKER', 'main')}-")
+atexit.register(shutil.rmtree, _TEST_CONFIG_DIR, ignore_errors=True)
+shutil.copy(os.path.join(os.environ["APP_DIR"], "examples", "config.yaml"), _TEST_CONFIG_DIR)
+os.environ["PLASTERED_CONFIG"] = os.path.join(_TEST_CONFIG_DIR, "config.yaml")
 from sqlmodel import SQLModel, Session, StaticPool, create_engine
 
 from collections.abc import Generator
@@ -106,10 +116,11 @@ def anyio_backend() -> str:
 @pytest.fixture(scope="session", autouse=True)
 def _dispose_cached_app_engine() -> Generator[None, None, None]:
     """
-    Dispose the process-cached app engine (`plastered.db.db_models.get_engine`) at the end of each test session
-    (i.e. each xdist worker) so its pooled sqlite connections are closed explicitly rather than by GC — Python
-    3.14's sqlite3 emits a ResourceWarning for connections closed by GC. The api tests exercise the real
-    `db_startup` / `SessionDep` paths, which populate this engine's pool.
+    Dispose the process-cached app engine (`plastered.db.db_models.get_engine`, backed by this process's private
+    test DB — see `_TEST_CONFIG_DIR`) at the end of each test session (i.e. each xdist worker) so its pooled sqlite
+    connections are closed explicitly rather than by GC — Python 3.14's sqlite3 emits a ResourceWarning for
+    connections closed by GC. The api tests exercise the real `db_startup` / `SessionDep` paths, which populate this
+    engine's pool.
     """
     yield
     from plastered.db.db_models import get_engine

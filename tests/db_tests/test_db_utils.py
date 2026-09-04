@@ -5,8 +5,21 @@ import pytest
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from sqlmodel.pool import StaticPool
 
-from plastered.db.db_models import FailReason, SearchRecord, SkipReason, Status
-from plastered.db.db_utils import add_record, get_result_by_id, set_result_status
+from sqlalchemy.exc import OperationalError
+
+from plastered.db.db_models import FailReason, ScrapeCadence, ScrapeSchedule, SearchRecord, SkipReason, Status
+from plastered.db.db_utils import (
+    _CREATE_TABLES_MAX_ATTEMPTS,
+    add_record,
+    db_startup,
+    delete_scrape_schedule,
+    get_result_by_id,
+    get_scrape_schedule,
+    set_result_status,
+    update_scrape_schedule,
+    upsert_scrape_schedule,
+)
+from plastered.models.types import EntityType
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
 
@@ -143,4 +156,94 @@ def test_rec_download_batch_lifecycle() -> None:
     with Session(engine) as session:
         final = session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == batch_id)).one()
     assert final.status == RecDownloadBatchStatus.COMPLETED and final.completed == 2
+    engine.dispose()
+
+
+def _schedule_fields(**overrides) -> dict:
+    fields = dict(
+        cadence=ScrapeCadence.WEEKLY,
+        hour=3,
+        minute=30,
+        rec_type=None,
+        snatch_enabled=False,
+        start_timestamp=1759680000,
+        created_timestamp=1759670000,
+        last_run_id=None,
+        last_run_timestamp=None,
+    )
+    fields.update(overrides)
+    return fields
+
+
+def test_scrape_schedule_lifecycle() -> None:
+    """The single schedule row: absent by default, inserted then updated in place by upsert, patched, and deleted."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        assert get_scrape_schedule() is None
+        # Updating/deleting with nothing configured is a no-op.
+        update_scrape_schedule(last_run_id=1)
+        delete_scrape_schedule()
+
+        created = upsert_scrape_schedule(**_schedule_fields())
+        assert created.id is not None and created.cadence == ScrapeCadence.WEEKLY and created.snatch_enabled is False
+        with Session(engine) as session:
+            assert get_scrape_schedule(session=session) == created
+
+        replaced = upsert_scrape_schedule(
+            **_schedule_fields(cadence=ScrapeCadence.MONTHLY, rec_type=EntityType.TRACK, snatch_enabled=True)
+        )
+        assert replaced.id == created.id  # replaced in place: still a single row
+        assert replaced.cadence == ScrapeCadence.MONTHLY and replaced.rec_type == EntityType.TRACK
+        assert replaced.snatch_enabled is True
+
+        update_scrape_schedule(last_run_id=7, last_run_timestamp=1759680100)
+        current = get_scrape_schedule()
+        assert current is not None and (current.last_run_id, current.last_run_timestamp) == (7, 1759680100)
+        with Session(engine) as session:
+            assert len(session.exec(select(ScrapeSchedule)).all()) == 1
+
+        delete_scrape_schedule()
+        assert get_scrape_schedule() is None
+    engine.dispose()
+
+
+def _race_error() -> OperationalError:
+    return OperationalError("CREATE TABLE scrapeschedule", {}, Exception("table scrapeschedule already exists"))
+
+
+def test_db_startup_retries_after_a_concurrent_table_creation() -> None:
+    """Losing the CREATE TABLE race yields a benign "already exists" error: creation is re-run and then succeeds."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with (
+        patch("plastered.db.db_utils.get_engine", return_value=engine),
+        patch.object(SQLModel.metadata, "create_all", side_effect=[_race_error(), None]) as mock_create_all,
+    ):
+        db_startup()
+    assert mock_create_all.call_count == 2
+    engine.dispose()
+
+
+def test_db_startup_gives_up_after_repeated_race_errors() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with (
+        patch("plastered.db.db_utils.get_engine", return_value=engine),
+        patch.object(SQLModel.metadata, "create_all", side_effect=_race_error()) as mock_create_all,
+        pytest.raises(OperationalError, match="already exists"),
+    ):
+        db_startup()
+    assert mock_create_all.call_count == _CREATE_TABLES_MAX_ATTEMPTS
+    engine.dispose()
+
+
+def test_db_startup_reraises_other_operational_errors() -> None:
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    other_error = OperationalError("CREATE TABLE scrapeschedule", {}, Exception("database is locked"))
+    with (
+        patch("plastered.db.db_utils.get_engine", return_value=engine),
+        patch.object(SQLModel.metadata, "create_all", side_effect=other_error) as mock_create_all,
+        pytest.raises(OperationalError, match="database is locked"),
+    ):
+        db_startup()
+    assert mock_create_all.call_count == 1
     engine.dispose()

@@ -17,10 +17,11 @@ def mock_lifespan_state(
     valid_app_settings_sesh_scoped: AppSettings, mock_red_user_details: RedUserDetails
 ) -> Generator[None, None, None]:
     """
-    Patches the pieces `plastered.api.app._app_lifespan` builds at startup (settings load, the RED client, and the
-    `ReleaseSearcher`) so app lifespans in these tests (e.g. the session-scoped `client`) never make real RED API
-    calls (`RedAPIClient.get_red_user_details`). Only the names bound in the `plastered.api.app` module namespace are
-    patched, so the real classes remain untouched for unrelated tests sharing the xdist worker
+    Patches the pieces `plastered.api.app._app_lifespan` builds at startup (settings load, the RED client, the
+    `ReleaseSearcher`, and the scheduled-scrape restore) so app lifespans in these tests (e.g. the session-scoped
+    `client`) never make real RED API calls (`RedAPIClient.get_red_user_details`) nor register a real scheduled
+    scrape from whatever the worker's test DB happens to hold. Only the names bound in the `plastered.api.app` module
+    namespace are patched, so the real classes remain untouched for unrelated tests sharing the xdist worker
     (e.g. test_create_red_user_details).
     """
     mock_red_api_client = MagicMock(spec=RedAPIClient)
@@ -29,6 +30,7 @@ def mock_lifespan_state(
         patch("plastered.api.app.get_app_settings", return_value=valid_app_settings_sesh_scoped),
         patch("plastered.api.app.RedAPIClient", return_value=mock_red_api_client),
         patch("plastered.api.app.ReleaseSearcher", return_value=MagicMock(spec=ReleaseSearcher)),
+        patch("plastered.api.app.restore_scrape_schedule"),
     ):
         yield
 

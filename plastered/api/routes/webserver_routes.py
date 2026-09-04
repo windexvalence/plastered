@@ -18,10 +18,22 @@ from plastered.actions.api_actions import (
     scraper_run_recs_action,
 )
 from plastered.actions.common_actions import run_lfm_scraper
+from plastered.actions.schedule_actions import clear_scrape_schedule, get_scrape_schedule_response, set_scrape_schedule
 from plastered.api.adhoc_helpers import build_adhoc_request_from_form, schedule_adhoc_search
 from plastered.api.auth_sessions import SESSION_COOKIE_NAME, credentials_valid, set_session_cookie
 from plastered.api.constants import STATIC_DIRPATH, TEMPLATES
-from plastered.api.fastapi_dependencies import AppSettingsDep, RedUserDetailsDep, ReleaseSearcherDep, SessionDep
+from plastered.api.fastapi_dependencies import (
+    AppSettingsDep,
+    RedUserDetailsDep,
+    ReleaseSearcherDep,
+    SchedulerDep,
+    SessionDep,
+)
+from plastered.api.schedule_helpers import (
+    SCRAPE_SCHEDULE_FRAGMENT,
+    build_scrape_schedule_request_from_form,
+    scrape_schedule_template_context,
+)
 from plastered.db.db_models import RecDownloadBatchStatus, Status
 from plastered.db.db_utils import create_rec_download_batch, create_scraper_run
 from plastered.models.types import EntityType, RedReleaseType
@@ -221,6 +233,50 @@ async def lfm_scraper_status_fragment(session: SessionDep, request: Request, run
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No scraper run matching run_id={run_id}.")
     return TEMPLATES.TemplateResponse(
         request=request, name="fragments/lfm_scraper_status_fragment.html", context={"run": run}
+    )
+
+
+# GET /scrape_schedule  (HTMX fragment: the configured scheduled scrape + the form to set/replace it)
+@plastered_web_router.get("/scrape_schedule")
+async def scrape_schedule_fragment(session: SessionDep, request: Request, scheduler: SchedulerDep) -> HTMLResponse:
+    schedule = get_scrape_schedule_response(scheduler=scheduler, session=session)
+    return TEMPLATES.TemplateResponse(
+        request=request, name=SCRAPE_SCHEDULE_FRAGMENT, context=scrape_schedule_template_context(schedule)
+    )
+
+
+# POST /scrape_schedule  (save/replace the scheduled scrape from the form, return the refreshed fragment)
+@plastered_web_router.post("/scrape_schedule")
+async def scrape_schedule_submit(
+    request: Request,
+    scheduler: SchedulerDep,
+    app_settings: AppSettingsDep,
+    release_searcher: ReleaseSearcherDep,
+    cadence: Annotated[str, Form()],
+    run_at: Annotated[str, Form()] = "03:00",
+    rec_type: Annotated[str | None, Form()] = None,
+    snatch: Annotated[bool, Form()] = False,
+) -> HTMLResponse:
+    schedule_request = build_scrape_schedule_request_from_form(
+        cadence=cadence, run_at=run_at, rec_type=rec_type, snatch=snatch
+    )
+    schedule = set_scrape_schedule(
+        scheduler=scheduler,
+        app_settings=app_settings,
+        release_searcher=release_searcher,
+        schedule_request=schedule_request,
+    )
+    return TEMPLATES.TemplateResponse(
+        request=request, name=SCRAPE_SCHEDULE_FRAGMENT, context=scrape_schedule_template_context(schedule)
+    )
+
+
+# DELETE /scrape_schedule  (remove the scheduled scrape, return the refreshed fragment)
+@plastered_web_router.delete("/scrape_schedule")
+async def scrape_schedule_delete(request: Request, scheduler: SchedulerDep) -> HTMLResponse:
+    clear_scrape_schedule(scheduler=scheduler)
+    return TEMPLATES.TemplateResponse(
+        request=request, name=SCRAPE_SCHEDULE_FRAGMENT, context=scrape_schedule_template_context(None)
     )
 
 

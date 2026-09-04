@@ -6,10 +6,16 @@ from fastapi.templating import Jinja2Templates
 from fastapi.testclient import TestClient
 import pytest
 
-from plastered.api.api_models import AdhocSearchResult, RunHistoryItem, RunHistoryListResponse
+from plastered.api.api_models import (
+    AdhocSearchResult,
+    RunHistoryItem,
+    RunHistoryListResponse,
+    ScrapeScheduleRequest,
+    ScrapeScheduleResponse,
+)
 from plastered.api.constants import SUB_CONF_NAMES
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Grabbed, SearchRecord, SkipReason, Skipped, Status
+from plastered.db.db_models import Grabbed, ScrapeCadence, ScrapeSchedule, SearchRecord, SkipReason, Skipped, Status
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
@@ -247,3 +253,67 @@ def test_run_history_endpoint(client: TestClient, mock_response_model: RunHistor
         mock_run_history_action.assert_called_once_with(
             since_timestamp=mock_since, session=ANY, final_state=None, search_id=None
         )
+
+
+def _scrape_schedule_response() -> ScrapeScheduleResponse:
+    return ScrapeScheduleResponse(
+        schedule=ScrapeSchedule(
+            id=1,
+            cadence=ScrapeCadence.DAILY,
+            hour=3,
+            minute=0,
+            snatch_enabled=False,
+            start_timestamp=1759680000,
+            created_timestamp=1759670000,
+        ),
+        next_run_timestamp=1759680000,
+    )
+
+
+@pytest.mark.parametrize("configured", [True, False])
+def test_get_scrape_schedule_endpoint(client: TestClient, configured: bool) -> None:
+    mock_response = _scrape_schedule_response() if configured else None
+    with patch("plastered.api.routes.api_routes.get_scrape_schedule_response", return_value=mock_response):
+        resp = client.get("/api/scrape_schedule")
+    if configured:
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["schedule"]["cadence"] == "daily" and data["next_run_timestamp"] == 1759680000
+        assert data["last_run"] is None
+    else:
+        assert resp.status_code == 404
+
+
+def test_set_scrape_schedule_endpoint(client: TestClient) -> None:
+    body = {"cadence": "every_other_week", "hour": 4, "minute": 30, "rec_type": "album", "snatch": True}
+    with patch(
+        "plastered.api.routes.api_routes.set_scrape_schedule", return_value=_scrape_schedule_response()
+    ) as mock_set:
+        resp = client.put("/api/scrape_schedule", json=body)
+    assert resp.status_code == 200
+    assert resp.json()["schedule"]["id"] == 1
+    assert mock_set.call_args.kwargs["schedule_request"] == ScrapeScheduleRequest(**body)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"cadence": "hourly"},  # not a pre-defined cadence
+        {"cadence": "daily", "hour": 24},  # out-of-range hour
+        {"cadence": "daily", "minute": -1},  # out-of-range minute
+        {"cadence": "daily", "rec_type": "artist"},  # not a rec type
+        {"cadence": "daily", "bogus": True},  # unknown field
+    ],
+)
+def test_set_scrape_schedule_endpoint_invalid(client: TestClient, body: dict) -> None:
+    with patch("plastered.api.routes.api_routes.set_scrape_schedule") as mock_set:
+        resp = client.put("/api/scrape_schedule", json=body)
+    assert resp.status_code == 422
+    mock_set.assert_not_called()
+
+
+def test_delete_scrape_schedule_endpoint(client: TestClient) -> None:
+    with patch("plastered.api.routes.api_routes.clear_scrape_schedule") as mock_clear:
+        resp = client.delete("/api/scrape_schedule")
+    assert resp.status_code == 204
+    mock_clear.assert_called_once()

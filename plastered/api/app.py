@@ -7,9 +7,11 @@ import os
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from plastered.actions.schedule_actions import restore_scrape_schedule
 from plastered.api.auth_sessions import SessionTokenStore
 from plastered.api.constants import STATIC_DIRPATH
 from plastered.api.middleware import LoginProtectionMiddleware
@@ -49,6 +51,10 @@ async def _app_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     _LOGGER.debug("Running fastapi app lifespan startup ...")
     app_settings = get_app_settings()
     app.state.app_settings = app_settings
+    # The scheduler drives the (optional, user-configured) recurring LFM scrape. It runs on this event loop and is
+    # only started once the shared searcher it hands to the scheduled job exists (see below).
+    scheduler = AsyncIOScheduler()
+    app.state.scheduler = scheduler
 
     db_startup()
     # Build the shared RED client + `ReleaseSearcher` once at startup (reused across API calls) rather than per
@@ -59,9 +65,12 @@ async def _app_lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.release_searcher = ReleaseSearcher(
         app_settings=app_settings, red_user_details=app.state.red_user_details, red_api_client=red_api_client
     )
+    restore_scrape_schedule(scheduler=scheduler, app_settings=app_settings, release_searcher=app.state.release_searcher)
+    scheduler.start()
     yield
     # Shutdown events: Clean up stuff
     _LOGGER.warning("Server shutting down ...")
+    scheduler.shutdown(wait=False)
     app.state.release_searcher.close_clients()
     # Dispose the cached engine so its pooled SQLite connections are closed and the DB file is released cleanly
     # (sessions are all context-managed, so no connections are checked out by this point).
