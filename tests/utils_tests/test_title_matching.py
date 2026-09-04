@@ -1,6 +1,6 @@
 import pytest
 
-from plastered.release_search.title_matching import (
+from plastered.utils.text_utils import (
     CANDIDATE_TOKEN_SUBSET_SCORE,
     EXACT_MATCH_SCORE,
     MIN_MATCH_SCORE,

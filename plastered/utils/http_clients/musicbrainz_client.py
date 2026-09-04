@@ -7,13 +7,15 @@ from urllib.parse import quote
 
 import httpx2
 
+from plastered.models import OriginSource, origin_releases_from_recording
 from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL
 from plastered.utils.exceptions import MusicBrainzClientException, MusicBrainzRequestFailureException
 from plastered.utils.http_clients.base_client import LOGGER, ThrottledAPIBaseClient
+from plastered.utils.text_utils import same_name
 
 if TYPE_CHECKING:
     from plastered.config.app_settings import AppSettings
-    from plastered.models import SearchItem
+    from plastered.models import OriginRelease
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,45 +25,18 @@ def _escape_lucene_phrase(raw_value: str) -> str:
     return raw_value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _is_official_album_release(release_json: dict[str, Any]) -> bool:
-    """Whether a release object of an MB recording-search response is an official, titled Album release."""
-    release_group_json = release_json.get("release-group") or {}
-    return bool(
-        release_json.get("title")
-        and release_json.get("status") == "Official"
-        and release_group_json.get("primary-type") == "Album"
-    )
-
-
-def _release_date_sort_key(release_json: dict[str, Any]) -> tuple[bool, str]:
-    """Sort key ordering releases earliest-date-first, with undated releases last."""
-    release_date = release_json.get("date") or ""
-    return (not release_date, release_date)
-
-
-def _select_origin_release(json_data: dict[str, Any]) -> dict[str, str | None] | None:
+def _select_searched_release(releases: list[dict[str, Any]], release_name: str) -> dict[str, Any]:
     """
-    Picks the origin release from an MB recording-search response. Recordings are visited in MB's (score-ordered)
-    order; the first recording carrying any official Album release wins, and the earliest-dated such release is
-    chosen (the canonical original album rather than an arbitrary compilation/single). When no recording has an
-    official Album release, falls back to the first release of the first recording.
+    The release to take from an MB release-search result: among the hits titled like the wanted release, the first
+    primary-type Album, else the first of them; when no hit is titled like it, the top-scored hit. Restricting the
+    Album preference to same-titled hits keeps a wanted EP/single from resolving to a similarly named album.
     """
-    recordings = json_data.get("recordings") or []
-    for recording_json in recordings:
-        official_albums = [rel for rel in (recording_json.get("releases") or []) if _is_official_album_release(rel)]
-        if official_albums:
-            earliest = min(official_albums, key=_release_date_sort_key)
-            return {"origin_release_mbid": earliest.get("id"), "origin_release_name": earliest["title"]}
-    try:
-        first_release_match_json = recordings[0]["releases"][0]
-    except KeyError, IndexError:
-        return None
-    if not first_release_match_json.get("title"):
-        return None
-    return {
-        "origin_release_mbid": first_release_match_json.get("id"),
-        "origin_release_name": first_release_match_json["title"],
-    }
+    titled_like_wanted = [r for r in releases if same_name(r.get("title") or "", release_name)]
+    for release_json in titled_like_wanted:
+        primary_type = (release_json.get("release-group") or {}).get("primary-type") or ""
+        if primary_type.casefold() == "album":
+            return release_json
+    return titled_like_wanted[0] if titled_like_wanted else releases[0]
 
 
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
@@ -110,12 +85,12 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
                 f"Musicbrainz returned a non-JSON payload for URL '{request_url}'."
             ) from ex
 
-    def _request_search_json(self, request_url: str) -> dict[str, Any] | None:
+    def _request_json_or_none(self, request_url: str) -> dict[str, Any] | None:
         """
-        Issues a throttled GET against an MB search endpoint URL. Returns the parsed JSON payload, or `None` on an
-        HTTP error response (logged as a warning). Raises `MusicBrainzRequestFailureException` on a
-        connection/transport failure that survives the transport-level retries or on an unusable (non-JSON) payload,
-        so the caller can attribute a missing result to the failed request rather than a genuine no-result.
+        Issues a throttled GET against an MB endpoint URL. Returns the parsed JSON payload, or `None` on an HTTP
+        error response (logged as a warning). Raises `MusicBrainzRequestFailureException` on a connection/transport
+        failure that survives the transport-level retries or on an unusable (non-JSON) payload, so the caller can
+        attribute a missing result to the failed request rather than a genuine no-result.
         """
         # Enforce request throttling before building and submitting the request.
         self._throttle()
@@ -142,83 +117,98 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         Resolves a release MBID by artist + release name via the MusicBrainz release *search* endpoint:
         https://musicbrainz.org/doc/MusicBrainz_API/Search#Release
         The Lucene-backed search is scored and tolerant of minor naming differences, which makes it a fuzzy fallback
-        for items whose LFM info carries no MBID. Returns the top-scored result's MBID, or `None` when nothing
-        matches (or on an HTTP error response). Raises `MusicBrainzRequestFailureException` on a connection/transport
-        failure that survives the transport-level retries or on an unusable (non-JSON) payload.
+        for items whose LFM info carries no (usable) MBID. Official releases are required — the query is retried
+        without that constraint when it matches nothing — and among the same-titled hits a primary-type Album is
+        preferred over the top-scored one (see `_select_searched_release`). Returns the chosen release's MBID, or
+        `None` when nothing matches (or
+        on an HTTP error response). Raises `MusicBrainzRequestFailureException` on a connection/transport failure
+        that survives the transport-level retries or on an unusable (non-JSON) payload.
         """
         LOGGER.debug(f"Searching MB for a release MBID for release: '{release_name}' by '{artist_name}' ...")
-        query_str = f'release:"{_escape_lucene_phrase(release_name)}" AND artist:"{_escape_lucene_phrase(artist_name)}"'
-        request_url = (
-            f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}?query={quote(query_str, safe=':')}&limit=5&fmt=json"
+        base_query = (
+            f'release:"{_escape_lucene_phrase(release_name)}" AND artist:"{_escape_lucene_phrase(artist_name)}"'
         )
-        json_data = self._request_search_json(request_url=request_url)
-        releases = (json_data.get("releases") or []) if json_data else []
-        if not releases:
-            LOGGER.debug(f"MB release search found no results for release: '{release_name}' by '{artist_name}'.")
-            return None
-        return releases[0].get("id")
+        for query_str in (f"{base_query} AND status:official", base_query):
+            request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._release_endpoint}?query={quote(query_str, safe=':')}&limit=5&fmt=json"
+            json_data = self._request_json_or_none(request_url=request_url)
+            releases = (json_data.get("releases") or []) if json_data else []
+            if releases:
+                return _select_searched_release(releases=releases, release_name=release_name).get("id")
+        LOGGER.debug(f"MB release search found no results for release: '{release_name}' by '{artist_name}'.")
+        return None
 
+    @staticmethod
     def _get_track_search_query_str(
-        self,
-        human_readable_track_name: str,
-        artist_mbid: str | None = None,
-        human_readable_artist_name: str | None = None,
-        constrained: bool = False,
-    ) -> str | None:
+        track_name: str, artist_name: str, artist_mbid: str | None = None, constrained: bool = False
+    ) -> str:
         """
-        Builds the (URL-quoted) Lucene query for the MB recording search. When `constrained`, the query additionally
-        requires an official release from an Album release group, biasing results toward the canonical origin album.
+        Builds the (URL-quoted) Lucene query for the MB recording search. The artist is matched by MBID when one is
+        known, else by name. When `constrained`, the query additionally requires an official release from an Album
+        release group, biasing results toward the canonical origin album.
         """
-        query_clauses = [f'recording:"{_escape_lucene_phrase(human_readable_track_name)}"']
-        if artist_mbid:
-            query_clauses.append(f"arid:{artist_mbid}")
-        elif human_readable_artist_name:
-            query_clauses.append(f'artist:"{_escape_lucene_phrase(human_readable_artist_name)}"')
-        else:
-            LOGGER.debug(
-                f"Cannot resolve origin release for track rec: '{human_readable_track_name}'. No available artist_mbid or human readable artist name provided."
-            )
-            return None
+        query_clauses = [f'recording:"{_escape_lucene_phrase(track_name)}"']
+        query_clauses.append(f"arid:{artist_mbid}" if artist_mbid else f'artist:"{_escape_lucene_phrase(artist_name)}"')
         if constrained:
             query_clauses.extend(["status:official", "primarytype:album"])
         return quote(" AND ".join(query_clauses), safe=":")
 
-    def request_release_details_for_track(
-        self, si: SearchItem, artist_mbid: str | None = None
-    ) -> dict[str, str | None] | None:
+    def lookup_recording_origin_releases(
+        self, recording_mbid: str, artist_name: str, artist_mbid: str | None = None
+    ) -> list[OriginRelease]:
         """
-        Helper method specifically for attempting to resolve a release name / MBID from which a track rec originated from
-        with retries and rate-limits. The underlying "endpoint" this method requests is MusicBrainz's "recording" search endpoint:
+        Every release the recording appears on, via the MB recording *lookup* endpoint (one precise request, no search
+        scoring): https://musicbrainz.org/doc/MusicBrainz_API#Lookups
+        Returns an empty list when MB does not serve the recording (e.g. a stale LFM MBID: an HTTP error response) or
+        when the recording is not credited to the wanted artist. Raises `MusicBrainzRequestFailureException` on a
+        connection/transport failure that survives the transport-level retries or on an unusable (non-JSON) payload.
+        """
+        LOGGER.debug(f"Looking up the MB releases of recording '{recording_mbid}' by '{artist_name}' ...")
+        inc_params = "inc=releases+release-groups+artist-credits"
+        request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}/{recording_mbid}?{inc_params}&fmt=json"
+        json_data = self._request_json_or_none(request_url=request_url)
+        if json_data is None:
+            return []
+        return origin_releases_from_recording(
+            recording_json=json_data,
+            source=OriginSource.MB_RECORDING_LOOKUP,
+            artist_name=artist_name,
+            artist_mbid=artist_mbid,
+        )
+
+    def search_recording_origin_releases(
+        self, track_name: str, artist_name: str, artist_mbid: str | None = None
+    ) -> list[OriginRelease]:
+        """
+        The releases of every recording matching the track, via the MB recording *search* endpoint:
         https://musicbrainz.org/doc/MusicBrainz_API/Search#Recording
-        This will only be called if the LFM API does not have a release name already associated with the track rec in question.
-
-        A constrained query (requiring an official release from an Album release group) is attempted first; when it
-        yields nothing, the search is retried without the constraints (for tracks that only exist on singles/EPs/etc.).
-        From the resulting recordings, the earliest official Album release is preferred — see `_select_origin_release`.
-
-        If the origin release name cannot be resolved, returns None since the release name is required for searching on RED.
-        Otherwise returns a dict of the the form {"origin_release_mbid": str | None, "origin_release_name": str | None}.
-        Raises `MusicBrainzRequestFailureException` on a connection/transport failure that survives the
-        transport-level retries or on an unusable (non-JSON) payload, so the caller can attribute the missing origin
-        release to the failed request rather than a genuine no-result.
+        Only recordings titled like the wanted track and credited to the wanted artist contribute candidates. A
+        constrained query (requiring an official release from an Album release group) is attempted first; when it
+        yields no candidates, the search is retried unconstrained (for tracks that only exist on singles/EPs/etc.).
+        Returns an empty list when nothing matches (or on an HTTP error response). Raises
+        `MusicBrainzRequestFailureException` on a connection/transport failure that survives the transport-level
+        retries or on an unusable (non-JSON) payload.
         """
-        LOGGER.debug(f"Attempting to resolve origin release for track rec: track: '{si.track_name}' ...")
-        track_name = si.track_name
-        artist_name = si.artist_name
+        LOGGER.debug(f"Searching MB for the recordings of track '{track_name}' by '{artist_name}' ...")
         for constrained in (True, False):
-            search_query_str = self._get_track_search_query_str(
-                human_readable_track_name=track_name,
-                artist_mbid=artist_mbid,
-                human_readable_artist_name=artist_name,
-                constrained=constrained,
+            query_str = self._get_track_search_query_str(
+                track_name=track_name, artist_name=artist_name, artist_mbid=artist_mbid, constrained=constrained
             )
-            if not search_query_str:  # pragma: no cover
-                return None
-            request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={search_query_str}&fmt=json"
-            json_data = self._request_search_json(request_url=request_url)
+            request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={query_str}&fmt=json"
+            json_data = self._request_json_or_none(request_url=request_url)
             if json_data is None:
-                return None
-            if origin_release := _select_origin_release(json_data=json_data):
-                return origin_release
-        LOGGER.debug(f"Unable to resolve an origin release for track: '{track_name}' by '{artist_name}'")
-        return None
+                return []
+            candidates: list[OriginRelease] = []
+            for recording_json in json_data.get("recordings") or []:
+                candidates.extend(
+                    origin_releases_from_recording(
+                        recording_json=recording_json,
+                        source=OriginSource.MB_RECORDING_SEARCH,
+                        artist_name=artist_name,
+                        artist_mbid=artist_mbid,
+                        track_name=track_name,
+                    )
+                )
+            if candidates:
+                return candidates
+        LOGGER.debug(f"MB recording search found no origin releases for track: '{track_name}' by '{artist_name}'.")
+        return []

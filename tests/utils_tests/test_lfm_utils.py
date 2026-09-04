@@ -3,10 +3,6 @@ from typing import Any
 import pytest
 
 from plastered.models.lfm_models import LFMAlbumInfo
-from plastered.models.search_item import SearchItem
-from plastered.models.lfm_models import LFMRec
-from plastered.models.types import EntityType as rt
-from plastered.models.lfm_models import LFMTrackInfo
 
 
 def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -> None:
@@ -20,56 +16,6 @@ def test_construct_from_api_response(mock_lfm_album_info_json: dict[str, Any]) -
     assert actual_lfmai == expected_lfmai, (
         f"Expected LFMAlbumInfo to be '{str(expected_lfmai)}', but got '{str(actual_lfmai)}'"
     )
-
-
-@pytest.mark.parametrize(
-    "si, mb_origin_release_info_json, expected_lfmti",
-    [
-        pytest.param(SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK)), None, None, id="Nonetype-MB-JSON"),
-        pytest.param(SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK)), {}, None, id="Empty-MB-JSON"),
-        pytest.param(
-            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK)),
-            {"origin_release_mbid": "abc", "origin_release_name": "Some Album"},
-            LFMTrackInfo(
-                artist="Artist",
-                track_name="Title",
-                release_name="Some Album",
-                lfm_url="https://www.last.fm/music/Artist/_/Title",
-                release_mbid="abc",
-            ),
-            id="Full-MB-JSON",
-        ),
-        pytest.param(
-            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK)),
-            {"origin_release_mbid": "", "origin_release_name": "Some Album"},
-            LFMTrackInfo(
-                artist="Artist",
-                track_name="Title",
-                release_name="Some Album",
-                lfm_url="https://www.last.fm/music/Artist/_/Title",
-                release_mbid="",
-            ),
-            id="Empty-mbid-MB-JSON",
-        ),
-        pytest.param(
-            SearchItem(initial_info=LFMRec("Artist", "Title", rt.TRACK)),
-            {"origin_release_mbid": "abc", "origin_release_name": ""},
-            LFMTrackInfo(
-                artist="Artist",
-                track_name="Title",
-                release_name="",
-                lfm_url="https://www.last.fm/music/Artist/_/Title",
-                release_mbid="abc",
-            ),
-            id="Empty-release-name-MB-JSON",
-        ),
-    ],
-)
-def test_lfmti_from_mb_origin_release_info(
-    si: SearchItem, mb_origin_release_info_json: dict[str, Any], expected_lfmti: LFMTrackInfo | None
-) -> None:
-    actual = LFMTrackInfo.from_mb_origin_release_info(si=si, origin_info_json=mb_origin_release_info_json)
-    assert actual == expected_lfmti
 
 
 @pytest.mark.parametrize(
@@ -107,44 +53,6 @@ def test_lfmai_eq(other: Any, expected: bool) -> None:
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
 
 
-@pytest.mark.parametrize(
-    "other, expected",
-    [
-        ("not-right-type", False),
-        (
-            LFMTrackInfo(
-                artist="Dr. Octagon",
-                track_name="Some Other Track",
-                release_mbid="2271e923-291d-4dd0-96d7-3cf3f9d294ed",
-                release_name="Dr. Octagonecologyst",
-                lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
-            ),
-            False,
-        ),
-        (
-            LFMTrackInfo(
-                artist="Dr. Octagon",
-                track_name="Some Track",
-                release_mbid="2271e923-291d-4dd0-96d7-3cf3f9d294ed",
-                release_name="Dr. Octagonecologyst",
-                lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
-            ),
-            True,
-        ),
-    ],
-)
-def test_lfmti_eq(other: Any, expected: bool) -> None:
-    test_instance = LFMTrackInfo(
-        artist="Dr. Octagon",
-        track_name="Some Track",
-        release_mbid="2271e923-291d-4dd0-96d7-3cf3f9d294ed",
-        release_name="Dr. Octagonecologyst",
-        lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
-    )
-    actual = test_instance == other
-    assert actual == expected
-
-
 def test_lfmai_str() -> None:
     lfmai = LFMAlbumInfo(
         artist="Dr. Octagon",
@@ -155,17 +63,4 @@ def test_lfmai_str() -> None:
     # expected = "{'artist': 'Dr. Octagon', 'album_name': 'Some+Other+Album', 'lfm_url': 'https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', 'release_mbid': '2271e923-291d-4dd0-96d7-3cf3f9d294ed'}"
     expected = "LFMAlbumInfo(artist='Dr. Octagon', album_name='Some+Other+Album', lfm_url='https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', release_mbid='2271e923-291d-4dd0-96d7-3cf3f9d294ed')"
     actual = str(lfmai)
-    assert actual == expected, f"Expected str(lmfti) result to be {expected}, but got {actual}"
-
-
-def test_lfmti_str() -> None:
-    lfmti = LFMTrackInfo(
-        artist="Dr. Octagon",
-        track_name="Some Track",
-        release_mbid="2271e923-291d-4dd0-96d7-3cf3f9d294ed",
-        release_name="Some+Other+Album",
-        lfm_url="https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst",
-    )
-    expected = "LFMTrackInfo(artist='Dr. Octagon', track_name='Some Track', release_name='Some+Other+Album', lfm_url='https://www.last.fm/music/Dr.+Octagon/Dr.+Octagonecologyst', release_mbid='2271e923-291d-4dd0-96d7-3cf3f9d294ed')"
-    actual = str(lfmti)
     assert actual == expected, f"Expected str(lmfti) result to be {expected}, but got {actual}"

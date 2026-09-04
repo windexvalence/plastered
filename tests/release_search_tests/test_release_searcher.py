@@ -4,25 +4,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from plastered.config.app_settings import AppSettings, RedSearchOverrides
-from plastered.models import (
-    AdhocSearch,
-    EntityType as et,
-    LFMRec,
-    LFMTrackInfo,
-    MBRelease,
-    SearchItem,
-    TorrentEntry as te,
-)
+from plastered.models import AdhocSearch, EntityType as et, LFMRec, MBRelease, SearchItem, TorrentEntry as te
 from plastered.release_search.processors import SearchItemProcessorChain
 from plastered.release_search.release_searcher import ReleaseSearcher, _dedupe_recs
 from plastered.release_search.search_helpers import SearchState
 from plastered.snatch import Snatcher
 from plastered.utils.http_clients import LFMAPIClient, MusicBrainzAPIClient, RedAPIClient, RedSnatchAPIClient
-
-
-@pytest.fixture(scope="function")
-def mock_lfm_track_info() -> LFMTrackInfo:
-    return LFMTrackInfo("Some Artist", "Track Title", "Source Album", "https://fake-url", "69-420")
 
 
 @pytest.fixture(scope="function")

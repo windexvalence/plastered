@@ -15,7 +15,11 @@ owns it), gathering RED user details if they have not been fetched yet. Keeping 
 at startup) without one run's matches leaking into the next.
 
 Each `SearchItem` is then processed by an ordered sequence of modifiers and filters that branches by
-`EntityType` (album vs. track) and re-converges on the processors the two share. Every
+`EntityType` (album vs. track) and re-converges on the processors the two share. A track item first
+resolves a ranked list of candidate origin releases (`ResolveTrackOriginModifier`: the LFM album plus
+the releases MusicBrainz lists for the recording), and `SearchRedReleaseByPrefsModifier` then tries
+those candidates in order against the artist's RED release groups
+(`SearchState.match_track_origin_candidates`). Every
 `SearchItemFilter` may short-circuit processing: if its rules reject the item, the item is
 dropped (recorded with a `SkipReason`). Modifiers enrich the item in place and always pass it
 along. Items that survive become snatch candidates handed off to the `Snatcher`. (See the
@@ -34,7 +38,7 @@ flowchart TD
     DROP(["SearchItem dropped (returns None)"])
 
     %% ── Processors ──
-    RESOLVE_TRACK["ResolveTrackInfoModifier"]
+    RESOLVE_TRACK["ResolveTrackOriginModifier"]
     POST_TRACK["PostResolveOriginTrackFilter"]
     ATTACH["AttachSearchIdModifier"]
     PREMBID["PreMBIDResolutionFilter"]
@@ -111,7 +115,7 @@ flowchart TD
     DROP(["SearchItem dropped (returns None)"])
 
     %% ── Modifiers ──
-    RESOLVE_TRACK["ResolveTrackInfoModifier"]
+    RESOLVE_TRACK["ResolveTrackOriginModifier"]
     ATTACH["AttachSearchIdModifier"]
     RESOLVE_ALBUM["ResolveAlbumInfoModifier"]
     ATTEMPT_MB["AttemptResolveMBReleaseModifier"]
@@ -129,7 +133,7 @@ flowchart TD
     %% ── PostResolveOriginTrackFilter (track only, inline rule) ──
     subgraph TF0["PostResolveOriginTrackFilter"]
         direction TB
-        TS_in["inline: si._lfm_track_info present?"]
+        TS_in["inline: si.origin_candidates non-empty?"]
     end
     RESOLVE_TRACK --> TS_in
     TS_in -->|NO_SOURCE_RELEASE_FOUND| DROP
@@ -197,7 +201,7 @@ The chains are defined on `SearchItemProcessorChain` in
 | Order | `album_chain` | `track_chain` |
 | ----- | ------------- | ------------- |
 | 1 | `AttachSearchIdModifier` | `AttachSearchIdModifier` |
-| 2 | `PreMBIDResolutionFilter` | `ResolveTrackInfoModifier` |
+| 2 | `PreMBIDResolutionFilter` | `ResolveTrackOriginModifier` |
 | 3 | `ResolveAlbumInfoModifier` | `PostResolveOriginTrackFilter` |
 | 4 | `AttemptResolveMBReleaseModifier` | `PreMBIDResolutionFilter` |
 | 5 | `PostMBIDResolutionFilter` | `AttemptResolveMBReleaseModifier` |

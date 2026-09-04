@@ -25,7 +25,9 @@ class SearchConfig(BaseModel):
     use_release_type: bool = Field(
         default=True,
         description="Filter candidate RED release groups to the release type (album/EP/single/...) resolved from "
-        "MusicBrainz. A scraper rec whose release type cannot be resolved is skipped.",
+        "MusicBrainz. A scraper rec whose release type cannot be resolved is skipped. For a track rec the type is "
+        "relaxed to a ranking preference when it would otherwise eliminate every candidate origin release (a track's "
+        "origin release type is the least reliable resolved attribute).",
     )
     use_first_release_year: bool = Field(
         default=True,

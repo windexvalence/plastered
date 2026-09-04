@@ -247,3 +247,52 @@ def test_db_startup_reraises_other_operational_errors() -> None:
         db_startup()
     assert mock_create_all.call_count == 1
     engine.dispose()
+
+
+def test_upsert_resolved_origin_inserts_then_replaces() -> None:
+    """The first upsert inserts the track search's row; a later one (the matched candidate) replaces it in place."""
+    from plastered.db.db_models import ResolvedOrigin
+    from plastered.db.db_utils import upsert_resolved_origin
+    from plastered.models import OriginRelease, OriginSource
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    top = OriginRelease(release_name="Album", source=OriginSource.MB_RECORDING_LOOKUP, release_mbid="m1")
+    matched = OriginRelease(release_name="Single", source=OriginSource.MB_RECORDING_SEARCH)
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        upsert_resolved_origin(search_id=7, origin=top, candidate_rank=0, candidate_count=3, matched=False)
+        with Session(engine) as session:
+            row = session.exec(select(ResolvedOrigin)).one()
+        assert (row.search_id, row.release_name, row.source, row.release_mbid) == (
+            7,
+            "Album",
+            "mb_recording_lookup",
+            "m1",
+        )
+        assert (row.candidate_rank, row.candidate_count, row.matched) == (0, 3, False)
+        upsert_resolved_origin(search_id=7, origin=matched, candidate_rank=2, candidate_count=3, matched=True)
+        upsert_resolved_origin(search_id=8, origin=top, candidate_rank=0, candidate_count=1, matched=False)
+    with Session(engine) as session:
+        rows = {r.search_id: r for r in session.exec(select(ResolvedOrigin)).all()}
+    assert set(rows) == {7, 8}
+    assert (rows[7].release_name, rows[7].source, rows[7].release_mbid) == (
+        "Single",
+        OriginSource.MB_RECORDING_SEARCH,
+        None,
+    )
+    assert (rows[7].candidate_rank, rows[7].candidate_count, rows[7].matched) == (2, 3, True)
+    engine.dispose()
+
+
+def test_upsert_resolved_origin_without_search_id_fails() -> None:
+    from plastered.db.db_utils import upsert_resolved_origin
+    from plastered.models import OriginRelease, OriginSource
+
+    with pytest.raises(MissingDatabaseRecordException):
+        upsert_resolved_origin(
+            search_id=None,
+            origin=OriginRelease(release_name="x", source=OriginSource.LFM),
+            candidate_rank=0,
+            candidate_count=1,
+            matched=False,
+        )

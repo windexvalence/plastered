@@ -5,11 +5,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from plastered.models.adhoc_search_models import AdhocSearch
-from plastered.models.lfm_models import LFMAlbumInfo, LFMRec, LFMTrackInfo
+from plastered.models.lfm_models import LFMAlbumInfo, LFMRec
 from plastered.models.types import EntityType
+from plastered.utils.constants import RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR
 
 if TYPE_CHECKING:
     from plastered.models.musicbrainz_models import MBRelease
+    from plastered.models.origin_release import OriginRelease
     from plastered.models.red_models import TorrentEntry, TorrentMatch
 
 type InitialInfo = LFMRec | AdhocSearch
@@ -34,26 +36,32 @@ class SearchItem:
     # generic unresolved-fields / no-source-release reason.
     lfm_request_failed: bool = False
     mb_request_failed: bool = False
+    # Track items only: the candidate origin releases, best-first (see `rank_origin_candidates`), and the candidate
+    # whose RED release group matched.
+    origin_candidates: list[OriginRelease] = field(default_factory=list)
+    matched_origin: OriginRelease | None = None
     _lfm_album_info: LFMAlbumInfo | None = None
-    _lfm_track_info: LFMTrackInfo | None = None
     _mb_release: MBRelease | None = None
     _search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
+    # The optional RED browse params supplied by an ad-hoc request; they win over any MB-resolved values.
+    _user_search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
 
     def __post_init__(self):
         """
         Set the initial `release_name` value based on the instance's other attributes.
-        Note: The `release_name` value may change later on for a Track rec, depending on
-        LFMTi resolution (see `ReleaseSearcher._resolve__resolve_lfm_track_info` and `SearchItem.set_lfm_track_info`).
+        Note: The `release_name` value may change later on for a Track rec, depending on origin-release resolution
+        (see `ResolveTrackOriginModifier`, `set_origin_candidates` and `set_matched_origin`).
         For more on dataclasses and __post_init__ method, see this SO answer: https://stackoverflow.com/a/76187691
         """
         if self.initial_info.entity_type == EntityType.ALBUM.value:
             self.release_name = self.initial_info.get_human_readable_entity_str()
         else:
-            self.release_name = "None" if not self._lfm_track_info else self._lfm_track_info.release_name
+            self.release_name = self.origin_candidates[0].release_name if self.origin_candidates else "None"
         # Ad-hoc searches may carry user-supplied optional RED browse params; seed them up-front so they are used even
         # when no MBID resolution takes place (and so they take precedence over any MB-resolved values).
         if isinstance(self.initial_info, AdhocSearch):
-            self._search_kwargs = self.initial_info.get_user_search_kwargs()
+            self._user_search_kwargs = self.initial_info.get_user_search_kwargs()
+            self._search_kwargs = OrderedDict(self._user_search_kwargs)
 
     @property
     def artist_name(self) -> str:
@@ -70,33 +78,62 @@ class SearchItem:
         """Returns `True` if the SearchItem is an ad-hoc (non-scraper) search, otherwise `False` for an LFMRec."""
         return isinstance(self.initial_info, AdhocSearch)
 
+    @property
+    def top_origin(self) -> OriginRelease | None:
+        """The best-ranked candidate origin release of a track item, or `None` (albums / unresolved tracks)."""
+        return self.origin_candidates[0] if self.origin_candidates else None
+
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
         return self._search_kwargs
 
+    def get_origin_search_kwargs(self, origin: OriginRelease) -> OrderedDict[str, Any]:
+        """
+        The search kwargs for matching one origin candidate against RED. The MB-resolved values describe the top
+        candidate, so they seed the kwargs for it only; the candidate's own release type / year fill any gaps; and the
+        user-supplied ad-hoc values win over everything, for every candidate.
+        """
+        kwargs: OrderedDict[str, Any] = OrderedDict(self._search_kwargs if origin == self.top_origin else {})
+        red_release_type = origin.get_red_release_type()
+        own_values = {
+            RED_PARAM_RELEASE_TYPE: red_release_type.value if red_release_type is not None else None,
+            RED_PARAM_RELEASE_YEAR: origin.release_year,
+        }
+        for red_param, value in own_values.items():
+            if value is not None and kwargs.get(red_param) is None:
+                kwargs[red_param] = value
+        kwargs.update({k: v for k, v in self._user_search_kwargs.items() if v is not None})
+        return kwargs
+
     def search_kwargs_has_all_required_fields(self, required_kwargs: set[str]) -> bool:
         """
-        Return `True` if all the specified fields are set to non-empty values.
-        Return `False` otherwise.
+        Return `True` if all the specified fields are set to non-empty values. Return `False` otherwise. A track item is
+        judged on its top origin candidate only: the MB release lookup, which fills these fields, is made for that
+        candidate, so a lower-ranked candidate carrying them cannot stand in for it.
         """
-        if not required_kwargs.issubset(set(self._search_kwargs.keys())):
-            return False
-        return all([self._search_kwargs[k] is not None for k in required_kwargs])
+        top_origin = self.top_origin
+        kwargs = self.get_origin_search_kwargs(origin=top_origin) if top_origin is not None else self._search_kwargs
+        return all(kwargs.get(k) is not None for k in required_kwargs)
 
     def get_matched_mbid(self) -> str | None:
-        # An ad-hoc search may directly supply the release MBID; prefer it, otherwise fall through to any MBID resolved
-        # from the LFM album/track info (the latter applies to ad-hoc track searches, which still resolve a release).
+        """
+        The MBID of the release the item resolved to. A user-supplied ad-hoc MBID wins. Otherwise the MB release
+        resolved by `AttemptResolveMBReleaseModifier` is authoritative once present (it replaces a stale LFM MBID and
+        canonicalizes a merged one); before that, the LFM album's / the track's top origin candidate's MBID stands
+        in. A track matched via a candidate other than the top one reports that candidate's own MBID, since the MB
+        release describes the top candidate only.
+        """
         if isinstance(self.initial_info, AdhocSearch) and self.initial_info.mbid is not None:
             return self.initial_info.mbid
-        is_album = self.initial_info.entity_type == EntityType.ALBUM
-        if is_album and self._lfm_album_info is not None and self._lfm_album_info.release_mbid:
-            return self._lfm_album_info.release_mbid
-        if not is_album and self._lfm_track_info is not None and self._lfm_track_info.release_mbid:
-            return self._lfm_track_info.release_mbid
-        # Final fallback: the release resolved via the MusicBrainz release search (see
-        # `AttemptResolveMBReleaseModifier`), used when LFM carried no MBID for the item.
+        if self.initial_info.entity_type == EntityType.ALBUM:
+            if self._mb_release is not None:
+                return self._mb_release.mbid
+            return self._lfm_album_info.release_mbid or None if self._lfm_album_info is not None else None
+        origin = self.matched_origin or self.top_origin
+        if origin is not None and origin != self.top_origin:
+            return origin.release_mbid or None
         if self._mb_release is not None:
             return self._mb_release.mbid
-        return None
+        return origin.release_mbid or None if origin is not None else None
 
     def found_red_match(self) -> bool:
         return self.torrent_entry is not None and not self.above_max_size_te_found
@@ -108,10 +145,17 @@ class SearchItem:
     def set_lfm_album_info(self, lfmai: LFMAlbumInfo | None) -> None:
         self._lfm_album_info = lfmai
 
-    def set_lfm_track_info(self, lfmti: LFMTrackInfo | None) -> None:
-        self._lfm_track_info = lfmti
-        if lfmti:
-            self.release_name = lfmti.release_name
+    def set_origin_candidates(self, candidates: list[OriginRelease]) -> None:
+        """Sets a track item's ranked origin candidates; the top candidate becomes the item's `release_name`."""
+        self.origin_candidates = list(candidates)
+        self.matched_origin = None
+        if candidates:
+            self.release_name = candidates[0].release_name
+
+    def set_matched_origin(self, origin: OriginRelease) -> None:
+        """Records the origin candidate whose RED release group matched; it becomes the item's `release_name`."""
+        self.matched_origin = origin
+        self.release_name = origin.release_name
 
     def set_mb_release(self, mbr: MBRelease) -> None:
         self._mb_release = mbr

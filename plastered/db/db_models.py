@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Self
 
 from sqlmodel import Field, SQLModel, create_engine
 
+from plastered.models import OriginSource
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import RedClientSnatchException
 
@@ -141,6 +142,24 @@ class Matched(SQLModel, table=True):
     media: str | None = Field(default=None)
     format: str | None = Field(default=None)
     encoding: str | None = Field(default=None)
+
+
+class ResolvedOrigin(SQLModel, table=True):
+    """
+    The origin release resolved for a track search (`SearchRecord`), kept so track-to-release resolution can be
+    measured per source. Written with the top-ranked candidate once resolution completes, then replaced by the
+    candidate whose RED release group matched (`matched=True`). `candidate_rank` is the recorded candidate's 0-based
+    position in the ranked candidate list of `candidate_count` entries. At most one row per search.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    search_id: int | None = Field(default=None, foreign_key="searchrecord.id", index=True)
+    release_name: str
+    source: OriginSource
+    release_mbid: str | None = Field(default=None)
+    candidate_rank: int
+    candidate_count: int
+    matched: bool = Field(default=False)
 
 
 class ScraperRunStatus(StrEnum):

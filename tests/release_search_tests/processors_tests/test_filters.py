@@ -5,7 +5,7 @@ import pytest
 from plastered.db.db_models import SkipReason, Status
 from plastered.models import EntityType
 from plastered.models.search_item import SearchItem
-from plastered.models.lfm_models import LFMTrackInfo
+from plastered.models import OriginRelease, OriginSource
 from plastered.release_search.processors.filters import (
     BaseFilter,
     PreMBIDResolutionFilter,
@@ -100,7 +100,7 @@ def test_origin_track_skip_reason_attribution(
     """A missing origin release is attributed to a failed LFM/MB request when one occurred during resolution."""
     mock_si = make_track_search_item(is_lfm_rec=True)
     if has_track_info:
-        mock_si._lfm_track_info = LFMTrackInfo(artist="a", track_name="t", release_name="r", lfm_url="u")
+        mock_si.set_origin_candidates([OriginRelease(release_name="r", source=OriginSource.LFM)])
     mock_si.lfm_request_failed = lfm_request_failed
     mock_si.mb_request_failed = mb_request_failed
     assert _origin_track_skip_reason(si=mock_si) == expected
