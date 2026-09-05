@@ -4,6 +4,7 @@ from plastered.models.musicbrainz_models import MBRelease
 from plastered.models.origin_release import (
     OriginRelease,
     OriginSource,
+    artist_credit_matches,
     origin_releases_from_recording,
     rank_origin_candidates,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "OriginRelease",
     "OriginSource",
     "TRACK_ORIGIN_RELEASE_TYPES",
+    "artist_credit_matches",
     "origin_releases_from_recording",
     "rank_origin_candidates",
     "RedFormat",

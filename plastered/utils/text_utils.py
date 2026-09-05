@@ -9,6 +9,7 @@ and scores the wanted release title against the group names with `title_match_sc
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from difflib import SequenceMatcher
 from typing import Final
@@ -24,6 +25,22 @@ CANDIDATE_TOKEN_SUBSET_SCORE: Final[float] = 0.85
 # Minimum score for a candidate title to be considered a match at all.
 MIN_MATCH_SCORE: Final[float] = 0.8
 
+# Trailing decorations of a track title (see `strip_title_suffixes`): a bracketed group ("(feat. X)", "[Live]",
+# "(2011 Remaster)"), a dash-separated suffix ("Song - Remastered 2011", "Song—Live") and a featured-artist segment
+# ("Song feat. X").
+_TRAILING_BRACKETED_PATTERN: Final[re.Pattern[str]] = re.compile(r"\s*[(\[][^()\[\]]*[)\]]\s*$")
+# A hyphen separates only when spaced (a hyphenated word is no suffix); en / em dashes separate spaced or not.
+_DASH_SUFFIX_PATTERN: Final[re.Pattern[str]] = re.compile(r"(?:\s+-\s+|\s*[\u2013\u2014]\s*).*$")
+# The dotted markers need no whitespace after them ("(feat.X)").
+_FEAT_MARKER: Final[str] = r"(?:featuring\s+|feat\.\s*|feat\s+|ft\.\s*|ft\s+)"
+_FEAT_SUFFIX_PATTERN: Final[re.Pattern[str]] = re.compile(rf"\s+{_FEAT_MARKER}.*$", re.IGNORECASE)
+# The names a "feat." segment carries (see `featured_artists`): the text after the marker up to a bracket, and the
+# separators between several names.
+_FEATURED_SEGMENT_PATTERN: Final[re.Pattern[str]] = re.compile(
+    rf"(?<=[\s(\[]){_FEAT_MARKER}([^()\[\]]+)", re.IGNORECASE
+)
+_FEATURED_NAME_SEPARATOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"\s*(?:,|&|\+|\band\b)\s*", re.IGNORECASE)
+
 
 def normalize_title(title: str) -> str:
     """
@@ -35,6 +52,38 @@ def normalize_title(title: str) -> str:
     unified = stripped_accents.replace("&", " and ")
     alphanumeric_only = "".join(char if (char.isalnum() or char.isspace()) else " " for char in unified)
     return " ".join(alphanumeric_only.split())
+
+
+def strip_title_suffixes(title: str) -> str:
+    """
+    The title without its trailing decorations — bracketed groups, a dash-separated suffix and a featured-artist
+    segment — removed repeatedly until none remains (e.g. "Song (feat. X) - 2011 Remaster" → "Song"). A leading
+    bracketed group ("(Don't Fear) The Reaper") is kept, and a strip that would leave nothing is skipped: a fully
+    bracketed title keeps its bracketed core ("(Nice Dream) - Remastered" → "(Nice Dream)", "(Untitled)" unchanged).
+    """
+    stripped = title.strip()
+    while True:
+        previous = stripped
+        for pattern in (_TRAILING_BRACKETED_PATTERN, _DASH_SUFFIX_PATTERN, _FEAT_SUFFIX_PATTERN):
+            if candidate := pattern.sub("", stripped).strip():
+                stripped = candidate
+        if stripped == previous:
+            return stripped or title
+
+
+def featured_artists(title: str) -> tuple[str, ...]:
+    """
+    The artists the title's "feat." segments name. A segment naming several artists — split on commas, ampersands,
+    plus signs and "and" — is returned whole as well, since it may name a single band: ("X & Y", "X", "Y") for
+    "Song (feat. X & Y) - Live", ("Chase & Status", "Chase", "Status") for "Song (feat. Chase & Status)". Empty when
+    the title names none.
+    """
+    names: list[str] = []
+    for segment in _FEATURED_SEGMENT_PATTERN.findall(title):
+        segment = _DASH_SUFFIX_PATTERN.sub("", segment).strip()
+        split_names = [name.strip() for name in _FEATURED_NAME_SEPARATOR_PATTERN.split(segment) if name.strip()]
+        names.extend([segment, *split_names] if len(split_names) > 1 else split_names)
+    return tuple(names)
 
 
 def same_name(first: str, second: str) -> bool:
