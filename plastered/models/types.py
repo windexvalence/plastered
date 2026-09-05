@@ -1,5 +1,5 @@
 from enum import IntEnum, StrEnum
-from typing import Annotated
+from typing import Annotated, Final
 
 from pydantic import BeforeValidator
 
@@ -28,6 +28,42 @@ class RedReleaseType(IntEnum):
     COMPOSITION = 1022
     REMIXED_BY = 1023
     GUEST_APPEARANCE = 1024
+
+
+# The only RED release types a track is taken to originate from. A track search drops candidate origin releases and
+# RED groups of any other type (compilations, live albums, remixes, ...) outright.
+TRACK_ORIGIN_RELEASE_TYPES: Final[frozenset[RedReleaseType]] = frozenset(
+    {RedReleaseType.ALBUM, RedReleaseType.EP, RedReleaseType.SINGLE, RedReleaseType.SOUNDTRACK}
+)
+# MB secondary types RED files under a type of their own (a "Compilation" album is a RED Compilation, not an Album).
+RED_RELEASE_TYPE_BY_MB_SECONDARY_TYPE: Final[dict[str, RedReleaseType]] = {
+    "compilation": RedReleaseType.COMPILATION,
+    "live": RedReleaseType.LIVE_ALBUM,
+    "soundtrack": RedReleaseType.SOUNDTRACK,
+    "remix": RedReleaseType.REMIX,
+    "dj-mix": RedReleaseType.DJ_MIX,
+    "mixtape/street": RedReleaseType.MIXTAPE,
+    "demo": RedReleaseType.DEMO,
+    "interview": RedReleaseType.INTERVIEW,
+}
+
+
+def red_release_type_from_mb_types(
+    primary_type: str | None, secondary_types: tuple[str, ...] = ()
+) -> RedReleaseType | None:
+    """
+    The RED release type of an MB release group: a RED-mapped secondary type (compilation, live, ...) wins over the
+    primary type. `None` when unknown or unmapped (a null primary type, "Broadcast", "Other").
+    """
+    for secondary_type in secondary_types:
+        if (red_release_type := RED_RELEASE_TYPE_BY_MB_SECONDARY_TYPE.get(secondary_type.casefold())) is not None:
+            return red_release_type
+    if not primary_type:
+        return None
+    try:
+        return RedReleaseType[primary_type.upper()]
+    except KeyError:
+        return None
 
 
 class EncodingEnum(StrEnum):

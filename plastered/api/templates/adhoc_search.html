@@ -29,7 +29,7 @@
         <label for="mbid">MusicBrainz release ID</label>
         <input type="text" id="mbid" name="mbid">
 
-        <label for="release_type">Release type</label>
+        <label for="release_type">Release type <small>(track searches: album, EP, single or soundtrack only)</small></label>
         <select id="release_type" name="release_type">
             <option value="">— any —</option>
             {% for rt in release_types %}

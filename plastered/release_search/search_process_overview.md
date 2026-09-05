@@ -17,9 +17,9 @@ at startup) without one run's matches leaking into the next.
 Each `SearchItem` is then processed by an ordered sequence of modifiers and filters that branches by
 `EntityType` (album vs. track) and re-converges on the processors the two share. A track item first
 resolves a ranked list of candidate origin releases (`ResolveTrackOriginModifier`: the LFM album plus
-the releases MusicBrainz lists for the recording), and `SearchRedReleaseByPrefsModifier` then tries
-those candidates in order against the artist's RED release groups
-(`SearchState.match_track_origin_candidates`). Every
+the releases MusicBrainz lists for the recording — albums / EPs / singles / soundtracks only), and
+`SearchRedReleaseByPrefsModifier` then tries those candidates in order against the artist's RED
+release groups of those same types (`SearchState.match_track_origin_candidates`). Every
 `SearchItemFilter` may short-circuit processing: if its rules reject the item, the item is
 dropped (recorded with a `SkipReason`). Modifiers enrich the item in place and always pass it
 along. Items that survive become snatch candidates handed off to the `Snatcher`. (See the

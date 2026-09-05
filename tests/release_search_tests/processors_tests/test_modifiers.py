@@ -228,11 +228,10 @@ class TestResolveTrackOriginModifier:
         si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
         capped_listing = [
             OriginRelease(
-                release_name=f"Compilation {i}",
+                release_name=f"Album {i}",
                 source=OriginSource.MB_RECORDING_LOOKUP,
                 release_group_mbid=f"rg-{i}",
                 primary_type="Album",
-                secondary_types=("Compilation",),
                 release_date=str(2000 + i),
             )
             for i in range(MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP)

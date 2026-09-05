@@ -144,9 +144,34 @@ def test_get_origin_search_kwargs_top_candidate_merges_mb_release_and_own_values
     assert dict(other_kwargs) == {RED_PARAM_RELEASE_TYPE: RedReleaseType.SINGLE.value, RED_PARAM_RELEASE_YEAR: 2006}
 
 
-def test_get_origin_search_kwargs_mb_release_values_beat_own_values_for_top_candidate() -> None:
+def test_get_origin_search_kwargs_own_type_beats_mb_release_type_for_top_candidate() -> None:
+    """The MB release only knows the primary type ("Album"); the candidate knows the group is a soundtrack."""
     si = _track_si()
-    si.set_origin_candidates([_origin("Album", primary_type="Single", date="2005")])
+    soundtrack = OriginRelease(
+        release_name="OST",
+        source=OriginSource.MB_RECORDING_LOOKUP,
+        primary_type="Album",
+        secondary_types=("Soundtrack",),
+        release_date="2005",
+    )
+    si.set_origin_candidates([soundtrack])
+    si.set_mb_release(_mb_release(mbid="m"))
+    kwargs = si.get_origin_search_kwargs(origin=si.origin_candidates[0])
+    assert kwargs[RED_PARAM_RELEASE_TYPE] == RedReleaseType.SOUNDTRACK.value and kwargs[RED_PARAM_RELEASE_YEAR] == 2005
+
+
+def test_get_origin_search_kwargs_mb_release_fills_a_typeless_top_candidate() -> None:
+    si = _track_si()
+    si.set_origin_candidates([OriginRelease(release_name="LFM Album", source=OriginSource.LFM)])
+    si.set_mb_release(_mb_release(mbid="m"))
+    assert si.get_origin_search_kwargs(origin=si.origin_candidates[0])[RED_PARAM_RELEASE_TYPE] == (
+        RedReleaseType.ALBUM.value
+    )
+
+
+def test_get_origin_search_kwargs_mb_release_year_beats_own_year_for_top_candidate() -> None:
+    si = _track_si()
+    si.set_origin_candidates([_origin("Album", date="2005")])
     mbr = _mb_release(mbid="m")
     mbr.first_release_year = 1999
     si.set_mb_release(mbr)

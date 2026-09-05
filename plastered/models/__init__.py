@@ -9,7 +9,14 @@ from plastered.models.origin_release import (
 )
 from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry, TorrentMatch
 from plastered.models.search_item import InitialInfo, SearchItem
-from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum, RedReleaseType
+from plastered.models.types import (
+    TRACK_ORIGIN_RELEASE_TYPES,
+    EncodingEnum,
+    EntityType,
+    FormatEnum,
+    MediaEnum,
+    RedReleaseType,
+)
 
 __all__ = [
     "AdhocSearch",
@@ -18,6 +25,7 @@ __all__ = [
     "MBRelease",
     "OriginRelease",
     "OriginSource",
+    "TRACK_ORIGIN_RELEASE_TYPES",
     "origin_releases_from_recording",
     "rank_origin_candidates",
     "RedFormat",
