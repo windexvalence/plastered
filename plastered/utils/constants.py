@@ -1,11 +1,15 @@
 from typing import Final
 
+PROJECT_REPO_URL: Final[str] = "https://github.com/windexvalence/plastered"
+
 RED_API_BASE_URL: Final[str] = "https://redacted.sh/ajax.php"
 LFM_API_BASE_URL: Final[str] = "https://ws.audioscrobbler.com/2.0/"
 MUSICBRAINZ_API_BASE_URL: Final[str] = "https://musicbrainz.org/ws/2/"
 # MB lookups list at most this many linked entities (e.g. the releases of a recording); the rest need a browse/search.
 # https://musicbrainz.org/doc/MusicBrainz_API#Lookups
 MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP: Final[int] = 25
+# The most results an MB search request may return. https://musicbrainz.org/doc/MusicBrainz_API/Search
+MUSICBRAINZ_SEARCH_RESULT_LIMIT: Final[int] = 100
 
 RED_JSON_RESPONSE_KEY: Final[str] = "response"
 

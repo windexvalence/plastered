@@ -66,9 +66,15 @@ class LFMAPIClient(ThrottledAPIBaseClient):
         return json_data[top_key]
 
     def get_album_info(self, si: SearchItem) -> dict[str, Any]:
-        request_params = f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}"
+        """`album.getinfo`; `autocorrect=1` has LFM resolve misspelled / variant artist names."""
+        request_params = (
+            f"artist={si.initial_info.encoded_artist_str}&album={si.initial_info.encoded_entity_str}&autocorrect=1"
+        )
         return self.request_api(method="album.getinfo", params=request_params)
 
     def get_track_info(self, si: SearchItem) -> dict[str, Any]:
-        request_params = f"artist={si.initial_info.encoded_artist_str}&track={si.initial_info.encoded_entity_str}"
+        """`track.getinfo`; `autocorrect=1` has LFM resolve misspelled / variant artist and track names."""
+        request_params = (
+            f"artist={si.initial_info.encoded_artist_str}&track={si.initial_info.encoded_entity_str}&autocorrect=1"
+        )
         return self.request_api(method="track.getinfo", params=request_params)

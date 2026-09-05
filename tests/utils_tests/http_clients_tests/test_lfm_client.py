@@ -102,6 +102,7 @@ def test_get_album_info(
     mock_si: SearchItem = make_album_search_item(is_lfm_rec=is_lfm_rec)
     expected_req_params = (
         f"artist={mock_si.initial_info.encoded_artist_str}&album={mock_si.initial_info.encoded_entity_str}"
+        "&autocorrect=1"
     )
     with patch.object(LFMAPIClient, "request_api", return_value=dict()) as mock_request_api:
         test_client = LFMAPIClient(app_settings=valid_app_settings)
@@ -117,6 +118,7 @@ def test_get_track_info(
     mock_si: SearchItem = make_track_search_item(is_lfm_rec=is_lfm_rec)
     expected_req_params = (
         f"artist={mock_si.initial_info.encoded_artist_str}&track={mock_si.initial_info.encoded_entity_str}"
+        "&autocorrect=1"
     )
     with patch.object(LFMAPIClient, "request_api", return_value=dict()) as mock_request_api:
         test_client = LFMAPIClient(app_settings=valid_app_settings)

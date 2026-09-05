@@ -1,3 +1,4 @@
+import copy
 import re
 from typing import Any
 from unittest.mock import Mock
@@ -8,8 +9,10 @@ import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.models import OriginSource
+from plastered.utils.constants import PROJECT_REPO_URL
 from plastered.utils.exceptions import MusicBrainzClientException, MusicBrainzRequestFailureException
 from plastered.utils.http_clients.musicbrainz_client import MusicBrainzAPIClient, _select_searched_release
+from plastered.version import get_project_version
 
 _TUSS_ARID = "09292e4d-b7ad-476b-86d9-7806303ef8c3"
 _OCTAGON_ARID = "3eba5e02-780b-4acd-befb-d23a0c6708dd"
@@ -26,6 +29,17 @@ def _mb_client(app_settings: AppSettings) -> MusicBrainzAPIClient:
     mb_client = MusicBrainzAPIClient(app_settings=app_settings)
     mb_client._throttle = Mock(name="_throttle", return_value=None)
     return mb_client
+
+
+@pytest.mark.override_global_httpx_mock
+def test_mb_client_sends_identifying_user_agent(httpx2_mock: respx.Router, valid_app_settings: AppSettings) -> None:
+    """Every MB request carries the app-identifying User-Agent MB's rate-limiting policy requires."""
+    httpx2_mock.route().respond(json={"id": "x"})
+    _mb_client(valid_app_settings).request_release_details(mbid="x")
+    assert (
+        httpx2_mock.calls[0].request.headers["user-agent"]
+        == f"plastered/{get_project_version()} ( {PROJECT_REPO_URL} )"
+    )
 
 
 @pytest.mark.parametrize("expected_mbid", ["d211379d-3203-47ed-a0c5-e564815bb45a"])
@@ -71,14 +85,29 @@ def test_request_release_details_invalid_json(httpx2_mock: respx.Router, valid_a
 @pytest.mark.parametrize(
     "track_name, artist_name, artist_mbid, constrained, expected",
     [
-        ("Some Track", "Some Artist", "69-420abc", False, "recording:%22Some%20Track%22%20AND%20arid:69-420abc"),
-        ("Some Track", "Some Artist", None, False, "recording:%22Some%20Track%22%20AND%20artist:%22Some%20Artist%22"),
+        (
+            "Some Track",
+            "Some Artist",
+            "69-420abc",
+            False,
+            "recording:%22Some%20Track%22%20AND%20arid:69-420abc%20AND%20NOT%20video:true",
+        ),
+        # Without an artist MBID the artist is matched by the combined credit OR any single credited artist's name.
+        (
+            "Some Track",
+            "Some Artist",
+            None,
+            False,
+            "recording:%22Some%20Track%22%20AND%20%28artist:%22Some%20Artist%22%20OR%20artistname:%22Some%20Artist%22%29"
+            "%20AND%20NOT%20video:true",
+        ),
         (
             "Some Track",
             "Some Artist",
             "69-420abc",
             True,
-            "recording:%22Some%20Track%22%20AND%20arid:69-420abc%20AND%20status:official%20AND%20primarytype:album",
+            "recording:%22Some%20Track%22%20AND%20arid:69-420abc%20AND%20NOT%20video:true%20AND%20status:official"
+            "%20AND%20primarytype:album",
         ),
         # Embedded quotes must be escaped so they can't break out of the Lucene phrase term.
         (
@@ -86,7 +115,8 @@ def test_request_release_details_invalid_json(httpx2_mock: respx.Router, valid_a
             'Artist "Quoted"',
             None,
             False,
-            "recording:%22Track%20%5C%22Quoted%5C%22%22%20AND%20artist:%22Artist%20%5C%22Quoted%5C%22%22",
+            "recording:%22Track%20%5C%22Quoted%5C%22%22%20AND%20%28artist:%22Artist%20%5C%22Quoted%5C%22%22%20OR%20"
+            "artistname:%22Artist%20%5C%22Quoted%5C%22%22%29%20AND%20NOT%20video:true",
         ),
     ],
 )
@@ -215,6 +245,94 @@ def test_search_recording_origin_releases_constrained_then_unconstrained_retry(
     first_url, second_url = str(httpx2_mock.calls[0].request.url), str(httpx2_mock.calls[1].request.url)
     assert "status:official" in first_url and "primarytype:album" in first_url
     assert "status:official" not in second_url
+
+
+@pytest.mark.override_global_httpx_mock
+def test_search_recording_origin_releases_request_shape(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings
+) -> None:
+    """Each recording search asks for MB's maximum result page and excludes video recordings."""
+    httpx2_mock.route().respond(json={"recordings": []})
+    assert _mb_client(valid_app_settings).search_recording_origin_releases(track_name="T", artist_name="A") == []
+    assert len(httpx2_mock.calls) == 2
+    for call in httpx2_mock.calls:
+        request_url = str(call.request.url)
+        assert "https://musicbrainz.org/ws/2/recording?query=recording:%22T%22" in request_url
+        assert "NOT%20video:true" in request_url and request_url.endswith("&limit=100&fmt=json")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_search_recording_origin_releases_stripped_title_fallback(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, mock_musicbrainz_track_search_arid_json: dict[str, Any]
+) -> None:
+    """
+    When neither full-title search matches, a third unconstrained search uses the title stripped of its trailing
+    decorations; its recordings still pass the lenient title check against the full track name.
+    """
+    httpx2_mock.route(url__regex=r".*Live.*").respond(json={"recordings": []})
+    httpx2_mock.route(url__regex=r".*recording.*").respond(json=mock_musicbrainz_track_search_arid_json)
+    actual = _mb_client(valid_app_settings).search_recording_origin_releases(
+        track_name="1st rushup m,+3 (Live) - 2011 Remaster", artist_name="The Tuss", artist_mbid=_TUSS_ARID
+    )
+    assert [c.release_name for c in actual] == ["Rushup Edge"]
+    assert len(httpx2_mock.calls) == 3
+    third_url = str(httpx2_mock.calls[2].request.url)
+    assert "recording:%221st%20rushup%20m%2C%2B3%22" in third_url
+    assert "Live" not in third_url and "Remaster" not in third_url and "status:official" not in third_url
+
+
+@pytest.mark.override_global_httpx_mock
+@pytest.mark.parametrize(
+    "featured_segment, featured_credit_name, expected_release_names",
+    [
+        ("Someone", "Someone", ["Rushup Edge"]),  # the recording credits the featured artist: accepted
+        ("Someone", "Someone Else", []),  # the artist's same-titled recording without that credit: rejected
+        ("Chase & Status", "Chase & Status", ["Rushup Edge"]),  # a featured band credited under its full name
+        ("Someone & Chase", "Chase", ["Rushup Edge"]),  # one of several featured artists credited
+    ],
+)
+def test_search_recording_origin_releases_stripped_feat_requires_featured_credit(
+    httpx2_mock: respx.Router,
+    valid_app_settings: AppSettings,
+    mock_musicbrainz_track_search_arid_json: dict[str, Any],
+    featured_segment: str,
+    featured_credit_name: str,
+    expected_release_names: list[str],
+) -> None:
+    """A stripped "(feat. X)" pass only accepts recordings whose artist credit names X."""
+    search_json = copy.deepcopy(mock_musicbrainz_track_search_arid_json)
+    search_json["recordings"][0]["artist-credit"][0]["joinphrase"] = " feat. "
+    search_json["recordings"][0]["artist-credit"].append(
+        {"name": featured_credit_name, "artist": {"id": "feat-arid", "name": featured_credit_name}}
+    )
+    httpx2_mock.route(url__regex=r".*feat.*").respond(json={"recordings": []})
+    httpx2_mock.route(url__regex=r".*recording.*").respond(json=search_json)
+    actual = _mb_client(valid_app_settings).search_recording_origin_releases(
+        track_name=f"1st rushup m,+3 (feat. {featured_segment})", artist_name="The Tuss", artist_mbid=_TUSS_ARID
+    )
+    assert [c.release_name for c in actual] == expected_release_names
+    assert len(httpx2_mock.calls) == 3
+
+
+@pytest.mark.override_global_httpx_mock
+@pytest.mark.parametrize(
+    "track_name, expected_call_count",
+    [
+        ("Some Other Track", 2),  # no trailing decoration: nothing to strip, no third search
+        ("Some Other Track (Live)", 3),
+        ("(Untitled)", 2),  # stripping would leave nothing: the title stands, no third search
+        ("(Nice Dream) - Remastered", 3),  # the bracketed core survives, so the suffix strip earns a third search
+    ],
+)
+def test_search_recording_origin_releases_search_pass_count(
+    httpx2_mock: respx.Router, valid_app_settings: AppSettings, track_name: str, expected_call_count: int
+) -> None:
+    httpx2_mock.route().respond(json={"recordings": []})
+    actual = _mb_client(valid_app_settings).search_recording_origin_releases(
+        track_name=track_name, artist_name="The Tuss", artist_mbid=_TUSS_ARID
+    )
+    assert actual == []
+    assert len(httpx2_mock.calls) == expected_call_count
 
 
 @pytest.mark.override_global_httpx_mock

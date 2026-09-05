@@ -7,11 +7,12 @@ from urllib.parse import quote
 
 import httpx2
 
-from plastered.models import OriginSource, origin_releases_from_recording
-from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL
+from plastered.models import OriginSource, artist_credit_matches, origin_releases_from_recording
+from plastered.utils.constants import MUSICBRAINZ_API_BASE_URL, MUSICBRAINZ_SEARCH_RESULT_LIMIT, PROJECT_REPO_URL
 from plastered.utils.exceptions import MusicBrainzClientException, MusicBrainzRequestFailureException
 from plastered.utils.http_clients.base_client import LOGGER, ThrottledAPIBaseClient
-from plastered.utils.text_utils import same_name
+from plastered.utils.text_utils import featured_artists, same_name, strip_title_suffixes
+from plastered.version import get_project_version
 
 if TYPE_CHECKING:
     from plastered.config.app_settings import AppSettings
@@ -39,6 +40,11 @@ def _select_searched_release(releases: list[dict[str, Any]], release_name: str) 
     return titled_like_wanted[0] if titled_like_wanted else releases[0]
 
 
+def _credits_any_artist(recording_json: dict[str, Any], artist_names: tuple[str, ...]) -> bool:
+    """Whether the MB recording's artist credit names any of the given artists (see `artist_credit_matches`)."""
+    return any(artist_credit_matches(recording_json.get("artist-credit"), artist_name=name) for name in artist_names)
+
+
 # TODO (later): refactor public `request*` methods to return Pydantic model classes.
 class MusicBrainzAPIClient(ThrottledAPIBaseClient):
     """
@@ -52,6 +58,9 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
             max_api_call_retries=app_settings.musicbrainz.musicbrainz_api_max_retries,
             seconds_between_api_calls=app_settings.musicbrainz.musicbrainz_api_seconds_between_calls,
         )
+        # MB throttles / rejects requests that carry a generic User-Agent:
+        # https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting#Provide_meaningful_User-Agent_strings
+        self._client.headers.update({"User-Agent": f"plastered/{get_project_version()} ( {PROJECT_REPO_URL} )"})
         self._recording_endpoint = "recording"
         self._release_endpoint = "release"
 
@@ -143,11 +152,18 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
     ) -> str:
         """
         Builds the (URL-quoted) Lucene query for the MB recording search. The artist is matched by MBID when one is
-        known, else by name. When `constrained`, the query additionally requires an official release from an Album
-        release group, biasing results toward the canonical origin album.
+        known, else by name — against the combined artist credit (`artist`) or any single credited artist's own name
+        (`artistname`), so a "feat." credit or a credit under a variant name still matches. Video recordings are
+        excluded. When `constrained`, the query additionally requires an official release from an Album release
+        group, biasing results toward the canonical origin album.
         """
         query_clauses = [f'recording:"{_escape_lucene_phrase(track_name)}"']
-        query_clauses.append(f"arid:{artist_mbid}" if artist_mbid else f'artist:"{_escape_lucene_phrase(artist_name)}"')
+        if artist_mbid:
+            query_clauses.append(f"arid:{artist_mbid}")
+        else:
+            escaped_artist_name = _escape_lucene_phrase(artist_name)
+            query_clauses.append(f'(artist:"{escaped_artist_name}" OR artistname:"{escaped_artist_name}")')
+        query_clauses.append("NOT video:true")
         if constrained:
             query_clauses.extend(["status:official", "primarytype:album"])
         return quote(" AND ".join(query_clauses), safe=":")
@@ -184,21 +200,37 @@ class MusicBrainzAPIClient(ThrottledAPIBaseClient):
         Only recordings titled like the wanted track and credited to the wanted artist contribute candidates. A
         constrained query (requiring an official release from an Album release group) is attempted first; when it
         yields no candidates, the search is retried unconstrained (for tracks that only exist on singles/EPs/etc.).
+        When both come back empty and the title carries trailing decorations ("(feat. X)", "- 2011 Remaster", ...),
+        a last unconstrained pass searches the stripped title (see `strip_title_suffixes`): MB recording titles
+        usually omit such suffixes, which the phrase query on the full title cannot match. The candidates' titles are
+        still checked (leniently) against the full track name by `origin_releases_from_recording`. When the stripped
+        decoration named featured artists, the stripped pass only accepts recordings whose artist credit names one of
+        them — MB credits featured artists there rather than in the title — so "Intro (feat. X)" cannot resolve to
+        the artist's other "Intro" recordings.
         Returns an empty list when nothing matches (or on an HTTP error response). Raises
         `MusicBrainzRequestFailureException` on a connection/transport failure that survives the transport-level
         retries or on an unusable (non-JSON) payload.
         """
         LOGGER.debug(f"Searching MB for the recordings of track '{track_name}' by '{artist_name}' ...")
-        for constrained in (True, False):
+        # (query title, constrained, featured artists the recording credit MUST name)
+        search_passes: list[tuple[str, bool, tuple[str, ...]]] = [(track_name, True, ()), (track_name, False, ())]
+        if not same_name(stripped_track_name := strip_title_suffixes(track_name), track_name):
+            search_passes.append((stripped_track_name, False, featured_artists(track_name)))
+        for query_track_name, constrained, required_featured_artists in search_passes:
             query_str = self._get_track_search_query_str(
-                track_name=track_name, artist_name=artist_name, artist_mbid=artist_mbid, constrained=constrained
+                track_name=query_track_name, artist_name=artist_name, artist_mbid=artist_mbid, constrained=constrained
             )
-            request_url = f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={query_str}&fmt=json"
+            request_url = (
+                f"{MUSICBRAINZ_API_BASE_URL}{self._recording_endpoint}?query={query_str}"
+                f"&limit={MUSICBRAINZ_SEARCH_RESULT_LIMIT}&fmt=json"
+            )
             json_data = self._request_json_or_none(request_url=request_url)
             if json_data is None:
                 return []
             candidates: list[OriginRelease] = []
             for recording_json in json_data.get("recordings") or []:
+                if required_featured_artists and not _credits_any_artist(recording_json, required_featured_artists):
+                    continue
                 candidates.extend(
                     origin_releases_from_recording(
                         recording_json=recording_json,
