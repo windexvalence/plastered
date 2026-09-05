@@ -939,6 +939,35 @@ class TestGetCandidateReleaseGroupsForOrigin:
         top = state.get_candidate_release_groups(si=si, release_entries=entries, origin=si.origin_candidates[0])
         assert [re.group_id for re in top] == [1]
 
+    def test_non_origin_group_types_are_dropped_for_tracks_only(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        """Whatever the release-type settings, a track never matches a compilation / live album / ... group."""
+        state = _make_search_state(valid_config_raw_data, valid_config_filepath, _ALL_SEARCH_FIELDS_DISABLED)
+        entries = [
+            _group(1, "Some Album", release_type=RedReleaseType.COMPILATION),
+            _group(2, "Some Album", release_type=RedReleaseType.LIVE_ALBUM),
+            _group(3, "Some Album", release_type=RedReleaseType.ANTHOLOGY),
+            _group(4, "Some Album", release_type=RedReleaseType.SOUNDTRACK),
+            _group(5, "Some Album", release_type=RedReleaseType.ALBUM),
+            _group(6, "Some Album", release_type=RedReleaseType.EP),
+            _group(7, "Some Album", release_type=RedReleaseType.SINGLE),
+            _group(8, "Some Album", release_type=RedReleaseType.BOOTLEG),
+        ]
+        si = _track_si()
+        si.set_origin_candidates([_origin("Some Album")])
+        for strict_release_type in (True, False):
+            actual = state.get_candidate_release_groups(
+                si=si, release_entries=entries, origin=si.origin_candidates[0], strict_release_type=strict_release_type
+            )
+            assert [re.group_id for re in actual] == [4, 5, 6, 7]
+        # An album item is matched against every group type as before.
+        album_rec = LFMRec(lfm_artist_str="Some+Artist", lfm_entity_str="Some+Album", recommendation_type=rt.ALBUM)
+        album_actual = state.get_candidate_release_groups(
+            si=SearchItem(initial_info=album_rec), release_entries=entries
+        )
+        assert [re.group_id for re in album_actual] == [1, 2, 3, 4, 5, 6, 7, 8]
+
     def test_mb_resolved_year_applies_to_the_top_candidate_only(
         self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
     ) -> None:
@@ -1017,6 +1046,15 @@ class TestMatchTrackOriginCandidates:
         actual = state.match_track_origin_candidates(si=si, release_entries=[self._entry(5, "S", RedReleaseType.ALBUM)])
         assert actual.torrent_entry is not None and actual.torrent_entry.torrent_id == 5
         assert si.matched_origin == si.origin_candidates[0]
+
+    def test_non_origin_group_types_never_match(self, state: SearchState) -> None:
+        """Neither pass considers a compilation / live album group, even as the only same-titled one."""
+        si = _track_si()
+        si.set_origin_candidates([_origin("A")])
+        entries = [self._entry(1, "A", RedReleaseType.COMPILATION), self._entry(2, "A", RedReleaseType.LIVE_ALBUM)]
+        actual = state.match_track_origin_candidates(si=si, release_entries=entries)
+        assert actual == TorrentMatch(torrent_entry=None, above_max_size_found=False)
+        assert si.matched_origin is None
 
     def test_strict_pass_over_every_candidate_precedes_the_lenient_pass(self, state: SearchState) -> None:
         si = _track_si()

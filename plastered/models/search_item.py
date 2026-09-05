@@ -89,18 +89,16 @@ class SearchItem:
     def get_origin_search_kwargs(self, origin: OriginRelease) -> OrderedDict[str, Any]:
         """
         The search kwargs for matching one origin candidate against RED. The MB-resolved values describe the top
-        candidate, so they seed the kwargs for it only; the candidate's own release type / year fill any gaps; and the
-        user-supplied ad-hoc values win over everything, for every candidate.
+        candidate, so they seed the kwargs for it only. The candidate's own release type wins over the MB release's
+        (the candidate's release-group type is secondary-type aware — a soundtrack, not its "Album" primary type —
+        the MB release's is not) and its own year fills a missing one. The user-supplied ad-hoc values win over
+        everything, for every candidate.
         """
         kwargs: OrderedDict[str, Any] = OrderedDict(self._search_kwargs if origin == self.top_origin else {})
-        red_release_type = origin.get_red_release_type()
-        own_values = {
-            RED_PARAM_RELEASE_TYPE: red_release_type.value if red_release_type is not None else None,
-            RED_PARAM_RELEASE_YEAR: origin.release_year,
-        }
-        for red_param, value in own_values.items():
-            if value is not None and kwargs.get(red_param) is None:
-                kwargs[red_param] = value
+        if (red_release_type := origin.get_red_release_type()) is not None:
+            kwargs[RED_PARAM_RELEASE_TYPE] = red_release_type.value
+        if origin.release_year is not None and kwargs.get(RED_PARAM_RELEASE_YEAR) is None:
+            kwargs[RED_PARAM_RELEASE_YEAR] = origin.release_year
         kwargs.update({k: v for k, v in self._user_search_kwargs.items() if v is not None})
         return kwargs
 

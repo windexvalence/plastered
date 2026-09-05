@@ -5,7 +5,14 @@ from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
-from plastered.models import RedUserDetails, ReleaseEntry, SearchItem, TorrentEntry, TorrentMatch
+from plastered.models import (
+    TRACK_ORIGIN_RELEASE_TYPES,
+    RedUserDetails,
+    ReleaseEntry,
+    SearchItem,
+    TorrentEntry,
+    TorrentMatch,
+)
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
@@ -127,14 +134,18 @@ class SearchState:
         release is the item's own (`si.release_name` + `si.get_search_kwargs()`), or — for a track item — the given
         `origin` candidate (its title + `si.get_origin_search_kwargs`). Returns the matching groups ordered best-first:
 
-        1. Groups are title-matched via `title_match_score` (with the lenient fuzzy tiers included only when
+        1. For a track item (`origin` given), groups of a type a track cannot originate from — anything but an
+           album / EP / single / soundtrack (`TRACK_ORIGIN_RELEASE_TYPES`) — are dropped outright, whatever the
+           release-type settings: a same-titled compilation or live album carries another version of the track at
+           best.
+        2. Groups are title-matched via `title_match_score` (with the lenient fuzzy tiers included only when
            `red.search.fuzzy_search_enabled` is on).
-        2. When a release type is available, groups of a different type are dropped — or, when not
+        3. When a release type is available, groups of a different type are dropped — or, when not
            `strict_release_type`, merely ranked below the type-matching groups, provided their title matches exactly.
-        3. When a release year is available, groups from a different year are dropped — unless that would eliminate
+        4. When a release year is available, groups from a different year are dropped — unless that would eliminate
            every remaining candidate, in which case the year filter is skipped entirely: a wrong or edition-specific
            year should narrow the match, never kill it.
-        4. Candidates are ordered by title score, then release-type match, then by a matching record label /
+        5. Candidates are ordered by title score, then release-type match, then by a matching record label /
            catalogue number. Label and catalogue number are ranking signals only — a mismatch never drops a group.
         """
         wanted_title = origin.release_name if origin is not None else si.release_name
@@ -151,6 +162,8 @@ class SearchState:
         )
         scored_entries: list[tuple[float, bool, ReleaseEntry]] = []
         for release_entry in release_entries:
+            if origin is not None and release_entry.release_type not in TRACK_ORIGIN_RELEASE_TYPES:
+                continue
             score = title_match_score(
                 wanted_title=wanted_title,
                 candidate_title=release_entry.group_name,
@@ -195,8 +208,9 @@ class SearchState:
         returns the first torrent match (recording the matching candidate on the item via `set_matched_origin`). A
         strict pass, where each candidate's release type filters the groups as it does for albums, precedes a lenient
         pass where the type only ranks them — a wrong or edition-specific origin release type never eliminates every
-        candidate. Candidates the user already snatched are skipped (when `skip_prior_snatches` is on). Reports
-        `above_max_size_found` when any candidate's only format matches exceeded the size limit.
+        candidate. Both passes only ever consider album / EP / single / soundtrack groups
+        (`TRACK_ORIGIN_RELEASE_TYPES`). Candidates the user already snatched are skipped (when `skip_prior_snatches`
+        is on). Reports `above_max_size_found` when any candidate's only format matches exceeded the size limit.
         """
         above_max_size_found = False
         for strict_release_type in (True, False):

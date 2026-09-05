@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -55,6 +56,17 @@ def test_eq(other: Any, expected: bool) -> None:
     )
     actual = test_instance == other
     assert actual == expected, f"Expected {test_instance}.__eq__(other={other}) to be {expected}, but got {actual}"
+
+
+def test_construct_from_api_reads_secondary_types(mock_musicbrainz_release_json: dict[str, Any]) -> None:
+    json_blob = deepcopy(mock_musicbrainz_release_json)
+    json_blob["release-group"]["secondary-types"] = ["Compilation"]
+    actual = MBRelease.construct_from_api(json_blob=json_blob)
+    assert actual.secondary_types == ("Compilation",)
+    assert actual.get_red_release_type() == RedReleaseType.COMPILATION
+    assert actual.get_release_searcher_kwargs()["releasetype"] == RedReleaseType.COMPILATION.value
+    del json_blob["release-group"]["secondary-types"]
+    assert MBRelease.construct_from_api(json_blob=json_blob).secondary_types == ()
 
 
 def test_construct_from_api(mock_musicbrainz_release_json: dict[str, Any], expected_mb_release: MBRelease) -> None:

@@ -1,8 +1,10 @@
 """
 Candidate origin releases for a track search: the releases a track is known to appear on, gathered from the LFM track
-info and from MusicBrainz, then ranked best-first (see `rank_origin_candidates`). A track belongs to several release
-groups by nature (album, single, compilations, ...), so the searcher tries the candidates in rank order against the
-artist's RED release groups rather than committing to a single origin release up-front.
+info and from MusicBrainz, then ranked best-first (see `rank_origin_candidates`). A track appears on several release
+groups by nature (its album, a single, later compilations, ...), so the searcher tries the candidates in rank order
+against the artist's RED release groups rather than committing to a single origin release up-front — restricted to
+the release types a track can originate from (`TRACK_ORIGIN_RELEASE_TYPES`): a same-titled compilation or live album
+carries another version of the track at best.
 """
 
 from __future__ import annotations
@@ -12,25 +14,24 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from plastered.models.types import RedReleaseType
+from plastered.models.types import (
+    RED_RELEASE_TYPE_BY_MB_SECONDARY_TYPE,
+    TRACK_ORIGIN_RELEASE_TYPES,
+    RedReleaseType,
+    red_release_type_from_mb_types,
+)
 from plastered.utils.text_utils import MIN_MATCH_SCORE, normalize_title, same_name, title_match_score
 
 _RELEASE_YEAR_PATTERN = re.compile(r"^(\d{4})")
-# Ranking tiers (see `OriginRelease.rank_key`): official albums without secondary types, then EPs, then singles, then
-# everything else (compilations, live albums, soundtracks, promos, unknown types).
-_TIER_BY_PRIMARY_TYPE = {"album": 0, "ep": 1, "single": 2}
-_TIER_OTHER = 3
-# MB secondary types RED files under a type of their own (a "Compilation" album is a RED Compilation, not an Album).
-_RED_TYPE_BY_MB_SECONDARY_TYPE = {
-    "compilation": RedReleaseType.COMPILATION,
-    "live": RedReleaseType.LIVE_ALBUM,
-    "soundtrack": RedReleaseType.SOUNDTRACK,
-    "remix": RedReleaseType.REMIX,
-    "dj-mix": RedReleaseType.DJ_MIX,
-    "mixtape/street": RedReleaseType.MIXTAPE,
-    "demo": RedReleaseType.DEMO,
-    "interview": RedReleaseType.INTERVIEW,
+# Ranking tiers (see `OriginRelease.rank_key`): official albums, then EPs, then singles, then soundtracks; unofficial
+# releases and unknown types last.
+_TIER_BY_RED_RELEASE_TYPE = {
+    RedReleaseType.ALBUM: 0,
+    RedReleaseType.EP: 1,
+    RedReleaseType.SINGLE: 2,
+    RedReleaseType.SOUNDTRACK: 3,
 }
+_TIER_UNKNOWN = 4
 
 
 class OriginSource(StrEnum):
@@ -96,19 +97,23 @@ class OriginRelease:
         return int(year_match.group(1)) if year_match else None
 
     def get_red_release_type(self) -> RedReleaseType | None:
+        """The RED release type of the release group (see `red_release_type_from_mb_types`); `None` when unknown."""
+        return red_release_type_from_mb_types(primary_type=self.primary_type, secondary_types=self.secondary_types)
+
+    @property
+    def is_track_origin_type(self) -> bool:
         """
-        The RED release type of the release group: a RED-mapped secondary type (compilation, live, ...) wins over the
-        primary type. `None` when unknown or unmapped (e.g. "Broadcast").
+        Whether the release group is of a type a track can originate from (`TRACK_ORIGIN_RELEASE_TYPES`). Any RED-mapped
+        secondary type outside that set (compilation, live, remix, ...) rules the group out; MB primary types map to
+        allowed RED types or none. An unknown type passes: the RED-side type restriction of
+        `SearchState.get_candidate_release_groups` still applies to its matches.
         """
-        for secondary_type in self.secondary_types:
-            if (red_release_type := _RED_TYPE_BY_MB_SECONDARY_TYPE.get(secondary_type.casefold())) is not None:
-                return red_release_type
-        if not self.primary_type:
-            return None
-        try:
-            return RedReleaseType[self.primary_type.upper()]
-        except KeyError:
-            return None
+        secondary_red_release_types = {
+            red_release_type
+            for secondary_type in self.secondary_types
+            if (red_release_type := RED_RELEASE_TYPE_BY_MB_SECONDARY_TYPE.get(secondary_type.casefold())) is not None
+        }
+        return secondary_red_release_types <= TRACK_ORIGIN_RELEASE_TYPES
 
     @property
     def dedupe_key(self) -> str:
@@ -122,9 +127,9 @@ class OriginRelease:
         """
         # An unknown status is not evidence of an unofficial release, so only an explicit non-official status demotes.
         is_official = self.status is None or self.status.casefold() == "official"
-        tier = _TIER_OTHER
-        if is_official and not self.secondary_types and self.primary_type:
-            tier = _TIER_BY_PRIMARY_TYPE.get(self.primary_type.casefold(), _TIER_OTHER)
+        tier = _TIER_UNKNOWN
+        if is_official and (red_release_type := self.get_red_release_type()) is not None:
+            tier = _TIER_BY_RED_RELEASE_TYPE.get(red_release_type, _TIER_UNKNOWN)
         origin_date, release_date = self.origin_date, self.release_date
         return (tier, origin_date is None, origin_date or "", release_date is None, release_date or "")
 
@@ -185,9 +190,11 @@ def rank_origin_candidates(
     mb_candidates: list[OriginRelease], lfm_candidate: OriginRelease | None = None
 ) -> list[OriginRelease]:
     """
-    Dedupes the candidates by release group (keeping each group's best-ranked release) and orders them best-first per
+    Dedupes the candidates by release group (keeping each group's best-ranked release), drops those of a type a track
+    cannot originate from (`OriginRelease.is_track_origin_type`) and orders the rest best-first per
     `OriginRelease.rank_key`. The LFM candidate is folded into an MB candidate sharing its release MBID or normalized
-    title; otherwise it is kept as its own (type-less, hence last-tier) candidate.
+    title — so an LFM album MB knows as e.g. a compilation is dropped along with it; otherwise it is kept as its own
+    (type-less, hence last-tier) candidate.
     """
     best_by_key: dict[str, OriginRelease] = {}
     for candidate in mb_candidates:
@@ -203,4 +210,4 @@ def rank_origin_candidates(
         ):
             best_by_key[lfm_candidate.dedupe_key] = lfm_candidate
     # `sorted` is stable, so equally-ranked candidates keep their source order (lookup / search results, then LFM).
-    return sorted(best_by_key.values(), key=OriginRelease.rank_key)
+    return sorted((c for c in best_by_key.values() if c.is_track_origin_type), key=OriginRelease.rank_key)

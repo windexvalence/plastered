@@ -23,6 +23,21 @@ class TestAdhocSearch:
             AdhocSearch(artist="", release="bar")
 
     @pytest.mark.parametrize(
+        "release_type", [RedReleaseType.COMPILATION, RedReleaseType.LIVE_ALBUM, RedReleaseType.UNKNOWN]
+    )
+    def test_track_search_rejects_a_non_origin_release_type(self, release_type: RedReleaseType) -> None:
+        with pytest.raises(ValidationError, match="A track search only considers album, EP, single and soundtrack"):
+            AdhocSearch(artist="foo", track="bar", release_type=release_type)
+        AdhocSearch(artist="foo", release="baz", release_type=release_type)  # an album search accepts any type
+
+    @pytest.mark.parametrize(
+        "release_type",
+        [RedReleaseType.ALBUM, RedReleaseType.EP, RedReleaseType.SINGLE, RedReleaseType.SOUNDTRACK, None],
+    )
+    def test_track_search_accepts_an_origin_release_type(self, release_type: RedReleaseType | None) -> None:
+        assert AdhocSearch(artist="foo", track="bar", release_type=release_type).release_type == release_type
+
+    @pytest.mark.parametrize(
         "release, track, expected_entity_type, expected_entity",
         [
             ("Some Album", None, EntityType.ALBUM, "Some Album"),

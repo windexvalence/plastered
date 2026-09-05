@@ -5,7 +5,8 @@ An ad-hoc search is any release search that does NOT originate from the LFM scra
 client (the web UI or a REST client) and, unlike an `LFMRec`, is not required to carry any Last.fm-specific data. The
 only required fields are the `artist` plus exactly one of `release` (album name) or `track` name. Every other field
 (MBID, catalog number, record label, release year, release type) is optional and, when present, is used to refine the
-client-side matching of the artist's RED release groups.
+client-side matching of the artist's RED release groups. A track search only ever matches album / EP / single /
+soundtrack release groups (`TRACK_ORIGIN_RELEASE_TYPES`), so its release type, when given, MUST be one of those.
 
 `AdhocSearch` implements the same read interface that the `ReleaseSearcher` processor chain expects from a search's
 `initial_info` (see `plastered.models.search_item.SearchItem`), so the existing album/track processor chains work for
@@ -19,7 +20,7 @@ from urllib.parse import quote_plus
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from plastered.models.types import EntityType, RedReleaseType
+from plastered.models.types import TRACK_ORIGIN_RELEASE_TYPES, EntityType, RedReleaseType
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
@@ -58,6 +59,19 @@ class AdhocSearch(BaseModel):
     def _require_release_or_track(self) -> Self:
         if not self.release and not self.track:
             raise ValueError("An ad-hoc search requires at least one of 'release' (album name) or 'track'.")
+        return self
+
+    @model_validator(mode="after")
+    def _require_track_origin_release_type(self) -> Self:
+        if (
+            self.entity_type == EntityType.TRACK
+            and self.release_type is not None
+            and self.release_type not in TRACK_ORIGIN_RELEASE_TYPES
+        ):
+            raise ValueError(
+                "A track search only considers album, EP, single and soundtrack release groups; "
+                f"'{self.release_type.name}' cannot be its release type."
+            )
         return self
 
     @property

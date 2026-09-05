@@ -3,7 +3,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
-from plastered.models.types import RedReleaseType
+from plastered.models.types import RedReleaseType, red_release_type_from_mb_types
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
     RED_PARAM_RECORD_LABEL,
@@ -30,6 +30,7 @@ class MBRelease:
     label: str | None = None
     catalog_number: str | None = None
     first_release_year: int = -1
+    secondary_types: tuple[str, ...] = ()
 
     @classmethod
     def construct_from_api(cls, json_blob: dict[str, Any]):
@@ -45,6 +46,7 @@ class MBRelease:
             title=json_blob["title"],
             artist=json_blob["artist-credit"][0]["name"],
             primary_type=release_group_json["primary-type"],
+            secondary_types=tuple(release_group_json.get("secondary-types") or ()),
             first_release_year=first_release_year,
             release_group_mbid=release_group_json["id"],
             release_date=json_blob["date"],
@@ -53,14 +55,11 @@ class MBRelease:
         )
 
     def get_red_release_type(self) -> RedReleaseType:
-        # MusicBrainz may return a null primary-type, or a value RED has no enum for (e.g. "Broadcast", "Other").
-        # Fall back to UNKNOWN rather than raising AttributeError/KeyError, which would otherwise abort the search run.
-        if not self.primary_type:
-            return RedReleaseType.UNKNOWN
-        try:
-            return RedReleaseType[self.primary_type.upper()]
-        except KeyError:
-            return RedReleaseType.UNKNOWN
+        """The RED type of the release group (see `red_release_type_from_mb_types`); UNKNOWN when it has none."""
+        red_release_type = red_release_type_from_mb_types(
+            primary_type=self.primary_type, secondary_types=self.secondary_types
+        )
+        return RedReleaseType.UNKNOWN if red_release_type is None else red_release_type
 
     def get_release_searcher_kwargs(self) -> OrderedDict[str, Any]:
         """
@@ -70,7 +69,7 @@ class MBRelease:
         red_release_type = self.get_red_release_type()
         return OrderedDict(
             [
-                # An UNKNOWN release type (a null or RED-unmapped MB primary-type) is unusable as a candidate
+                # An UNKNOWN release type (a null or RED-unmapped MB release-group type) is unusable as a candidate
                 # filter — real RED groups essentially never carry it — so report it as unresolved instead. A user
                 # who explicitly picks "Unknown" in the ad-hoc form still filters on it (see
                 # `AdhocSearch.get_user_search_kwargs`).

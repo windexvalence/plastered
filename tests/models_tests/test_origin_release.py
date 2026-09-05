@@ -122,12 +122,39 @@ class TestOriginRelease:
     ) -> None:
         assert _mb("X", primary_type=primary_type, secondary_types=secondary_types).get_red_release_type() == expected
 
+    @pytest.mark.parametrize(
+        "primary_type, secondary_types, expected",
+        [
+            ("Album", (), True),
+            ("EP", (), True),
+            ("Single", (), True),
+            ("Album", ("Soundtrack",), True),
+            ("Single", ("Soundtrack",), True),
+            ("Album", ("Audiobook",), True),  # an unmapped secondary type: RED files it under the primary type
+            # Unknown types pass; the RED-side type restriction still applies to their matches.
+            ("Broadcast", (), True),
+            (None, (), True),
+            ("Album", ("Compilation",), False),
+            ("Album", ("Live",), False),
+            ("Album", ("Soundtrack", "Compilation"), False),  # any excluded secondary type rules the group out
+            ("Single", ("Remix",), False),
+            ("Album", ("DJ-mix",), False),
+            ("Album", ("Mixtape/Street",), False),
+            ("Album", ("Demo",), False),
+            ("Album", ("Interview",), False),
+        ],
+    )
+    def test_is_track_origin_type(
+        self, primary_type: str | None, secondary_types: tuple[str, ...], expected: bool
+    ) -> None:
+        assert _mb("X", primary_type=primary_type, secondary_types=secondary_types).is_track_origin_type is expected
+
     def test_dedupe_key(self) -> None:
         assert _mb("X", release_group_mbid="rg-1").dedupe_key == "rg-1"
         assert _mb("Some Album!").dedupe_key == "title:some album"
 
     def test_rank_key_ordering(self) -> None:
-        """Official albums (earliest first, undated last), then EPs, then singles, then everything else."""
+        """Official albums (earliest first, undated last), then EPs, singles, soundtracks, then everything else."""
         album_2000 = _mb("album 2000", release_date="2000")
         album_2000_reissue = _mb("album 2000 reissue", release_date="2010", first_release_date="2000")
         album_2005 = _mb("album 2005", release_date="2005")
@@ -135,6 +162,7 @@ class TestOriginRelease:
         album_unknown_status = _mb("album unknown status", status=None, release_date="1990")
         ep = _mb("ep", primary_type="EP", release_date="1990")
         single = _mb("single", primary_type="Single", release_date="1990")
+        soundtrack = _mb("soundtrack", secondary_types=("Soundtrack",), release_date="1990")
         compilation = _mb("compilation", secondary_types=("Compilation",), release_date="1990")
         promo = _mb("promo", status="Promotion", release_date="1990")
         untyped = _mb("untyped", primary_type=None, release_date="1990")
@@ -142,6 +170,7 @@ class TestOriginRelease:
             untyped,
             promo,
             compilation,
+            soundtrack,
             single,
             ep,
             album_undated,
@@ -159,6 +188,7 @@ class TestOriginRelease:
             "album undated",
             "ep",
             "single",
+            "soundtrack",
             "untyped",
             "promo",
             "compilation",
@@ -279,7 +309,7 @@ class TestOriginReleasesFromRecording:
 
 
 class TestRankOriginCandidates:
-    def test_orders_by_tier_and_dedupes_by_release_group(self) -> None:
+    def test_orders_by_tier_dedupes_by_release_group_and_drops_non_origin_types(self) -> None:
         reissue = _mb(
             "Album",
             release_date="2010",
@@ -296,9 +326,18 @@ class TestRankOriginCandidates:
         )
         single = _mb("Single", primary_type="Single", release_date="2000", release_group_mbid="rg-single")
         compilation = _mb("Hits", secondary_types=("Compilation",), release_date="1999", release_group_mbid="rg-hits")
+        live = _mb("Live", secondary_types=("Live",), release_date="1999", release_group_mbid="rg-live")
+        soundtrack = _mb("OST", secondary_types=("Soundtrack",), release_date="1999", release_group_mbid="rg-ost")
         ep = _mb("EP", primary_type="EP", release_date="2001", release_group_mbid="rg-ep")
-        actual = rank_origin_candidates(mb_candidates=[compilation, single, reissue, ep, original])
-        assert [c.release_mbid or c.release_name for c in actual] == ["original", "EP", "Single", "Hits"]
+        actual = rank_origin_candidates(mb_candidates=[compilation, soundtrack, single, live, reissue, ep, original])
+        assert [c.release_mbid or c.release_name for c in actual] == ["original", "EP", "Single", "OST"]
+
+    @pytest.mark.parametrize("lfm_mbid, lfm_title", [("m1", "Other Title"), ("other-mbid", "Greatest Hits!")])
+    def test_lfm_candidate_folded_into_a_dropped_candidate_is_dropped_too(self, lfm_mbid: str, lfm_title: str) -> None:
+        """MB knowing the LFM album (by MBID or title) as a compilation rules it out as an origin release."""
+        hits = _mb("Greatest Hits", secondary_types=("Compilation",), release_group_mbid="rg", release_mbid="m1")
+        lfm = OriginRelease(release_name=lfm_title, source=OriginSource.LFM, release_mbid=lfm_mbid)
+        assert rank_origin_candidates(mb_candidates=[hits], lfm_candidate=lfm) == []
 
     def test_lfm_candidate_folded_by_release_mbid(self) -> None:
         mb_album = _mb("Album (Deluxe)", release_group_mbid="rg", release_mbid="m1")

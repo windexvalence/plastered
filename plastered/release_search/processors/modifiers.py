@@ -50,8 +50,9 @@ class ResolveTrackOriginModifier(SearchItemModifier):
     Resolves a track item's candidate origin releases, ranked best-first (see `rank_origin_candidates`): the release
     LFM associates with the track plus every release MusicBrainz lists for the recording — via the recording lookup
     when LFM supplies the recording MBID, and via the recording search when it doesn't or when the lookup comes back
-    empty (stale MBID, artist mismatch) or capped. The top candidate becomes `si.release_name` and is persisted as the
-    item's resolved origin (see `upsert_resolved_origin`).
+    empty (stale MBID, artist mismatch) or capped — keeping only the albums / EPs / singles / soundtracks among them
+    (`TRACK_ORIGIN_RELEASE_TYPES`). The top candidate becomes `si.release_name` and is persisted as the item's
+    resolved origin (see `upsert_resolved_origin`).
     """
 
     @staticmethod
