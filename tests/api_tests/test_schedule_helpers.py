@@ -49,26 +49,34 @@ def test_build_scrape_schedule_request_from_form_invalid(form_kwargs: dict) -> N
 
 
 def test_scrape_schedule_template_context_unconfigured() -> None:
-    context = scrape_schedule_template_context(None)
+    # `get_localzone_name` yields None when no zone name is discoverable (e.g. a bind-mounted /etc/localtime).
+    with patch("plastered.api.schedule_helpers.get_localzone_name", return_value=None) as mock_get_local_tz_id:
+        context = scrape_schedule_template_context(None)
     assert context["schedule"] is None
     assert context["cadences"] == list(ScrapeCadence)
     assert context["cadence_label"] is None
     assert context["run_at"] == "03:00"
+    assert context["system_timezone"] == "unknown"
+    mock_get_local_tz_id.assert_called_once()
 
 
 def test_scrape_schedule_template_context_configured() -> None:
-    response = ScrapeScheduleResponse(
-        schedule=ScrapeSchedule(
-            id=1,
-            cadence=ScrapeCadence.EVERY_OTHER_DAY,
-            hour=7,
-            minute=5,
-            snatch_enabled=True,
-            start_timestamp=1759680000,
-            created_timestamp=1759670000,
+    mock_tz_id = "Etc/UTC"
+    with patch("plastered.api.schedule_helpers.get_localzone_name", return_value=mock_tz_id) as mock_get_local_tz_id:
+        response = ScrapeScheduleResponse(
+            schedule=ScrapeSchedule(
+                id=1,
+                cadence=ScrapeCadence.EVERY_OTHER_DAY,
+                hour=7,
+                minute=5,
+                snatch_enabled=True,
+                start_timestamp=1759680000,
+                created_timestamp=1759670000,
+            )
         )
-    )
-    context = scrape_schedule_template_context(response)
-    assert context["schedule"] is response
-    assert context["cadence_label"] == "every other day"
-    assert context["run_at"] == "07:05"
+        context = scrape_schedule_template_context(response)
+        assert context["schedule"] is response
+        assert context["cadence_label"] == "every other day"
+        assert context["run_at"] == "07:05"
+        assert context["system_timezone"] == mock_tz_id
+        mock_get_local_tz_id.assert_called_once()

@@ -25,6 +25,7 @@ dependencies = [
 	"sqlmodel==0.0.42",
 	"starlette>=1.6.0",
 	"tenacity==9.1.4",
+	"tzlocal==5.4.4",
 	"urllib3==2.7.0",
 ]
 
