@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.lfm_models import LFMAlbumInfo, LFMRec
+from plastered.models.search_trace import TraceStep
 from plastered.models.types import EntityType
 from plastered.utils.constants import RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR
 
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from plastered.models.musicbrainz_models import MBRelease
     from plastered.models.origin_release import OriginRelease
     from plastered.models.red_models import TorrentEntry, TorrentMatch
+    from plastered.models.search_trace import SearchStage, SearchStepOutcome
 
 type InitialInfo = LFMRec | AdhocSearch
 
@@ -40,6 +42,10 @@ class SearchItem:
     # whose RED release group matched.
     origin_candidates: list[OriginRelease] = field(default_factory=list)
     matched_origin: OriginRelease | None = None
+    # The search trace: what each stage of the processor chain found, in order (see `plastered.models.search_trace`).
+    # `persisted_trace_count` is how many leading steps `persist_search_trace` has written to the DB so far.
+    trace: list[TraceStep] = field(default_factory=list)
+    persisted_trace_count: int = 0
     _lfm_album_info: LFMAlbumInfo | None = None
     _mb_release: MBRelease | None = None
     _search_kwargs: OrderedDict[str, Any] = field(default_factory=OrderedDict)
@@ -82,6 +88,10 @@ class SearchItem:
     def top_origin(self) -> OriginRelease | None:
         """The best-ranked candidate origin release of a track item, or `None` (albums / unresolved tracks)."""
         return self.origin_candidates[0] if self.origin_candidates else None
+
+    def add_trace_step(self, stage: SearchStage, outcome: SearchStepOutcome, detail: str) -> None:
+        """Appends a step to the search trace."""
+        self.trace.append(TraceStep(stage=stage, outcome=outcome, detail=detail))
 
     def get_search_kwargs(self) -> OrderedDict[str, Any]:
         return self._search_kwargs

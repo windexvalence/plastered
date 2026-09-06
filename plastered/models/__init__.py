@@ -10,6 +10,17 @@ from plastered.models.origin_release import (
 )
 from plastered.models.red_models import RedFormat, RedUserDetails, ReleaseEntry, TorrentEntry, TorrentMatch
 from plastered.models.search_item import InitialInfo, SearchItem
+from plastered.models.search_trace import (
+    SearchStage,
+    SearchStepOutcome,
+    TraceStep,
+    counted,
+    origin_label,
+    quoted,
+    release_group_label,
+    release_type_name,
+    torrent_label,
+)
 from plastered.models.types import (
     TRACK_ORIGIN_RELEASE_TYPES,
     EncodingEnum,
@@ -37,6 +48,15 @@ __all__ = [
     "TorrentMatch",
     "InitialInfo",
     "SearchItem",
+    "SearchStage",
+    "SearchStepOutcome",
+    "TraceStep",
+    "counted",
+    "origin_label",
+    "quoted",
+    "release_group_label",
+    "release_type_name",
+    "torrent_label",
     "EncodingEnum",
     "EntityType",
     "FormatEnum",

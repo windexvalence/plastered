@@ -25,6 +25,13 @@ dropped (recorded with a `SkipReason`). Modifiers enrich the item in place and a
 along. Items that survive become snatch candidates handed off to the `Snatcher`. (See the
 [Chain ordering reference](#chain-ordering-reference) for the exact per-entity ordering.)
 
+Each lookup stage that runs also traces what it found on the `SearchItem` (`SearchItem.add_trace_step`, see
+`plastered.models.search_trace`): modifiers record an `OK` / `WARNING` step per stage, and a filter that rejects the
+item records a `STOPPED` step. For an ad-hoc search the chain persists the trace as `SearchStep` rows after each
+processor (`persist_search_trace`), and a filter persists it before writing the terminal status, so the ad-hoc result
+page can follow the search live and show where a search that found no release stopped. A scraper item's trace stays
+in memory only.
+
 ```mermaid
 flowchart TD
     %% ── ReleaseSearcher entrypoints & orchestration ──

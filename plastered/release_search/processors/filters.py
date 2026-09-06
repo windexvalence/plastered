@@ -6,7 +6,8 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from plastered.db.db_models import SkipReason, Status
-from plastered.db.db_utils import set_result_status
+from plastered.db.db_utils import persist_search_trace, set_result_status
+from plastered.models import SearchStage, SearchStepOutcome
 from plastered.release_search.processors.bases import SearchItemFilter
 
 if TYPE_CHECKING:
@@ -20,6 +21,9 @@ _LOGGER = logging.getLogger(__name__)
 class BaseFilter(SearchItemFilter):
     """Base class for all `SearchItemFilter` implementations."""
 
+    # The search stage a rejection by the filter is traced under.
+    stage: ClassVar[SearchStage]
+
     @classmethod
     def process(cls, si: SearchItem, state: SearchState, **kwargs: Any) -> SearchItem | None:
         for func in cls.funcs:
@@ -32,8 +36,12 @@ class BaseFilter(SearchItemFilter):
 
     @classmethod
     def _mark_skipped(cls, si: SearchItem, skip_reason: SkipReason) -> None:
-        """Adds a Skipped db record for the given `SearchItem` and `SkipReason`."""
+        """Traces the stop, then adds a Skipped db record for the given `SearchItem` and `SkipReason`."""
         _LOGGER.debug(f"{si.initial_info} filtered by {cls.__name__} for reason {skip_reason.name}.")
+        si.add_trace_step(stage=cls.stage, outcome=SearchStepOutcome.STOPPED, detail=str(skip_reason))
+        # Persist the trace before the terminal status, so a client never reads a finished search whose trace lacks
+        # the stopping step.
+        persist_search_trace(si=si)
         set_result_status(
             search_id=si.search_id, status=Status.SKIPPED, status_model_kwargs={"skip_reason": skip_reason}
         )
@@ -42,6 +50,7 @@ class BaseFilter(SearchItemFilter):
 class PreMBIDResolutionFilter(BaseFilter):
     """Intended as a replacement for `SearchState.pre_mbid_resolution_filter`."""
 
+    stage: ClassVar[SearchStage] = SearchStage.PRIOR_SNATCH
     funcs: ClassVar[FilterFuncs] = tuple([lambda si, state: state._pre_mbid_reso_rule_not_previously_snatched(si=si)])
 
 
@@ -63,18 +72,21 @@ def _origin_track_skip_reason(si: SearchItem) -> SkipReason | None:
 class PostResolveOriginTrackFilter(BaseFilter):
     """Intended as a replacement for `SearchState.post_resolve_track_filter`."""
 
+    stage: ClassVar[SearchStage] = SearchStage.TRACK_ORIGIN
     funcs: ClassVar[FilterFuncs] = tuple([lambda si, _: _origin_track_skip_reason(si=si)])
 
 
 class PostMBIDResolutionFilter(BaseFilter):
     """Intended as a replacement for `SearchState.post_mbid_resolution_filter`."""
 
+    stage: ClassVar[SearchStage] = SearchStage.REQUIRED_FIELDS
     funcs: ClassVar[FilterFuncs] = tuple([lambda si, state: state.post_mbid_reso_rule_has_required_fields(si=si)])
 
 
 class PostRedSearchFilter(BaseFilter):
     """Intended as a replacement for `SearchState.post_red_search_filter`."""
 
+    stage: ClassVar[SearchStage] = SearchStage.RED_MATCH
     funcs: ClassVar[FilterFuncs] = tuple(
         [
             lambda si, state: state.post_red_search_rule_found_match_with_allowed_size(si=si),

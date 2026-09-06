@@ -18,6 +18,7 @@ from plastered.db.db_models import (
     ScraperRun,
     ScrapeSchedule,
     SearchRecord,
+    SearchStep,
     Skipped,
     SkipReason,
     Status,
@@ -27,7 +28,7 @@ from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEn
 from plastered.utils.exceptions import MissingDatabaseRecordException
 
 if TYPE_CHECKING:
-    from plastered.models import OriginRelease
+    from plastered.models import OriginRelease, SearchItem
 
 _LOGGER = logging.getLogger(__name__)
 _DB_TEST_MODE: Final[bool] = os.getenv("DB_TEST_MODE", "false").lower() == "true"
@@ -131,6 +132,36 @@ def upsert_resolved_origin(
         row.matched = matched
         session.add(row)
         session.commit()
+
+
+def persist_search_trace(si: SearchItem) -> None:
+    """
+    Writes an ad-hoc search item's trace steps not yet in the DB as `SearchStep` rows of its search. A no-op when
+    there are none, so it is safe to call after every processor of the chain. A scraper item's trace is never
+    persisted: nothing renders it, and a scraper run processes hundreds of items.
+    """
+    if not si.is_manual:
+        return
+    new_steps = si.trace[si.persisted_trace_count :]
+    if not new_steps:
+        return
+    if si.search_id is None:
+        raise MissingDatabaseRecordException(si.search_id)
+    with Session(get_engine()) as session:
+        session.add_all(
+            [
+                SearchStep(
+                    search_id=si.search_id,
+                    position=position,
+                    stage=step.stage,
+                    outcome=step.outcome,
+                    detail=step.detail,
+                )
+                for position, step in enumerate(new_steps, start=si.persisted_trace_count)
+            ]
+        )
+        session.commit()
+    si.persisted_trace_count = len(si.trace)
 
 
 def create_scraper_run(snatch_enabled: bool, rec_types: list[str], submit_timestamp: int) -> int:

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -154,3 +154,16 @@ def test_track_chain_creates_search_record_before_filtering(chain_instance: Sear
     track_chain = chain_instance.track_chain
     assert track_chain[0] is AttachSearchIdModifier
     assert track_chain.index(AttachSearchIdModifier) < track_chain.index(PostResolveOriginTrackFilter)
+
+
+def test_apply_chain_persists_the_trace_after_each_processor(
+    chain_instance: SearchItemProcessorChain,
+    create_mock_processor: Callable[[bool], MagicMock],
+    make_album_search_item: pytest.FixtureRequest,
+) -> None:
+    """What a processor traced is flushed right after it runs — the rejecting processor's steps included."""
+    mock_si = make_album_search_item(is_lfm_rec=True)
+    mock_chain = (create_mock_processor(True), create_mock_processor(False), create_mock_processor(True))
+    with patch("plastered.release_search.processors.chains.persist_search_trace") as mock_persist:
+        assert chain_instance._apply_chain(si=mock_si, chain=mock_chain) is None
+    assert mock_persist.call_args_list == [call(si=mock_si), call(si=mock_si)]

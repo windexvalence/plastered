@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from plastered.db.db_utils import persist_search_trace
 from plastered.models import EntityType
 from plastered.release_search.processors.filters import (
     PostMBIDResolutionFilter,
@@ -89,7 +90,10 @@ class SearchItemProcessorChain:
 
     def _apply_chain(self, si: SearchItem, chain: tuple[type[SearchItemProcessor], ...]) -> SearchItem | None:
         for processor in chain:
-            if not processor.process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red):
+            passed = processor.process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red)
+            # Flush what the processor traced right away, so the ad-hoc result page can follow the search live.
+            persist_search_trace(si=si)
+            if not passed:
                 _LOGGER.debug(f"si for {si.initial_info} filtered by: {processor.__name__}")
                 return None
         return si

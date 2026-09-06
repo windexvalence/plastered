@@ -14,7 +14,7 @@ from plastered.models.lfm_models import LFMAlbumInfo
 from plastered.models.red_models import CdOnlyExtras, RedFormat, ReleaseEntry, TorrentEntry
 from plastered.models.search_item import SearchItem
 from plastered.models.types import RedReleaseType
-from plastered.release_search.search_helpers import SearchState, _required_search_kwargs
+from plastered.release_search.search_helpers import ReleaseGroupMatches, SearchState, _required_search_kwargs
 from plastered.models.lfm_models import LFMRec
 from plastered.models.types import EntityType as rt
 from plastered.utils.constants import (
@@ -23,7 +23,16 @@ from plastered.utils.constants import (
     RED_PARAM_RELEASE_TYPE,
     RED_PARAM_RELEASE_YEAR,
 )
-from plastered.models import MBRelease, OriginRelease, OriginSource, TorrentMatch
+from plastered.models import (
+    MBRelease,
+    OriginRelease,
+    OriginSource,
+    SearchStage,
+    SearchStepOutcome,
+    TorrentMatch,
+    TraceStep,
+    torrent_label,
+)
 from plastered.models.types import EncodingEnum as ee
 from plastered.models.types import FormatEnum as fe
 from plastered.models.types import MediaEnum as me
@@ -1161,3 +1170,271 @@ class TestMbResolutionWouldBeUsedForTracks:
         si = _track_si()
         si.set_origin_candidates([_origin("A", primary_type=None, date=None)])
         assert state.mb_resolution_would_be_used(si=si) is False
+
+
+# ---- the search trace: release-group match reporting -------------------------------------------------------------
+
+
+def _album_si(album: str = "Some Album") -> SearchItem:
+    rec = LFMRec(lfm_artist_str="Some+Artist", lfm_entity_str=album.replace(" ", "+"), recommendation_type=rt.ALBUM)
+    return SearchItem(initial_info=rec)
+
+
+class TestReleaseGroupMatchesDescribe:
+    @staticmethod
+    def _matches(**kwargs: Any) -> ReleaseGroupMatches:
+        defaults: dict[str, Any] = {
+            "wanted_title": "Some Album",
+            "wanted_release_type": RedReleaseType.ALBUM,
+            "wanted_year": 2001,
+            "entries": [],
+        }
+        return ReleaseGroupMatches(**{**defaults, **kwargs})
+
+    def test_no_title_match(self) -> None:
+        assert self._matches().describe() == 'no release group titled like "Some Album"'
+
+    def test_no_title_match_with_non_origin_types_ignored(self) -> None:
+        assert self._matches(non_origin_type_ignored=2).describe() == (
+            'only 2 release groups titled like "Some Album", none an album / EP / single / soundtrack'
+        )
+        assert self._matches(non_origin_type_ignored=1).describe() == (
+            'only 1 release group titled like "Some Album", none an album / EP / single / soundtrack'
+        )
+
+    def test_title_matches_without_notes(self) -> None:
+        matches = self._matches(entries=[_group(1, "Some Album")], title_matched=1)
+        assert matches.describe() == '1 release group titled like "Some Album"'
+
+    def test_every_note(self) -> None:
+        matches = self._matches(
+            entries=[_group(1, "Some Album")],
+            title_matched=5,
+            type_dropped=1,
+            type_mismatched_kept=1,
+            year_dropped=2,
+            non_origin_type_ignored=1,
+        )
+        assert matches.describe() == (
+            '5 release groups titled like "Some Album" (1 dropped for release type (wanted album); '
+            "1 of a different release type (wanted album); 2 dropped for year (wanted 2001); "
+            "1 more ignored: not an album / EP / single / soundtrack group); 1 candidate kept"
+        )
+
+    def test_year_ignored_note(self) -> None:
+        matches = self._matches(entries=[_group(1, "Some Album", 1999)], title_matched=1, year_ignored=True)
+        assert matches.describe() == (
+            '1 release group titled like "Some Album" (year filter (2001) skipped: no title match from that year); '
+            "1 candidate kept"
+        )
+
+
+class TestMatchReleaseGroups:
+    """`match_release_groups` reports how the title / type / year rules treated the artist's groups."""
+
+    def test_counts_how_the_rules_treated_the_groups(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_release_type": True, "use_first_release_year": True},
+        )
+        si = _album_si()
+        si._search_kwargs = {RED_PARAM_RELEASE_TYPE: RedReleaseType.ALBUM.value, RED_PARAM_RELEASE_YEAR: 2001}
+        entries = [
+            _group(1, "Some Album", 2001, RedReleaseType.ALBUM),  # kept
+            _group(2, "Some Album", 1999, RedReleaseType.ALBUM),  # dropped for year
+            _group(3, "Some Album", 2001, RedReleaseType.SINGLE),  # dropped for type (strict) / kept (lenient)
+            _group(4, "Other", 2001, RedReleaseType.ALBUM),  # no title match
+        ]
+        strict = state.match_release_groups(si=si, release_entries=entries)
+        assert [entry.group_id for entry in strict.entries] == [1]
+        assert (strict.wanted_title, strict.wanted_release_type, strict.wanted_year) == (
+            "Some Album",
+            RedReleaseType.ALBUM,
+            2001,
+        )
+        assert (strict.title_matched, strict.type_dropped, strict.type_mismatched_kept) == (3, 1, 0)
+        assert (strict.year_dropped, strict.year_ignored, strict.non_origin_type_ignored) == (1, False, 0)
+        lenient = state.match_release_groups(si=si, release_entries=entries, strict_release_type=False)
+        assert [entry.group_id for entry in lenient.entries] == [1, 3]
+        assert (lenient.type_dropped, lenient.type_mismatched_kept, lenient.year_dropped) == (0, 1, 1)
+
+    def test_year_fallback_and_non_origin_types_are_reported(
+        self, valid_config_raw_data: dict[str, Any], valid_config_filepath: str
+    ) -> None:
+        state = _make_search_state(
+            valid_config_raw_data,
+            valid_config_filepath,
+            {**_ALL_SEARCH_FIELDS_DISABLED, "use_first_release_year": True},
+        )
+        si = _track_si()
+        si.set_origin_candidates([_origin("Some Album", date="2001")])
+        entries = [
+            _group(1, "Some Album", 1999, RedReleaseType.ALBUM),
+            _group(2, "Some Album", 2001, RedReleaseType.COMPILATION),
+        ]
+        matches = state.match_release_groups(si=si, release_entries=entries, origin=si.origin_candidates[0])
+        assert [entry.group_id for entry in matches.entries] == [1]
+        assert matches.wanted_release_type is None and matches.wanted_year == 2001
+        assert (matches.title_matched, matches.non_origin_type_ignored) == (1, 1)
+        assert (matches.year_dropped, matches.year_ignored) == (0, True)
+
+
+def test_select_best_torrent_reports_the_matched_group(valid_app_settings: AppSettings) -> None:
+    search_state = SearchState(app_settings=valid_app_settings)
+    search_state._red_format_preferences = [_FLAC_24_WEB]
+    unmatched = _release_entry([_make_te("MP3", "320", "WEB", 1.0, tid=1)])
+    matched = _release_entry([_make_te("FLAC", "24bit Lossless", "WEB", 1.0, tid=2)])
+    match = search_state.select_best_torrent(release_entries=[unmatched, matched])
+    assert match.torrent_entry is not None and match.torrent_entry.torrent_id == 2
+    assert match.release_entry is matched
+    assert search_state.select_best_torrent(release_entries=[unmatched]).release_entry is None
+
+
+class TestMatchAlbumRelease:
+    """An album item's match is traced as one RED-matching step: the group matching, then the torrent ranking."""
+
+    @pytest.fixture
+    def state(self, valid_app_settings: AppSettings) -> SearchState:
+        return SearchState(app_settings=valid_app_settings)
+
+    @staticmethod
+    def _entry(group_id: int, name: str, te: TorrentEntry) -> ReleaseEntry:
+        return ReleaseEntry(
+            group_id=group_id, group_name=name, release_type=RedReleaseType.ALBUM, group_year=2000, torrent_entries=[te]
+        )
+
+    def test_match_traces_the_matched_torrent(self, state: SearchState) -> None:
+        si = _album_si()
+        te = _make_te("FLAC", "24bit Lossless", "WEB", 0.5, tid=11)
+        entry = self._entry(1, "Some Album", te)
+        actual = state.match_album_release(si=si, release_entries=[entry, _group(2, "Other")])
+        assert actual.torrent_entry is te and actual.release_entry is entry
+        assert si.trace == [
+            TraceStep(
+                stage=SearchStage.RED_MATCH,
+                outcome=SearchStepOutcome.OK,
+                detail=(
+                    f'1 release group titled like "Some Album"; matched {torrent_label(te)} in '
+                    '"Some Album" (album, 2000)'
+                ),
+            )
+        ]
+
+    def test_no_format_match_traces_a_warning(self, state: SearchState) -> None:
+        si = _album_si()
+        entry = self._entry(1, "Some Album", _make_te("MP3", "320", "WEB", 0.5, tid=11))
+        actual = state.match_album_release(si=si, release_entries=[entry])
+        assert actual.torrent_entry is None and actual.above_max_size_found is False
+        assert si.trace == [
+            TraceStep(
+                stage=SearchStage.RED_MATCH,
+                outcome=SearchStepOutcome.WARNING,
+                detail='1 release group titled like "Some Album"; no torrent matched the format preferences',
+            )
+        ]
+
+    def test_above_max_size_traces_the_limit(self, state: SearchState) -> None:
+        si = _album_si()
+        entry = self._entry(1, "Some Album", _make_te("FLAC", "24bit Lossless", "WEB", 50.0, tid=11))
+        actual = state.match_album_release(si=si, release_entries=[entry])
+        assert actual.above_max_size_found is True
+        assert si.trace[0].detail == (
+            '1 release group titled like "Some Album"; every torrent matching the format preferences exceeds the '
+            f"size limit ({state._max_size_gb:g} GB)"
+        )
+
+    def test_no_title_match_traces_only_the_group_matching(self, state: SearchState) -> None:
+        si = _album_si()
+        actual = state.match_album_release(si=si, release_entries=[_group(2, "Other")])
+        assert actual.torrent_entry is None
+        assert si.trace[0].outcome == SearchStepOutcome.WARNING
+        assert si.trace[0].detail == 'no release group titled like "Some Album"'
+
+    def test_describe_torrent_match_without_a_group(self, state: SearchState) -> None:
+        te = _make_te("FLAC", "24bit Lossless", "WEB", 0.5, tid=11)
+        match = TorrentMatch(torrent_entry=te, above_max_size_found=False)
+        assert state._describe_torrent_match(torrent_match=match) == f"matched {torrent_label(te)}"
+
+
+class TestMatchTrackOriginCandidatesTrace:
+    """A track item's per-candidate attempts are traced as one RED-matching step, in candidate rank order."""
+
+    @pytest.fixture
+    def state(self, valid_app_settings: AppSettings) -> SearchState:
+        return SearchState(app_settings=valid_app_settings)
+
+    _entry = staticmethod(TestMatchTrackOriginCandidates._entry)
+
+    def test_match_traces_each_candidate_tried(self, state: SearchState) -> None:
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("S", primary_type="Single")])
+        entry = self._entry(1, "S", RedReleaseType.SINGLE)
+        actual = state.match_track_origin_candidates(si=si, release_entries=[entry])
+        assert actual.torrent_entry is not None and actual.release_entry is entry
+        assert si.trace == [
+            TraceStep(
+                stage=SearchStage.RED_MATCH,
+                outcome=SearchStepOutcome.OK,
+                detail=(
+                    "Origin candidates tried against RED, best first:\n"
+                    '• "A" (album, 2000): no release group titled like "A"\n'
+                    f'• "S" (single, 2000): 1 release group titled like "S"; matched '
+                    f'{torrent_label(entry.torrent_entries[0])} in "S" (single, 2000)'
+                ),
+            )
+        ]
+
+    def test_no_match_traces_the_lenient_outcomes_only(self, state: SearchState) -> None:
+        """Both passes failed: each candidate's lenient outcome supersedes its strict one, so only those are listed."""
+        si = _track_si()
+        si.set_origin_candidates([_origin("S", primary_type="Single")])
+        actual = state.match_track_origin_candidates(
+            si=si, release_entries=[self._entry(5, "S", RedReleaseType.ALBUM, size_gb=50.0)]
+        )
+        assert actual == TorrentMatch(torrent_entry=None, above_max_size_found=True)
+        assert si.trace == [
+            TraceStep(
+                stage=SearchStage.RED_MATCH,
+                outcome=SearchStepOutcome.WARNING,
+                detail=(
+                    "Origin candidates tried against RED, best first (none matched with the release type as a "
+                    "filter, so it was relaxed to a ranking signal):\n"
+                    '• "S" (single, 2000): 1 release group titled like "S" (1 of a different release type '
+                    "(wanted single)); 1 candidate kept; every torrent matching the format preferences exceeds "
+                    f"the size limit ({state._max_size_gb:g} GB)"
+                ),
+            )
+        ]
+
+    def test_lenient_match_lists_both_passes(self, state: SearchState) -> None:
+        """A lenient-pass match leaves later candidates with strict outcomes only, so the passes are told apart."""
+        si = _track_si()
+        si.set_origin_candidates([_origin("S", primary_type="Single"), _origin("A")])
+        entry = self._entry(5, "S", RedReleaseType.ALBUM)
+        actual = state.match_track_origin_candidates(si=si, release_entries=[entry])
+        assert actual.torrent_entry is not None and si.matched_origin == si.origin_candidates[0]
+        assert si.trace[0].outcome == SearchStepOutcome.OK
+        assert si.trace[0].detail.splitlines() == [
+            "Origin candidates tried against RED, best first (release type as a filter):",
+            '• "S" (single, 2000): 1 release group titled like "S" (1 dropped for release type (wanted single)); '
+            "0 candidates kept",
+            '• "A" (album, 2000): no release group titled like "A"',
+            "Retried with the release type relaxed to a ranking signal:",
+            '• "S" (single, 2000): 1 release group titled like "S" (1 of a different release type (wanted single)); '
+            f'1 candidate kept; matched {torrent_label(entry.torrent_entries[0])} in "S" (album, 2000)',
+        ]
+
+    def test_previously_snatched_candidate_is_traced_as_skipped(self, state: SearchState) -> None:
+        state._red_user_details = MagicMock()
+        state._red_user_details.has_snatched_release.side_effect = lambda artist, release: release == "S"
+        si = _track_si()
+        si.set_origin_candidates([_origin("A"), _origin("S", primary_type="Single")])
+        state.match_track_origin_candidates(si=si, release_entries=[self._entry(1, "S", RedReleaseType.SINGLE)])
+        assert si.trace[0].outcome == SearchStepOutcome.WARNING
+        assert si.trace[0].detail.splitlines()[1:] == [
+            '• "A" (album, 2000): no release group titled like "A"',
+            '• "S" (single, 2000): skipped, already snatched',
+        ]

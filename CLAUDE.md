@@ -52,7 +52,7 @@ When adding/reordering search logic, edit the chain tuples in `chains.py` and ad
 
 ### SearchState
 
-`SearchState` (`release_search/search_helpers.py`) holds the mutable per-run state and **all the filtering business rules**: RED user ratio/quota limits, prior-snatch dedup, client-side matching of RED release groups (`get_candidate_release_groups`: title matching via `utils/text_utils.py` — opt-in fuzzy tiers behind `red.search.fuzzy_search_enabled` — plus release-type/year filters with a year fallback and label/catalogue-number ranking signals; `match_track_origin_candidates` tries a track's origin candidates in rank order, strict release type first then relaxed to a ranking signal, over album / EP / single / soundtrack groups only — `TRACK_ORIGIN_RELEASE_TYPES`), and `get_search_items_to_snatch()` which sorts candidates largest-first (to optimize FL token use) and caps the cumulative download by the allowed ratio limit. It also writes `SearchRecord` status rows (`IN_PROGRESS` → `GRABBED`/`SKIPPED`/`FAILED`).
+`SearchState` (`release_search/search_helpers.py`) holds the mutable per-run state and **all the filtering business rules**: RED user ratio/quota limits, prior-snatch dedup, client-side matching of RED release groups (`match_release_groups`, list-only form `get_candidate_release_groups`: title matching via `utils/text_utils.py` — opt-in fuzzy tiers behind `red.search.fuzzy_search_enabled` — plus release-type/year filters with a year fallback and label/catalogue-number ranking signals; `match_album_release` / `match_track_origin_candidates` rank the candidates' torrents and trace the outcome — the latter tries a track's origin candidates in rank order, strict release type first then relaxed to a ranking signal, over album / EP / single / soundtrack groups only — `TRACK_ORIGIN_RELEASE_TYPES`), and `get_search_items_to_snatch()` which sorts candidates largest-first (to optimize FL token use) and caps the cumulative download by the allowed ratio limit. It also writes `SearchRecord` status rows (`IN_PROGRESS` → `GRABBED`/`SKIPPED`/`FAILED`).
 
 ### Config (`plastered/config/app_settings.py`)
 
@@ -72,7 +72,7 @@ The optional recurring scrape is driven by the app-scoped APScheduler `AsyncIOSc
 
 ### Persistence (`plastered/db/`)
 
-SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution. `AdhocRequest` stores each ad-hoc search's submitted request as JSON so the run-history page can re-submit it (`retry_adhoc_search` in `api/adhoc_helpers.py`).
+SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution. `AdhocRequest` stores each ad-hoc search's submitted request as JSON so the run-history page can re-submit it (`retry_adhoc_search` in `api/adhoc_helpers.py`). `SearchStep` rows hold an ad-hoc search's trace — one row per chain stage that ran (`models/search_trace.py`, written by `persist_search_trace` as the chain runs; scraper items are not persisted) — which the ad-hoc result fragment renders so a no-match search shows where it stopped.
 
 ## Conventions
 

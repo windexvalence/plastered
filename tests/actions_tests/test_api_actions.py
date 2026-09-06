@@ -19,7 +19,18 @@ from plastered.actions.api_actions import (
 )
 from plastered.api.api_models import AdhocSearchResult, RunHistoryListResponse, RunHistoryPageResponse
 from plastered.config.app_settings import AppSettings
-from plastered.db.db_models import Failed, FailReason, Grabbed, Matched, SearchRecord, SkipReason, Skipped, Status
+from plastered.db.db_models import (
+    Failed,
+    FailReason,
+    Grabbed,
+    Matched,
+    SearchRecord,
+    SearchStep,
+    SkipReason,
+    Skipped,
+    Status,
+)
+from plastered.models import SearchStage, SearchStepOutcome
 from plastered.models.adhoc_search_models import AdhocSearch
 from plastered.models.red_models import RedUserDetails, TorrentEntry
 from plastered.models.search_item import SearchItem
@@ -514,3 +525,71 @@ def test_run_rec_download_batch_action_snatches_matched_only(mock_session: Sessi
     batch = mock_session.exec(select(RecDownloadBatch).where(RecDownloadBatch.id == 1)).one()
     mock_session.refresh(batch)
     assert batch.completed == 2 and batch.status == RecDownloadBatchStatus.COMPLETED
+
+
+def test_adhoc_result_action_includes_the_search_trace_in_order(mock_session: Session) -> None:
+    """The result carries the search's trace steps by position, and names the step the search stopped at."""
+    record = SearchRecord(
+        id=_MOCK_RECORD_ID,
+        submit_timestamp=_MOCK_SINCE_TIMESTAMP,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Fake Artist",
+        entity="Fake Album",
+        status=Status.SKIPPED,
+    )
+    mock_session.add(record)
+    mock_session.add(Skipped(s_result_id=_MOCK_RECORD_ID, skip_reason=SkipReason.NO_MATCH_FOUND))
+    # Inserted out of order (and one for another search) to check the ordering / filtering.
+    mock_session.add(
+        SearchStep(
+            search_id=_MOCK_RECORD_ID,
+            position=1,
+            stage=SearchStage.RED_MATCH,
+            outcome=SearchStepOutcome.STOPPED,
+            detail="No RED match found",
+        )
+    )
+    mock_session.add(
+        SearchStep(
+            search_id=_MOCK_RECORD_ID,
+            position=0,
+            stage=SearchStage.RED_ARTIST,
+            outcome=SearchStepOutcome.OK,
+            detail="RED lists 3 release groups",
+        )
+    )
+    mock_session.add(
+        SearchStep(
+            search_id=_MOCK_RECORD_ID + 1,
+            position=0,
+            stage=SearchStage.RED_ARTIST,
+            outcome=SearchStepOutcome.OK,
+            detail="other search",
+        )
+    )
+    mock_session.commit()
+    actual = adhoc_result_action(search_id=_MOCK_RECORD_ID, session=mock_session)
+    assert actual is not None
+    assert [(step.position, step.stage, step.outcome) for step in actual.steps] == [
+        (0, SearchStage.RED_ARTIST, SearchStepOutcome.OK),
+        (1, SearchStage.RED_MATCH, SearchStepOutcome.STOPPED),
+    ]
+    assert actual.stopped_step is actual.steps[1]
+
+
+def test_adhoc_search_result_without_a_stop() -> None:
+    record = SearchRecord(
+        id=_MOCK_RECORD_ID,
+        submit_timestamp=_MOCK_SINCE_TIMESTAMP,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Fake Artist",
+        entity="Fake Album",
+        status=Status.MATCHED,
+    )
+    step = SearchStep(
+        search_id=_MOCK_RECORD_ID, position=0, stage=SearchStage.RED_MATCH, outcome=SearchStepOutcome.OK, detail="ok"
+    )
+    assert AdhocSearchResult(searchrecord=record).stopped_step is None
+    assert AdhocSearchResult(searchrecord=record, steps=[step]).stopped_step is None
