@@ -278,7 +278,7 @@ class TestResolveTrackOriginModifier:
             ("Dr. Octagonecologyst", OriginSource.LFM),
         ]
         assert actual.trace[1].detail == (
-            "MusicBrainz lists 1 release for the recording (recording lookup by MBID + recording search)"
+            "MusicBrainz lists 1 release for recordings of the track (recording lookup by MBID + recording search)"
         )
         assert actual.trace[2].detail == (
             '2 candidate origin releases, best first: "Blue Flowers" (single, 2000), "Dr. Octagonecologyst"'
@@ -348,13 +348,57 @@ class TestResolveTrackOriginModifier:
             ),
         ]
 
+    def test_lookup_of_only_non_origin_releases_falls_back_to_search(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """
+        LFM's recording MBID names a live take that MB only lists on live albums: none is an origin type, so the
+        recording search runs and its studio album becomes the top candidate.
+        """
+        si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
+        lfm_resp = mock_full_lfm_track_info_json["track"]
+        live_albums = [
+            OriginRelease(
+                release_name=f"Live at the Carousel Ballroom, Night {i}",
+                source=OriginSource.MB_RECORDING_LOOKUP,
+                release_group_mbid=f"rg-live-{i}",
+                primary_type="Album",
+                secondary_types=("Live",),
+                release_date="2021",
+            )
+            for i in range(2)
+        ]
+        studio_album = _origin("Moosebumps", source=OriginSource.MB_RECORDING_SEARCH, date="2018")
+        mock_process_kwargs["lfm"].get_track_info.return_value = lfm_resp
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = live_albums
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = [studio_album]
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once_with(
+            track_name="No Awareness", artist_name="Dr. Octagon", artist_mbid=lfm_resp["artist"]["mbid"]
+        )
+        assert actual.top_origin is studio_album
+        assert [(c.release_name, c.source) for c in actual.origin_candidates] == [
+            ("Moosebumps", OriginSource.MB_RECORDING_SEARCH),
+            ("Dr. Octagonecologyst", OriginSource.LFM),
+        ]
+        assert actual.trace[1].detail == (
+            "MusicBrainz lists 3 releases for recordings of the track (recording lookup by MBID + recording search)"
+        )
+
     def test_only_non_origin_releases_gathered_traces_why_no_candidate_stands(
         self,
         mock_full_lfm_track_info_json: dict[str, Any],
         mock_process_kwargs: _MockProcKwargs,
         make_track_search_item: pytest.FixtureRequest,
     ) -> None:
-        """The LFM album folds into MB's same-titled compilation, which is no origin type: no candidate remains."""
+        """
+        The lookup's only release is a compilation, so the search runs too; it finds nothing, and the LFM album folds
+        into MB's same-titled compilation, which is no origin type: no candidate remains.
+        """
         si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
         compilation = OriginRelease(
             release_name="Dr. Octagonecologyst",
@@ -365,9 +409,14 @@ class TestResolveTrackOriginModifier:
         )
         mock_process_kwargs["lfm"].get_track_info.return_value = mock_full_lfm_track_info_json["track"]
         mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = [compilation]
+        mock_process_kwargs["mb"].search_recording_origin_releases.return_value = []
         with patch(_UPSERT_RESOLVED_ORIGIN):
             actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        mock_process_kwargs["mb"].search_recording_origin_releases.assert_called_once()
         assert actual.origin_candidates == []
+        assert actual.trace[1].detail == (
+            "MusicBrainz lists 1 release for recordings of the track (recording lookup by MBID + recording search)"
+        )
         assert actual.trace[-1] == TraceStep(
             stage=SearchStage.TRACK_ORIGIN,
             outcome=SearchStepOutcome.WARNING,

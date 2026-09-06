@@ -92,10 +92,11 @@ class ResolveTrackOriginModifier(SearchItemModifier):
     """
     Resolves a track item's candidate origin releases, ranked best-first (see `rank_origin_candidates`): the release
     LFM associates with the track plus every release MusicBrainz lists for the recording — via the recording lookup
-    when LFM supplies the recording MBID, and via the recording search when it doesn't or when the lookup comes back
-    empty (stale MBID, artist mismatch) or capped — keeping only the albums / EPs / singles / soundtracks among them
-    (`TRACK_ORIGIN_RELEASE_TYPES`). The top candidate becomes `si.release_name` and is persisted as the item's
-    resolved origin (see `upsert_resolved_origin`).
+    when LFM supplies the recording MBID, and via the recording search when it doesn't or when the lookup is capped or
+    lists no release a track can originate from (`OriginRelease.is_track_origin_type`: a stale MBID, an artist
+    mismatch, or an MBID naming e.g. a live take that only appears on live albums) — keeping only the albums / EPs /
+    singles / soundtracks and the releases of unknown type among them. The top candidate becomes `si.release_name`
+    and is persisted as the item's resolved origin (see `upsert_resolved_origin`).
     """
 
     @staticmethod
@@ -138,9 +139,11 @@ class ResolveTrackOriginModifier(SearchItemModifier):
                 mb_candidates = mb.lookup_recording_origin_releases(
                     recording_mbid=recording_mbid, artist_name=si.artist_name, artist_mbid=artist_mbid
                 )
-            # A capped lookup listing may have left out the original album; the search fills the gap (ranking dedupes
-            # the overlap by release group).
-            if len(mb_candidates) == 0 or len(mb_candidates) >= MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP:
+            # The search fills the gap when the lookup listed no release a track can originate from (ranking would
+            # drop every listed one) or when its capped listing may have left out the original album; ranking
+            # dedupes the overlap by release group.
+            has_origin_type_release = any(candidate.is_track_origin_type for candidate in mb_candidates)
+            if not has_origin_type_release or len(mb_candidates) >= MUSICBRAINZ_LOOKUP_LINKED_ENTITY_CAP:
                 lookups.append("recording search")
                 mb_candidates = mb_candidates + mb.search_recording_origin_releases(
                     track_name=si.track_name, artist_name=si.artist_name, artist_mbid=artist_mbid
@@ -155,11 +158,13 @@ class ResolveTrackOriginModifier(SearchItemModifier):
             )
         else:
             via = " + ".join(lookups)
+            # The search gathers the releases of every recording of the track, not just LFM's.
+            listed_for = "the recording" if lookups == ["recording lookup by MBID"] else "recordings of the track"
             si.add_trace_step(
                 stage=SearchStage.MB_RECORDING,
                 outcome=SearchStepOutcome.OK if mb_candidates else SearchStepOutcome.WARNING,
                 detail=(
-                    f"MusicBrainz lists {counted(len(mb_candidates), 'release')} for the recording ({via})"
+                    f"MusicBrainz lists {counted(len(mb_candidates), 'release')} for {listed_for} ({via})"
                     if mb_candidates
                     else f"MusicBrainz lists no release for a recording of {quoted(si.track_name)} by "
                     f"{quoted(si.artist_name)} ({via})"
