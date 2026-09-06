@@ -9,6 +9,8 @@ from urllib.parse import urlencode
 
 from fastapi.templating import Jinja2Templates
 
+from plastered.models import SearchStage
+
 if TYPE_CHECKING:
     from fastapi import Request
 
@@ -37,6 +39,11 @@ def _status_label(status: object) -> str:
     return _STATUS_DISPLAY_LABELS.get(str(status), str(status))
 
 
+def _stage_label(stage: object) -> str:
+    """Jinja filter: render a `SearchStage` (or its stored value) as its display name."""
+    return SearchStage(str(stage)).display_name
+
+
 def _auth_template_context(request: Request) -> dict[str, bool]:
     """Template context processor: exposes `auth_enabled` to every page so shared chrome (e.g. the nav-bar logout
     control in `base_template.html`) can render conditionally on `server.auth.enable_login_protection`."""
@@ -62,4 +69,5 @@ TEMPLATES: Final[Jinja2Templates] = Jinja2Templates(
 TEMPLATES.env.filters["dict_to_query_params"] = urlencode
 TEMPLATES.env.filters["format_timestamp"] = _format_timestamp
 TEMPLATES.env.filters["status_label"] = _status_label
+TEMPLATES.env.filters["stage_label"] = _stage_label
 SUB_CONF_NAMES: Final[tuple[str, ...]] = ("format_preferences", "search", "snatches")

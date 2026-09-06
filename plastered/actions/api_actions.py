@@ -23,6 +23,7 @@ from plastered.db.db_models import (
     RecDownloadBatch,
     ScraperRun,
     SearchRecord,
+    SearchStep,
     Skipped,
     Status,
     get_engine,
@@ -290,6 +291,11 @@ def adhoc_result_action(search_id: int, session: Session) -> AdhocSearchResult |
         grabbed=session.exec(select(Grabbed).where(Grabbed.g_result_id == search_id)).first(),
         failed=session.exec(select(Failed).where(Failed.f_result_id == search_id)).first(),
         skipped=session.exec(select(Skipped).where(Skipped.s_result_id == search_id)).first(),
+        steps=list(
+            session.exec(
+                select(SearchStep).where(SearchStep.search_id == search_id).order_by(col(SearchStep.position))
+            ).all()
+        ),
     )
 
 

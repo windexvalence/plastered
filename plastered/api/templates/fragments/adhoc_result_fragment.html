@@ -3,7 +3,24 @@
   #adhoc-retry-<id> container on the run-history page, so every swap targets the fragment itself rather than a fixed
   parent. While the search is still in progress it re-requests itself (HTMX polling) every 2s; once a terminal status
   is reached it renders the matched release(s) + any snatch info and stops polling.
+
+  Below the result sits the search trace (`result.steps`): what each stage of the search found. While the search runs
+  it is a plain list refreshed with every poll (a toggle would be reset by each swap); once complete it is collapsible,
+  expanded unless a release was matched, so a search that found nothing shows where it stopped.
 #}
+{% macro trace_list(steps) %}
+    <ol class="search-trace">
+        {% for step in steps %}
+            <li class="trace-{{ step.outcome }}">
+                <span class="trace-stage">
+                    {% if step.outcome == "stopped" %}⛔{% elif step.outcome == "warning" %}⚠️{% else %}✅{% endif %}
+                    {{ step.stage | stage_label }}
+                </span>
+                <span class="trace-detail">{{ step.detail }}</span>
+            </li>
+        {% endfor %}
+    </ol>
+{% endmacro %}
 <div class="adhoc-result"
     {% if not result or not result.is_complete %}
         hx-get="/adhoc_result?search_id={{ search_id }}"
@@ -50,9 +67,25 @@
             </table>
         {% elif result.skipped %}
             <p><strong>🚫 No matching release was snatched.</strong></p>
-            <p>Reason: {{ result.skipped.skip_reason }}</p>
+            {% if result.stopped_step %}
+                <p>Stopped at <strong>{{ result.stopped_step.stage | stage_label }}</strong>: {{ result.skipped.skip_reason }}</p>
+            {% else %}
+                <p>Reason: {{ result.skipped.skip_reason }}</p>
+            {% endif %}
         {% else %}
             <p>No matching release found.</p>
+        {% endif %}
+    {% endif %}
+
+    {% if result and result.steps %}
+        {% if result.is_complete %}
+            <details class="search-trace"{% if not (result.grabbed or result.matched) %} open{% endif %}>
+                <summary>Search trace</summary>
+                {{ trace_list(result.steps) }}
+            </details>
+        {% else %}
+            <p class="search-trace"><strong>Search trace so far</strong></p>
+            {{ trace_list(result.steps) }}
         {% endif %}
     {% endif %}
 </div>

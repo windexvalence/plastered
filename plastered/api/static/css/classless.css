@@ -435,3 +435,34 @@ progress::-moz-progress-bar { background: var(--accent); }
 @keyframes fadeOut { 0% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes zoomIn  { 0% { transform: scale(0.9); } 100% { transform: scale(1); } }
 @keyframes zoomOut { 0% { transform: scale(1); } 100% { transform: scale(0.9); } }
+
+/* ----------------------------------------------------------------- ad-hoc search trace */
+
+/* One row per search stage (see fragments/adhoc_result_fragment.html); the stage label is colored by the outcome. */
+details.search-trace > summary { font-size: 0.95em; }
+
+ol.search-trace {
+    list-style: none;
+    margin: 0.4rem 0 0.2rem;
+    padding: 0;
+}
+
+ol.search-trace > li {
+    display: grid;
+    grid-template-columns: 17rem 1fr;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    border-top: 1px solid var(--border-soft);
+}
+
+ol.search-trace .trace-stage { font-weight: 600; }
+/* Details may span several lines (one per origin candidate tried). */
+ol.search-trace .trace-detail { white-space: pre-line; }
+ol.search-trace > li.trace-ok .trace-stage { color: var(--ok); }
+ol.search-trace > li.trace-warning .trace-stage { color: var(--warn); }
+ol.search-trace > li.trace-stopped .trace-stage { color: var(--link); }
+ol.search-trace > li.trace-stopped .trace-detail { color: var(--head); font-weight: 600; }
+
+@media (max-width: 640px) {
+    ol.search-trace > li { grid-template-columns: 1fr; gap: 0.15rem; }
+}

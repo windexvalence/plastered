@@ -26,7 +26,7 @@ RED's search does not offer fuzzy matching, so `plastered` does the matching its
 * **Record label and catalog number** (`use_record_label` / `use_catalog_number`): when enabled, these are *preferences*, not filters — among equally-titled candidates, groups whose label/catalog number match the musicbrainz-resolved values are preferred, but a mismatch never rules a group out.
 * The best-matching group's torrents are then ranked against your `red.format_preferences` list, and the highest-priority format with a torrent within your size limit wins.
 
-The same matching applies to ad-hoc searches, where any refinement fields you provide (release type, year, label, catalog number) behave the same way. An ad-hoc *track* search only ever matches album, EP, single and soundtrack release groups, so any release type you give it must be one of those.
+The same matching applies to ad-hoc searches, where any refinement fields you provide (release type, year, label, catalog number) behave the same way. An ad-hoc *track* search only ever matches album, EP, single and soundtrack release groups, so any release type you give it must be one of those. An ad-hoc search's result traces each of these stages, so when nothing matches you can see whether the artist is missing on RED, no group's title matched, the type / year filters dropped every match, or no torrent met your format preferences and size limit — and, for a track, which origin releases were tried.
 
 ## Can `plastered` scrape my recommendations automatically?
 

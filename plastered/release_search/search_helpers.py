@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from plastered.db.db_models import FailReason, SkipReason, Status
 from plastered.db.db_utils import set_result_status
 from plastered.models import (
     TRACK_ORIGIN_RELEASE_TYPES,
+    RedReleaseType,
     RedUserDetails,
     ReleaseEntry,
     SearchItem,
+    SearchStage,
+    SearchStepOutcome,
     TorrentEntry,
     TorrentMatch,
+    counted,
+    origin_label,
+    quoted,
+    release_group_label,
+    release_type_name,
+    torrent_label,
 )
 from plastered.utils.constants import (
     RED_PARAM_CATALOG_NUMBER,
@@ -41,6 +51,54 @@ def _required_search_kwargs(use_release_type: bool, use_first_release_year: bool
     if use_first_release_year:
         required_kwargs.add(RED_PARAM_RELEASE_YEAR)
     return required_kwargs
+
+
+@dataclass(frozen=True)
+class ReleaseGroupMatches:
+    """
+    The outcome of matching one wanted release against an artist's RED release groups
+    (`SearchState.match_release_groups`): the candidate groups, best first, plus how the title, release-type and
+    year rules treated the artist's groups, which `describe` renders for the search trace.
+    """
+
+    wanted_title: str
+    wanted_release_type: RedReleaseType | None
+    wanted_year: int | None
+    entries: list[ReleaseEntry]
+    # Groups whose title matched; of those, how many the type / year filters dropped or, in lenient mode, kept despite
+    # a different type. Same-titled groups of a type a track cannot originate from are counted separately.
+    title_matched: int = 0
+    type_dropped: int = 0
+    type_mismatched_kept: int = 0
+    year_dropped: int = 0
+    year_ignored: bool = False
+    non_origin_type_ignored: int = 0
+
+    def describe(self) -> str:
+        title = quoted(self.wanted_title)
+        if self.title_matched == 0:
+            if self.non_origin_type_ignored:
+                return (
+                    f"only {counted(self.non_origin_type_ignored, 'release group')} titled like {title}, none an "
+                    "album / EP / single / soundtrack"
+                )
+            return f"no release group titled like {title}"
+        wanted_type = release_type_name(self.wanted_release_type)
+        notes: list[str] = []
+        if self.type_dropped:
+            notes.append(f"{self.type_dropped} dropped for release type (wanted {wanted_type})")
+        if self.type_mismatched_kept:
+            notes.append(f"{self.type_mismatched_kept} of a different release type (wanted {wanted_type})")
+        if self.year_dropped:
+            notes.append(f"{self.year_dropped} dropped for year (wanted {self.wanted_year})")
+        if self.year_ignored:
+            notes.append(f"year filter ({self.wanted_year}) skipped: no title match from that year")
+        if self.non_origin_type_ignored:
+            notes.append(f"{self.non_origin_type_ignored} more ignored: not an album / EP / single / soundtrack group")
+        text = f"{counted(self.title_matched, 'release group')} titled like {title}"
+        if notes:
+            text += f" ({'; '.join(notes)}); {counted(len(self.entries), 'candidate')} kept"
+        return text
 
 
 class SearchState:
@@ -147,7 +205,21 @@ class SearchState:
            year should narrow the match, never kill it.
         5. Candidates are ordered by title score, then release-type match, then by a matching record label /
            catalogue number. Label and catalogue number are ranking signals only — a mismatch never drops a group.
+
+        The list-only form of `match_release_groups`, which also reports how these rules treated the groups.
         """
+        return self.match_release_groups(
+            si=si, release_entries=release_entries, origin=origin, strict_release_type=strict_release_type
+        ).entries
+
+    def match_release_groups(
+        self,
+        si: SearchItem,
+        release_entries: list[ReleaseEntry],
+        origin: OriginRelease | None = None,
+        strict_release_type: bool = True,
+    ) -> ReleaseGroupMatches:
+        """As `get_candidate_release_groups`, also reporting how the title / type / year rules treated the groups."""
         wanted_title = origin.release_name if origin is not None else si.release_name
         search_kwargs = si.get_origin_search_kwargs(origin=origin) if origin is not None else si.get_search_kwargs()
         wanted_release_type = self._effective_search_kwarg(
@@ -161,9 +233,8 @@ class SearchState:
             si, search_kwargs, RED_PARAM_CATALOG_NUMBER, self._use_catalog_number
         )
         scored_entries: list[tuple[float, bool, ReleaseEntry]] = []
+        title_matched = non_origin_type_ignored = type_dropped = type_mismatched_kept = 0
         for release_entry in release_entries:
-            if origin is not None and release_entry.release_type not in TRACK_ORIGIN_RELEASE_TYPES:
-                continue
             score = title_match_score(
                 wanted_title=wanted_title,
                 candidate_title=release_entry.group_name,
@@ -171,17 +242,28 @@ class SearchState:
             )
             if score < MIN_MATCH_SCORE:
                 continue
+            if origin is not None and release_entry.release_type not in TRACK_ORIGIN_RELEASE_TYPES:
+                non_origin_type_ignored += 1
+                continue
+            title_matched += 1
             release_type_matches = wanted_release_type is None or release_entry.release_type == wanted_release_type
             # A type mismatch drops the group in strict mode; in lenient mode only an exactly-titled group survives
             # it (a word-subset title like "Home Again" for a wanted "Home" plus a wrong type is too weak to snatch on).
             if not release_type_matches and (strict_release_type or score < EXACT_MATCH_SCORE):
+                type_dropped += 1
                 continue
+            if not release_type_matches:
+                type_mismatched_kept += 1
             scored_entries.append((score, release_type_matches, release_entry))
+        year_dropped = 0
+        year_ignored = False
         if wanted_year is not None:
             year_scored_entries = [entry for entry in scored_entries if entry[2].group_year == wanted_year]
             if year_scored_entries:
+                year_dropped = len(scored_entries) - len(year_scored_entries)
                 scored_entries = year_scored_entries
             elif scored_entries:
+                year_ignored = True
                 _LOGGER.info(
                     f"Year filter ({wanted_year}) eliminated every candidate group for '{wanted_title}' by "
                     f"'{si.artist_name}'; falling back to the year-agnostic candidates."
@@ -200,7 +282,80 @@ class SearchState:
 
         # `sort` is stable, so equally-ranked groups keep RED's own (release-type + year) listing order.
         scored_entries.sort(key=_rank_key, reverse=True)
-        return [release_entry for _, _, release_entry in scored_entries]
+        return ReleaseGroupMatches(
+            wanted_title=wanted_title,
+            wanted_release_type=RedReleaseType(wanted_release_type) if wanted_release_type is not None else None,
+            wanted_year=wanted_year,
+            entries=[release_entry for _, _, release_entry in scored_entries],
+            title_matched=title_matched,
+            type_dropped=type_dropped,
+            type_mismatched_kept=type_mismatched_kept,
+            year_dropped=year_dropped,
+            year_ignored=year_ignored,
+            non_origin_type_ignored=non_origin_type_ignored,
+        )
+
+    def match_album_release(self, si: SearchItem, release_entries: list[ReleaseEntry]) -> TorrentMatch:
+        """
+        Matches an album item's release against the artist's RED release groups (`match_release_groups`) and ranks
+        the candidates' torrents against the format preferences (`select_best_torrent`), tracing the outcome on the
+        item.
+        """
+        matches = self.match_release_groups(si=si, release_entries=release_entries)
+        torrent_match = self.select_best_torrent(release_entries=matches.entries)
+        si.add_trace_step(
+            stage=SearchStage.RED_MATCH,
+            outcome=SearchStepOutcome.OK if torrent_match.torrent_entry is not None else SearchStepOutcome.WARNING,
+            detail=self._describe_match_attempt(matches=matches, torrent_match=torrent_match),
+        )
+        return torrent_match
+
+    def _describe_match_attempt(self, matches: ReleaseGroupMatches, torrent_match: TorrentMatch) -> str:
+        """The group matching outcome, then how the candidates' torrents fared when there were candidates."""
+        text = matches.describe()
+        if not matches.entries:
+            return text
+        return f"{text}; {self._describe_torrent_match(torrent_match=torrent_match)}"
+
+    def _describe_torrent_match(self, torrent_match: TorrentMatch) -> str:
+        if (torrent_entry := torrent_match.torrent_entry) is not None:
+            text = f"matched {torrent_label(torrent_entry)}"
+            if torrent_match.release_entry is not None:
+                text += f" in {release_group_label(torrent_match.release_entry)}"
+            return text
+        if torrent_match.above_max_size_found:
+            return f"every torrent matching the format preferences exceeds the size limit ({self._max_size_gb:g} GB)"
+        return "no torrent matched the format preferences"
+
+    @staticmethod
+    def _trace_origin_attempts(si: SearchItem, attempts: dict[bool, list[str]], matched: bool) -> None:
+        """
+        Traces a track item's per-candidate matching outcomes (`attempts`: one line per candidate tried, keyed by
+        pass — strict release type or not) as one step. A lenient-pass outcome supersedes the strict-pass one for the
+        same candidate, so the strict pass is listed only when the lenient pass matched before reaching every
+        candidate.
+        """
+        strict_lines, lenient_lines = attempts[True], attempts[False]
+        if not lenient_lines:
+            groups = [("Origin candidates tried against RED, best first:", strict_lines)]
+        elif matched:
+            groups = [
+                ("Origin candidates tried against RED, best first (release type as a filter):", strict_lines),
+                ("Retried with the release type relaxed to a ranking signal:", lenient_lines),
+            ]
+        else:
+            groups = [
+                (
+                    "Origin candidates tried against RED, best first (none matched with the release type as a "
+                    "filter, so it was relaxed to a ranking signal):",
+                    lenient_lines,
+                )
+            ]
+        si.add_trace_step(
+            stage=SearchStage.RED_MATCH,
+            outcome=SearchStepOutcome.OK if matched else SearchStepOutcome.WARNING,
+            detail="\n".join(line for header, lines in groups for line in (header, *lines)),
+        )
 
     def match_track_origin_candidates(self, si: SearchItem, release_entries: list[ReleaseEntry]) -> TorrentMatch:
         """
@@ -211,27 +366,37 @@ class SearchState:
         candidate. Both passes only ever consider album / EP / single / soundtrack groups
         (`TRACK_ORIGIN_RELEASE_TYPES`). Candidates the user already snatched are skipped (when `skip_prior_snatches`
         is on). Reports `above_max_size_found` when any candidate's only format matches exceeded the size limit.
+        The per-candidate outcomes are traced on the item as one step.
         """
         above_max_size_found = False
+        # One line per candidate tried, per pass (see `_trace_origin_attempts`).
+        attempts: dict[bool, list[str]] = {True: [], False: []}
         for strict_release_type in (True, False):
             for origin in si.origin_candidates:
+                label = origin_label(origin)
                 if self._previously_snatched_release(si=si, release_name=origin.release_name):
                     _LOGGER.debug(
                         f"Skipping already-snatched origin candidate '{origin.release_name}' for {si.initial_info}."
                     )
+                    attempts[strict_release_type].append(f"• {label}: skipped, already snatched")
                     continue
-                candidate_entries = self.get_candidate_release_groups(
+                matches = self.match_release_groups(
                     si=si, release_entries=release_entries, origin=origin, strict_release_type=strict_release_type
                 )
-                torrent_match = self.select_best_torrent(release_entries=candidate_entries)
+                torrent_match = self.select_best_torrent(release_entries=matches.entries)
+                attempts[strict_release_type].append(
+                    f"• {label}: {self._describe_match_attempt(matches=matches, torrent_match=torrent_match)}"
+                )
                 if torrent_match.torrent_entry is not None:
                     _LOGGER.debug(
                         f"Track '{si.track_name}' by '{si.artist_name}' matched via origin release "
                         f"'{origin.release_name}' ({origin.source}; {strict_release_type=})."
                     )
                     si.set_matched_origin(origin=origin)
+                    self._trace_origin_attempts(si=si, attempts=attempts, matched=True)
                     return torrent_match
                 above_max_size_found = above_max_size_found or torrent_match.above_max_size_found
+        self._trace_origin_attempts(si=si, attempts=attempts, matched=False)
         return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
 
     def _previously_snatched_release(self, si: SearchItem, release_name: str) -> bool:
@@ -473,7 +638,9 @@ class SearchState:
                     if not self._torrent_matches_format(torrent_entry=torrent_entry, pref=pref):
                         continue
                     if torrent_entry.get_size(unit="GB") <= self._max_size_gb:
-                        return TorrentMatch(torrent_entry=torrent_entry, above_max_size_found=False)
+                        return TorrentMatch(
+                            torrent_entry=torrent_entry, above_max_size_found=False, release_entry=release_entry
+                        )
                     above_max_size_found = True
         return TorrentMatch(torrent_entry=None, above_max_size_found=above_max_size_found)
 

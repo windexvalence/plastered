@@ -296,3 +296,63 @@ def test_upsert_resolved_origin_without_search_id_fails() -> None:
             candidate_count=1,
             matched=False,
         )
+
+
+def test_persist_search_trace_writes_only_the_new_steps() -> None:
+    """Each call appends the steps traced since the last one, numbered by their position in the trace."""
+    from plastered.db.db_models import SearchStep
+    from plastered.db.db_utils import persist_search_trace
+    from plastered.models import AdhocSearch, SearchItem, SearchStage, SearchStepOutcome
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    SQLModel.metadata.create_all(engine)
+    si = SearchItem(initial_info=AdhocSearch(artist="a", release="r"), search_id=7)
+
+    def _rows() -> list[tuple[int, int, str, str, str]]:
+        with Session(engine) as session:
+            return [
+                (r.search_id, r.position, r.stage, r.outcome, r.detail)
+                for r in session.exec(select(SearchStep).order_by(SearchStep.position)).all()
+            ]
+
+    with patch("plastered.db.db_utils.get_engine", return_value=engine):
+        persist_search_trace(si=si)  # nothing traced yet: a no-op
+        assert _rows() == [] and si.persisted_trace_count == 0
+        si.add_trace_step(stage=SearchStage.RED_ARTIST, outcome=SearchStepOutcome.OK, detail="3 groups")
+        si.add_trace_step(stage=SearchStage.RED_MATCH, outcome=SearchStepOutcome.WARNING, detail="no title match")
+        persist_search_trace(si=si)
+        assert si.persisted_trace_count == 2
+        si.add_trace_step(stage=SearchStage.RED_MATCH, outcome=SearchStepOutcome.STOPPED, detail="No RED match found")
+        persist_search_trace(si=si)
+        persist_search_trace(si=si)  # already persisted: a no-op
+    assert _rows() == [
+        (7, 0, SearchStage.RED_ARTIST, SearchStepOutcome.OK, "3 groups"),
+        (7, 1, SearchStage.RED_MATCH, SearchStepOutcome.WARNING, "no title match"),
+        (7, 2, SearchStage.RED_MATCH, SearchStepOutcome.STOPPED, "No RED match found"),
+    ]
+    assert si.persisted_trace_count == 3
+    engine.dispose()
+
+
+def test_persist_search_trace_skips_scraper_items() -> None:
+    """A scraper rec's trace stays in memory: nothing renders it, and a run processes hundreds of recs."""
+    from plastered.db.db_utils import persist_search_trace
+    from plastered.models import EntityType, LFMRec, SearchItem, SearchStage, SearchStepOutcome
+
+    si = SearchItem(initial_info=LFMRec("artist", "album", EntityType.ALBUM), search_id=7)
+    si.add_trace_step(stage=SearchStage.RED_ARTIST, outcome=SearchStepOutcome.OK, detail="3 groups")
+    with patch("plastered.db.db_utils.get_engine") as mock_get_engine:
+        persist_search_trace(si=si)
+    mock_get_engine.assert_not_called()
+    assert si.persisted_trace_count == 0
+
+
+def test_persist_search_trace_without_search_id_fails() -> None:
+    from plastered.db.db_utils import persist_search_trace
+    from plastered.models import AdhocSearch, SearchItem, SearchStage, SearchStepOutcome
+
+    si = SearchItem(initial_info=AdhocSearch(artist="a", release="r"))
+    persist_search_trace(si=si)  # nothing to write: no record needed
+    si.add_trace_step(stage=SearchStage.RED_ARTIST, outcome=SearchStepOutcome.OK, detail="3 groups")
+    with pytest.raises(MissingDatabaseRecordException):
+        persist_search_trace(si=si)

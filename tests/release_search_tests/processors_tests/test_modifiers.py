@@ -12,8 +12,11 @@ from plastered.models import (
     OriginSource,
     ReleaseEntry,
     SearchItem,
+    SearchStage,
+    SearchStepOutcome,
     TorrentEntry,
     TorrentMatch,
+    TraceStep,
 )
 from plastered.release_search.processors.modifiers import (
     ResolveAlbumInfoModifier,
@@ -21,6 +24,9 @@ from plastered.release_search.processors.modifiers import (
     AttachSearchIdModifier,
     AttemptResolveMBReleaseModifier,
     SearchRedReleaseByPrefsModifier,
+    _describe_mb_release,
+    _describe_origin_candidates,
+    _lfm_failure_detail,
     _request_release_details_with_fallback,
 )
 from plastered.release_search.processors.bases import SearchItemModifier
@@ -126,9 +132,26 @@ def test_resolve_album_info_modifier(
         if is_lfm_rec:
             mock_construct_from_api_response.assert_called_once()
             assert actual._lfm_album_info is not None
+            assert actual.trace == [
+                TraceStep(
+                    stage=SearchStage.LFM_ALBUM_INFO,
+                    outcome=SearchStepOutcome.OK,
+                    detail='Last.fm album info found (release MBID "1234")',
+                )
+            ]
         else:
             mock_construct_from_api_response.assert_not_called()
             assert actual._lfm_album_info is None
+            assert actual.trace == []
+
+
+def test_resolve_album_info_modifier_traces_a_missing_mbid(
+    mock_process_kwargs: _MockProcKwargs, make_album_search_item: pytest.FixtureRequest
+) -> None:
+    mbidless = LFMAlbumInfo(artist="Foo", release_mbid=None, album_name="Bar", lfm_url="https://blah.com")
+    with patch.object(LFMAlbumInfo, "construct_from_api_response", return_value=mbidless):
+        actual = ResolveAlbumInfoModifier.process(si=make_album_search_item(is_lfm_rec=True), **mock_process_kwargs)
+    assert actual.trace[0].detail == "Last.fm album info found (no release MBID)"
 
 
 @pytest.mark.parametrize(
@@ -151,6 +174,23 @@ def test_resolve_album_info_modifier_lfm_exception(
     assert actual is mock_si
     assert actual._lfm_album_info is None
     assert actual.lfm_request_failed is expected_lfm_request_failed
+    assert actual.trace == [
+        TraceStep(
+            stage=SearchStage.LFM_ALBUM_INFO,
+            outcome=SearchStepOutcome.WARNING,
+            detail=(
+                "Last.fm request failed"
+                if expected_lfm_request_failed
+                else "Last.fm album lookup failed: Intentionally raised exception"
+            ),
+        )
+    ]
+
+
+def test_lfm_failure_detail() -> None:
+    assert _lfm_failure_detail(ex=LFMRequestFailureException("x"), lookup="track") == "Last.fm request failed"
+    assert _lfm_failure_detail(ex=LFMClientException("boom"), lookup="album") == "Last.fm album lookup failed: boom"
+    assert _lfm_failure_detail(ex=KeyError("album"), lookup="track") == "Last.fm returned an unusable track payload"
 
 
 class TestResolveTrackOriginModifier:
@@ -193,6 +233,26 @@ class TestResolveTrackOriginModifier:
             search_id=7, origin=lookup_candidates[1], candidate_rank=0, candidate_count=2, matched=False
         )
         assert actual.lfm_request_failed is False and actual.mb_request_failed is False
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.LFM_TRACK_INFO,
+                outcome=SearchStepOutcome.OK,
+                detail='Last.fm lists the track on "Dr. Octagonecologyst"',
+            ),
+            TraceStep(
+                stage=SearchStage.MB_RECORDING,
+                outcome=SearchStepOutcome.OK,
+                detail="MusicBrainz lists 2 releases for the recording (recording lookup by MBID)",
+            ),
+            TraceStep(
+                stage=SearchStage.TRACK_ORIGIN,
+                outcome=SearchStepOutcome.OK,
+                detail=(
+                    '2 candidate origin releases, best first: "Dr. Octagonecologyst" (album, 1996), '
+                    '"Blue Flowers" (single, 1996)'
+                ),
+            ),
+        ]
 
     def test_search_fallback_when_lookup_is_empty(
         self,
@@ -217,6 +277,12 @@ class TestResolveTrackOriginModifier:
             ("Blue Flowers", OriginSource.MB_RECORDING_SEARCH),
             ("Dr. Octagonecologyst", OriginSource.LFM),
         ]
+        assert actual.trace[1].detail == (
+            "MusicBrainz lists 1 release for the recording (recording lookup by MBID + recording search)"
+        )
+        assert actual.trace[2].detail == (
+            '2 candidate origin releases, best first: "Blue Flowers" (single, 2000), "Dr. Octagonecologyst"'
+        )
 
     def test_capped_lookup_also_searches_and_merges(
         self,
@@ -265,6 +331,48 @@ class TestResolveTrackOriginModifier:
         )
         assert actual.origin_candidates == [] and actual.release_name == "None"
         mock_upsert.assert_not_called()
+        # Nothing was gathered, so the stop (traced by the following filter) needs no origin step of its own.
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.LFM_TRACK_INFO,
+                outcome=SearchStepOutcome.WARNING,
+                detail="Last.fm lists no release for the track",
+            ),
+            TraceStep(
+                stage=SearchStage.MB_RECORDING,
+                outcome=SearchStepOutcome.WARNING,
+                detail=(
+                    'MusicBrainz lists no release for a recording of "rushup i bank 12 M" by "The Tuss" '
+                    "(recording search)"
+                ),
+            ),
+        ]
+
+    def test_only_non_origin_releases_gathered_traces_why_no_candidate_stands(
+        self,
+        mock_full_lfm_track_info_json: dict[str, Any],
+        mock_process_kwargs: _MockProcKwargs,
+        make_track_search_item: pytest.FixtureRequest,
+    ) -> None:
+        """The LFM album folds into MB's same-titled compilation, which is no origin type: no candidate remains."""
+        si = make_track_search_item(is_lfm_rec=True, artist="Dr. Octagon", track="No Awareness")
+        compilation = OriginRelease(
+            release_name="Dr. Octagonecologyst",
+            source=OriginSource.MB_RECORDING_LOOKUP,
+            primary_type="Album",
+            secondary_types=("Compilation",),
+            release_date="1996",
+        )
+        mock_process_kwargs["lfm"].get_track_info.return_value = mock_full_lfm_track_info_json["track"]
+        mock_process_kwargs["mb"].lookup_recording_origin_releases.return_value = [compilation]
+        with patch(_UPSERT_RESOLVED_ORIGIN):
+            actual = ResolveTrackOriginModifier.process(si=si, **mock_process_kwargs)
+        assert actual.origin_candidates == []
+        assert actual.trace[-1] == TraceStep(
+            stage=SearchStage.TRACK_ORIGIN,
+            outcome=SearchStepOutcome.WARNING,
+            detail="None of the gathered releases is an album / EP / single / soundtrack",
+        )
 
     @pytest.mark.parametrize(
         "raised_exception, expected_lfm_request_failed",
@@ -330,6 +438,18 @@ class TestResolveTrackOriginModifier:
         mock_upsert.assert_called_once_with(
             search_id=9, origin=actual.origin_candidates[0], candidate_rank=0, candidate_count=1, matched=False
         )
+        assert actual.trace[1:] == [
+            TraceStep(
+                stage=SearchStage.MB_RECORDING,
+                outcome=SearchStepOutcome.WARNING,
+                detail="MusicBrainz request failed (recording lookup by MBID)",
+            ),
+            TraceStep(
+                stage=SearchStage.TRACK_ORIGIN,
+                outcome=SearchStepOutcome.OK,
+                detail='1 candidate origin release, best first: "Dr. Octagonecologyst"',
+            ),
+        ]
 
     def test_search_request_failure_sets_flag(
         self, mock_process_kwargs: _MockProcKwargs, make_track_search_item: pytest.FixtureRequest
@@ -344,6 +464,17 @@ class TestResolveTrackOriginModifier:
         assert actual.mb_request_failed is True
         assert actual.origin_candidates == []
         mock_upsert.assert_not_called()
+
+
+def test_describe_origin_candidates_names_the_top_few() -> None:
+    candidates = [_origin(f"Album {i}", date=str(2000 + i)) for i in range(7)]
+    assert _describe_origin_candidates(candidates=candidates) == (
+        '7 candidate origin releases, best first: "Album 0" (album, 2000), "Album 1" (album, 2001), '
+        '"Album 2" (album, 2002), "Album 3" (album, 2003), "Album 4" (album, 2004), … and 2 more'
+    )
+    assert _describe_origin_candidates(candidates=candidates[:1]) == (
+        '1 candidate origin release, best first: "Album 0" (album, 2000)'
+    )
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
@@ -421,11 +552,31 @@ def test_attempt_resolve_mb_release_modifier(
     if has_matched_mbid:
         mock_process_kwargs["mb"].search_release_mbid.assert_not_called()
         mock_process_kwargs["mb"].request_release_details.assert_called_once_with(mbid=mock_matched_mbid)
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.MB_RELEASE,
+                outcome=SearchStepOutcome.OK,
+                detail=(
+                    'Resolved MusicBrainz release "Dr. Octagonecologyst" (MBID d211379d-3203-47ed-a0c5-e564815bb45a, '
+                    'via MBID lookup): type album, year 1996, label "Get On Down", catalogue number "58010"'
+                ),
+            )
+        ]
     else:
         mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
             artist_name=si.artist_name, release_name=si.release_name
         )
         mock_process_kwargs["mb"].request_release_details.assert_not_called()
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.MB_RELEASE,
+                outcome=SearchStepOutcome.WARNING,
+                detail=(
+                    f'No MusicBrainz release found for "{si.release_name}" by "{si.artist_name}"; continuing without '
+                    "release details"
+                ),
+            )
+        ]
 
 
 @pytest.mark.override_global_httpx_mock
@@ -447,6 +598,8 @@ def test_attempt_resolve_mb_release_modifier_search_fallback_resolves(
         artist_name=mock_si.artist_name, release_name=mock_si.release_name
     )
     mock_process_kwargs["mb"].request_release_details.assert_called_once_with(mbid="searched-mbid")
+    assert len(actual.trace) == 1 and actual.trace[0].outcome == SearchStepOutcome.OK
+    assert "(MBID d211379d-3203-47ed-a0c5-e564815bb45a, via release search)" in actual.trace[0].detail
 
 
 @pytest.mark.override_global_httpx_mock
@@ -476,6 +629,14 @@ def test_attempt_resolve_mb_release_modifier_stale_mbid_falls_back_to_search(
     mock_process_kwargs["mb"].search_release_mbid.assert_called_once_with(
         artist_name=si.artist_name, release_name=si.release_name
     )
+    assert [(step.stage, step.outcome) for step in actual.trace] == [
+        (SearchStage.MB_RELEASE, SearchStepOutcome.WARNING),
+        (SearchStage.MB_RELEASE, SearchStepOutcome.OK),
+    ]
+    assert actual.trace[0].detail == (
+        'MusicBrainz does not serve release MBID "stale-mbid"; searching for the release instead'
+    )
+    assert "via release search" in actual.trace[1].detail
 
 
 def test_attempt_resolve_mb_release_modifier_search_fallback_request_failure(
@@ -491,6 +652,13 @@ def test_attempt_resolve_mb_release_modifier_search_fallback_request_failure(
     assert actual.mb_request_failed is True
     assert actual._mb_release is None
     mock_process_kwargs["mb"].request_release_details.assert_not_called()
+    assert actual.trace == [
+        TraceStep(
+            stage=SearchStage.MB_RELEASE,
+            outcome=SearchStepOutcome.WARNING,
+            detail="MusicBrainz request failed; continuing without release details",
+        )
+    ]
 
 
 def test_attempt_resolve_mb_release_modifier_malformed_release_payload(
@@ -502,6 +670,13 @@ def test_attempt_resolve_mb_release_modifier_malformed_release_payload(
     mock_process_kwargs["mb"].request_release_details.return_value = {}
     actual = AttemptResolveMBReleaseModifier.process(si=mock_si, **mock_process_kwargs)
     assert actual._mb_release is None and actual.mb_request_failed is False
+    assert actual.trace == [
+        TraceStep(
+            stage=SearchStage.MB_RELEASE,
+            outcome=SearchStepOutcome.WARNING,
+            detail="Malformed MusicBrainz release payload; continuing without release details",
+        )
+    ]
 
 
 def test_request_release_details_with_fallback_no_search_result(
@@ -509,8 +684,21 @@ def test_request_release_details_with_fallback_no_search_result(
 ) -> None:
     mock_si = make_album_search_item(is_lfm_rec=True)
     mock_process_kwargs["mb"].search_release_mbid.return_value = None
-    assert _request_release_details_with_fallback(si=mock_si, mb=mock_process_kwargs["mb"], mbid=None) is None
+    assert _request_release_details_with_fallback(si=mock_si, mb=mock_process_kwargs["mb"], mbid=None) == (
+        None,
+        "release search",
+    )
     mock_process_kwargs["mb"].request_release_details.assert_not_called()
+    assert mock_si.trace == []
+
+
+def test_describe_mb_release_without_optional_fields() -> None:
+    bare = MBRelease(
+        mbid="m", title="T", artist="a", primary_type="Other", release_date="2020", release_group_mbid="rg"
+    )
+    assert _describe_mb_release(mbr=bare, via="MBID lookup") == (
+        'Resolved MusicBrainz release "T" (MBID m, via MBID lookup): no release type, year, label or catalogue number'
+    )
 
 
 @pytest.mark.parametrize(
@@ -542,6 +730,16 @@ def test_attempt_resolve_mb_release_modifier_exception(
     assert isinstance(actual, SearchItem)
     assert actual._mb_release is None
     assert actual.mb_request_failed is expected_mb_request_failed
+    # A request failure stops resolution at the MBID lookup; an error response falls back to the release search,
+    # whose looked-up MBID errors too (the mock raises on every lookup).
+    assert [step.outcome for step in actual.trace] == [SearchStepOutcome.WARNING] * (
+        1 if expected_mb_request_failed else 2
+    )
+    assert actual.trace[-1].detail == (
+        "MusicBrainz request failed; continuing without release details"
+        if expected_mb_request_failed
+        else "MusicBrainz returned an error for the release; continuing without release details"
+    )
 
 
 @pytest.mark.parametrize("is_lfm_rec", [False, True])
@@ -558,11 +756,12 @@ def test_attempt_resolve_mb_release_modifier_skips_when_not_required(
     assert actual is mock_si
     assert actual._mb_release is None
     mock_process_kwargs["mb"].request_release_details.assert_not_called()
+    assert actual.trace == []
 
 
 class TestSearchRedReleaseByPrefsModifier:
-    """A single artist-endpoint request is issued per rec; selecting the candidate groups and ranking their torrents
-    against the format preferences are delegated to `SearchState`."""
+    """A single artist-endpoint request is issued per rec; matching the wanted release against the listing and
+    ranking the candidates' torrents against the format preferences are delegated to `SearchState`."""
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_single_artist_request_delegates_matching_and_ranking(
@@ -572,11 +771,9 @@ class TestSearchRedReleaseByPrefsModifier:
             torrent_id=69420, media="WEB", format="FLAC", encoding="24bit Lossless", **_MOCK_TE_KWARGS
         )
         release_entries = [MagicMock(spec=ReleaseEntry), MagicMock(spec=ReleaseEntry)]
-        candidate_entries = [release_entries[1]]
         mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
         mock_process_kwargs["red"].get_artist_release_groups.return_value = release_entries
-        mock_process_kwargs["state"].get_candidate_release_groups.return_value = candidate_entries
-        mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
+        mock_process_kwargs["state"].match_album_release.return_value = TorrentMatch(
             torrent_entry=matched_te, above_max_size_found=False
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
@@ -588,15 +785,21 @@ class TestSearchRedReleaseByPrefsModifier:
         mock_process_kwargs["state"].cache_artist_release_groups.assert_called_once_with(
             artist_name=mock_si.artist_name, release_entries=release_entries
         )
-        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
+        mock_process_kwargs["state"].match_album_release.assert_called_once_with(
             si=mock_si, release_entries=release_entries
         )
-        mock_process_kwargs["state"].select_best_torrent.assert_called_once_with(release_entries=candidate_entries)
         mock_process_kwargs["state"].match_track_origin_candidates.assert_not_called()
         mock_upsert.assert_not_called()
         assert actual is mock_si
         assert actual.torrent_entry is matched_te
         assert actual.above_max_size_te_found is False
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.RED_ARTIST,
+                outcome=SearchStepOutcome.OK,
+                detail='RED lists 2 release groups for artist "artist"',
+            )
+        ]
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_cached_artist_listing_skips_the_red_request(
@@ -605,18 +808,18 @@ class TestSearchRedReleaseByPrefsModifier:
         """A run-cached artist listing is reused: no RED request is issued and nothing is re-cached."""
         cached_entries = [MagicMock(spec=ReleaseEntry)]
         mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = cached_entries
-        mock_process_kwargs["state"].get_candidate_release_groups.return_value = cached_entries
-        mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
+        mock_process_kwargs["state"].match_album_release.return_value = TorrentMatch(
             torrent_entry=None, above_max_size_found=False
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
         actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
         mock_process_kwargs["red"].get_artist_release_groups.assert_not_called()
         mock_process_kwargs["state"].cache_artist_release_groups.assert_not_called()
-        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
+        mock_process_kwargs["state"].match_album_release.assert_called_once_with(
             si=mock_si, release_entries=cached_entries
         )
         assert actual is mock_si
+        assert actual.trace[0].detail == 'RED lists 1 release group for artist "artist"'
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_no_match_records_above_max_size(
@@ -624,8 +827,7 @@ class TestSearchRedReleaseByPrefsModifier:
     ) -> None:
         mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
         mock_process_kwargs["red"].get_artist_release_groups.return_value = []
-        mock_process_kwargs["state"].get_candidate_release_groups.return_value = []
-        mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
+        mock_process_kwargs["state"].match_album_release.return_value = TorrentMatch(
             torrent_entry=None, above_max_size_found=True
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
@@ -633,6 +835,17 @@ class TestSearchRedReleaseByPrefsModifier:
         assert actual is mock_si
         assert actual.torrent_entry is None
         assert actual.above_max_size_te_found is True
+        # An unknown artist (an empty listing) is cached like any other listing, and traced as a warning.
+        mock_process_kwargs["state"].cache_artist_release_groups.assert_called_once_with(
+            artist_name=mock_si.artist_name, release_entries=[]
+        )
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.RED_ARTIST,
+                outcome=SearchStepOutcome.WARNING,
+                detail='RED lists no release groups for artist "artist"',
+            )
+        ]
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_artist_request_exception_ranks_empty_results(
@@ -645,21 +858,25 @@ class TestSearchRedReleaseByPrefsModifier:
 
         mock_process_kwargs["state"].get_cached_artist_release_groups.return_value = None  # cache miss
         mock_process_kwargs["red"].get_artist_release_groups.side_effect = _raise
-        mock_process_kwargs["state"].get_candidate_release_groups.return_value = []
-        mock_process_kwargs["state"].select_best_torrent.return_value = TorrentMatch(
+        mock_process_kwargs["state"].match_album_release.return_value = TorrentMatch(
             torrent_entry=None, above_max_size_found=False
         )
         mock_si = make_album_search_item(is_lfm_rec=is_lfm_rec)
         actual = SearchRedReleaseByPrefsModifier.process(si=mock_si, **mock_process_kwargs)
-        mock_process_kwargs["state"].get_candidate_release_groups.assert_called_once_with(
-            si=mock_si, release_entries=[]
-        )
+        mock_process_kwargs["state"].match_album_release.assert_called_once_with(si=mock_si, release_entries=[])
         # A failed fetch is NOT cached: a later rec by the same artist retries the request instead of inheriting
         # a silent no-match for the rest of the run.
         mock_process_kwargs["state"].cache_artist_release_groups.assert_not_called()
         assert actual is mock_si
         assert actual.torrent_entry is None
         assert actual.above_max_size_te_found is False
+        assert actual.trace == [
+            TraceStep(
+                stage=SearchStage.RED_ARTIST,
+                outcome=SearchStepOutcome.WARNING,
+                detail='RED artist request failed for artist "artist"',
+            )
+        ]
 
     @pytest.mark.parametrize("is_lfm_rec", [False, True])
     def test_track_item_matches_via_origin_candidates(

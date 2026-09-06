@@ -14,11 +14,12 @@ from plastered.db.db_models import (
     ScraperRun,
     ScrapeSchedule,
     SearchRecord,
+    SearchStep,
     Skipped,
     SkipReason,
     Status,
 )
-from plastered.models import AdhocSearch, EntityType
+from plastered.models import AdhocSearch, EntityType, SearchStepOutcome
 
 if TYPE_CHECKING:
     from sqlalchemy import Row
@@ -47,7 +48,9 @@ class AdhocSearchResult(BaseModel):
     """
     The full result of an ad-hoc search: the search record plus whichever terminal status row was produced. For a
     completed search this surfaces the matched release(s) (`matched` for a search-only run, or `grabbed` when a
-    download was requested and succeeded) and any snatch information.
+    download was requested and succeeded) and any snatch information. `steps` is the search trace so far, in chain
+    order (see `plastered.models.search_trace`): what each stage found and, for a search that found no release, where
+    it stopped.
     """
 
     searchrecord: SearchRecord
@@ -55,11 +58,17 @@ class AdhocSearchResult(BaseModel):
     grabbed: Grabbed | None = Field(default=None)
     failed: Failed | None = Field(default=None)
     skipped: Skipped | None = Field(default=None)
+    steps: list[SearchStep] = Field(default_factory=list)
 
     @property
     def is_complete(self) -> bool:
         """`True` once the search has reached a terminal status (i.e. is no longer in progress)."""
         return self.searchrecord.status is not None and self.searchrecord.status != Status.IN_PROGRESS
+
+    @property
+    def stopped_step(self) -> SearchStep | None:
+        """The trace step at which a filter dropped the search, if any."""
+        return next((step for step in reversed(self.steps) if step.outcome == SearchStepOutcome.STOPPED), None)
 
 
 class RunHistoryListResponse(BaseModel):

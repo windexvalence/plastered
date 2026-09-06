@@ -71,7 +71,7 @@ def test_request_lfm_api_bad_json_response(
     lfm_client = LFMAPIClient(app_settings=valid_app_settings)
     lfm_client._throttle = Mock(name="_throttle")
     lfm_client._throttle.return_value = None
-    with pytest.raises(LFMClientException, match="LFM API error encounterd. LFM error code: '123'"):
+    with pytest.raises(LFMClientException, match="LFM API error encountered. LFM error code: '123'"):
         lfm_client.request_api(method=method, params="fakekey=fakevalue")
 
 

@@ -184,11 +184,6 @@ class TorrentEntry:
         return f"https://redacted.sh/torrents.php?torrentid={self.torrent_id}"
 
 
-class TorrentMatch(NamedTuple):
-    torrent_entry: TorrentEntry | None
-    above_max_size_found: bool
-
-
 @dataclass
 class ReleaseEntry:
     """
@@ -255,6 +250,13 @@ class ReleaseEntry:
 
     def get_torrent_entries(self) -> list[TorrentEntry]:
         return self.torrent_entries
+
+
+class TorrentMatch(NamedTuple):
+    torrent_entry: TorrentEntry | None
+    above_max_size_found: bool
+    # The candidate release group the matched torrent belongs to (`None` without a match).
+    release_entry: ReleaseEntry | None = None
 
 
 class _RedUserInitialStats(BaseModel):

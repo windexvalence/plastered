@@ -201,3 +201,20 @@ def test_search_kwargs_has_all_required_fields_track_uses_top_origin() -> None:
     si.set_origin_candidates([_origin("Album", primary_type=None, date="2005")])
     assert si.search_kwargs_has_all_required_fields({RED_PARAM_RELEASE_TYPE, RED_PARAM_RELEASE_YEAR}) is False
     assert si.search_kwargs_has_all_required_fields({RED_PARAM_RELEASE_YEAR}) is True
+
+
+# ---- the search trace --------------------------------------------------------------------------------------------
+
+from plastered.models.search_trace import SearchStage, SearchStepOutcome, TraceStep  # noqa: E402
+
+
+def test_add_trace_step_appends_in_order() -> None:
+    si = _track_si()
+    assert si.trace == [] and si.persisted_trace_count == 0
+    si.add_trace_step(stage=SearchStage.LFM_TRACK_INFO, outcome=SearchStepOutcome.OK, detail="found")
+    si.add_trace_step(stage=SearchStage.MB_RECORDING, outcome=SearchStepOutcome.WARNING, detail="nothing")
+    assert si.trace == [
+        TraceStep(stage=SearchStage.LFM_TRACK_INFO, outcome=SearchStepOutcome.OK, detail="found"),
+        TraceStep(stage=SearchStage.MB_RECORDING, outcome=SearchStepOutcome.WARNING, detail="nothing"),
+    ]
+    assert si.persisted_trace_count == 0

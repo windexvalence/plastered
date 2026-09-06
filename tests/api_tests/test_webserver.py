@@ -14,7 +14,7 @@ from plastered.api.api_models import (
     ScrapeScheduleRequest,
     ScrapeScheduleResponse,
 )
-from plastered.api.constants import _format_timestamp, _status_label
+from plastered.api.constants import _format_timestamp, _stage_label, _status_label
 from plastered.config.app_settings import AppSettings
 from plastered.db.db_models import (
     Failed,
@@ -28,11 +28,13 @@ from plastered.db.db_models import (
     ScraperRunStatus,
     ScrapeSchedule,
     SearchRecord,
+    SearchStep,
     Skipped,
     SkipReason,
     Status,
     get_engine,
 )
+from plastered.models import SearchStage, SearchStepOutcome
 from plastered.models.types import EntityType
 from plastered.version import get_project_version
 
@@ -238,6 +240,66 @@ def test_adhoc_result_fragment_polls_in_place(client: TestClient) -> None:
     assert 'hx-target="this"' in text
     assert 'hx-swap="outerHTML"' in text
     assert "#adhoc-result" not in text
+
+
+def _step(position: int, stage: SearchStage, outcome: SearchStepOutcome, detail: str) -> SearchStep:
+    return SearchStep(search_id=69, position=position, stage=stage, outcome=outcome, detail=detail)
+
+
+_NO_MATCH_STEPS = [
+    _step(0, SearchStage.RED_ARTIST, SearchStepOutcome.OK, 'RED lists 3 release groups for artist "Fake Artist"'),
+    _step(1, SearchStage.RED_MATCH, SearchStepOutcome.WARNING, 'no release group titled like "Fake Album"'),
+    _step(2, SearchStage.RED_MATCH, SearchStepOutcome.STOPPED, "No RED match found"),
+]
+
+
+def test_adhoc_result_fragment_renders_the_search_trace(client: TestClient) -> None:
+    """A no-match result names the stage the search stopped at and shows the trace expanded, one row per step."""
+    result = _adhoc_result(
+        Status.SKIPPED, skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND), steps=_NO_MATCH_STEPS
+    )
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
+        text = client.get("/adhoc_result?search_id=69").text
+    assert "Stopped at <strong>RED release matching</strong>: No RED match found" in text
+    assert '<details class="search-trace" open>' in text
+    assert text.count('<li class="trace-') == 3
+    assert 'class="trace-ok"' in text and 'class="trace-warning"' in text and 'class="trace-stopped"' in text
+    assert "RED artist lookup" in text and "RED lists 3 release groups for artist" in text
+    assert "no release group titled like" in text
+    assert "Reason:" not in text
+
+
+def test_adhoc_result_fragment_skipped_without_a_trace_shows_the_reason(client: TestClient) -> None:
+    """A search recorded before traces existed still shows its skip reason (no stage to name)."""
+    result = _adhoc_result(Status.SKIPPED, skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND))
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
+        text = client.get("/adhoc_result?search_id=69").text
+    assert "Reason: No RED match found" in text
+    assert "search-trace" not in text
+
+
+def test_adhoc_result_fragment_trace_is_collapsed_for_a_match(client: TestClient) -> None:
+    matched = _adhoc_result(
+        Status.MATCHED,
+        matched=Matched(m_result_id=69, tid=420, red_permalink="https://red/x", size_gb=1.0),
+        steps=[_step(0, SearchStage.RED_MATCH, SearchStepOutcome.OK, "matched torrent 420")],
+    )
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=matched):
+        text = client.get("/adhoc_result?search_id=69").text
+    assert '<details class="search-trace">' in text
+    assert "matched torrent 420" in text
+
+
+def test_adhoc_result_fragment_in_progress_shows_the_trace_so_far(client: TestClient) -> None:
+    """While polling, the trace is a plain list (a toggle would be reset by every 2s swap)."""
+    in_progress = _adhoc_result(Status.IN_PROGRESS, steps=_NO_MATCH_STEPS[:1])
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=in_progress):
+        text = client.get("/adhoc_result?search_id=69").text
+    assert 'hx-get="/adhoc_result?search_id=69"' in text
+    assert "Search trace so far" in text
+    assert "<details" not in text
+    assert text.count('<li class="trace-') == 1
+    assert "RED lists 3 release groups for artist" in text
 
 
 def test_adhoc_retry_submit(client: TestClient) -> None:
@@ -792,6 +854,11 @@ def test_format_timestamp_filter() -> None:
     assert isinstance(_format_timestamp(1759680000), str) and len(_format_timestamp(1759680000)) == len(
         "2025-01-01 00:00:00"
     )
+
+
+def test_stage_label_filter() -> None:
+    assert _stage_label(SearchStage.RED_MATCH) == "RED release matching"
+    assert _stage_label("lfm_track_info") == "Last.fm track lookup"
 
 
 def test_status_label_filter() -> None:

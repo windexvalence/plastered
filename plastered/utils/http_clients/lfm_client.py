@@ -61,7 +61,7 @@ class LFMAPIClient(ThrottledAPIBaseClient):
             ) from ex
         # LMF API does non-standard stuff with surfacing errors sometimes.
         if "error" in json_data:
-            raise LFMClientException(f"LFM API error encounterd. LFM error code: '{json_data['error']}'")
+            raise LFMClientException(f"LFM API error encountered. LFM error code: '{json_data['error']}'")
         top_key = method.split(".")[0]
         return json_data[top_key]
 

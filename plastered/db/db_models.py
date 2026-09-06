@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Self
 
 from sqlmodel import Field, SQLModel, create_engine
 
-from plastered.models import OriginSource
+from plastered.models import OriginSource, SearchStage, SearchStepOutcome
 from plastered.models.types import EncodingEnum, EntityType, FormatEnum, MediaEnum
 from plastered.utils.exceptions import RedClientSnatchException
 
@@ -172,6 +172,22 @@ class ResolvedOrigin(SQLModel, table=True):
     candidate_rank: int
     candidate_count: int
     matched: bool = Field(default=False)
+
+
+class SearchStep(SQLModel, table=True):
+    """
+    One step of an ad-hoc search's trace (see `plastered.models.search_trace`): what a stage of the processor chain
+    found, in chain order (`position`, 0-based). Rows are written as the search progresses (`persist_search_trace`),
+    so a search that finds no release shows where it stopped: the stopping filter's step carries the `STOPPED`
+    outcome.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    search_id: int | None = Field(default=None, foreign_key="searchrecord.id", index=True)
+    position: int
+    stage: SearchStage
+    outcome: SearchStepOutcome
+    detail: str
 
 
 class ScraperRunStatus(StrEnum):
