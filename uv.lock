@@ -1026,6 +1026,7 @@ dependencies = [
     { name = "sqlmodel" },
     { name = "starlette" },
     { name = "tenacity" },
+    { name = "tzlocal" },
     { name = "urllib3" },
 ]
 
@@ -1070,6 +1071,7 @@ requires-dist = [
     { name = "sqlmodel", specifier = "==0.0.42" },
     { name = "starlette", specifier = ">=1.6.0" },
     { name = "tenacity", specifier = "==9.1.4" },
+    { name = "tzlocal", specifier = "==5.4.4" },
     { name = "urllib3", specifier = "==2.7.0" },
 ]
 

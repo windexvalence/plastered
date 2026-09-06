@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from tzlocal import get_localzone_name
 
 from plastered.api.api_models import ScrapeScheduleRequest
 from plastered.db.db_models import ScrapeCadence
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
 SCRAPE_SCHEDULE_FRAGMENT: Final[str] = "fragments/scrape_schedule_fragment.html"
 _DEFAULT_RUN_AT: Final[str] = "03:00"
+_UNKNOWN_TIMEZONE: Final[str] = "unknown"
 
 
 def build_scrape_schedule_request_from_form(
@@ -47,4 +49,7 @@ def scrape_schedule_template_context(schedule: ScrapeScheduleResponse | None) ->
         "cadences": list(ScrapeCadence),
         "cadence_label": ScrapeCadence(current.cadence).display_name if current is not None else None,
         "run_at": f"{current.hour:02d}:{current.minute:02d}" if current is not None else _DEFAULT_RUN_AT,
+        # tzlocal yields None (despite its `str` annotation) when no zone name is discoverable, e.g. a
+        # bind-mounted /etc/localtime that is a regular file rather than a symlink.
+        "system_timezone": get_localzone_name() or _UNKNOWN_TIMEZONE,
     }

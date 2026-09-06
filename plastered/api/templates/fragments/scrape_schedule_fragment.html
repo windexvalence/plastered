@@ -2,7 +2,8 @@
   Scheduled-scrape section of the LFM scraper page. Rendered into #scrape-schedule on page load and re-served by
   GET / POST / DELETE /scrape_schedule. `schedule` is a ScrapeScheduleResponse (None when no scheduled scrape is
   configured); `cadences` are the ScrapeCadence options; `cadence_label` / `run_at` pre-fill the form from the
-  current schedule (`run_at` defaults to 03:00 when there is none).
+  current schedule (`run_at` defaults to 03:00 when there is none); `system_timezone` is the server's IANA zone name
+  (or "unknown" when none is discoverable).
 #}
 <div id="scrape-schedule-inner">
     {% if schedule %}
@@ -10,7 +11,7 @@
         <p><strong>⏰ A scheduled scrape is configured.</strong></p>
         <table>
             <tr><th>Field</th><th>Value</th></tr>
-            <tr><td>Runs</td><td>{{ cadence_label }} at {{ run_at }} <small>(server local time)</small></td></tr>
+            <tr><td>Runs</td><td>{{ cadence_label }} at {{ run_at }} <small>(server local time: {{ system_timezone }})</small></td></tr>
             <tr><td>Recommendation type</td><td>{{ current.rec_type if current.rec_type else "all (per config)" }}</td></tr>
             <tr><td>Downloads</td><td>{{ "enabled" if current.snatch_enabled else "disabled" }}</td></tr>
             <tr><td>Next run</td><td>{{ schedule.next_run_timestamp | format_timestamp }}</td></tr>
