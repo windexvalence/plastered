@@ -16,14 +16,16 @@ ADD "https://raw.githubusercontent.com/bigskysoftware/htmx/refs/tags/v${HTMX_VER
 #         static/template files for FastAPI). --sh-boot: cheap re-boot via a shell shim.
 RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
     uv lock --check \
-    && uv export --locked --no-group test --no-emit-project --no-hashes -o requirements.txt \
+    && uv export --locked --no-group test --no-group build --no-emit-project --no-hashes -o requirements.txt \
     && SETUPTOOLS_SCM_PRETEND_VERSION="${PLASTERED_RELEASE_TAG:-0.0.0}" uv build --wheel --out-dir ./dist \
-    && uv tool run pex \
+    && uv run --only-group build pex \
         -r requirements.txt \
         ./dist/plastered-*.whl \
         -m plastered.main \
-        --venv --sh-boot \
-        -o /plastered.pex
+        --venv \
+		--sh-boot \
+		--rc \
+		-o /plastered.pex
 
 ########## Stage 2: the app image (the published end-user product) ##########
 FROM python:3.14.7-slim-bookworm AS plastered-app

@@ -941,6 +941,16 @@ wheels = [
 ]
 
 [[package]]
+name = "pex"
+version = "2.103.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/17/56f14fde18f0b36c2660e904255e2df4445203f8101cdef7e230e7483d99/pex-2.103.2.tar.gz", hash = "sha256:e19abb0a6eec5525b7f3ef0ecfa22dc0618e16e248f0b844f8489f0ca3d09f2c", size = 5458123, upload-time = "2026-09-18T14:41:42.33Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/68/34ebdf0e5486d2afa8ccbd6afdb02687c2b67b5de5df0ad93f29289f41b6/pex-2.103.2-py2.py35.py36.py37.py38.py39.py310.py311-none-any.whl", hash = "sha256:5847646d9fabe12815dc4ee32a000c7925017f370584ca97e21871c24ea9680f", size = 4132353, upload-time = "2026-09-18T14:41:37.82Z" },
+    { url = "https://files.pythonhosted.org/packages/59/f6/57f411766dab83ee570fcd694dc778093911777a7738c41b81a5bb3374cc/pex-2.103.2-py3.py312-none-any.whl", hash = "sha256:f1316f1f6f0e125c44c8d6f49cd6ebc4b294b7582a385b3999e814824e607ec7", size = 1949210, upload-time = "2026-09-18T14:41:40.433Z" },
+]
+
+[[package]]
 name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1031,6 +1041,9 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+build = [
+    { name = "pex" },
+]
 test = [
     { name = "bandit" },
     { name = "fastapi", extra = ["standard"] },
@@ -1076,6 +1089,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+build = [{ name = "pex", specifier = ">=2.103" }]
 test = [
     { name = "bandit", specifier = "==1.9.4" },
     { name = "fastapi", extras = ["standard"] },

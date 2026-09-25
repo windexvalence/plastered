@@ -30,6 +30,11 @@ dependencies = [
 ]
 
 [dependency-groups]
+# package the runtime app into a pex to significantly cut down image size and enforce semi-hermetic builds
+# https://docs.pex-tool.org/recipes.html#pex-app-in-a-container
+build = [
+	"pex>=2.103",
+]
 test = [
 	"bandit==1.9.4",
 	"fastapi[standard]",
