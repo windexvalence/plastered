@@ -219,10 +219,11 @@ def test_session_cookie_grants_access(auth_enabled_client: TestClient) -> None:
     assert resp.status_code == 200
 
 
-def test_unauthenticated_browser_redirected_to_login_page(auth_enabled_client: TestClient) -> None:
-    resp = auth_enabled_client.get("/run_history", headers={"accept": "text/html"}, follow_redirects=False)
+@pytest.mark.parametrize("path", ["/run_history", "/search_trace_modal?search_id=1"])
+def test_unauthenticated_browser_redirected_to_login_page(auth_enabled_client: TestClient, path: str) -> None:
+    resp = auth_enabled_client.get(path, headers={"accept": "text/html"}, follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/login?next=/run_history"
+    assert resp.headers["location"] == f"/login?next={path.partition('?')[0]}"  # `next` carries the path only
 
 
 @pytest.mark.parametrize(

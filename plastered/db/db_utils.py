@@ -136,12 +136,10 @@ def upsert_resolved_origin(
 
 def persist_search_trace(si: SearchItem) -> None:
     """
-    Writes an ad-hoc search item's trace steps not yet in the DB as `SearchStep` rows of its search. A no-op when
-    there are none, so it is safe to call after every processor of the chain. A scraper item's trace is never
-    persisted: nothing renders it, and a scraper run processes hundreds of items.
+    Writes a search item's trace steps not yet in the DB as `SearchStep` rows of its search, for ad-hoc and scraper
+    items alike, so the run-history page can show any past search's trace. A no-op when there are none, so it is safe
+    to call after every processor of the chain.
     """
-    if not si.is_manual:
-        return
     new_steps = si.trace[si.persisted_trace_count :]
     if not new_steps:
         return

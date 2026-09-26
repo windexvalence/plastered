@@ -85,12 +85,14 @@ def test_header_help_button_present_on_all_pages(client: TestClient) -> None:
 
 
 def test_help_modal_fragment(client: TestClient) -> None:
-    """The help modal's doc links are pinned to this build's release tag."""
+    """The help modal's doc links are pinned to this build's release tag; it closes on an underlay (outside) click."""
     expected_version = get_project_version()
     resp = client.get("/help_modal")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
     assert 'id="modal"' in resp.text
+    assert 'class="modal-underlay" hx-on:click=' in resp.text
+    assert '_="' not in resp.text  # no _hyperscript: it is not loaded
     for doc in ("user_guide.md", "FAQ.md", "config_reference.md"):
         assert f'href="https://github.com/windexvalence/plastered/blob/v{expected_version}/docs/{doc}"' in resp.text
 
@@ -140,11 +142,11 @@ def test_adhoc_result_fragment_missing(client: TestClient) -> None:
         assert resp.status_code == 404
 
 
-def _adhoc_result(status: Status, **status_rows: object) -> AdhocSearchResult:
+def _adhoc_result(status: Status, is_manual: bool = True, **status_rows: object) -> AdhocSearchResult:
     record = SearchRecord(
         id=69,
         submit_timestamp=1759680000,
-        is_manual=True,
+        is_manual=is_manual,
         entity_type=EntityType.ALBUM,
         artist="Fake Artist",
         entity="Fake Album",
@@ -300,6 +302,101 @@ def test_adhoc_result_fragment_in_progress_shows_the_trace_so_far(client: TestCl
     assert "<details" not in text
     assert text.count('<li class="trace-') == 1
     assert "RED lists 3 release groups for artist" in text
+
+
+def test_search_trace_modal_fragment_renders_the_trace(client: TestClient) -> None:
+    """The run-history trace modal renders the search's trace with a working underlay (outside) click + Close button."""
+    result = _adhoc_result(
+        Status.SKIPPED, skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND), steps=_NO_MATCH_STEPS
+    )
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result) as mock_action:
+        resp = client.get("/search_trace_modal?search_id=69")
+    mock_action.assert_called_once_with(search_id=69, session=ANY)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == _EXPECTED_HTML_CONTENT_TYPE
+    text = resp.text
+    assert 'id="modal"' in text
+    assert 'class="modal-content modal-wide"' in text
+    assert 'class="modal-underlay" hx-on:click=' in text
+    assert ">Close</button>" in text
+    assert 'Search trace for "Fake Album" by Fake Artist' in text
+    assert "Ad-hoc search" in text
+    assert "Stopped at <strong>RED release matching</strong>: No RED match found" in text
+    assert text.count('<li class="trace-') == 3
+    assert "RED lists 3 release groups for artist" in text
+    assert "still in progress" not in text
+    assert "hx-trigger" not in text  # the modal does not poll
+
+
+def test_search_trace_modal_fragment_labels_scraper_records(client: TestClient) -> None:
+    result = _adhoc_result(
+        Status.SKIPPED,
+        is_manual=False,
+        skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND),
+        steps=_NO_MATCH_STEPS,
+    )
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
+        text = client.get("/search_trace_modal?search_id=69").text
+    assert "Scraper recommendation" in text
+    assert "Ad-hoc search" not in text
+
+
+def test_search_trace_modal_fragment_without_steps_shows_empty_state(client: TestClient) -> None:
+    """A search recorded before traces were kept (e.g. an old scraper rec) explains that no trace exists."""
+    result = _adhoc_result(Status.SKIPPED, skipped=Skipped(s_result_id=69, skip_reason=SkipReason.NO_MATCH_FOUND))
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
+        text = client.get("/search_trace_modal?search_id=69").text
+    assert "No search trace was recorded for this search" in text
+    assert '<ol class="search-trace">' not in text
+    assert "Stopped at" not in text
+    assert "Skipped: No RED match found" in text  # the reason still shows without a stage to name
+
+
+@pytest.mark.parametrize(
+    "result, expected_reason",
+    [
+        (
+            _adhoc_result(
+                Status.SKIPPED,
+                skipped=Skipped(s_result_id=69, skip_reason=SkipReason.ABOVE_MAX_ALLOWED_SIZE),
+                steps=[_step(0, SearchStage.RED_MATCH, SearchStepOutcome.OK, "matched torrent 420")],
+            ),
+            f"Skipped: {SkipReason.ABOVE_MAX_ALLOWED_SIZE}",
+        ),
+        (
+            _adhoc_result(
+                Status.FAILED,
+                failed=Failed(f_result_id=69, fail_reason=FailReason.OTHER),
+                steps=[_step(0, SearchStage.RED_MATCH, SearchStepOutcome.OK, "matched torrent 420")],
+            ),
+            f"Failed: {FailReason.OTHER}",
+        ),
+    ],
+)
+def test_search_trace_modal_fragment_shows_the_reason_decided_after_the_chain(
+    client: TestClient, result: AdhocSearchResult, expected_reason: str
+) -> None:
+    """A skip/failure decided after the chain (ratio cap, failed snatch) has no STOPPED step: show its bare reason."""
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=result):
+        text = client.get("/search_trace_modal?search_id=69").text
+    assert expected_reason in text
+    assert "Stopped at" not in text
+    assert text.count('<li class="trace-') == 1
+
+
+def test_search_trace_modal_fragment_in_progress_shows_the_trace_so_far(client: TestClient) -> None:
+    in_progress = _adhoc_result(Status.IN_PROGRESS, steps=_NO_MATCH_STEPS[:1])
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=in_progress):
+        text = client.get("/search_trace_modal?search_id=69").text
+    assert "still in progress" in text
+    assert text.count('<li class="trace-') == 1
+    assert "hx-trigger" not in text
+
+
+def test_search_trace_modal_fragment_missing(client: TestClient) -> None:
+    with patch("plastered.api.routes.webserver_routes.adhoc_result_action", return_value=None):
+        resp = client.get("/search_trace_modal?search_id=69")
+    assert resp.status_code == 404
 
 
 def test_adhoc_retry_submit(client: TestClient) -> None:
@@ -636,6 +733,26 @@ def test_run_history_list_fragment_renders_scraper_run_row(client: TestClient) -
     assert "Scraped Artist" in text  # nested rec shown on expand
 
 
+def test_run_history_list_fragment_links_to_the_search_trace(client: TestClient) -> None:
+    """Every ad-hoc row offers a "View search trace" link that opens the trace modal over the page."""
+    row = _adhoc_row(
+        id=1,
+        submit_timestamp=1759680000,
+        is_manual=True,
+        entity_type=EntityType.ALBUM,
+        artist="Aphex Twin",
+        entity="Drukqs",
+        status=Status.SKIPPED,
+    )
+    with patch("plastered.api.routes.webserver_routes.run_history_page_action", return_value=_run_history_page([row])):
+        text = client.get("/run_history_list").text
+    assert "<td>Search trace</td>" in text
+    assert 'hx-get="/search_trace_modal?search_id=1"' in text
+    assert 'hx-target="body"' in text
+    assert 'hx-swap="beforeend"' in text
+    assert text.count("View search trace") == 1
+
+
 def _skipped_item(search_id: int, skip_reason: SkipReason | None, is_manual: bool = True) -> RunHistoryItem:
     rec = SearchRecord(
         id=search_id,
@@ -767,6 +884,19 @@ def test_scraper_run_recs_fragment_readonly_when_downloads_enabled(client: TestC
     assert "Snatch selected recs" not in text
 
 
+@pytest.mark.parametrize("snatch_enabled", [False, True])
+def test_scraper_run_recs_fragment_links_to_the_search_trace(client: TestClient, snatch_enabled: bool) -> None:
+    """Both the interactive and the read-only recs tables carry a "Search trace" column linking every rec's trace."""
+    with patch(
+        "plastered.api.routes.webserver_routes.scraper_run_recs_action", return_value=_scraper_recs(snatch_enabled)
+    ):
+        text = client.get("/scraper_run_recs?run_id=5").text
+    assert text.count("<th>Search trace</th>") == 1
+    assert 'hx-get="/search_trace_modal?search_id=10"' in text
+    assert 'hx-get="/search_trace_modal?search_id=11"' in text
+    assert text.count("View search trace") == 2
+
+
 def test_scraper_run_recs_fragment_shows_batch_progress(client: TestClient) -> None:
     batch = RecDownloadBatch(id=1, scraper_run_id=5, submit_timestamp=1, total=2, completed=1)
     with patch(
@@ -883,3 +1013,13 @@ def test_result_modal(client: TestClient) -> None:
         resp = client.get("/result_modal")
         assert resp.status_code == 200
         mock_template_response_constructor.assert_called_once()
+
+
+def test_result_modal_fragment_renders_a_closable_modal(client: TestClient) -> None:
+    # Render for real to validate result_modal.html: it closes on an underlay (outside) click and the Close button.
+    text = client.get("/result_modal?status=done&foo=bar").text
+    assert 'id="modal"' in text
+    assert "Final State: done" in text
+    assert "<td>foo</td>" in text
+    assert text.count("""hx-on:click="this.closest('#modal').remove()\"""") == 2
+    assert '_="' not in text

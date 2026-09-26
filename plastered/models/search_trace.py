@@ -1,7 +1,8 @@
 """
 The trace of a release search: one `TraceStep` per stage of the processor chain, recorded on the `SearchItem` as the
 chain runs and persisted as `SearchStep` rows (see `plastered.db.db_utils.persist_search_trace`). The ad-hoc search
-page renders it, so a search that finds no release shows what each stage found and where it stopped.
+page renders it inline and the run-history page opens any search's trace in a modal, so a search that finds no
+release shows what each stage found and where it stopped.
 """
 
 from __future__ import annotations

@@ -5,7 +5,9 @@
 
   For a downloads-disabled run, matched-but-undownloaded recs get a per-rec "Download Match?" checkbox plus
   "snatch selected" / "download all" controls. The snatches run sequentially through the shared throttled RED client.
+  Every rec row links to its search trace modal ("Search trace" column).
 #}
+{% from "fragments/search_trace_macros.html" import trace_link %}
 {% set ns = namespace(matched=0) %}
 {% for item in recs %}{% if item.searchrecord.status == "matched" %}{% set ns.matched = ns.matched + 1 %}{% endif %}{% endfor %}
 {% set batch_running = batch is not none and batch.status == "in_progress" %}
@@ -37,7 +39,7 @@
                 ⬇ Download all ({{ ns.matched }})
             </button>
             <table>
-                <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Download Match?</th></tr>
+                <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Download Match?</th><th>Search trace</th></tr>
                 {% for item in recs %}
                     <tr>
                         <td>{{ item.searchrecord.entity_type }}</td>
@@ -49,6 +51,7 @@
                                 <input type="checkbox" name="search_ids" value="{{ item.searchrecord.id }}">
                             {% else %}—{% endif %}
                         </td>
+                        <td>{{ trace_link(item.searchrecord.id) }}</td>
                     </tr>
                 {% endfor %}
             </table>
@@ -57,7 +60,7 @@
         {# Read-only: nothing to download (or a batch is in progress). The Reason column surfaces why non-matched
            recs were skipped/failed, to aid diagnosis. #}
         <table>
-            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Reason</th></tr>
+            <tr><th>Entity type</th><th>Artist</th><th>Entity</th><th>Status</th><th>Reason</th><th>Search trace</th></tr>
             {% for item in recs %}
                 <tr>
                     <td>{{ item.searchrecord.entity_type }}</td>
@@ -65,6 +68,7 @@
                     <td>{{ item.searchrecord.entity }}</td>
                     <td>{{ item.searchrecord.status | status_label }}</td>
                     <td>{% if item.skipped %}<code>{{ item.skipped.skip_reason }}</code>{% elif item.failed %}<code>{{ item.failed.fail_reason }}</code>{% else %}—{% endif %}</td>
+                    <td>{{ trace_link(item.searchrecord.id) }}</td>
                 </tr>
             {% endfor %}
         </table>

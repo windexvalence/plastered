@@ -399,6 +399,19 @@ async def help_modal(request: Request) -> HTMLResponse:
     )
 
 
+# GET /search_trace_modal?search_id=<int>  (run-history "View search trace" link: any search's trace in a modal)
+@plastered_web_router.get("/search_trace_modal")
+async def search_trace_modal(session: SessionDep, request: Request, search_id: int) -> HTMLResponse:
+    result = adhoc_result_action(search_id=search_id, session=session)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No search record matching search_id={search_id}."
+        )
+    return TEMPLATES.TemplateResponse(
+        request=request, name="fragments/search_trace_modal.html", context={"result": result}
+    )
+
+
 # /result_modal?<final-state-specific query parameters created by HTMX>
 @plastered_web_router.get("/result_modal")
 async def result_modal(request: Request) -> HTMLResponse:

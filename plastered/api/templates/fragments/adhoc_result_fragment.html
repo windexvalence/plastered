@@ -4,23 +4,12 @@
   parent. While the search is still in progress it re-requests itself (HTMX polling) every 2s; once a terminal status
   is reached it renders the matched release(s) + any snatch info and stops polling.
 
-  Below the result sits the search trace (`result.steps`): what each stage of the search found. While the search runs
-  it is a plain list refreshed with every poll (a toggle would be reset by each swap); once complete it is collapsible,
-  expanded unless a release was matched, so a search that found nothing shows where it stopped.
+  Below the result sits the search trace (`result.steps`, rendered by the shared `trace_list` macro): what each stage
+  of the search found. While the search runs it is a plain list refreshed with every poll (a toggle would be reset by
+  each swap); once complete it is collapsible, expanded unless a release was matched, so a search that found nothing
+  shows where it stopped.
 #}
-{% macro trace_list(steps) %}
-    <ol class="search-trace">
-        {% for step in steps %}
-            <li class="trace-{{ step.outcome }}">
-                <span class="trace-stage">
-                    {% if step.outcome == "stopped" %}⛔{% elif step.outcome == "warning" %}⚠️{% else %}✅{% endif %}
-                    {{ step.stage | stage_label }}
-                </span>
-                <span class="trace-detail">{{ step.detail }}</span>
-            </li>
-        {% endfor %}
-    </ol>
-{% endmacro %}
+{% from "fragments/search_trace_macros.html" import trace_list %}
 <div class="adhoc-result"
     {% if not result or not result.is_complete %}
         hx-get="/adhoc_result?search_id={{ search_id }}"

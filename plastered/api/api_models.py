@@ -50,7 +50,7 @@ class AdhocSearchResult(BaseModel):
     completed search this surfaces the matched release(s) (`matched` for a search-only run, or `grabbed` when a
     download was requested and succeeded) and any snatch information. `steps` is the search trace so far, in chain
     order (see `plastered.models.search_trace`): what each stage found and, for a search that found no release, where
-    it stopped.
+    it stopped. Despite the name it describes any search record; the run-history trace modal uses it for scraper recs.
     """
 
     searchrecord: SearchRecord

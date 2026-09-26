@@ -298,15 +298,20 @@ def test_upsert_resolved_origin_without_search_id_fails() -> None:
         )
 
 
-def test_persist_search_trace_writes_only_the_new_steps() -> None:
-    """Each call appends the steps traced since the last one, numbered by their position in the trace."""
+@pytest.mark.parametrize("kind", ["adhoc", "scraper"])
+def test_persist_search_trace_writes_only_the_new_steps(kind: str) -> None:
+    """
+    Each call appends the steps traced since the last one, numbered by their position in the trace — for a scraper
+    rec just like an ad-hoc search, so the run-history page can show any past search's trace.
+    """
     from plastered.db.db_models import SearchStep
     from plastered.db.db_utils import persist_search_trace
-    from plastered.models import AdhocSearch, SearchItem, SearchStage, SearchStepOutcome
+    from plastered.models import AdhocSearch, EntityType, LFMRec, SearchItem, SearchStage, SearchStepOutcome
 
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     SQLModel.metadata.create_all(engine)
-    si = SearchItem(initial_info=AdhocSearch(artist="a", release="r"), search_id=7)
+    initial_info = AdhocSearch(artist="a", release="r") if kind == "adhoc" else LFMRec("a", "r", EntityType.ALBUM)
+    si = SearchItem(initial_info=initial_info, search_id=7)
 
     def _rows() -> list[tuple[int, int, str, str, str]]:
         with Session(engine) as session:
@@ -332,19 +337,6 @@ def test_persist_search_trace_writes_only_the_new_steps() -> None:
     ]
     assert si.persisted_trace_count == 3
     engine.dispose()
-
-
-def test_persist_search_trace_skips_scraper_items() -> None:
-    """A scraper rec's trace stays in memory: nothing renders it, and a run processes hundreds of recs."""
-    from plastered.db.db_utils import persist_search_trace
-    from plastered.models import EntityType, LFMRec, SearchItem, SearchStage, SearchStepOutcome
-
-    si = SearchItem(initial_info=LFMRec("artist", "album", EntityType.ALBUM), search_id=7)
-    si.add_trace_step(stage=SearchStage.RED_ARTIST, outcome=SearchStepOutcome.OK, detail="3 groups")
-    with patch("plastered.db.db_utils.get_engine") as mock_get_engine:
-        persist_search_trace(si=si)
-    mock_get_engine.assert_not_called()
-    assert si.persisted_trace_count == 0
 
 
 def test_persist_search_trace_without_search_id_fails() -> None:

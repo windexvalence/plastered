@@ -72,7 +72,7 @@ The optional recurring scrape is driven by the app-scoped APScheduler `AsyncIOSc
 
 ### Persistence (`plastered/db/`)
 
-SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution. `AdhocRequest` stores each ad-hoc search's submitted request as JSON so the run-history page can re-submit it (`retry_adhoc_search` in `api/adhoc_helpers.py`). `SearchStep` rows hold an ad-hoc search's trace — one row per chain stage that ran (`models/search_trace.py`, written by `persist_search_trace` as the chain runs; scraper items are not persisted) — which the ad-hoc result fragment renders so a no-match search shows where it stopped.
+SQLModel over SQLite. `SearchRecord` is the main results table; status/skip/fail enums (`Status`, `SkipReason`, `FailReason`) live in `db/db_models.py`. `ResolvedOrigin` records, per track search, the origin release that was resolved / matched and its source, for measuring track-to-release resolution. `AdhocRequest` stores each ad-hoc search's submitted request as JSON so the run-history page can re-submit it (`retry_adhoc_search` in `api/adhoc_helpers.py`). `SearchStep` rows hold every search's trace, ad-hoc and scraper-created alike — one row per chain stage that ran (`models/search_trace.py`, written by `persist_search_trace` as the chain runs) — which the ad-hoc result fragment renders inline and the run-history page opens in a modal ("View search trace", `/search_trace_modal`) so a no-match search shows where it stopped.
 
 ## Conventions
 

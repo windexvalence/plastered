@@ -1,5 +1,5 @@
-<div id="modal" _="on closeModal add .closing then wait for animationend then remove me">
-	<div class="modal-underlay" _="on click trigger closeModal"></div>
+<div id="modal">
+	<div class="modal-underlay" hx-on:click="this.closest('#modal').remove()"></div>
 	<div class="modal-content">
 		{% if config_section_name == 'format_preferences' %}
             <h3>RED Format Preferences Settings</h3>
@@ -38,6 +38,6 @@
         {% endif %}
 		<br>
 		<br>
-		<button class="btn danger" hx-on:click='document.getElementById("modal").remove()'>Close</button>
+		<button class="btn danger" hx-on:click="this.closest('#modal').remove()">Close</button>
 	</div>
 </div>

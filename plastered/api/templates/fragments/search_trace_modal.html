@@ -1,0 +1,39 @@
+{#
+  Search-trace modal, opened over the current page by a run-history "View search trace" link. `result` is an
+  AdhocSearchResult for any search record (ad-hoc or scraper-created). Closes on the Close button or a click on the
+  underlay. It does not poll: an in-progress search shows the trace so far.
+#}
+{% from "fragments/search_trace_macros.html" import trace_list %}
+{% set record = result.searchrecord %}
+<div id="modal">
+    <div class="modal-underlay" hx-on:click="this.closest('#modal').remove()"></div>
+    <div class="modal-content modal-wide">
+        <h3>Search trace for "{{ record.entity }}" by {{ record.artist }}</h3>
+        <p><small>
+            {{ "Ad-hoc search" if record.is_manual else "Scraper recommendation" }} &nbsp;·&nbsp;
+            {{ record.entity_type }} &nbsp;·&nbsp;
+            Submitted {{ record.submit_timestamp | format_timestamp }} &nbsp;·&nbsp;
+            Status: <strong>{{ record.status | status_label }}</strong> &nbsp;·&nbsp;
+            search id {{ record.id }}
+        </small></p>
+        {# A filter's STOPPED step names the stage; a skip/failure decided after the chain (ratio cap, failed snatch)
+           has no such step, so fall back to the bare reason. #}
+        {% if result.skipped and result.stopped_step %}
+            <p>Stopped at <strong>{{ result.stopped_step.stage | stage_label }}</strong>: {{ result.skipped.skip_reason }}</p>
+        {% elif result.skipped %}
+            <p>Skipped: {{ result.skipped.skip_reason }}</p>
+        {% elif result.failed %}
+            <p>Failed: {{ result.failed.fail_reason }}</p>
+        {% endif %}
+        {% if not result.is_complete %}
+            <p><em>This search is still in progress — the trace so far is shown; close and re-open to refresh.</em></p>
+        {% endif %}
+        {% if result.steps %}
+            {{ trace_list(result.steps) }}
+        {% else %}
+            <p><em>No search trace was recorded for this search.</em></p>
+        {% endif %}
+        <br>
+        <button class="btn danger" hx-on:click="this.closest('#modal').remove()">Close</button>
+    </div>
+</div>

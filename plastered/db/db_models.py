@@ -176,10 +176,10 @@ class ResolvedOrigin(SQLModel, table=True):
 
 class SearchStep(SQLModel, table=True):
     """
-    One step of an ad-hoc search's trace (see `plastered.models.search_trace`): what a stage of the processor chain
-    found, in chain order (`position`, 0-based). Rows are written as the search progresses (`persist_search_trace`),
-    so a search that finds no release shows where it stopped: the stopping filter's step carries the `STOPPED`
-    outcome.
+    One step of a search's trace (see `plastered.models.search_trace`), ad-hoc or scraper-created: what a stage of the
+    processor chain found, in chain order (`position`, 0-based). Rows are written as the search progresses
+    (`persist_search_trace`), so a search that finds no release shows where it stopped: the stopping filter's step
+    carries the `STOPPED` outcome.
     """
 
     id: int | None = Field(default=None, primary_key=True)

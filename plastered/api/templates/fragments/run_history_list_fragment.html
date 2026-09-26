@@ -1,7 +1,9 @@
 {#
   Run-history results fragment: one expandable accordion row per run (ad-hoc search or LFM scraper run), plus
-  pagination controls. `page` is a RunHistoryPageResponse.
+  pagination controls. `page` is a RunHistoryPageResponse. Every ad-hoc row (and, via the recs sub-fragment, every
+  scraper rec) links to its search trace modal.
 #}
+{% from "fragments/search_trace_macros.html" import trace_link %}
 <div id="run-history-list">
     {% if page.rows %}
         <p><small>{{ page.total_count }} run(s) — page {{ page.page }} of {{ page.total_pages }}</small></p>
@@ -28,6 +30,7 @@
                         {% if rec.media or rec.format or rec.encoding %}
                             <tr><td>Media / Format / Encoding</td><td><code>{{ rec.media or "—" }} / {{ rec.format or "—" }} / {{ rec.encoding or "—" }}</code></td></tr>
                         {% endif %}
+                        <tr><td>Search trace</td><td>{{ trace_link(rec.id) }}</td></tr>
                     </table>
 
                     {% if row.adhoc.grabbed %}
