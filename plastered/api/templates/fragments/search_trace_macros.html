@@ -1,0 +1,19 @@
+{#
+  Shared search-trace macros. `trace_list` renders a search's SearchStep rows (one per chain stage that ran, colored
+  by outcome); `trace_link` is the run-history "View search trace" link, which opens the search's trace modal
+  (/search_trace_modal) over the current page.
+#}
+{% macro trace_list(steps) %}
+    <ol class="search-trace">
+        {% for step in steps %}
+            <li class="trace-{{ step.outcome }}">
+                <span class="trace-stage">
+                    {% if step.outcome == "stopped" %}⛔{% elif step.outcome == "warning" %}⚠️{% else %}✅{% endif %}
+                    {{ step.stage | stage_label }}
+                </span>
+                <span class="trace-detail">{{ step.detail }}</span>
+            </li>
+        {% endfor %}
+    </ol>
+{% endmacro %}
+{% macro trace_link(search_id) %}<a href="#" hx-get="/search_trace_modal?search_id={{ search_id }}" hx-target="body" hx-swap="beforeend">View search trace</a>{% endmacro %}

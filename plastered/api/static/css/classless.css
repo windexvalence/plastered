@@ -428,17 +428,19 @@ progress::-moz-progress-bar { background: var(--accent); }
     animation: zoomIn 150ms ease;
 }
 
-#modal.closing { animation: fadeOut 150ms ease; }
-#modal.closing > .modal-content { animation: zoomOut 150ms ease; }
+/* Wide, scrolling variant for content that can run long (the search trace modal). */
+#modal > .modal-content.modal-wide {
+    max-width: 900px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
 
 @keyframes fadeIn  { 0% { opacity: 0; } 100% { opacity: 1; } }
-@keyframes fadeOut { 0% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes zoomIn  { 0% { transform: scale(0.9); } 100% { transform: scale(1); } }
-@keyframes zoomOut { 0% { transform: scale(1); } 100% { transform: scale(0.9); } }
 
-/* ----------------------------------------------------------------- ad-hoc search trace */
+/* ----------------------------------------------------------------- search trace */
 
-/* One row per search stage (see fragments/adhoc_result_fragment.html); the stage label is colored by the outcome. */
+/* One row per search stage (see fragments/search_trace_macros.html); the stage label is colored by the outcome. */
 details.search-trace > summary { font-size: 0.95em; }
 
 ol.search-trace {

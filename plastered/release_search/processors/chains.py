@@ -92,6 +92,7 @@ class SearchItemProcessorChain:
         for processor in chain:
             passed = processor.process(si=si, state=self.search_state, lfm=self.lfm, mb=self.mb, red=self.red)
             # Flush what the processor traced right away, so the ad-hoc result page can follow the search live.
+            # Scraper items are persisted too: the run-history page opens any past search's trace.
             persist_search_trace(si=si)
             if not passed:
                 _LOGGER.debug(f"si for {si.initial_info} filtered by: {processor.__name__}")

@@ -1,5 +1,5 @@
-<div id="modal" _="on closeModal add .closing then wait for animationend then remove me">
-	<div class="modal-underlay" _="on click trigger closeModal"></div>
+<div id="modal">
+	<div class="modal-underlay" hx-on:click="this.closest('#modal').remove()"></div>
 	<div class="modal-content">
 		<h2>Help</h2>
 		Plastered User Guide: <a href="https://github.com/windexvalence/plastered/blob/v{{ plastered_version }}/docs/user_guide.md" target="_blank">here</a>
@@ -9,6 +9,6 @@
 		Plastered Config Reference: <a href="https://github.com/windexvalence/plastered/blob/v{{ plastered_version }}/docs/config_reference.md" target="_blank">here</a>
 		<br>
 		<br>
-		<button class="btn danger" hx-on:click='document.getElementById("modal").remove()'>Close</button>
+		<button class="btn danger" hx-on:click="this.closest('#modal').remove()">Close</button>
 	</div>
 </div>

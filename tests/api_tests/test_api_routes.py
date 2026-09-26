@@ -72,6 +72,17 @@ def test_show_config_endpoint_htmx(
         mock_show_config_action.assert_called_once()
 
 
+def test_show_config_sub_conf_fragment_renders_a_closable_modal(
+    client: TestClient, mock_htmx_request_headers: dict[str, str]
+) -> None:
+    # Render for real to validate sub_conf_table_fragment.html: an underlay (outside) click + Close button close it.
+    resp = client.get("/api/config?sub_conf=search", headers=mock_htmx_request_headers)
+    assert resp.status_code == 200
+    assert 'id="modal"' in resp.text
+    assert resp.text.count("""hx-on:click="this.closest('#modal').remove()\"""") == 2
+    assert '_="' not in resp.text
+
+
 @pytest.mark.parametrize("mock_record_found", [False, True])
 def test_inspect_run_endpoint(client: TestClient, mock_record_found: bool) -> None:
     mock_id = 69

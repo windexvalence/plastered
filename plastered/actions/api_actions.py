@@ -280,7 +280,8 @@ def adhoc_result_action(search_id: int, session: Session) -> AdhocSearchResult |
     """
     Returns the current `AdhocSearchResult` for the given search id (the search record plus whichever status row has
     been produced so far), or `None` if no record with that id exists. Used by both the JSON result endpoint and the
-    HTMX polling fragment to surface matched release(s) and any snatch information once the search completes.
+    HTMX polling fragment to surface matched release(s) and any snatch information once the search completes, and by
+    the run-history search trace modal, which serves any search record (ad-hoc or scraper-created).
     """
     record = session.exec(select(SearchRecord).where(SearchRecord.id == search_id)).first()
     if record is None:
