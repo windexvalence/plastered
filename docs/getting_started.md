@@ -1,4 +1,4 @@
-# `plastered` User Guide
+# Getting Started with `plastered`
 
 `plastered` runs as a web application: you launch its Docker container as a server and interact with it entirely
 through your browser.
@@ -10,7 +10,7 @@ Make sure you have completed the following before installing or using `plastered
 1. Setup a RED API key with `Torrents` and `Users` scoped permissions granted.
 2. Setup a Last.fm API key (see their instructions page [here](https://www.last.fm/api)).
 3. Have [Docker](https://docs.docker.com/get-started/get-docker/) installed on the host machine you intend to run this from.
-4. Have at least 1.5GB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies).
+4. Have at least 700MB of free disk space on your host machine to pull the image (the image is large due to the browser dependencies).
 
 ## 2: Configure the App
 
@@ -118,3 +118,8 @@ scheduled scraping off.
 ## 5. Full REST API Reference
 
 You can view the full API documentation for your server at `<plastered URL and port here>/docs`.
+
+## 6. More ways to use `plastered`
+
+See the [examples doc](./usage_examples.md) for more ways to use `plastered`, such as integrating shazam with it to trigger downloads
+on a song identification.

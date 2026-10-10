@@ -33,11 +33,11 @@ The same matching applies to ad-hoc searches, where any refinement fields you pr
 Yes. The LFM scraper page has a **Scheduled scrapes** section where you can set the scraper to run daily, every other
 day, weekly, every other week, or monthly at a chosen time of day (in the server's local time zone). No scheduled
 scrape runs unless you set one up, and a saved schedule is kept across restarts. See the
-[User Guide](./user_guide.md#scheduled-scrapes) for the details.
+[User Guide](./getting_started.md#scheduled-scrapes) for the details.
 
 ## How do I get started with using `plastered`?
 
-See the [User Guide](./user_guide.md)!
+See the [User Guide](./getting_started.md)!
 
 ## How do I configure `plastered` to do X thing?
 
