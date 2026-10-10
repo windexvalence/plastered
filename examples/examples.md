@@ -1,6 +1,6 @@
 # Examples
 
-This doc covers some additional `plastered` usage examples. You should make sure to have followed the instructions in the [user guide](../docs/user_guide.md) prior to reading this doc.
+This doc covers some additional `plastered` usage examples. You should make sure to have followed the instructions in the [user guide](../docs/getting_started.md) prior to reading this doc.
 
 These examples meant as a helpful reference for some potential usage options, but are not the required way to use plastered.
 

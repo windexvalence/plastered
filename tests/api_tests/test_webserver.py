@@ -93,7 +93,7 @@ def test_help_modal_fragment(client: TestClient) -> None:
     assert 'id="modal"' in resp.text
     assert 'class="modal-underlay" hx-on:click=' in resp.text
     assert '_="' not in resp.text  # no _hyperscript: it is not loaded
-    for doc in ("user_guide.md", "FAQ.md", "config_reference.md"):
+    for doc in ("getting_started.md", "FAQ.md", "config_reference.md"):
         assert f'href="https://github.com/windexvalence/plastered/blob/v{expected_version}/docs/{doc}"' in resp.text
 
 

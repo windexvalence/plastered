@@ -24,7 +24,7 @@ Some other nice perks:
 
 ## User Setup + Installation
 
-Refer to the [User Guide page](./docs/user_guide.md) for installation, configuration, and usage details.
+Refer to the [User Guide page](./docs/getting_started.md) for installation, configuration, and usage details.
 
 ## Releases
 
