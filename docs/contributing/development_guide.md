@@ -1,7 +1,7 @@
 # Development Guide
 
 ## Pre-requisites
-1. Install [`uv`](https://docs.astral.sh/uv/) if you do not already have it
+1. Install [`uv`](https://docs.astral.sh/uv/) if you do not already have it. The version MUST be `>= 0.13.4` (`uv self update`, or `UV_SYSTEM_CERTS=true uv self update` if the update itself fails and your OS trust store is current): older releases trust the compromised eMudhra/emSign CA roots ([details](https://discuss.python.org/t/109576)).
 
 ## Setup / Installation
 
