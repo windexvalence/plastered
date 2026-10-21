@@ -1,5 +1,9 @@
+# uv is pinned (not :latest) so builds are reproducible and dependabot can bump it. MUST be >= 0.13.4:
+# that release drops the compromised eMudhra/emSign roots (GHSA-hq85-5cpj-mr62).
+FROM ghcr.io/astral-sh/uv:0.13.4 AS uv
+
 ########## Stage 1: build the single-file app PEX ##########
-FROM python:3.14.7-slim-bookworm AS pex-builder
+FROM python:3.14.8-slim-bookworm AS pex-builder
 WORKDIR /build
 ENV HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js
 # The wheel's version comes from setuptools-scm: there is no .git in the build context, so it is
@@ -14,7 +18,7 @@ ADD "https://raw.githubusercontent.com/bigskysoftware/htmx/refs/tags/v${HTMX_VER
 # Export the locked runtime deps, build the plastered wheel, and build one PEX containing both.
 # --venv: install into a real venv under PEX_ROOT on first boot (fast imports, real on-disk
 #         static/template files for FastAPI). --sh-boot: cheap re-boot via a shell shim.
-RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
+RUN --mount=from=uv,source=/uv,target=/bin/uv \
     uv lock --check \
     && uv export --locked --no-group test --no-group build --no-emit-project --no-hashes -o requirements.txt \
     && SETUPTOOLS_SCM_PRETEND_VERSION="${PLASTERED_RELEASE_TAG:-0.0.0}" uv build --wheel --out-dir ./dist \
@@ -28,7 +32,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv:latest,source=/uv,target=/bin/uv \
 		-o /plastered.pex
 
 ########## Stage 2: the app image (the published end-user product) ##########
-FROM python:3.14.7-slim-bookworm AS plastered-app
+FROM python:3.14.8-slim-bookworm AS plastered-app
 ARG PLASTERED_RELEASE_TAG=""
 LABEL org.opencontainers.image.source="https://github.com/windexvalence/plastered"
 # Publish builds pass PLASTERED_RELEASE_TAG=vMAJOR.MINOR.PATCH, so the label carries the bare
@@ -86,8 +90,8 @@ USER plastered
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 ########## Stage 3: the test image (CI + local dev only; size does not matter here) ##########
-FROM python:3.14.7-slim-bookworm AS plastered-test
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+FROM python:3.14.8-slim-bookworm AS plastered-test
+COPY --from=uv /uv /uvx /bin/
 WORKDIR /app
 # Ensure uv installs in container do not create a virtualenv (since it is not needed in a container).
 ENV UV_PROJECT_ENVIRONMENT=/usr/local/ HTMX_VERSION=2.0.8 HTMX_FILENAME=htmx.min.js PYTHONDONTWRITEBYTECODE=1
