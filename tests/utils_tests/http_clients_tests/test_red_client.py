@@ -3,13 +3,21 @@ import re
 from typing import Any
 from unittest.mock import ANY, MagicMock, Mock, call, patch
 
+import httpx2
 import pytest
+import respx
 
 from plastered.config.app_settings import AppSettings
 from plastered.models.red_models import RedUserDetails, ReleaseEntry
 from plastered.models.types import RedReleaseType
-from plastered.utils.exceptions import RedUserDetailsInitError
+from plastered.utils.exceptions import RedClientException, RedRequestFailureException, RedUserDetailsInitError
 from plastered.utils.http_clients.red_client import RedAPIClient
+
+
+def _retry_settings(app_settings: AppSettings, retries: int) -> AppSettings:
+    """Settings copy with `retries` RED API attempts, so retry tests control attempt counts without sleeping."""
+    red_conf = app_settings.red.model_copy(update={"red_api_retries": retries})
+    return app_settings.model_copy(update={"red": red_conf})
 
 
 @pytest.mark.parametrize(
@@ -156,4 +164,60 @@ def test_request_api_missing_response_key_raises(httpx2_mock, valid_app_settings
     test_client = RedAPIClient(app_settings=valid_app_settings)
     test_client._throttle = Mock(name="_throttle", return_value=None)
     with pytest.raises(KeyError, match="missing expected"):
+        test_client.request_api(action="artist", params="artistname=Nobody")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_retries_server_errors_then_succeeds(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    """A 5xx is retried (throttled per attempt) and the first non-5xx response is used."""
+    route = httpx2_mock.route().mock(
+        side_effect=[
+            respx.MockResponse(503, text="<html>Service Temporarily Unavailable</html>"),
+            respx.MockResponse(502, text="<html>Bad Gateway</html>"),
+            respx.MockResponse(200, json={"status": "success", "response": {"id": 1}}),
+        ]
+    )
+    test_client = RedAPIClient(app_settings=_retry_settings(valid_app_settings, retries=3))
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    assert test_client.request_api(action="artist", params="artistname=Somebody") == {"id": 1}
+    assert route.call_count == 3
+    assert len(test_client._throttle.mock_calls) == 3
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_server_error_exhausts_retries(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    """The nginx 503 page seen during tracker maintenance surfaces as a `RedClientException`, not a JSON error."""
+    route = httpx2_mock.route().respond(503, text="<html>Service Temporarily Unavailable</html>")
+    test_client = RedAPIClient(app_settings=_retry_settings(valid_app_settings, retries=2))
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(RedClientException, match="Status code: 503"):
+        test_client.request_api(action="community_stats", params="userid=1")
+    assert route.call_count == 2
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_client_error_not_retried(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    route = httpx2_mock.route().respond(401, json={"status": "failure", "error": "bad credentials"})
+    test_client = RedAPIClient(app_settings=_retry_settings(valid_app_settings, retries=3))
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(RedClientException, match="Status code: 401"):
+        test_client.request_api(action="artist", params="artistname=Nobody")
+    assert route.call_count == 1
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_non_json_payload_raises(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    httpx2_mock.route().respond(200, text="<html>not json</html>")
+    test_client = RedAPIClient(app_settings=valid_app_settings)
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(RedRequestFailureException, match="non-JSON payload"):
+        test_client.request_api(action="artist", params="artistname=Nobody")
+
+
+@pytest.mark.override_global_httpx_mock
+def test_request_api_transport_error_raises(httpx2_mock, valid_app_settings: AppSettings) -> None:
+    httpx2_mock.route().mock(side_effect=httpx2.ConnectError("boom"))
+    test_client = RedAPIClient(app_settings=_retry_settings(valid_app_settings, retries=1))
+    test_client._throttle = Mock(name="_throttle", return_value=None)
+    with pytest.raises(RedRequestFailureException, match="ConnectError"):
         test_client.request_api(action="artist", params="artistname=Nobody")
