@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+from json import JSONDecodeError
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus
+
+import httpx2
 
 from plastered.models import RedUserDetails
 from plastered.models.red_models import ReleaseEntry
 from plastered.utils.constants import RED_API_BASE_URL, RED_JSON_RESPONSE_KEY
-from plastered.utils.exceptions import RedUserDetailsInitError
+from plastered.utils.exceptions import RedClientException, RedRequestFailureException, RedUserDetailsInitError
 from plastered.utils.http_clients.base_client import ThrottledAPIBaseClient
 
 if TYPE_CHECKING:
@@ -35,14 +38,40 @@ class RedAPIClient(ThrottledAPIBaseClient):
     def request_api(self, action: str, params: str) -> dict[str, Any]:
         """
         Helper method to hit the RED API with retries and rate-limits.
-        Returns the JSON response payload on success for all endpoints except 'download'.
-        Successful requests to the 'download' endpoint will have a return type of `bytes`.
-        Throws an Exception after `self.max_api_call_retries` consecutive failures.
+        Returns the JSON response payload on success.
+        5xx responses (e.g. the tracker's nginx 503 maintenance page) are retried up to `max_api_call_retries`
+        times, spaced by the throttle period, since the transport-level retries only cover connection errors.
+        Raises `RedRequestFailureException` on a connection/transport failure that survives the transport-level
+        retries or on a non-JSON payload, and the base `RedClientException` on an error status that survives the
+        retries. Raises `KeyError` when the JSON payload lacks the top-level response key (RED's failure payload).
         """
-        # Enforce request throttling before building and submitting the request.
-        self._throttle()
         url = f"{RED_API_BASE_URL}?action={action}&{params}"
-        json_data = self._client.get(url=url).json()
+        for attempt_number in range(1, self._max_api_call_retries + 1):
+            # Enforce request throttling before submitting each attempt.
+            self._throttle()
+            try:
+                response = self._client.get(url=url)
+            except httpx2.HTTPError as ex:
+                raise RedRequestFailureException(
+                    f"RED request failed for action '{action}' and params '{params}': {ex.__class__.__name__}: {ex}"
+                ) from ex
+            if not response.is_server_error:
+                break
+            _LOGGER.warning(
+                f"RED API returned status {response.status_code} for action '{action}' "
+                f"(attempt {attempt_number}/{self._max_api_call_retries})."
+            )
+        if response.is_error:
+            raise RedClientException(
+                f"Unexpected RED API error encountered for action '{action}' and params '{params}'. "
+                f"Status code: {response.status_code}"
+            )
+        try:
+            json_data = response.json()
+        except JSONDecodeError as ex:
+            raise RedRequestFailureException(
+                f"RED returned a non-JSON payload for action '{action}' and params '{params}'."
+            ) from ex
         if RED_JSON_RESPONSE_KEY not in json_data:
             raise KeyError(f"RED response JSON missing expected '{RED_JSON_RESPONSE_KEY}' key. JSON: '{json_data}'")
         return json_data[RED_JSON_RESPONSE_KEY]

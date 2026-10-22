@@ -58,6 +58,21 @@ class RedClientSnatchException(Exception):
     pass
 
 
+class RedClientException(Exception):
+    """Exception for failed request attempts to the RED API (error statuses that survive the 5xx retries)."""
+
+    pass
+
+
+class RedRequestFailureException(RedClientException):
+    """
+    RED API request failed at the infrastructure level: a connection/transport error that survived the
+    transport-level retries, or an unusable (non-JSON) payload such as the tracker's static HTML error page.
+    """
+
+    pass
+
+
 class RedUserDetailsInitError(Exception):
     """Exception for failed attempts to initialize the `RedUserDetails` instance."""
 
