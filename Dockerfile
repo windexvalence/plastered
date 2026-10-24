@@ -1,6 +1,6 @@
 # uv is pinned (not :latest) so builds are reproducible and dependabot can bump it. MUST be >= 0.13.4:
 # that release drops the compromised eMudhra/emSign roots (GHSA-hq85-5cpj-mr62).
-FROM ghcr.io/astral-sh/uv:0.13.4 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
 
 ########## Stage 1: build the single-file app PEX ##########
 FROM python:3.14.8-slim-bookworm AS pex-builder
